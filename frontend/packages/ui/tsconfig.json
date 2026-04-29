@@ -1,0 +1,4 @@
+{
+  "extends": "@gofin/config/tsconfig/base.json",
+  "include": ["src"]
+}
