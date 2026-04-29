@@ -1,6 +1,8 @@
 # Go binaries
 /services/*/cmd/main
 /services/*/cmd/*.exe
+/services/*/main
+/services/*/main.exe
 
 # Node.js
 node_modules/
