@@ -1,0 +1,11 @@
+{
+  "name": "gofin-frontend",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "turbo": "^2"
+  }
+}
