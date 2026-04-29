@@ -1,0 +1,29 @@
+# Go binaries
+/services/*/cmd/main
+/services/*/cmd/*.exe
+
+# Node.js
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE directories
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+data/
+
+# Turborepo cache
+.turbo/
