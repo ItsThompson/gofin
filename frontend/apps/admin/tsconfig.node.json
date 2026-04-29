@@ -1,0 +1,7 @@
+{
+  "extends": "@gofin/config/tsconfig/base.json",
+  "include": ["vite.config.ts"],
+  "compilerOptions": {
+    "noEmit": true
+  }
+}
