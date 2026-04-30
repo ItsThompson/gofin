@@ -51,6 +51,7 @@ services:
     networks:
       - edge-net
       - compute-net
+      - monitoring-net
     depends_on:
       - auth-service
       - expense-service
