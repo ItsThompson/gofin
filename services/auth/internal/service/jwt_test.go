@@ -2,7 +2,9 @@ package service
 
 import (
 	"testing"
+	"time"
 
+	gojwt "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,4 +69,27 @@ func TestRefreshTokenContainsJTI(t *testing.T) {
 
 	// Each refresh token should have a unique JTI
 	assert.NotEqual(t, refresh1, refresh2)
+}
+
+func TestValidateAccessToken_Expired(t *testing.T) {
+	jwtSvc := NewJWTService("test-secret")
+
+	// Construct a token that expired 1 hour ago
+	now := time.Now()
+	claims := AccessTokenClaims{
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Subject:   "user-123",
+			IssuedAt:  gojwt.NewNumericDate(now.Add(-2 * time.Hour)),
+			ExpiresAt: gojwt.NewNumericDate(now.Add(-1 * time.Hour)),
+		},
+		Role:     "user",
+		Username: "johndoe",
+	}
+	token := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims)
+	tokenStr, err := token.SignedString([]byte("test-secret"))
+	require.NoError(t, err)
+
+	_, err = jwtSvc.ValidateAccessToken(tokenStr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expired")
 }

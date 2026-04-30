@@ -51,6 +51,7 @@ func run() error {
 		logLevel = slog.LevelError
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	logger = logger.With(slog.String("service", "auth"))
 	slog.SetDefault(logger)
 
 	// Connect to PostgreSQL
@@ -63,7 +64,7 @@ func run() error {
 	if err := pool.Ping(ctx); err != nil {
 		return fmt.Errorf("pinging database: %w", err)
 	}
-	logger.Info("connected to PostgreSQL", slog.String("service", "auth"))
+	logger.Info("connected to PostgreSQL")
 
 	// Build dependency graph
 	queries := db.New(pool)
@@ -84,7 +85,6 @@ func run() error {
 
 	go func() {
 		logger.Info("gRPC server starting",
-			slog.String("service", "auth"),
 			slog.String("port", cfg.GRPCPort),
 		)
 		if err := grpcServer.Serve(grpcLis); err != nil {
@@ -109,7 +109,6 @@ func run() error {
 
 	go func() {
 		logger.Info("REST server starting",
-			slog.String("service", "auth"),
 			slog.String("port", cfg.RESTPort),
 		)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -118,14 +117,13 @@ func run() error {
 	}()
 
 	logger.Info("auth service ready",
-		slog.String("service", "auth"),
 		slog.String("rest_port", cfg.RESTPort),
 		slog.String("grpc_port", cfg.GRPCPort),
 	)
 
 	// Wait for shutdown signal
 	<-ctx.Done()
-	logger.Info("shutting down auth service", slog.String("service", "auth"))
+	logger.Info("shutting down auth service")
 
 	// Graceful shutdown: give in-flight requests up to 10 seconds
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)

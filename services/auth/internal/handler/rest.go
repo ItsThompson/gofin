@@ -58,7 +58,6 @@ func (h *RESTHandler) Register(c *gin.Context) {
 	h.setAuthCookies(c, tokens)
 
 	h.logger.Info("register handler completed",
-		slog.String("service", "auth"),
 		slog.String("method", "POST /api/auth/register"),
 		slog.String("user_id", user.ID),
 		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
@@ -91,7 +90,6 @@ func (h *RESTHandler) Login(c *gin.Context) {
 	h.setAuthCookies(c, tokens)
 
 	h.logger.Info("login handler completed",
-		slog.String("service", "auth"),
 		slog.String("method", "POST /api/auth/login"),
 		slog.String("user_id", user.ID),
 		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
@@ -140,7 +138,6 @@ func (h *RESTHandler) handleError(c *gin.Context, err error) {
 	}
 
 	h.logger.Error("unexpected error",
-		slog.String("service", "auth"),
 		slog.String("error", err.Error()),
 	)
 	c.JSON(http.StatusInternalServerError, model.ApiError{

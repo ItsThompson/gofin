@@ -282,8 +282,19 @@ func TestLoginHandler_Success(t *testing.T) {
 
 	// Verify cookies
 	cookies := w.Result().Cookies()
-	assert.NotNil(t, findCookie(cookies, "gofin_access"))
-	assert.NotNil(t, findCookie(cookies, "gofin_refresh"))
+	accessCookie := findCookie(cookies, "gofin_access")
+	require.NotNil(t, accessCookie, "expected gofin_access cookie")
+	assert.True(t, accessCookie.HttpOnly)
+	assert.Equal(t, "/api", accessCookie.Path)
+	assert.Equal(t, http.SameSiteStrictMode, accessCookie.SameSite)
+	assert.Equal(t, 900, accessCookie.MaxAge)
+
+	refreshCookie := findCookie(cookies, "gofin_refresh")
+	require.NotNil(t, refreshCookie, "expected gofin_refresh cookie")
+	assert.True(t, refreshCookie.HttpOnly)
+	assert.Equal(t, "/api/auth/refresh", refreshCookie.Path)
+	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
+	assert.Equal(t, 604800, refreshCookie.MaxAge)
 }
 
 func TestLoginHandler_InvalidCredentials(t *testing.T) {

@@ -32,7 +32,6 @@ func (h *GRPCHandler) ValidateToken(_ context.Context, req *pb.ValidateTokenRequ
 	result, err := h.authService.ValidateToken(req.GetAccessToken())
 	if err != nil {
 		h.logger.Warn("token validation failed",
-			slog.String("service", "auth"),
 			slog.String("method", "ValidateToken"),
 			slog.String("error", err.Error()),
 		)
