@@ -1,0 +1,46 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Dev overrides: volume mounts, debug ports, relaxed security
+  # ---------------------------------------------------------------------------
+  mfe:
+    environment:
+      - COOKIE_SECURE=false
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  api-gateway:
+    volumes:
+      - ./services/gateway:/app
+    ports:
+      - "40000:40000"
+    environment:
+      - ENVIRONMENT=development
+
+  auth-service:
+    volumes:
+      - ./services/auth:/app
+    ports:
+      - "40001:40001"
+    environment:
+      - BCRYPT_COST=4
+      - ENVIRONMENT=development
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin1234!}
+
+  expense-service:
+    volumes:
+      - ./services/expense:/app
+    ports:
+      - "40002:40002"
+    environment:
+      - ENVIRONMENT=development
+
+  finance-service:
+    volumes:
+      - ./services/finance:/app
+    ports:
+      - "40003:40003"
+    environment:
+      - ENVIRONMENT=development

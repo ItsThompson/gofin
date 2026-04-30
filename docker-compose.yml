@@ -1,0 +1,285 @@
+services:
+  # ---------------------------------------------------------------------------
+  # Node 1: Edge (MFE + Cloudflare tunnels)
+  # ---------------------------------------------------------------------------
+  mfe:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - API_GATEWAY_URL=http://api-gateway:8080
+      - COOKIE_SECURE=true
+    networks:
+      - edge-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    restart: unless-stopped
+
+  cloudflared-app:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://mfe:3000
+    networks:
+      - edge-net
+    depends_on:
+      - mfe
+    profiles:
+      - tunnels
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Node 2: Compute (API gateway + microservices)
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTH_SERVICE_ADDR=auth-service:9081
+      - AUTH_SERVICE_REST=http://auth-service:8081
+      - EXPENSE_SERVICE_REST=http://expense-service:8082
+      - FINANCE_SERVICE_REST=http://finance-service:8083
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    networks:
+      - edge-net
+      - compute-net
+    depends_on:
+      - auth-service
+      - expense-service
+      - finance-service
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+      - "9081:9081"
+    environment:
+      - AUTH_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=auth
+      - JWT_SECRET=${JWT_SECRET}
+      - BCRYPT_COST=${BCRYPT_COST:-12}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    networks:
+      - compute-net
+      - data-net
+      - monitoring-net
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
+  expense-service:
+    build:
+      context: ./services/expense
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+      - "9082:9082"
+    environment:
+      - IMMUDB_ADDR=immudb:3322
+      - IMMUDB_USERNAME=${IMMUDB_USERNAME:-immudb}
+      - IMMUDB_PASSWORD=${IMMUDB_PASSWORD:-immudb}
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    networks:
+      - compute-net
+      - data-net
+      - monitoring-net
+    depends_on:
+      immudb:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
+  finance-service:
+    build:
+      context: ./services/finance
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+      - "9083:9083"
+    environment:
+      - FINANCE_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=finance
+      - EXPENSE_SERVICE_ADDR=expense-service:9082
+      - JWT_SECRET=${JWT_SECRET}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    networks:
+      - compute-net
+      - data-net
+      - monitoring-net
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Node 3: Data (PostgreSQL + immudb)
+  # ---------------------------------------------------------------------------
+  postgresql:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=gofin
+      - POSTGRES_PASSWORD=gofin
+      - POSTGRES_DB=gofin
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - data-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gofin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+
+  immudb:
+    image: codenotary/immudb:latest
+    ports:
+      - "3322:3322"
+    volumes:
+      - immudata:/var/lib/immudb
+    networks:
+      - data-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Node 4: Monitoring (Prometheus, Alertmanager, Grafana, auth proxy, tunnel)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    networks:
+      - monitoring-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - monitoring-net
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - monitoring-net
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  grafana-auth-proxy:
+    build:
+      context: ./monitoring/auth-proxy
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - GRAFANA_URL=http://grafana:3000
+    networks:
+      - monitoring-net
+    depends_on:
+      - grafana
+    restart: unless-stopped
+
+  cloudflared-grafana:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://grafana-auth-proxy:3002
+    networks:
+      - monitoring-net
+    depends_on:
+      - grafana-auth-proxy
+    profiles:
+      - tunnels
+    restart: unless-stopped
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  edge-net:
+    driver: bridge
+  compute-net:
+    driver: bridge
+  data-net:
+    driver: bridge
+  monitoring-net:
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  pgdata:
+  immudata:
