@@ -37,6 +37,9 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("BCRYPT_COST must be an integer: %w", err)
 		}
 		bcryptCost = parsed
+		if bcryptCost < 4 || bcryptCost > 31 {
+			return nil, fmt.Errorf("BCRYPT_COST must be between 4 and 31")
+		}
 	}
 
 	logLevel := os.Getenv("LOG_LEVEL")

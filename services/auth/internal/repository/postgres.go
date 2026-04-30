@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/db"
@@ -31,6 +32,10 @@ func (r *PostgresUserRepository) CreateUser(ctx context.Context, username, email
 		Currency:     currency,
 	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, &DuplicateError{Constraint: pgErr.ConstraintName}
+		}
 		return nil, err
 	}
 	return dbUserToModel(dbUser), nil

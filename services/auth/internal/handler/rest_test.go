@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 )
 
@@ -121,11 +122,15 @@ func TestRegisterHandler_Success(t *testing.T) {
 	require.NotNil(t, accessCookie, "expected gofin_access cookie")
 	assert.True(t, accessCookie.HttpOnly)
 	assert.Equal(t, "/api", accessCookie.Path)
+	assert.Equal(t, http.SameSiteStrictMode, accessCookie.SameSite)
+	assert.Equal(t, 900, accessCookie.MaxAge) // 15 minutes
 
 	refreshCookie := findCookie(cookies, "gofin_refresh")
 	require.NotNil(t, refreshCookie, "expected gofin_refresh cookie")
 	assert.True(t, refreshCookie.HttpOnly)
 	assert.Equal(t, "/api/auth/refresh", refreshCookie.Path)
+	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
+	assert.Equal(t, 604800, refreshCookie.MaxAge) // 7 days
 }
 
 func TestRegisterHandler_WeakPassword(t *testing.T) {
@@ -194,9 +199,58 @@ func TestRegisterHandler_MissingFields(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrValidationError, errResp.Code)
 }
 
 // --- Login Handler Tests ---
+
+func TestRegisterHandler_DuplicateEmailFromConstraint(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	// Both uniqueness checks pass (TOCTOU race), but INSERT hits constraint
+	repo.On("GetUserByEmail", mock.Anything, "race@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", mock.Anything, "raceuser").Return(nil, nil)
+	repo.On("CreateUser", mock.Anything, "raceuser", "race@example.com", mock.AnythingOfType("string"), "user", "USD").
+		Return(nil, &repository.DuplicateError{Constraint: "users_email_key"})
+
+	w := doJSON(r, "POST", "/api/auth/register", map[string]string{
+		"username": "raceuser",
+		"email":    "race@example.com",
+		"password": "ValidPass1",
+	})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrDuplicateEmail, errResp.Code)
+}
+
+func TestRegisterHandler_DuplicateUsernameFromConstraint(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	repo.On("GetUserByEmail", mock.Anything, "unique@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", mock.Anything, "takenuser").Return(nil, nil)
+	repo.On("CreateUser", mock.Anything, "takenuser", "unique@example.com", mock.AnythingOfType("string"), "user", "USD").
+		Return(nil, &repository.DuplicateError{Constraint: "users_username_key"})
+
+	w := doJSON(r, "POST", "/api/auth/register", map[string]string{
+		"username": "takenuser",
+		"email":    "unique@example.com",
+		"password": "ValidPass1",
+	})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrDuplicateUsername, errResp.Code)
+}
 
 func TestLoginHandler_Success(t *testing.T) {
 	repo := new(mockUserRepository)

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -100,13 +102,17 @@ func run() error {
 	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction())
 	restHandler.RegisterRoutes(router)
 
+	httpServer := &http.Server{
+		Addr:    ":" + cfg.RESTPort,
+		Handler: router,
+	}
+
 	go func() {
-		addr := ":" + cfg.RESTPort
 		logger.Info("REST server starting",
 			slog.String("service", "auth"),
 			slog.String("port", cfg.RESTPort),
 		)
-		if err := router.Run(addr); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("REST server failed", slog.String("error", err.Error()))
 		}
 	}()
@@ -120,7 +126,15 @@ func run() error {
 	// Wait for shutdown signal
 	<-ctx.Done()
 	logger.Info("shutting down auth service", slog.String("service", "auth"))
+
+	// Graceful shutdown: give in-flight requests up to 10 seconds
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
 	grpcServer.GracefulStop()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("REST server shutdown error", slog.String("error", err.Error()))
+	}
 
 	return nil
 }

@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
@@ -37,13 +37,6 @@ func NewAuthService(
 // Register creates a new user after validating input, checking uniqueness,
 // and hashing the password. Returns the user and a token pair.
 func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) (*model.User, *model.TokenPair, error) {
-	start := time.Now()
-	defer func() {
-		s.logger.Info("register completed",
-			slog.String("method", "Register"),
-			slog.Duration("duration_ms", time.Since(start)),
-		)
-	}()
 
 	// Validate password strength
 	if err := ValidatePasswordStrength(req.Password); err != nil {
@@ -93,6 +86,21 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 	// Create user
 	user, err := s.repo.CreateUser(ctx, username, email, hash, "user", "USD")
 	if err != nil {
+		var dupErr *repository.DuplicateError
+		if errors.As(err, &dupErr) {
+			if strings.Contains(dupErr.Constraint, "email") {
+				return nil, nil, &AuthError{
+					Code:    model.ErrDuplicateEmail,
+					Message: "An account with this email already exists",
+					Status:  409,
+				}
+			}
+			return nil, nil, &AuthError{
+				Code:    model.ErrDuplicateUsername,
+				Message: "This username is already taken",
+				Status:  409,
+			}
+		}
 		return nil, nil, fmt.Errorf("creating user: %w", err)
 	}
 
@@ -116,13 +124,6 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 // Login authenticates a user by email and password.
 // Returns the user and a token pair on success.
 func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*model.User, *model.TokenPair, error) {
-	start := time.Now()
-	defer func() {
-		s.logger.Info("login completed",
-			slog.String("method", "Login"),
-			slog.Duration("duration_ms", time.Since(start)),
-		)
-	}()
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 )
 
 // mockUserRepository implements repository.UserRepository for testing.
@@ -179,6 +180,53 @@ func TestRegister_EmailNormalization(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "user-123", user.ID)
 	repo.AssertExpectations(t)
+}
+
+func TestRegister_DuplicateEmailFromConstraint(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	// Both uniqueness checks pass (TOCTOU race), but INSERT hits constraint
+	repo.On("GetUserByEmail", ctx, "race@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", ctx, "raceuser").Return(nil, nil)
+	repo.On("CreateUser", ctx, "raceuser", "race@example.com", mock.AnythingOfType("string"), "user", "USD").
+		Return(nil, &repository.DuplicateError{Constraint: "users_email_key"})
+
+	_, _, err := svc.Register(ctx, &model.RegisterRequest{
+		Username: "raceuser",
+		Email:    "race@example.com",
+		Password: "ValidPass1",
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrDuplicateEmail, authErr.Code)
+	assert.Equal(t, 409, authErr.Status)
+}
+
+func TestRegister_DuplicateUsernameFromConstraint(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	repo.On("GetUserByEmail", ctx, "unique@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", ctx, "raceuser").Return(nil, nil)
+	repo.On("CreateUser", ctx, "raceuser", "unique@example.com", mock.AnythingOfType("string"), "user", "USD").
+		Return(nil, &repository.DuplicateError{Constraint: "users_username_key"})
+
+	_, _, err := svc.Register(ctx, &model.RegisterRequest{
+		Username: "raceuser",
+		Email:    "unique@example.com",
+		Password: "ValidPass1",
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrDuplicateUsername, authErr.Code)
+	assert.Equal(t, 409, authErr.Status)
 }
 
 // --- Login Tests ---
