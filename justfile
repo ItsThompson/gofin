@@ -61,7 +61,10 @@ sqlc service:
 # Generate protobuf code
 proto service:
     cd services/{{service}} && \
-    protoc --go_out=. --go-grpc_out=. proto/*.proto
+    protoc \
+    --go_out=. --go_opt=module=github.com/thompsnt/gofin/services/{{service}} \
+    --go-grpc_out=. --go-grpc_opt=module=github.com/thompsnt/gofin/services/{{service}} \
+    proto/*.proto
 
 # Generate all protobuf code
 proto-all:

@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/thompsnt/gofin/services/auth/proto/authpb";
+
+service AuthService {
+  // Implemented in this ticket
+  rpc Register(RegisterRequest) returns (AuthResponse);
+  rpc Login(LoginRequest) returns (AuthResponse);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+
+  // Stubs: implemented in later tickets
+  rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  rpc AssumeIdentity(AssumeIdentityRequest) returns (AuthResponse);
+  rpc RestoreIdentity(RestoreIdentityRequest) returns (AuthResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc GetUser(GetUserRequest) returns (UserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Shared messages
+// ---------------------------------------------------------------------------
+
+message UserResponse {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string role = 4;
+  string currency = 5;
+  bool has_completed_onboarding = 6;
+  string created_at = 7;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  UserResponse user = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Register
+// ---------------------------------------------------------------------------
+
+message RegisterRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Login
+// ---------------------------------------------------------------------------
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+// ---------------------------------------------------------------------------
+// ValidateToken
+// ---------------------------------------------------------------------------
+
+message ValidateTokenRequest {
+  string access_token = 1;
+}
+
+message ValidateTokenResponse {
+  string user_id = 1;
+  string role = 2;
+  string username = 3;
+  string assumed_by = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Stubs (messages defined, RPCs return Unimplemented)
+// ---------------------------------------------------------------------------
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message LogoutResponse {}
+
+message AssumeIdentityRequest {
+  string target_user_id = 1;
+}
+
+message RestoreIdentityRequest {}
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated UserResponse users = 1;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message UpdateUserRequest {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+}
+
+message ChangePasswordRequest {
+  string user_id = 1;
+  string current_password = 2;
+  string new_password = 3;
+}
+
+message ChangePasswordResponse {}
