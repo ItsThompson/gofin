@@ -1,3 +1,3 @@
-module github.com/thompsnt/gofin/services/expense
+module github.com/ItsThompson/gofin/services/expense
 
 go 1.26

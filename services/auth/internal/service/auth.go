@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thompsnt/gofin/services/auth/internal/model"
-	"github.com/thompsnt/gofin/services/auth/internal/repository"
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 )
 
 // AuthService contains the business logic for authentication operations.

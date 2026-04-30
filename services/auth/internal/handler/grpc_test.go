@@ -11,8 +11,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/thompsnt/gofin/services/auth/internal/service"
-	pb "github.com/thompsnt/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
 
 func newTestGRPCHandler() (*GRPCHandler, *service.JWTService) {

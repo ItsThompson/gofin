@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thompsnt/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
 )
 
 // mockUserRepository implements repository.UserRepository for testing.

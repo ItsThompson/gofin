@@ -1,3 +1,3 @@
-module github.com/thompsnt/gofin/services/finance
+module github.com/ItsThompson/gofin/services/finance
 
 go 1.26

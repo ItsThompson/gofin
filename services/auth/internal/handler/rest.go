@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/thompsnt/gofin/services/auth/internal/model"
-	"github.com/thompsnt/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/service"
 )
 
 // RESTHandler handles HTTP requests for the auth service.

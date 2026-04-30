@@ -948,7 +948,7 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\aGetUser\x12\x14.auth.GetUserRequest\x1a\x12.auth.UserResponse\x129\n" +
 	"\n" +
 	"UpdateUser\x12\x17.auth.UpdateUserRequest\x1a\x12.auth.UserResponse\x12K\n" +
-	"\x0eChangePassword\x12\x1b.auth.ChangePasswordRequest\x1a\x1c.auth.ChangePasswordResponseB6Z4github.com/thompsnt/gofin/services/auth/proto/authpbb\x06proto3"
+	"\x0eChangePassword\x12\x1b.auth.ChangePasswordRequest\x1a\x1c.auth.ChangePasswordResponseB9Z7github.com/ItsThompson/gofin/services/auth/proto/authpbb\x06proto3"
 
 var (
 	file_proto_auth_proto_rawDescOnce sync.Once

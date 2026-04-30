@@ -1,3 +1,3 @@
-module github.com/thompsnt/gofin/services/gateway
+module github.com/ItsThompson/gofin/services/gateway
 
 go 1.26

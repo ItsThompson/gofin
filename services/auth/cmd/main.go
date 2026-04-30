@@ -13,12 +13,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 
-	"github.com/thompsnt/gofin/services/auth/internal/config"
-	"github.com/thompsnt/gofin/services/auth/internal/db"
-	"github.com/thompsnt/gofin/services/auth/internal/handler"
-	"github.com/thompsnt/gofin/services/auth/internal/repository"
-	"github.com/thompsnt/gofin/services/auth/internal/service"
-	pb "github.com/thompsnt/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/auth/internal/config"
+	"github.com/ItsThompson/gofin/services/auth/internal/db"
+	"github.com/ItsThompson/gofin/services/auth/internal/handler"
+	"github.com/ItsThompson/gofin/services/auth/internal/repository"
+	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
 
 func main() {

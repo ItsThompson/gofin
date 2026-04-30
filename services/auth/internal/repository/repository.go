@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/thompsnt/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
 )
 
 // UserRepository defines the data access contract for user operations.

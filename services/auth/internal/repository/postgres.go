@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/thompsnt/gofin/services/auth/internal/db"
-	"github.com/thompsnt/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/db"
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
 )
 
 // PostgresUserRepository implements UserRepository using sqlc-generated queries.

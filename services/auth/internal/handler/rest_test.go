@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thompsnt/gofin/services/auth/internal/model"
-	"github.com/thompsnt/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/auth/internal/service"
 )
 
 // mockUserRepository implements repository.UserRepository for handler tests.
