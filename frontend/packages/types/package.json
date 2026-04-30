@@ -12,7 +12,7 @@
     "lint": "eslint ."
   },
   "devDependencies": {
-    "@gofin/config": "workspace:*",
+    "@gofin/config": "*",
     "typescript": "^5"
   }
 }

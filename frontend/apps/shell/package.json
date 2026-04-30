@@ -10,13 +10,13 @@
     "test": "echo \"no tests yet\""
   },
   "dependencies": {
-    "@gofin/types": "workspace:*",
-    "@gofin/ui": "workspace:*",
+    "@gofin/types": "*",
+    "@gofin/ui": "*",
     "react": "^19",
     "react-dom": "^19"
   },
   "devDependencies": {
-    "@gofin/config": "workspace:*",
+    "@gofin/config": "*",
     "@tailwindcss/vite": "^4",
     "@types/node": "^22",
     "@types/react": "^19",

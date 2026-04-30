@@ -23,7 +23,7 @@
     "tw-animate-css": "^1"
   },
   "devDependencies": {
-    "@gofin/config": "workspace:*",
+    "@gofin/config": "*",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
