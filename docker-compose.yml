@@ -158,6 +158,12 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./services/auth/db/migrations/000001_create_users.up.sql:/docker-entrypoint-initdb.d/02-auth-001.sql:ro
+      - ./services/auth/db/migrations/000002_create_refresh_token_blacklist.up.sql:/docker-entrypoint-initdb.d/03-auth-002.sql:ro
+      - ./services/finance/db/migrations/000001_create_budget_periods.up.sql:/docker-entrypoint-initdb.d/04-finance-001.sql:ro
+      - ./services/finance/db/migrations/000002_create_default_settings.up.sql:/docker-entrypoint-initdb.d/05-finance-002.sql:ro
+      - ./services/finance/db/migrations/000003_create_tags.up.sql:/docker-entrypoint-initdb.d/06-finance-003.sql:ro
+      - ./services/finance/db/migrations/000004_create_pro_rata_schedules.up.sql:/docker-entrypoint-initdb.d/07-finance-004.sql:ro
     networks:
       - data-net
     healthcheck:
