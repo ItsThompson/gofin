@@ -1,0 +1,249 @@
+package router_test
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
+	"github.com/ItsThompson/gofin/services/gateway/internal/router"
+)
+
+func newSilentLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// mockValidator implements middleware.TokenValidator for router tests.
+type mockValidator struct {
+	result *middleware.TokenValidationResult
+	err    error
+}
+
+func (m *mockValidator) ValidateToken(_ context.Context, _ string) (*middleware.TokenValidationResult, error) {
+	return m.result, m.err
+}
+
+func validCookie() *http.Cookie {
+	return &http.Cookie{Name: "gofin_access", Value: "valid-token"}
+}
+
+func adminValidator() *mockValidator {
+	return &mockValidator{
+		result: &middleware.TokenValidationResult{
+			UserID:   "admin-1",
+			Role:     "admin",
+			Username: "admin",
+		},
+	}
+}
+
+func userValidator() *mockValidator {
+	return &mockValidator{
+		result: &middleware.TokenValidationResult{
+			UserID:   "user-1",
+			Role:     "user",
+			Username: "alice",
+		},
+	}
+}
+
+// setupGateway creates a full gateway test server backed by downstream httptest servers.
+// It returns a doRequest helper and cleans up all servers on test completion.
+func setupGateway(t *testing.T, validator middleware.TokenValidator) func(method, path string, cookie *http.Cookie) (*http.Response, string) {
+	t.Helper()
+
+	// Each downstream echoes its service name in a header so tests can verify routing.
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Downstream", "auth")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(authServer.Close)
+
+	expenseServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Downstream", "expense")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(expenseServer.Close)
+
+	financeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Downstream", "finance")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(financeServer.Close)
+
+	authURL, _ := url.Parse(authServer.URL)
+	expenseURL, _ := url.Parse(expenseServer.URL)
+	financeURL, _ := url.Parse(financeServer.URL)
+
+	engine := router.New(validator, &router.ServiceURLs{
+		AuthREST:    authURL,
+		ExpenseREST: expenseURL,
+		FinanceREST: financeURL,
+	}, newSilentLogger(), false)
+
+	// Use a real HTTP test server so the response writer supports CloseNotifier
+	// (required by httputil.ReverseProxy).
+	gatewayServer := httptest.NewServer(engine)
+	t.Cleanup(gatewayServer.Close)
+
+	client := gatewayServer.Client()
+	// Don't follow redirects: we want to inspect the raw response.
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	return func(method, path string, cookie *http.Cookie) (*http.Response, string) {
+		req, _ := http.NewRequest(method, gatewayServer.URL+path, nil)
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("request %s %s failed: %v", method, path, err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return resp, string(body)
+	}
+}
+
+func TestRouter_AuthRoutes_RouteToAuthService(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/auth/register"},
+		{http.MethodPost, "/api/auth/login"},
+		{http.MethodPost, "/api/auth/refresh"},
+		{http.MethodPost, "/api/auth/logout"},
+		{http.MethodGet, "/api/auth/me"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, _ := doRequest(tt.method, tt.path, validCookie())
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "auth", resp.Header.Get("X-Downstream"))
+		})
+	}
+}
+
+func TestRouter_ExpenseRoutes_RouteToExpenseService(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/expenses/"},
+		{http.MethodGet, "/api/expenses/?year=2026&month=5"},
+		{http.MethodGet, "/api/expenses/abc-123"},
+		{http.MethodPost, "/api/expenses/abc-123/correct"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, _ := doRequest(tt.method, tt.path, validCookie())
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "expense", resp.Header.Get("X-Downstream"))
+		})
+	}
+}
+
+func TestRouter_FinanceRoutes_RouteToFinanceService(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/finance/periods/current?year=2026&month=5"},
+		{http.MethodPost, "/api/finance/periods/"},
+		{http.MethodGet, "/api/finance/tags/"},
+		{http.MethodPost, "/api/finance/prorata/"},
+		{http.MethodGet, "/api/finance/summary/?year=2026&month=5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, _ := doRequest(tt.method, tt.path, validCookie())
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "finance", resp.Header.Get("X-Downstream"))
+		})
+	}
+}
+
+func TestRouter_AdminRoutes_RequireAdminRole(t *testing.T) {
+	doRequest := setupGateway(t, adminValidator())
+
+	resp, _ := doRequest(http.MethodGet, "/api/admin/users", validCookie())
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "auth", resp.Header.Get("X-Downstream"))
+}
+
+func TestRouter_AdminRoutes_RejectNonAdmin(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	resp, _ := doRequest(http.MethodGet, "/api/admin/users", validCookie())
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestRouter_AssumeEndpoint_RequiresAdmin(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	resp, body := doRequest(http.MethodPost, "/api/auth/assume", validCookie())
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assert.Contains(t, body, "FORBIDDEN")
+}
+
+func TestRouter_AssumeEndpoint_AdminPasses(t *testing.T) {
+	doRequest := setupGateway(t, adminValidator())
+
+	resp, _ := doRequest(http.MethodPost, "/api/auth/assume", validCookie())
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "auth", resp.Header.Get("X-Downstream"))
+}
+
+func TestRouter_UnauthenticatedRoutes_NoCookieNeeded(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/auth/register"},
+		{http.MethodPost, "/api/auth/login"},
+		{http.MethodPost, "/api/auth/refresh"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, _ := doRequest(tt.method, tt.path, nil)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "auth", resp.Header.Get("X-Downstream"))
+		})
+	}
+}
+
+func TestRouter_AuthenticatedRoute_NoCookie_Returns401(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	resp, _ := doRequest(http.MethodGet, "/api/expenses/", nil)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestRouter_HealthEndpoint(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	resp, body := doRequest(http.MethodGet, "/health", nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, `"status":"ok"`)
+}

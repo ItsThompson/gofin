@@ -35,6 +35,7 @@ var unauthenticatedRoutes = []unauthenticatedRoute{
 	{method: http.MethodPost, path: "/api/auth/register"},
 	{method: http.MethodPost, path: "/api/auth/login"},
 	{method: http.MethodPost, path: "/api/auth/refresh"},
+	{method: http.MethodGet, path: "/health"},
 }
 
 // isUnauthenticatedRoute checks whether a given method+path pair is exempt from auth.

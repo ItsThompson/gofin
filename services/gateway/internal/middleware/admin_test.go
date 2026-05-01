@@ -73,3 +73,50 @@ func TestRequireAdmin_EmptyRole_Returns403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
 }
+
+func TestAdminRouteGuard_AssumeEndpoint_AdminPasses(t *testing.T) {
+	router := gin.New()
+	router.Use(middleware.AdminRouteGuard(newSilentLogger()))
+	router.POST("/api/auth/assume", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/assume", nil)
+	req.Header.Set("X-User-Role", "admin")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestAdminRouteGuard_AssumeEndpoint_UserReturns403(t *testing.T) {
+	router := gin.New()
+	router.Use(middleware.AdminRouteGuard(newSilentLogger()))
+	router.POST("/api/auth/assume", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/assume", nil)
+	req.Header.Set("X-User-Role", "user")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "FORBIDDEN")
+}
+
+func TestAdminRouteGuard_NonAdminRoute_Passes(t *testing.T) {
+	router := gin.New()
+	router.Use(middleware.AdminRouteGuard(newSilentLogger()))
+	router.POST("/api/auth/login", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	// POST /api/auth/login is not admin-only, so even 'user' role passes.
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", nil)
+	req.Header.Set("X-User-Role", "user")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
