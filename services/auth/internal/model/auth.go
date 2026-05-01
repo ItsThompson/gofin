@@ -32,3 +32,8 @@ type ValidateTokenResult struct {
 	Username  string
 	AssumedBy string
 }
+
+// CompleteOnboardingRequest is the input for marking onboarding as complete.
+type CompleteOnboardingRequest struct {
+	Currency string `json:"currency" binding:"required"`
+}

@@ -105,3 +105,22 @@ func formatUUID(b [16]byte) string {
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
+
+func (r *PostgresUserRepository) CompleteOnboarding(ctx context.Context, userID string, currency string) (*model.User, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+
+	dbUser, err := r.queries.CompleteOnboarding(ctx, db.CompleteOnboardingParams{
+		Currency: currency,
+		ID:       uid,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbUserToModel(dbUser), nil
+}

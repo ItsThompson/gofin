@@ -23,3 +23,9 @@ SELECT EXISTS(
 
 -- name: CleanupExpiredBlacklist :exec
 DELETE FROM auth.refresh_token_blacklist WHERE expires_at < now();
+
+-- name: CompleteOnboarding :one
+UPDATE auth.users
+SET has_completed_onboarding = true, currency = $1, updated_at = now()
+WHERE id = $2
+RETURNING *;

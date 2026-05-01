@@ -13,4 +13,5 @@ type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	GetUserByID(ctx context.Context, id string) (*model.User, error)
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
+	CompleteOnboarding(ctx context.Context, userID string, currency string) (*model.User, error)
 }

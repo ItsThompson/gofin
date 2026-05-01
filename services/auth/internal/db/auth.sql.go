@@ -36,6 +36,36 @@ func (q *Queries) CleanupExpiredBlacklist(ctx context.Context) error {
 	return err
 }
 
+const completeOnboarding = `-- name: CompleteOnboarding :one
+UPDATE auth.users
+SET has_completed_onboarding = true, currency = $1, updated_at = now()
+WHERE id = $2
+RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at
+`
+
+type CompleteOnboardingParams struct {
+	Currency string      `json:"currency"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) CompleteOnboarding(ctx context.Context, arg CompleteOnboardingParams) (AuthUser, error) {
+	row := q.db.QueryRow(ctx, completeOnboarding, arg.Currency, arg.ID)
+	var i AuthUser
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.Currency,
+		&i.HasCompletedOnboarding,
+		&i.TokensRevokedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO auth.users (username, email, password_hash, role, currency)
 VALUES ($1, $2, $3, $4, $5)

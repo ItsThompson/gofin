@@ -78,6 +78,14 @@ func (m *mockUserRepository) GetUserByUsername(ctx context.Context, username str
 	return args.Get(0).(*model.User), args.Error(1)
 }
 
+func (m *mockUserRepository) CompleteOnboarding(ctx context.Context, userID string, currency string) (*model.User, error) {
+	args := m.Called(ctx, userID, currency)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.User), args.Error(1)
+}
+
 func setupTestRouter(repo *mockUserRepository) *gin.Engine {
 	return setupTestRouterWithBlacklist(repo, new(mockBlacklistRepository))
 }
@@ -504,4 +512,78 @@ func TestLogoutHandler_NoCookie_StillClears(t *testing.T) {
 	accessCookie := findCookie(cookies, "gofin_access")
 	require.NotNil(t, accessCookie)
 	assert.Equal(t, -1, accessCookie.MaxAge)
+}
+
+// --- CompleteOnboarding Handler Tests ---
+
+func doJSONWithUserID(r *gin.Engine, method, path, userID string, body interface{}) *httptest.ResponseRecorder {
+	var reqBody io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		reqBody = bytes.NewReader(b)
+	}
+	req := httptest.NewRequest(method, path, reqBody)
+	req.Header.Set("Content-Type", "application/json")
+	if userID != "" {
+		req.Header.Set("X-User-ID", userID)
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func TestCompleteOnboardingHandler_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	repo.On("CompleteOnboarding", mock.Anything, "user-123", "EUR").
+		Return(&model.User{
+			ID:                     "user-123",
+			Username:               "testuser",
+			Email:                  "test@example.com",
+			Role:                   "user",
+			Currency:               "EUR",
+			HasCompletedOnboarding: true,
+			CreatedAt:              time.Now(),
+		}, nil)
+
+	w := doJSONWithUserID(r, "POST", "/api/auth/onboarding-complete", "user-123", map[string]string{
+		"currency": "EUR",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.AuthResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "user-123", resp.User.ID)
+	assert.Equal(t, "EUR", resp.User.Currency)
+	assert.True(t, resp.User.HasCompletedOnboarding)
+}
+
+func TestCompleteOnboardingHandler_MissingUserID(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	w := doJSONWithUserID(r, "POST", "/api/auth/onboarding-complete", "", map[string]string{
+		"currency": "EUR",
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrUnauthorized, errResp.Code)
+}
+
+func TestCompleteOnboardingHandler_InvalidBody(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	w := doJSONWithUserID(r, "POST", "/api/auth/onboarding-complete", "user-123", map[string]string{})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrValidationError, errResp.Code)
 }

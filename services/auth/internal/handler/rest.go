@@ -36,6 +36,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		auth.POST("/refresh", h.Refresh)
 		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.Me)
+		auth.POST("/onboarding-complete", h.CompleteOnboarding)
 	}
 }
 
@@ -116,6 +117,38 @@ func (h *RESTHandler) Me(c *gin.Context) {
 	}
 
 	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
+}
+
+// CompleteOnboarding handles POST /api/auth/onboarding-complete.
+// Marks the user's onboarding as done and updates currency on the auth record.
+func (h *RESTHandler) CompleteOnboarding(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.CompleteOnboardingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	user, err := h.authService.CompleteOnboarding(c.Request.Context(), userID, req.Currency)
 	if err != nil {
 		h.handleError(c, err)
 		return

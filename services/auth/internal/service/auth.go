@@ -321,3 +321,26 @@ func (s *AuthService) Logout(ctx context.Context, refreshTokenString string) err
 
 	return nil
 }
+
+// CompleteOnboarding marks the user's onboarding as complete and updates their currency.
+func (s *AuthService) CompleteOnboarding(ctx context.Context, userID string, currency string) (*model.User, error) {
+	user, err := s.repo.CompleteOnboarding(ctx, userID, currency)
+	if err != nil {
+		return nil, fmt.Errorf("completing onboarding: %w", err)
+	}
+	if user == nil {
+		return nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "User not found",
+			Status:  401,
+		}
+	}
+
+	s.logger.Info("onboarding completed",
+		slog.String("method", "CompleteOnboarding"),
+		slog.String("user_id", user.ID),
+		slog.String("currency", currency),
+	)
+
+	return user, nil
+}
