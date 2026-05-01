@@ -1,0 +1,165 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/ItsThompson/gofin/services/finance/internal/db"
+	"github.com/ItsThompson/gofin/services/finance/internal/model"
+)
+
+// PostgresFinanceRepository implements FinanceRepository using sqlc-generated queries.
+type PostgresFinanceRepository struct {
+	queries *db.Queries
+}
+
+// NewPostgresFinanceRepository creates a new PostgresFinanceRepository.
+func NewPostgresFinanceRepository(queries *db.Queries) *PostgresFinanceRepository {
+	return &PostgresFinanceRepository{queries: queries}
+}
+
+func (r *PostgresFinanceRepository) UpsertDefaults(ctx context.Context, settings *model.DefaultSettings) (*model.DefaultSettings, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(settings.UserID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.UpsertDefaults(ctx, db.UpsertDefaultsParams{
+		UserID:            uid,
+		BudgetAmount:      settings.BudgetAmount,
+		EssentialsPercent: settings.EssentialsPercent,
+		DesiresPercent:    settings.DesiresPercent,
+		SavingsPercent:    settings.SavingsPercent,
+		Currency:          settings.Currency,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dbDefaultsToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) GetDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.GetDefaults(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbDefaultsToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) CreateTag(ctx context.Context, userID, name string, isDefault bool) (*model.Tag, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.CreateTag(ctx, db.CreateTagParams{
+		UserID:    uid,
+		Name:      name,
+		IsDefault: isDefault,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dbTagToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) ListTags(ctx context.Context, userID string) ([]*model.Tag, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	rows, err := r.queries.ListTags(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	tags := make([]*model.Tag, len(rows))
+	for i, row := range rows {
+		tags[i] = dbTagToModel(row)
+	}
+	return tags, nil
+}
+
+func (r *PostgresFinanceRepository) CountUserTags(ctx context.Context, userID string) (int64, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return 0, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	return r.queries.CountUserTags(ctx, uid)
+}
+
+// dbDefaultsToModel converts a sqlc-generated row to the domain model.
+func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
+	return &model.DefaultSettings{
+		UserID:            formatUUID(d.UserID.Bytes),
+		BudgetAmount:      d.BudgetAmount,
+		EssentialsPercent: d.EssentialsPercent,
+		DesiresPercent:    d.DesiresPercent,
+		SavingsPercent:    d.SavingsPercent,
+		Currency:          d.Currency,
+		CreatedAt:         d.CreatedAt.Time,
+		UpdatedAt:         d.UpdatedAt.Time,
+	}
+}
+
+// dbTagToModel converts a sqlc-generated tag row to the domain model.
+func dbTagToModel(t db.FinanceTag) *model.Tag {
+	return &model.Tag{
+		ID:        formatUUID(t.ID.Bytes),
+		UserID:    formatUUID(t.UserID.Bytes),
+		Name:      t.Name,
+		IsDefault: t.IsDefault,
+		CreatedAt: t.CreatedAt.Time,
+		UpdatedAt: t.UpdatedAt.Time,
+	}
+}
+
+// formatUUID formats a [16]byte as a UUID string.
+func formatUUID(b [16]byte) string {
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// PostgresTxBeginner implements TxBeginner using pgxpool.
+type PostgresTxBeginner struct {
+	pool *pgxpool.Pool
+}
+
+// NewPostgresTxBeginner creates a new PostgresTxBeginner.
+func NewPostgresTxBeginner(pool *pgxpool.Pool) *PostgresTxBeginner {
+	return &PostgresTxBeginner{pool: pool}
+}
+
+func (b *PostgresTxBeginner) BeginTx(ctx context.Context) (Tx, error) {
+	tx, err := b.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	queries := db.New(tx)
+	repo := NewPostgresFinanceRepository(queries)
+	return &postgresTx{tx: tx, repo: repo}, nil
+}
+
+type postgresTx struct {
+	tx   pgx.Tx
+	repo FinanceRepository
+}
+
+func (t *postgresTx) Commit(ctx context.Context) error   { return t.tx.Commit(ctx) }
+func (t *postgresTx) Rollback(ctx context.Context) error  { return t.tx.Rollback(ctx) }
+func (t *postgresTx) Repo() FinanceRepository             { return t.repo }
