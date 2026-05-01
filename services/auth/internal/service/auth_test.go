@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -52,10 +53,38 @@ func (m *mockUserRepository) GetUserByUsername(ctx context.Context, username str
 }
 
 func newTestAuthService(repo *mockUserRepository) *AuthService {
+	blacklistRepo := new(mockBlacklistRepository)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	jwtSvc := NewJWTService("test-secret")
 	pwdSvc := NewPasswordService(4) // Low cost for fast tests
-	return NewAuthService(repo, jwtSvc, pwdSvc, logger)
+	return NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
+}
+
+func newTestAuthServiceWithBlacklist(repo *mockUserRepository, blacklistRepo *mockBlacklistRepository) *AuthService {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	jwtSvc := NewJWTService("test-secret")
+	pwdSvc := NewPasswordService(4)
+	return NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
+}
+
+// mockBlacklistRepository implements repository.BlacklistRepository for testing.
+type mockBlacklistRepository struct {
+	mock.Mock
+}
+
+func (m *mockBlacklistRepository) BlacklistToken(ctx context.Context, jti, userID string, expiresAt time.Time) error {
+	args := m.Called(ctx, jti, userID, expiresAt)
+	return args.Error(0)
+}
+
+func (m *mockBlacklistRepository) IsTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
+	args := m.Called(ctx, jti)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockBlacklistRepository) CleanupExpired(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
 }
 
 // --- Registration Tests ---
@@ -329,4 +358,145 @@ func TestValidateToken_Invalid(t *testing.T) {
 	var authErr *AuthError
 	require.ErrorAs(t, err, &authErr)
 	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+}
+
+// --- RefreshToken Tests ---
+
+func TestRefreshToken_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	// Generate a valid refresh token
+	jwtSvc := NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	// Parse it to get the JTI for mock expectations
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("IsTokenBlacklisted", ctx, refreshClaims.ID).Return(false, nil)
+	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
+		ID:       "user-123",
+		Username: "testuser",
+		Email:    "test@example.com",
+		Role:     "user",
+		Currency: "USD",
+	}, nil)
+	blacklistRepo.On("BlacklistToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(nil)
+	blacklistRepo.On("CleanupExpired", mock.Anything).Return(nil)
+
+	user, tokens, err := svc.RefreshToken(ctx, refreshToken)
+
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", user.ID)
+	assert.NotEmpty(t, tokens.AccessToken)
+	assert.NotEmpty(t, tokens.RefreshToken)
+	// New tokens should be different from the original
+	assert.NotEqual(t, refreshToken, tokens.RefreshToken)
+	blacklistRepo.AssertCalled(t, "BlacklistToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time"))
+}
+
+func TestRefreshToken_BlacklistedToken(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	jwtSvc := NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("IsTokenBlacklisted", ctx, refreshClaims.ID).Return(true, nil)
+
+	_, _, err = svc.RefreshToken(ctx, refreshToken)
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+	assert.Equal(t, 401, authErr.Status)
+}
+
+func TestRefreshToken_ExpiredToken(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	_, _, err := svc.RefreshToken(ctx, "expired-or-invalid-token")
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+	assert.Equal(t, 401, authErr.Status)
+}
+
+func TestRefreshToken_UserNotFound(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	jwtSvc := NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("deleted-user", "user", "ghost")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("IsTokenBlacklisted", ctx, refreshClaims.ID).Return(false, nil)
+	repo.On("GetUserByID", ctx, "deleted-user").Return(nil, nil)
+
+	_, _, err = svc.RefreshToken(ctx, refreshToken)
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+	assert.Equal(t, 401, authErr.Status)
+}
+
+// --- Logout Tests ---
+
+func TestLogout_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	jwtSvc := NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("BlacklistToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(nil)
+
+	err = svc.Logout(ctx, refreshToken)
+
+	require.NoError(t, err)
+	blacklistRepo.AssertCalled(t, "BlacklistToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time"))
+}
+
+func TestLogout_InvalidToken_StillSucceeds(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	// Logout with an invalid/expired token should still succeed
+	// (cookies will be cleared regardless)
+	err := svc.Logout(ctx, "invalid-token")
+
+	require.NoError(t, err)
+	// BlacklistToken should NOT have been called since we couldn't parse the token
+	blacklistRepo.AssertNotCalled(t, "BlacklistToken")
 }

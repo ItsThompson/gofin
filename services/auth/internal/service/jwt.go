@@ -92,3 +92,29 @@ func (j *JWTService) ValidateAccessToken(tokenString string) (*AccessTokenClaims
 
 	return claims, nil
 }
+
+// ValidateRefreshToken parses and validates a refresh token.
+// Returns the claims if valid, or an error if expired/invalid.
+func (j *JWTService) ValidateRefreshToken(tokenString string) (*RefreshTokenClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &RefreshTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return j.secret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*RefreshTokenClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid refresh token claims")
+	}
+
+	return claims, nil
+}
+
+// RefreshTokenTTL returns the refresh token time-to-live duration.
+func (j *JWTService) RefreshTokenTTL() time.Duration {
+	return j.refreshTokenTTL
+}

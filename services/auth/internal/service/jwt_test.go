@@ -93,3 +93,61 @@ func TestValidateAccessToken_Expired(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "expired")
 }
+
+// --- Refresh Token Validation ---
+
+func TestValidateRefreshToken_Valid(t *testing.T) {
+	jwtSvc := NewJWTService("test-secret")
+
+	_, refresh, err := jwtSvc.GenerateTokenPair("user-123", "user", "johndoe")
+	require.NoError(t, err)
+
+	claims, err := jwtSvc.ValidateRefreshToken(refresh)
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", claims.Subject)
+	assert.NotEmpty(t, claims.ID, "refresh token must have a JTI")
+}
+
+func TestValidateRefreshToken_WrongSecret(t *testing.T) {
+	signer := NewJWTService("secret-a")
+	validator := NewJWTService("secret-b")
+
+	_, refresh, err := signer.GenerateTokenPair("user-123", "user", "johndoe")
+	require.NoError(t, err)
+
+	_, err = validator.ValidateRefreshToken(refresh)
+	assert.Error(t, err)
+}
+
+func TestValidateRefreshToken_Expired(t *testing.T) {
+	jwtSvc := NewJWTService("test-secret")
+
+	now := time.Now()
+	claims := RefreshTokenClaims{
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Subject:   "user-123",
+			ID:        "some-jti",
+			IssuedAt:  gojwt.NewNumericDate(now.Add(-8 * 24 * time.Hour)),
+			ExpiresAt: gojwt.NewNumericDate(now.Add(-1 * 24 * time.Hour)),
+		},
+	}
+	token := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims)
+	tokenStr, err := token.SignedString([]byte("test-secret"))
+	require.NoError(t, err)
+
+	_, err = jwtSvc.ValidateRefreshToken(tokenStr)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expired")
+}
+
+func TestValidateRefreshToken_Garbage(t *testing.T) {
+	jwtSvc := NewJWTService("test-secret")
+
+	_, err := jwtSvc.ValidateRefreshToken("not-a-token")
+	assert.Error(t, err)
+}
+
+func TestRefreshTokenTTL(t *testing.T) {
+	jwtSvc := NewJWTService("test-secret")
+	assert.Equal(t, 7*24*time.Hour, jwtSvc.RefreshTokenTTL())
+}

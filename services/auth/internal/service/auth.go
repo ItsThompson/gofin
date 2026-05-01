@@ -13,24 +13,27 @@ import (
 
 // AuthService contains the business logic for authentication operations.
 type AuthService struct {
-	repo     repository.UserRepository
-	jwt      *JWTService
-	password *PasswordService
-	logger   *slog.Logger
+	repo          repository.UserRepository
+	blacklistRepo repository.BlacklistRepository
+	jwt           *JWTService
+	password      *PasswordService
+	logger        *slog.Logger
 }
 
 // NewAuthService creates a new AuthService.
 func NewAuthService(
 	repo repository.UserRepository,
+	blacklistRepo repository.BlacklistRepository,
 	jwt *JWTService,
 	password *PasswordService,
 	logger *slog.Logger,
 ) *AuthService {
 	return &AuthService{
-		repo:     repo,
-		jwt:      jwt,
-		password: password,
-		logger:   logger,
+		repo:          repo,
+		blacklistRepo: blacklistRepo,
+		jwt:           jwt,
+		password:      password,
+		logger:        logger,
 	}
 }
 
@@ -212,4 +215,109 @@ type AuthError struct {
 
 func (e *AuthError) Error() string {
 	return e.Message
+}
+
+// RefreshToken validates a refresh token, blacklists the old one, and generates
+// a new access + refresh token pair (refresh token rotation).
+func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString string) (*model.User, *model.TokenPair, error) {
+	// Validate the refresh token JWT
+	claims, err := s.jwt.ValidateRefreshToken(refreshTokenString)
+	if err != nil {
+		return nil, nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "Invalid or expired refresh token",
+			Status:  401,
+		}
+	}
+
+	// Check if this token has been blacklisted
+	blacklisted, err := s.blacklistRepo.IsTokenBlacklisted(ctx, claims.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("checking blacklist: %w", err)
+	}
+	if blacklisted {
+		s.logger.Warn("blacklisted refresh token used",
+			slog.String("method", "RefreshToken"),
+			slog.String("jti", claims.ID),
+			slog.String("user_id", claims.Subject),
+		)
+		return nil, nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "Refresh token has been revoked",
+			Status:  401,
+		}
+	}
+
+	// Look up the user
+	user, err := s.repo.GetUserByID(ctx, claims.Subject)
+	if err != nil {
+		return nil, nil, fmt.Errorf("looking up user for refresh: %w", err)
+	}
+	if user == nil {
+		return nil, nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "User not found",
+			Status:  401,
+		}
+	}
+
+	// Blacklist the old refresh token
+	expiresAt := claims.ExpiresAt.Time
+	if err := s.blacklistRepo.BlacklistToken(ctx, claims.ID, user.ID, expiresAt); err != nil {
+		return nil, nil, fmt.Errorf("blacklisting old token: %w", err)
+	}
+
+	// Generate new token pair
+	accessToken, refreshToken, err := s.jwt.GenerateTokenPair(user.ID, user.Role, user.Username)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generating tokens: %w", err)
+	}
+
+	s.logger.Info("token refreshed",
+		slog.String("method", "RefreshToken"),
+		slog.String("user_id", user.ID),
+	)
+
+	// Best-effort cleanup of expired blacklist entries
+	go func() {
+		if err := s.blacklistRepo.CleanupExpired(context.Background()); err != nil {
+			s.logger.Error("failed to cleanup expired blacklist entries",
+				slog.String("error", err.Error()),
+			)
+		}
+	}()
+
+	return user, &model.TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+// Logout blacklists the current refresh token so it cannot be reused.
+func (s *AuthService) Logout(ctx context.Context, refreshTokenString string) error {
+	// Parse the refresh token to extract the JTI.
+	// We still blacklist even if the token is expired: prevents reuse of a
+	// recently-expired token during clock skew.
+	claims, err := s.jwt.ValidateRefreshToken(refreshTokenString)
+	if err != nil {
+		// Token is invalid or expired: nothing to blacklist.
+		// The logout still succeeds (cookies will be cleared by the handler).
+		s.logger.Info("logout with invalid refresh token, skipping blacklist",
+			slog.String("method", "Logout"),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+
+	expiresAt := claims.ExpiresAt.Time
+	if err := s.blacklistRepo.BlacklistToken(ctx, claims.ID, claims.Subject, expiresAt); err != nil {
+		return fmt.Errorf("blacklisting token on logout: %w", err)
+	}
+
+	s.logger.Info("user logged out",
+		slog.String("method", "Logout"),
+		slog.String("user_id", claims.Subject),
+	)
+
+	return nil
 }
