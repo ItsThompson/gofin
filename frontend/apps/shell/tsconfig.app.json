@@ -1,11 +1,12 @@
 {
   "extends": "@gofin/config/tsconfig/base.json",
-  "include": ["src"],
+  "include": ["app", "server"],
   "compilerOptions": {
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": ["./app/*"]
+    },
+    "types": ["vite/client"]
   }
 }

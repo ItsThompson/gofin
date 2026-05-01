@@ -4,24 +4,37 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite",
+    "build": "react-router build",
+    "dev": "cross-env NODE_ENV=development node server.js",
+    "start": "node server.js",
     "lint": "eslint .",
-    "test": "echo \"no tests yet\""
+    "test": "echo \"no tests yet\"",
+    "typecheck": "react-router typegen && tsc -b"
   },
   "dependencies": {
     "@gofin/types": "*",
     "@gofin/ui": "*",
+    "@react-router/express": "^7.14.2",
+    "@react-router/node": "^7.14.2",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5",
+    "isbot": "^5",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "react-router": "^7.14.2",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@gofin/config": "*",
+    "@react-router/dev": "^7.14.2",
     "@tailwindcss/vite": "^4",
+    "@types/express": "^5.0.6",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4",
+    "cross-env": "^10.1.0",
+    "isbot": "^5.1.39",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^6"

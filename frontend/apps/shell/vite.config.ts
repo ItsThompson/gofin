@@ -1,13 +1,19 @@
-import path from "path";
+import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
-import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ isSsrBuild }) => ({
+  build: {
+    rollupOptions: isSsrBuild
+      ? {
+          input: "./server/app.ts",
+        }
+      : undefined,
+  },
+  plugins: [tailwindcss(), reactRouter()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": new URL("./app", import.meta.url).pathname,
     },
   },
-});
+}));
