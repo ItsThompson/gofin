@@ -1,4 +1,4 @@
-export { apiClient, ApiRequestError } from "./api-client";
+export { apiClient, ApiRequestError, consumeReturnToPath } from "./api-client";
 
 /** Core user model returned by the auth API. */
 export interface User {
