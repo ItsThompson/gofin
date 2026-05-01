@@ -53,6 +53,12 @@ func isUnauthenticatedRoute(method, path string) bool {
 // X-User-Role headers into the request before forwarding to downstream services.
 func Auth(validator TokenValidator, logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Strip identity headers on every request to prevent spoofing.
+		// These are only set by the gateway after successful validation.
+		c.Request.Header.Del("X-User-ID")
+		c.Request.Header.Del("X-User-Role")
+		c.Request.Header.Del("X-Assumed-By")
+
 		if isUnauthenticatedRoute(c.Request.Method, c.Request.URL.Path) {
 			c.Next()
 			return

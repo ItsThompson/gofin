@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -34,10 +33,6 @@ func NewServiceProxy(target *url.URL, logger *slog.Logger) http.Handler {
 		req.Header.Set("X-Forwarded-For", clientIP)
 	}
 
-	proxy.ModifyResponse = func(resp *http.Response) error {
-		return nil
-	}
-
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {
 		logger.Error("downstream service unreachable",
 			slog.String("target", target.String()),
@@ -61,21 +56,4 @@ func NewServiceProxy(target *url.URL, logger *slog.Logger) http.Handler {
 	}
 
 	return proxy
-}
-
-// StripPrefix returns an http.Handler that removes the given prefix from the
-// request URL path before forwarding to the inner handler. This is used when
-// the downstream service expects paths without the gateway prefix.
-//
-// For this gateway, we do NOT strip prefixes because downstream services
-// expect the full /api/... path. This function is provided for flexibility
-// if routing changes in the future.
-func StripPrefix(prefix string, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, prefix)
-		if req.URL.Path == "" {
-			req.URL.Path = "/"
-		}
-		handler.ServeHTTP(w, req)
-	})
 }

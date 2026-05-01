@@ -36,8 +36,8 @@ services:
   # ---------------------------------------------------------------------------
   api-gateway:
     build:
-      context: ./services/gateway
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: gateway/Dockerfile
     ports:
       - "8080:8080"
     environment:

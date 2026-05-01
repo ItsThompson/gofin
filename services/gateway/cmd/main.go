@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -49,10 +48,6 @@ func run() error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	logger = logger.With(slog.String("service", "gateway"))
 	slog.SetDefault(logger)
-
-	if cfg.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
 
 	// Establish gRPC connection to the auth service for token validation.
 	grpcConn, err := grpc.NewClient(

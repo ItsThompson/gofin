@@ -62,11 +62,12 @@ func TestRequestLogger_IncludesUserID_WhenAuthenticated(t *testing.T) {
 	router := gin.New()
 	router.Use(middleware.RequestLogger(logger))
 	router.GET("/api/test", func(c *gin.Context) {
+		// Simulate what auth middleware does: set user ID in Gin context.
+		c.Set("X-User-ID", "user-123")
 		c.Status(http.StatusOK)
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
-	req.Header.Set("X-User-ID", "user-123")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 

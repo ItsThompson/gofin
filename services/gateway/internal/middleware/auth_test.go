@@ -193,3 +193,63 @@ func TestAuth_UnauthenticatedRoute_WrongMethod_RequiresAuth(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
 }
+
+func TestAuth_StripsIdentityHeaders_OnUnauthenticatedRoutes(t *testing.T) {
+	validator := &mockTokenValidator{}
+
+	var capturedUserID, capturedRole, capturedAssumedBy string
+
+	router := gin.New()
+	router.Use(middleware.Auth(validator, newSilentLogger()))
+	router.POST("/api/auth/register", func(c *gin.Context) {
+		capturedUserID = c.Request.Header.Get("X-User-ID")
+		capturedRole = c.Request.Header.Get("X-User-Role")
+		capturedAssumedBy = c.Request.Header.Get("X-Assumed-By")
+		c.Status(http.StatusOK)
+	})
+
+	// Client spoofs identity headers on an unauthenticated route.
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", nil)
+	req.Header.Set("X-User-ID", "spoofed-user")
+	req.Header.Set("X-User-Role", "admin")
+	req.Header.Set("X-Assumed-By", "spoofed-admin")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Empty(t, capturedUserID, "X-User-ID should be stripped")
+	assert.Empty(t, capturedRole, "X-User-Role should be stripped")
+	assert.Empty(t, capturedAssumedBy, "X-Assumed-By should be stripped")
+}
+
+func TestAuth_StripsIdentityHeaders_BeforeValidation(t *testing.T) {
+	validator := &mockTokenValidator{
+		result: &middleware.TokenValidationResult{
+			UserID:   "real-user",
+			Role:     "user",
+			Username: "alice",
+		},
+	}
+
+	var capturedUserID, capturedRole string
+
+	router := gin.New()
+	router.Use(middleware.Auth(validator, newSilentLogger()))
+	router.GET("/api/test", func(c *gin.Context) {
+		capturedUserID = c.Request.Header.Get("X-User-ID")
+		capturedRole = c.Request.Header.Get("X-User-Role")
+		c.Status(http.StatusOK)
+	})
+
+	// Client spoofs headers, but auth succeeds with different identity.
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+	req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "valid-token"})
+	req.Header.Set("X-User-ID", "spoofed-admin")
+	req.Header.Set("X-User-Role", "admin")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "real-user", capturedUserID, "should use validated identity, not spoofed")
+	assert.Equal(t, "user", capturedRole, "should use validated role, not spoofed")
+}
