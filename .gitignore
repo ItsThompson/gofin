@@ -29,3 +29,6 @@ data/
 
 # Turborepo cache
 .turbo/
+
+# React Router generated types
+.react-router/
