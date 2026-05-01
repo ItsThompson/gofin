@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { ApiRequestError } from "@gofin/types";
+import { ApiRequestError, consumeReturnToPath } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -22,11 +22,14 @@ import { validateEmail } from "@/lib/validation";
 export default function LoginPage() {
   const { login, isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ form?: string }>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const isSessionExpired = searchParams.get("expired") === "true";
 
   useEffect(() => {
     checkAuth();
@@ -57,8 +60,14 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const user = await login(email, password);
+
+      // Check for a saved return-to path (from session expiry redirect)
+      const returnTo = consumeReturnToPath();
+
       if (!user.hasCompletedOnboarding) {
         navigate("/onboarding");
+      } else if (returnTo && returnTo !== "/login" && returnTo !== "/register") {
+        navigate(returnTo);
       } else {
         navigate("/dashboard");
       }
@@ -92,6 +101,11 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isSessionExpired && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+              Your session has expired. Please log in again.
+            </div>
+          )}
           <Form onSubmit={handleSubmit}>
             <FormField>
               <FormLabel htmlFor="email">Email</FormLabel>
