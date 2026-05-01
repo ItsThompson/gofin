@@ -33,6 +33,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
+		auth.GET("/me", h.Me)
 	}
 }
 
@@ -94,6 +95,29 @@ func (h *RESTHandler) Login(c *gin.Context) {
 		slog.String("user_id", user.ID),
 		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 	)
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
+}
+
+// Me handles GET /api/auth/me.
+// Returns the current user based on the X-User-ID header set by the gateway.
+func (h *RESTHandler) Me(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, model.AuthResponse{
 		User: user.ToResponse(),

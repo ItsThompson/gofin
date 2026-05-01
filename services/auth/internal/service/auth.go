@@ -187,6 +187,22 @@ func (s *AuthService) ValidateToken(tokenString string) (*model.ValidateTokenRes
 	}, nil
 }
 
+// GetUserByID looks up a user by their ID.
+func (s *AuthService) GetUserByID(ctx context.Context, userID string) (*model.User, error) {
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("looking up user: %w", err)
+	}
+	if user == nil {
+		return nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "User not found",
+			Status:  401,
+		}
+	}
+	return user, nil
+}
+
 // AuthError is a typed error that carries an HTTP status code and error code.
 type AuthError struct {
 	Code    string
