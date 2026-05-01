@@ -37,6 +37,13 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.Me)
 		auth.POST("/onboarding-complete", h.CompleteOnboarding)
+		auth.POST("/assume", h.AssumeIdentity)
+		auth.POST("/restore", h.RestoreIdentity)
+	}
+
+	admin := r.Group("/api/admin")
+	{
+		admin.GET("/users", h.ListUsers)
 	}
 }
 
@@ -264,4 +271,112 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 
 	h.clearAuthCookies(c)
 	c.Status(http.StatusNoContent)
+}
+
+// ListUsers handles GET /api/admin/users.
+// Returns all registered users. The gateway enforces admin role via RequireAdmin middleware.
+func (h *RESTHandler) ListUsers(c *gin.Context) {
+	start := time.Now()
+
+	users, err := h.authService.ListUsers(c.Request.Context())
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	adminUsers := make([]model.AdminUserResponse, 0, len(users))
+	for _, user := range users {
+		adminUsers = append(adminUsers, model.AdminUserResponse{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			Role:      user.Role,
+			CreatedAt: user.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	h.logger.Info("list users handler completed",
+		slog.String("method", "GET /api/admin/users"),
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
+
+	c.JSON(http.StatusOK, model.AdminUsersResponse{Users: adminUsers})
+}
+
+// AssumeIdentity handles POST /api/auth/assume.
+// Generates a new JWT for the target user with the assumedBy claim.
+// The gateway enforces admin role via AdminRouteGuard middleware.
+func (h *RESTHandler) AssumeIdentity(c *gin.Context) {
+	start := time.Now()
+
+	adminUserID := c.GetHeader("X-User-ID")
+	if adminUserID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.AssumeIdentityRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	user, tokens, err := h.authService.AssumeIdentity(c.Request.Context(), adminUserID, req.UserID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	h.setAuthCookies(c, tokens)
+
+	h.logger.Info("assume identity handler completed",
+		slog.String("method", "POST /api/auth/assume"),
+		slog.String("admin_user_id", adminUserID),
+		slog.String("target_user_id", req.UserID),
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
+}
+
+// RestoreIdentity handles POST /api/auth/restore.
+// Reads the assumedBy claim from the current token (via X-Assumed-By header),
+// generates fresh tokens for the original admin.
+func (h *RESTHandler) RestoreIdentity(c *gin.Context) {
+	start := time.Now()
+
+	assumedBy := c.GetHeader("X-Assumed-By")
+	if assumedBy == "" {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "No assumed identity to restore",
+		})
+		return
+	}
+
+	user, tokens, err := h.authService.RestoreIdentity(c.Request.Context(), assumedBy)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	h.setAuthCookies(c, tokens)
+
+	h.logger.Info("restore identity handler completed",
+		slog.String("method", "POST /api/auth/restore"),
+		slog.String("admin_user_id", assumedBy),
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
 }

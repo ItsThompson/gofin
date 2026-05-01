@@ -29,3 +29,8 @@ UPDATE auth.users
 SET has_completed_onboarding = true, currency = $1, updated_at = now()
 WHERE id = $2
 RETURNING *;
+
+-- name: ListAllUsers :many
+SELECT id, username, email, role, created_at
+FROM auth.users
+ORDER BY created_at ASC;

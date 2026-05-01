@@ -24,6 +24,15 @@ import (
 )
 
 func main() {
+	// Support subcommands: "seed-admin" runs the admin seeder and exits.
+	if len(os.Args) > 1 && os.Args[1] == "seed-admin" {
+		if err := runSeedAdmin(); err != nil {
+			fmt.Fprintf(os.Stderr, "seed-admin: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "auth-service: %v\n", err)
 		os.Exit(1)
@@ -135,5 +144,53 @@ func run() error {
 		logger.Error("REST server shutdown error", slog.String("error", err.Error()))
 	}
 
+	return nil
+}
+
+// runSeedAdmin creates an admin user from environment variables.
+// Idempotent: skips if the admin user already exists.
+func runSeedAdmin() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("loading config: %w", err)
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger = logger.With(slog.String("service", "auth"), slog.String("command", "seed-admin"))
+
+	// Read admin credentials from env
+	adminUsername := os.Getenv("ADMIN_USERNAME")
+	adminEmail := os.Getenv("ADMIN_EMAIL")
+	adminPassword := os.Getenv("ADMIN_PASSWORD")
+
+	if adminUsername == "" || adminEmail == "" || adminPassword == "" {
+		return fmt.Errorf("ADMIN_USERNAME, ADMIN_EMAIL, and ADMIN_PASSWORD must all be set")
+	}
+
+	pool, err := pgxpool.New(ctx, cfg.DBUrl)
+	if err != nil {
+		return fmt.Errorf("connecting to database: %w", err)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("pinging database: %w", err)
+	}
+
+	queries := db.New(pool)
+	repo := repository.NewPostgresUserRepository(queries)
+	blacklistRepo := repository.NewPostgresBlacklistRepository(queries)
+	jwtSvc := service.NewJWTService(cfg.JWTSecret)
+	pwdSvc := service.NewPasswordService(cfg.BcryptCost)
+	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
+
+	if err := authSvc.SeedAdmin(ctx, adminUsername, adminEmail, adminPassword); err != nil {
+		return fmt.Errorf("seeding admin: %w", err)
+	}
+
+	logger.Info("seed-admin completed successfully")
 	return nil
 }

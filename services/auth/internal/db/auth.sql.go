@@ -182,3 +182,43 @@ func (q *Queries) IsTokenBlacklisted(ctx context.Context, jti string) (bool, err
 	err := row.Scan(&is_blacklisted)
 	return is_blacklisted, err
 }
+
+const listAllUsers = `-- name: ListAllUsers :many
+SELECT id, username, email, role, created_at
+FROM auth.users
+ORDER BY created_at ASC
+`
+
+type ListAllUsersRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Username  string             `json:"username"`
+	Email     string             `json:"email"`
+	Role      string             `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) ListAllUsers(ctx context.Context) ([]ListAllUsersRow, error) {
+	rows, err := q.db.Query(ctx, listAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllUsersRow{}
+	for rows.Next() {
+		var i ListAllUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Email,
+			&i.Role,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

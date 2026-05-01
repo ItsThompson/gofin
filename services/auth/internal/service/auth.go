@@ -344,3 +344,144 @@ func (s *AuthService) CompleteOnboarding(ctx context.Context, userID string, cur
 
 	return user, nil
 }
+
+// ListUsers returns all registered users. Admin-only.
+func (s *AuthService) ListUsers(ctx context.Context) ([]*model.User, error) {
+	users, err := s.repo.ListAllUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing users: %w", err)
+	}
+
+	s.logger.Info("listed all users",
+		slog.String("method", "ListUsers"),
+		slog.Int("count", len(users)),
+	)
+
+	return users, nil
+}
+
+// AssumeIdentity generates a new token pair for the target user with the
+// assumedBy claim set to the admin's user ID. The caller must verify the
+// admin role before calling this method.
+func (s *AuthService) AssumeIdentity(ctx context.Context, adminUserID, targetUserID string) (*model.User, *model.TokenPair, error) {
+	if adminUserID == targetUserID {
+		return nil, nil, &AuthError{
+			Code:    model.ErrValidationError,
+			Message: "Cannot assume your own identity",
+			Status:  400,
+		}
+	}
+
+	targetUser, err := s.repo.GetUserByID(ctx, targetUserID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("looking up target user: %w", err)
+	}
+	if targetUser == nil {
+		return nil, nil, &AuthError{
+			Code:    model.ErrNotFound,
+			Message: "Target user not found",
+			Status:  404,
+		}
+	}
+
+	accessToken, refreshToken, err := s.jwt.GenerateTokenPairWithAssumedBy(
+		targetUser.ID, targetUser.Role, targetUser.Username, adminUserID,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generating assumed tokens: %w", err)
+	}
+
+	s.logger.Info("identity assumed",
+		slog.String("method", "AssumeIdentity"),
+		slog.String("admin_user_id", adminUserID),
+		slog.String("target_user_id", targetUser.ID),
+	)
+
+	return targetUser, &model.TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+// RestoreIdentity reads the assumedBy claim from the current access token,
+// looks up the original admin user, and generates fresh tokens for that admin.
+func (s *AuthService) RestoreIdentity(ctx context.Context, assumedByUserID string) (*model.User, *model.TokenPair, error) {
+	if assumedByUserID == "" {
+		return nil, nil, &AuthError{
+			Code:    model.ErrValidationError,
+			Message: "No assumed identity to restore",
+			Status:  400,
+		}
+	}
+
+	adminUser, err := s.repo.GetUserByID(ctx, assumedByUserID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("looking up admin user: %w", err)
+	}
+	if adminUser == nil {
+		return nil, nil, &AuthError{
+			Code:    model.ErrNotFound,
+			Message: "Admin user not found",
+			Status:  404,
+		}
+	}
+
+	if adminUser.Role != "admin" {
+		return nil, nil, &AuthError{
+			Code:    model.ErrForbidden,
+			Message: "Assumed-by user is not an admin",
+			Status:  403,
+		}
+	}
+
+	accessToken, refreshToken, err := s.jwt.GenerateTokenPair(
+		adminUser.ID, adminUser.Role, adminUser.Username,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generating admin tokens: %w", err)
+	}
+
+	s.logger.Info("identity restored",
+		slog.String("method", "RestoreIdentity"),
+		slog.String("admin_user_id", adminUser.ID),
+	)
+
+	return adminUser, &model.TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+// SeedAdmin creates an admin user if one doesn't already exist.
+// Idempotent: skips creation if a user with the given username already exists.
+func (s *AuthService) SeedAdmin(ctx context.Context, username, email, password string) error {
+	existing, err := s.repo.GetUserByUsername(ctx, username)
+	if err != nil {
+		return fmt.Errorf("checking existing admin: %w", err)
+	}
+	if existing != nil {
+		s.logger.Info("admin user already exists, skipping seed",
+			slog.String("method", "SeedAdmin"),
+			slog.String("username", username),
+		)
+		return nil
+	}
+
+	hash, err := s.password.HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("hashing admin password: %w", err)
+	}
+
+	user, err := s.repo.CreateUser(ctx, username, email, hash, "admin", "USD")
+	if err != nil {
+		return fmt.Errorf("creating admin user: %w", err)
+	}
+
+	s.logger.Info("admin user seeded",
+		slog.String("method", "SeedAdmin"),
+		slog.String("user_id", user.ID),
+		slog.String("username", username),
+	)
+
+	return nil
+}

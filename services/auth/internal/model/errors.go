@@ -16,5 +16,7 @@ const (
 	ErrWeakPassword        = "WEAK_PASSWORD"
 	ErrValidationError     = "VALIDATION_ERROR"
 	ErrUnauthorized        = "UNAUTHORIZED"
+	ErrForbidden           = "FORBIDDEN"
+	ErrNotFound            = "NOT_FOUND"
 	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
 )

@@ -37,3 +37,22 @@ type ValidateTokenResult struct {
 type CompleteOnboardingRequest struct {
 	Currency string `json:"currency" binding:"required"`
 }
+
+// AssumeIdentityRequest is the input for admin identity assumption.
+type AssumeIdentityRequest struct {
+	UserID string `json:"userId" binding:"required"`
+}
+
+// AdminUserResponse is the public-facing user representation for admin user lists.
+type AdminUserResponse struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	CreatedAt string `json:"createdAt"`
+}
+
+// AdminUsersResponse wraps the list of users for the admin endpoint.
+type AdminUsersResponse struct {
+	Users []AdminUserResponse `json:"users"`
+}

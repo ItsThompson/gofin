@@ -39,6 +39,12 @@ func NewJWTService(secret string) *JWTService {
 
 // GenerateTokenPair creates an access token and a refresh token for the given user.
 func (j *JWTService) GenerateTokenPair(userID, role, username string) (accessToken, refreshToken string, err error) {
+	return j.GenerateTokenPairWithAssumedBy(userID, role, username, "")
+}
+
+// GenerateTokenPairWithAssumedBy creates a token pair with an optional assumedBy claim.
+// When assumedBy is non-empty, the access token includes it for audit purposes.
+func (j *JWTService) GenerateTokenPairWithAssumedBy(userID, role, username, assumedBy string) (accessToken, refreshToken string, err error) {
 	now := time.Now()
 
 	accessClaims := AccessTokenClaims{
@@ -47,8 +53,9 @@ func (j *JWTService) GenerateTokenPair(userID, role, username string) (accessTok
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(j.accessTokenTTL)),
 		},
-		Role:     role,
-		Username: username,
+		Role:      role,
+		Username:  username,
+		AssumedBy: assumedBy,
 	}
 	accessToken, err = jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).SignedString(j.secret)
 	if err != nil {

@@ -124,3 +124,26 @@ func (r *PostgresUserRepository) CompleteOnboarding(ctx context.Context, userID 
 	}
 	return dbUserToModel(dbUser), nil
 }
+
+func (r *PostgresUserRepository) ListAllUsers(ctx context.Context) ([]*model.User, error) {
+	rows, err := r.queries.ListAllUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	users := make([]*model.User, 0, len(rows))
+	for _, row := range rows {
+		id := ""
+		if row.ID.Valid {
+			id = formatUUID(row.ID.Bytes)
+		}
+		users = append(users, &model.User{
+			ID:        id,
+			Username:  row.Username,
+			Email:     row.Email,
+			Role:      row.Role,
+			CreatedAt: row.CreatedAt.Time,
+		})
+	}
+	return users, nil
+}
