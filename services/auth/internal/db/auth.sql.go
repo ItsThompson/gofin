@@ -11,6 +11,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const blacklistToken = `-- name: BlacklistToken :exec
+INSERT INTO auth.refresh_token_blacklist (jti, user_id, expires_at)
+VALUES ($1, $2, $3)
+`
+
+type BlacklistTokenParams struct {
+	Jti       string             `json:"jti"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) BlacklistToken(ctx context.Context, arg BlacklistTokenParams) error {
+	_, err := q.db.Exec(ctx, blacklistToken, arg.Jti, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
+const cleanupExpiredBlacklist = `-- name: CleanupExpiredBlacklist :exec
+DELETE FROM auth.refresh_token_blacklist WHERE expires_at < now()
+`
+
+func (q *Queries) CleanupExpiredBlacklist(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, cleanupExpiredBlacklist)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO auth.users (username, email, password_hash, role, currency)
 VALUES ($1, $2, $3, $4, $5)
@@ -113,4 +138,17 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (AuthU
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const isTokenBlacklisted = `-- name: IsTokenBlacklisted :one
+SELECT EXISTS(
+    SELECT 1 FROM auth.refresh_token_blacklist WHERE jti = $1
+) AS is_blacklisted
+`
+
+func (q *Queries) IsTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
+	row := q.db.QueryRow(ctx, isTokenBlacklisted, jti)
+	var is_blacklisted bool
+	err := row.Scan(&is_blacklisted)
+	return is_blacklisted, err
 }

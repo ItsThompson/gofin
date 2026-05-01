@@ -11,3 +11,15 @@ SELECT * FROM auth.users WHERE id = $1;
 
 -- name: GetUserByUsername :one
 SELECT * FROM auth.users WHERE username = $1;
+
+-- name: BlacklistToken :exec
+INSERT INTO auth.refresh_token_blacklist (jti, user_id, expires_at)
+VALUES ($1, $2, $3);
+
+-- name: IsTokenBlacklisted :one
+SELECT EXISTS(
+    SELECT 1 FROM auth.refresh_token_blacklist WHERE jti = $1
+) AS is_blacklisted;
+
+-- name: CleanupExpiredBlacklist :exec
+DELETE FROM auth.refresh_token_blacklist WHERE expires_at < now();
