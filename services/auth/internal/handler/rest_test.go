@@ -21,6 +21,26 @@ import (
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 )
 
+// mockBlacklistRepository implements repository.BlacklistRepository for handler tests.
+type mockBlacklistRepository struct {
+	mock.Mock
+}
+
+func (m *mockBlacklistRepository) BlacklistToken(ctx context.Context, jti, userID string, expiresAt time.Time) error {
+	args := m.Called(ctx, jti, userID, expiresAt)
+	return args.Error(0)
+}
+
+func (m *mockBlacklistRepository) IsTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
+	args := m.Called(ctx, jti)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *mockBlacklistRepository) CleanupExpired(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 // mockUserRepository implements repository.UserRepository for handler tests.
 type mockUserRepository struct {
 	mock.Mock
@@ -59,12 +79,16 @@ func (m *mockUserRepository) GetUserByUsername(ctx context.Context, username str
 }
 
 func setupTestRouter(repo *mockUserRepository) *gin.Engine {
+	return setupTestRouterWithBlacklist(repo, new(mockBlacklistRepository))
+}
+
+func setupTestRouterWithBlacklist(repo *mockUserRepository, blacklistRepo *mockBlacklistRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	jwtSvc := service.NewJWTService("test-secret")
 	pwdSvc := service.NewPasswordService(4)
-	authSvc := service.NewAuthService(repo, jwtSvc, pwdSvc, logger)
+	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
 	handler := NewRESTHandler(authSvc, logger, false)
 	r := gin.New()
@@ -128,7 +152,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 	refreshCookie := findCookie(cookies, "gofin_refresh")
 	require.NotNil(t, refreshCookie, "expected gofin_refresh cookie")
 	assert.True(t, refreshCookie.HttpOnly)
-	assert.Equal(t, "/api/auth/refresh", refreshCookie.Path)
+	assert.Equal(t, "/api/auth", refreshCookie.Path)
 	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
 	assert.Equal(t, 604800, refreshCookie.MaxAge) // 7 days
 }
@@ -292,7 +316,7 @@ func TestLoginHandler_Success(t *testing.T) {
 	refreshCookie := findCookie(cookies, "gofin_refresh")
 	require.NotNil(t, refreshCookie, "expected gofin_refresh cookie")
 	assert.True(t, refreshCookie.HttpOnly)
-	assert.Equal(t, "/api/auth/refresh", refreshCookie.Path)
+	assert.Equal(t, "/api/auth", refreshCookie.Path)
 	assert.Equal(t, http.SameSiteStrictMode, refreshCookie.SameSite)
 	assert.Equal(t, 604800, refreshCookie.MaxAge)
 }
@@ -325,4 +349,159 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+// doJSONWithCookies makes a JSON request with cookies attached.
+func doJSONWithCookies(r *gin.Engine, method, path string, body interface{}, cookies []*http.Cookie) *httptest.ResponseRecorder {
+	var reqBody io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		reqBody = bytes.NewReader(b)
+	}
+	req := httptest.NewRequest(method, path, reqBody)
+	req.Header.Set("Content-Type", "application/json")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+// --- Refresh Handler Tests ---
+
+func TestRefreshHandler_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	r := setupTestRouterWithBlacklist(repo, blacklistRepo)
+
+	// Generate a valid refresh token
+	jwtSvc := service.NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("IsTokenBlacklisted", mock.Anything, refreshClaims.ID).Return(false, nil)
+	repo.On("GetUserByID", mock.Anything, "user-123").Return(&model.User{
+		ID:       "user-123",
+		Username: "testuser",
+		Email:    "test@example.com",
+		Role:     "user",
+		Currency: "USD",
+		CreatedAt: time.Now(),
+	}, nil)
+	blacklistRepo.On("BlacklistToken", mock.Anything, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(nil)
+	blacklistRepo.On("CleanupExpired", mock.Anything).Return(nil)
+
+	w := doJSONWithCookies(r, "POST", "/api/auth/refresh", nil, []*http.Cookie{
+		{Name: "gofin_refresh", Value: refreshToken},
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.AuthResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "user-123", resp.User.ID)
+
+	// Verify new cookies are set
+	cookies := w.Result().Cookies()
+	accessCookie := findCookie(cookies, "gofin_access")
+	require.NotNil(t, accessCookie)
+	assert.True(t, accessCookie.HttpOnly)
+	assert.Equal(t, "/api", accessCookie.Path)
+
+	newRefreshCookie := findCookie(cookies, "gofin_refresh")
+	require.NotNil(t, newRefreshCookie)
+	assert.True(t, newRefreshCookie.HttpOnly)
+	assert.Equal(t, "/api/auth", newRefreshCookie.Path)
+	// The new refresh token should be different from the old one
+	assert.NotEqual(t, refreshToken, newRefreshCookie.Value)
+}
+
+func TestRefreshHandler_NoCookie(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	w := doJSON(r, "POST", "/api/auth/refresh", nil)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrUnauthorized, errResp.Code)
+}
+
+func TestRefreshHandler_BlacklistedToken(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	r := setupTestRouterWithBlacklist(repo, blacklistRepo)
+
+	jwtSvc := service.NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("IsTokenBlacklisted", mock.Anything, refreshClaims.ID).Return(true, nil)
+
+	w := doJSONWithCookies(r, "POST", "/api/auth/refresh", nil, []*http.Cookie{
+		{Name: "gofin_refresh", Value: refreshToken},
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrUnauthorized, errResp.Code)
+}
+
+// --- Logout Handler Tests ---
+
+func TestLogoutHandler_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	r := setupTestRouterWithBlacklist(repo, blacklistRepo)
+
+	jwtSvc := service.NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("BlacklistToken", mock.Anything, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(nil)
+
+	w := doJSONWithCookies(r, "POST", "/api/auth/logout", nil, []*http.Cookie{
+		{Name: "gofin_refresh", Value: refreshToken},
+	})
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	// Verify cookies are cleared
+	cookies := w.Result().Cookies()
+	accessCookie := findCookie(cookies, "gofin_access")
+	require.NotNil(t, accessCookie, "expected gofin_access cookie to be cleared")
+	assert.Equal(t, -1, accessCookie.MaxAge)
+
+	refreshClearCookie := findCookie(cookies, "gofin_refresh")
+	require.NotNil(t, refreshClearCookie, "expected gofin_refresh cookie to be cleared")
+	assert.Equal(t, -1, refreshClearCookie.MaxAge)
+}
+
+func TestLogoutHandler_NoCookie_StillClears(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	// Logout without a refresh cookie should still return 204 and clear cookies
+	w := doJSON(r, "POST", "/api/auth/logout", nil)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	cookies := w.Result().Cookies()
+	accessCookie := findCookie(cookies, "gofin_access")
+	require.NotNil(t, accessCookie)
+	assert.Equal(t, -1, accessCookie.MaxAge)
 }

@@ -69,9 +69,10 @@ func run() error {
 	// Build dependency graph
 	queries := db.New(pool)
 	repo := repository.NewPostgresUserRepository(queries)
+	blacklistRepo := repository.NewPostgresBlacklistRepository(queries)
 	jwtSvc := service.NewJWTService(cfg.JWTSecret)
 	pwdSvc := service.NewPasswordService(cfg.BcryptCost)
-	authSvc := service.NewAuthService(repo, jwtSvc, pwdSvc, logger)
+	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
 	// Start gRPC server
 	grpcServer := grpc.NewServer()

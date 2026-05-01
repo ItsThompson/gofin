@@ -33,6 +33,8 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		auth.POST("/register", h.Register)
 		auth.POST("/login", h.Login)
+		auth.POST("/refresh", h.Refresh)
+		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.Me)
 	}
 }
@@ -139,12 +141,14 @@ func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 		true,                    // httpOnly
 	)
 
-	// Refresh token: 7-day expiry, scoped to /api/auth/refresh
+	// Refresh token: 7-day expiry, scoped to /api/auth
+	// Path is /api/auth (not /api/auth/refresh) so both the refresh and
+	// logout endpoints can read the cookie.
 	c.SetCookie(
 		"gofin_refresh",
 		tokens.RefreshToken,
 		int(7*24*time.Hour/time.Second),
-		"/api/auth/refresh",
+		"/api/auth",
 		"",
 		h.cookieSecure,
 		true,
@@ -168,4 +172,63 @@ func (h *RESTHandler) handleError(c *gin.Context, err error) {
 		Code:    model.ErrInternalServerError,
 		Message: "An unexpected error occurred",
 	})
+}
+
+// clearAuthCookies removes both auth cookies by setting MaxAge to -1
+// with the same path and flags as the originals.
+func (h *RESTHandler) clearAuthCookies(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie("gofin_access", "", -1, "/api", "", h.cookieSecure, true)
+	c.SetCookie("gofin_refresh", "", -1, "/api/auth", "", h.cookieSecure, true)
+}
+
+// Refresh handles POST /api/auth/refresh.
+// Reads the refresh token from the gofin_refresh cookie, validates it,
+// blacklists the old token, and issues a new access + refresh pair.
+func (h *RESTHandler) Refresh(c *gin.Context) {
+	start := time.Now()
+
+	cookie, err := c.Request.Cookie("gofin_refresh")
+	if err != nil || cookie.Value == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "No refresh token provided",
+		})
+		return
+	}
+
+	user, tokens, err := h.authService.RefreshToken(c.Request.Context(), cookie.Value)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	h.setAuthCookies(c, tokens)
+
+	h.logger.Info("refresh handler completed",
+		slog.String("method", "POST /api/auth/refresh"),
+		slog.String("user_id", user.ID),
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
+}
+
+// Logout handles POST /api/auth/logout.
+// Blacklists the current refresh token and clears both cookies.
+func (h *RESTHandler) Logout(c *gin.Context) {
+	// Read the refresh cookie for blacklisting (best-effort)
+	cookie, err := c.Request.Cookie("gofin_refresh")
+	if err == nil && cookie.Value != "" {
+		if logoutErr := h.authService.Logout(c.Request.Context(), cookie.Value); logoutErr != nil {
+			h.logger.Error("failed to blacklist token during logout",
+				slog.String("error", logoutErr.Error()),
+			)
+		}
+	}
+
+	h.clearAuthCookies(c)
+	c.Status(http.StatusNoContent)
 }

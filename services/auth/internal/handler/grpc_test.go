@@ -17,10 +17,11 @@ import (
 
 func newTestGRPCHandler() (*GRPCHandler, *service.JWTService) {
 	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	jwtSvc := service.NewJWTService("test-secret")
 	pwdSvc := service.NewPasswordService(4)
-	authSvc := service.NewAuthService(repo, jwtSvc, pwdSvc, logger)
+	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 	return NewGRPCHandler(authSvc, logger), jwtSvc
 }
 
