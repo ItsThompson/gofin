@@ -1,9 +1,10 @@
 {
   "extends": "@gofin/config/tsconfig/base.json",
-  "include": ["app", "server"],
+  "include": ["app", "server", ".react-router/types/**/*"],
   "compilerOptions": {
     "noEmit": true,
     "baseUrl": ".",
+    "rootDirs": [".", "./.react-router/types"],
     "paths": {
       "@/*": ["./app/*"]
     },

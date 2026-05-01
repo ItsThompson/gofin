@@ -157,6 +157,70 @@ describe("auth store", () => {
     });
   });
 
+  describe("register", () => {
+    it("sets authenticated state on success", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ user: mockUser }),
+      });
+
+      const user = await useAuthStore
+        .getState()
+        .register("testuser", "test@example.com", "Password1");
+
+      expect(user).toEqual(mockUser);
+      const state = useAuthStore.getState();
+      expect(state.user).toEqual(mockUser);
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.isLoading).toBe(false);
+    });
+
+    it("sends correct request body", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ user: mockUser }),
+      });
+
+      await useAuthStore
+        .getState()
+        .register("testuser", "test@example.com", "Password1");
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/auth/register", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: "testuser",
+          email: "test@example.com",
+          password: "Password1",
+        }),
+      });
+    });
+
+    it("throws ApiRequestError on duplicate email", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            code: "DUPLICATE_EMAIL",
+            message: "An account with this email already exists",
+          }),
+      });
+
+      await expect(
+        useAuthStore
+          .getState()
+          .register("testuser", "taken@example.com", "Password1"),
+      ).rejects.toThrow("An account with this email already exists");
+
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(false);
+    });
+  });
+
   describe("logout", () => {
     it("clears authenticated state", async () => {
       // First set up authenticated state

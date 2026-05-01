@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { User } from "@gofin/types";
-import { apiClient, ApiRequestError } from "@gofin/types";
+import { apiClient } from "@gofin/types";
 
 interface AuthResponse {
   user: User;
@@ -25,6 +25,12 @@ interface AuthState {
 interface AuthActions {
   /** Check auth status by calling /api/auth/me. Called on app mount. */
   checkAuth: () => Promise<void>;
+  /** Register a new account. Sets cookies server-side. */
+  register: (
+    username: string,
+    email: string,
+    password: string,
+  ) => Promise<User>;
   /** Log in with email and password. Sets cookies server-side. */
   login: (email: string, password: string) => Promise<User>;
   /** Log out. Clears cookies and blacklists refresh token. */
@@ -69,6 +75,25 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
     const response = await apiClient<AuthResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+    });
+    const user = response.user;
+    set({
+      user,
+      isAuthenticated: true,
+      isAdmin: user.role === "admin",
+      isLoading: false,
+    });
+    return user;
+  },
+
+  register: async (
+    username: string,
+    email: string,
+    password: string,
+  ) => {
+    const response = await apiClient<AuthResponse>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, email, password }),
     });
     const user = response.user;
     set({

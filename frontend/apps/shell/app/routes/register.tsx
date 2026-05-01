@@ -1,8 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiClient, ApiRequestError } from "@gofin/types";
-import type { User } from "@gofin/types";
+import { ApiRequestError } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -24,12 +23,8 @@ import {
   validateUsername,
 } from "@/lib/validation";
 
-interface RegisterResponse {
-  user: User;
-}
-
 export default function RegisterPage() {
-  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, register } = useAuthStore();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
@@ -74,13 +69,7 @@ export default function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await apiClient<RegisterResponse>("/api/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ username, email, password }),
-      });
-
-      // After registration, set auth state and redirect to onboarding
-      await useAuthStore.getState().checkAuth();
+      await register(username, email, password);
       navigate("/onboarding");
     } catch (error) {
       if (error instanceof ApiRequestError) {

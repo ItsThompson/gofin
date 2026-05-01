@@ -30,7 +30,6 @@ app.use(
 // SSR: React Router handles all non-API routes
 app.use(
   createRequestHandler({
-    // @ts-expect-error virtual module provided by react-router vite plugin
     build: () => import("virtual:react-router/server-build"),
   }),
 );

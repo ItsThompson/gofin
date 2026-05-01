@@ -32,3 +32,6 @@ data/
 
 # React Router generated types
 .react-router/
+
+# TypeScript build info
+*.tsbuildinfo
