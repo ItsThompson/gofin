@@ -11,9 +11,10 @@ RUN npx turbo build
 FROM node:20-alpine
 WORKDIR /app
 COPY --from=builder /app/apps/shell/build ./build
-COPY --from=builder /app/apps/shell/server.ts ./
+COPY --from=builder /app/apps/shell/server.js ./
+COPY --from=builder /app/apps/shell/package.json ./
 COPY --from=builder /app/apps/finance/dist ./public/remotes/finance
 COPY --from=builder /app/apps/admin/dist ./public/remotes/admin
 COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3000
-CMD ["node", "build/server.js"]
+CMD ["node", "server.js"]
