@@ -3,6 +3,7 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -30,6 +31,8 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		finance.POST("/onboarding", h.CompleteOnboarding)
 		finance.GET("/defaults", h.GetDefaults)
+		finance.GET("/periods/current", h.GetCurrentPeriod)
+		finance.POST("/periods", h.CreatePeriod)
 	}
 }
 
@@ -84,6 +87,87 @@ func (h *RESTHandler) GetDefaults(c *gin.Context) {
 
 	c.JSON(http.StatusOK, model.DefaultsResponse{
 		Defaults: defaults,
+	})
+}
+
+// GetCurrentPeriod handles GET /api/finance/periods/current?year=YYYY&month=MM.
+func (h *RESTHandler) GetCurrentPeriod(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	yearStr := c.Query("year")
+	monthStr := c.Query("month")
+	if yearStr == "" || monthStr == "" {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "year and month query parameters are required",
+		})
+		return
+	}
+
+	year, err := strconv.ParseInt(yearStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "year must be a valid integer",
+		})
+		return
+	}
+
+	month, err := strconv.ParseInt(monthStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "month must be a valid integer",
+		})
+		return
+	}
+
+	period, svcErr := h.financeService.GetCurrentPeriod(c.Request.Context(), userID, int32(year), int32(month))
+	if svcErr != nil {
+		h.handleError(c, svcErr)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.PeriodResponse{
+		Period: period,
+	})
+}
+
+// CreatePeriod handles POST /api/finance/periods.
+func (h *RESTHandler) CreatePeriod(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.CreatePeriodRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	period, err := h.financeService.CreatePeriod(c.Request.Context(), userID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, model.PeriodResponse{
+		Period: period,
 	})
 }
 

@@ -137,3 +137,78 @@ func (s *FinanceService) GetDefaults(ctx context.Context, userID string) (*model
 	}
 	return defaults, nil
 }
+
+// GetCurrentPeriod retrieves the budget period for a given user, year, and month.
+// Returns a PERIOD_NOT_FOUND ServiceError (404) when no period exists.
+func (s *FinanceService) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
+	if month < 1 || month > 12 {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "Month must be between 1 and 12",
+			Status:  400,
+		}
+	}
+
+	period, err := s.repo.GetCurrentPeriod(ctx, userID, year, month)
+	if err != nil {
+		return nil, fmt.Errorf("getting current period: %w", err)
+	}
+	if period == nil {
+		return nil, &ServiceError{
+			Code:    model.ErrPeriodNotFound,
+			Message: fmt.Sprintf("No budget period found for %d-%02d", year, month),
+			Status:  404,
+		}
+	}
+	return period, nil
+}
+
+// CreatePeriod creates a new budget period for the given user.
+// Validates the E/D/S split sums to 100% before persisting.
+func (s *FinanceService) CreatePeriod(ctx context.Context, userID string, req *model.CreatePeriodRequest) (*model.BudgetPeriod, error) {
+	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: err.Error(),
+			Status:  400,
+		}
+	}
+
+	if req.Month < 1 || req.Month > 12 {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "Month must be between 1 and 12",
+			Status:  400,
+		}
+	}
+
+	if req.BudgetAmount < 0 {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "Budget amount must be non-negative",
+			Status:  400,
+		}
+	}
+
+	period, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
+		UserID:            userID,
+		Year:              req.Year,
+		Month:             req.Month,
+		BudgetAmount:      req.BudgetAmount,
+		EssentialsPercent: req.EssentialsPercent,
+		DesiresPercent:    req.DesiresPercent,
+		SavingsPercent:    req.SavingsPercent,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating period: %w", err)
+	}
+
+	s.logger.Info("budget period created",
+		slog.String("method", "CreatePeriod"),
+		slog.String("user_id", userID),
+		slog.Int("year", int(req.Year)),
+		slog.Int("month", int(req.Month)),
+	)
+
+	return period, nil
+}

@@ -103,6 +103,47 @@ func (r *PostgresFinanceRepository) CountUserTags(ctx context.Context, userID st
 	return r.queries.CountUserTags(ctx, uid)
 }
 
+func (r *PostgresFinanceRepository) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.GetCurrentPeriod(ctx, db.GetCurrentPeriodParams{
+		UserID: uid,
+		Year:   year,
+		Month:  month,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbPeriodToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) CreatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(period.UserID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.CreatePeriod(ctx, db.CreatePeriodParams{
+		UserID:            uid,
+		Year:              period.Year,
+		Month:             period.Month,
+		BudgetAmount:      period.BudgetAmount,
+		EssentialsPercent: period.EssentialsPercent,
+		DesiresPercent:    period.DesiresPercent,
+		SavingsPercent:    period.SavingsPercent,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dbPeriodToModel(row), nil
+}
+
 // dbDefaultsToModel converts a sqlc-generated row to the domain model.
 func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	return &model.DefaultSettings{
@@ -126,6 +167,22 @@ func dbTagToModel(t db.FinanceTag) *model.Tag {
 		IsDefault: t.IsDefault,
 		CreatedAt: t.CreatedAt.Time,
 		UpdatedAt: t.UpdatedAt.Time,
+	}
+}
+
+// dbPeriodToModel converts a sqlc-generated budget period row to the domain model.
+func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
+	return &model.BudgetPeriod{
+		ID:                formatUUID(p.ID.Bytes),
+		UserID:            formatUUID(p.UserID.Bytes),
+		Year:              p.Year,
+		Month:             p.Month,
+		BudgetAmount:      p.BudgetAmount,
+		EssentialsPercent: p.EssentialsPercent,
+		DesiresPercent:    p.DesiresPercent,
+		SavingsPercent:    p.SavingsPercent,
+		CreatedAt:         p.CreatedAt.Time,
+		UpdatedAt:         p.UpdatedAt.Time,
 	}
 }
 

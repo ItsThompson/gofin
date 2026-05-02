@@ -22,6 +22,49 @@ func (q *Queries) CountUserTags(ctx context.Context, userID pgtype.UUID) (int64,
 	return count, err
 }
 
+const createPeriod = `-- name: CreatePeriod :one
+INSERT INTO finance.budget_periods
+    (user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at
+`
+
+type CreatePeriodParams struct {
+	UserID            pgtype.UUID `json:"user_id"`
+	Year              int32       `json:"year"`
+	Month             int32       `json:"month"`
+	BudgetAmount      int64       `json:"budget_amount"`
+	EssentialsPercent int32       `json:"essentials_percent"`
+	DesiresPercent    int32       `json:"desires_percent"`
+	SavingsPercent    int32       `json:"savings_percent"`
+}
+
+func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (FinanceBudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, createPeriod,
+		arg.UserID,
+		arg.Year,
+		arg.Month,
+		arg.BudgetAmount,
+		arg.EssentialsPercent,
+		arg.DesiresPercent,
+		arg.SavingsPercent,
+	)
+	var i FinanceBudgetPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.BudgetAmount,
+		&i.EssentialsPercent,
+		&i.DesiresPercent,
+		&i.SavingsPercent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTag = `-- name: CreateTag :one
 INSERT INTO finance.tags (user_id, name, is_default)
 VALUES ($1, $2, $3)
@@ -42,6 +85,35 @@ func (q *Queries) CreateTag(ctx context.Context, arg CreateTagParams) (FinanceTa
 		&i.UserID,
 		&i.Name,
 		&i.IsDefault,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCurrentPeriod = `-- name: GetCurrentPeriod :one
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+WHERE user_id = $1 AND year = $2 AND month = $3
+`
+
+type GetCurrentPeriodParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Year   int32       `json:"year"`
+	Month  int32       `json:"month"`
+}
+
+func (q *Queries) GetCurrentPeriod(ctx context.Context, arg GetCurrentPeriodParams) (FinanceBudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, getCurrentPeriod, arg.UserID, arg.Year, arg.Month)
+	var i FinanceBudgetPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.BudgetAmount,
+		&i.EssentialsPercent,
+		&i.DesiresPercent,
+		&i.SavingsPercent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

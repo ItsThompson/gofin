@@ -13,5 +13,6 @@ const (
 	ErrValidationError     = "VALIDATION_ERROR"
 	ErrUnauthorized        = "UNAUTHORIZED"
 	ErrNotFound            = "NOT_FOUND"
+	ErrPeriodNotFound      = "PERIOD_NOT_FOUND"
 	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
 )

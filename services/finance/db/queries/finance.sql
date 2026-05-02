@@ -27,3 +27,13 @@ ORDER BY name ASC;
 
 -- name: CountUserTags :one
 SELECT count(*) FROM finance.tags WHERE user_id = $1;
+
+-- name: GetCurrentPeriod :one
+SELECT * FROM finance.budget_periods
+WHERE user_id = $1 AND year = $2 AND month = $3;
+
+-- name: CreatePeriod :one
+INSERT INTO finance.budget_periods
+    (user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING *;
