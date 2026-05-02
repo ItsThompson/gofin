@@ -28,6 +28,11 @@ type GetExpensesRequest struct {
 	Month       int32
 	Page        int32
 	PageSize    int32
+	Sort        string // e.g., "date:asc", "amount:desc"
+	Type        string // comma-separated expense types
+	TagID       string // comma-separated tag IDs
+	DateFrom    string // ISO date
+	DateTo      string // ISO date
 }
 
 // ExpenseResponse is the JSON body returned for a single expense.
