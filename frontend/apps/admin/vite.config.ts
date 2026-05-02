@@ -20,8 +20,6 @@ export default defineConfig({
         "react-dom": { singleton: true, requiredVersion: "^19" },
         "react-router": { singleton: true, requiredVersion: "^7" },
         zustand: { singleton: true, requiredVersion: "^5" },
-        "@gofin/types": { singleton: true },
-        "@gofin/ui": { singleton: true },
       },
     }),
   ],

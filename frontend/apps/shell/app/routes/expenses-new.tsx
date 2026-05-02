@@ -1,10 +1,24 @@
-export default function NewExpensePage() {
+import { lazy, Suspense } from "react";
+
+/**
+ * Lazy-load the NewExpensePage from the finance remote package.
+ */
+const NewExpensePage = lazy(() =>
+  import("@gofin/finance/src/pages/NewExpensePage").then((mod) => ({
+    default: mod.NewExpensePage,
+  })),
+);
+
+export default function NewExpenseRoute() {
   return (
-    <div>
-      <h1 className="text-2xl font-bold">New Expense</h1>
-      <p className="mt-2 text-muted-foreground">
-        The expense form will appear here. Coming soon.
-      </p>
-    </div>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-muted-foreground">Loading expense form...</div>
+        </div>
+      }
+    >
+      <NewExpensePage />
+    </Suspense>
   );
 }

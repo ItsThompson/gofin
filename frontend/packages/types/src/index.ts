@@ -1,4 +1,5 @@
 export { apiClient, ApiRequestError, consumeReturnToPath } from "./api-client";
+export { formatCurrency, getCurrencySymbol } from "./currency";
 
 /** Core user model returned by the auth API. */
 export interface User {
@@ -28,4 +29,53 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
   hasMore: boolean;
+}
+
+/** Budget period for a single month. */
+export interface BudgetPeriod {
+  id: string;
+  userId: string;
+  year: number;
+  month: number;
+  /** Budget total in minor units (cents). */
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** User's default budget settings. */
+export interface DefaultSettings {
+  userId: string;
+  /** Budget amount in minor units (cents). 0 = not yet configured. */
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+  currency: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Response from GET /api/finance/defaults. */
+export interface DefaultsResponse {
+  defaults: DefaultSettings;
+}
+
+/** Response from GET/POST /api/finance/periods/*. */
+export interface PeriodResponse {
+  period: BudgetPeriod;
+}
+
+/** Request body for POST /api/finance/periods. */
+export interface CreatePeriodRequest {
+  year: number;
+  month: number;
+  /** Budget amount in minor units (cents). */
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
 }
