@@ -79,3 +79,30 @@ export interface CreatePeriodRequest {
   desiresPercent: number;
   savingsPercent: number;
 }
+
+/** Request body for PUT /api/finance/defaults. */
+export interface UpdateDefaultsRequest {
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+  currency: string;
+}
+
+/** Request body for PUT /api/auth/me. */
+export interface UpdateProfileRequest {
+  username: string;
+  email: string;
+  currency: string;
+}
+
+/** Request body for POST /api/auth/me/password. */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/** Auth response wrapping a User (used by profile update, password change). */
+export interface AuthResponse {
+  user: User;
+}
