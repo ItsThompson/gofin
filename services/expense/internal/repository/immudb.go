@@ -1,0 +1,217 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"github.com/ItsThompson/gofin/services/expense/internal/model"
+)
+
+// ImmudbExpenseRepository implements ExpenseRepository using immudb's SQL interface.
+type ImmudbExpenseRepository struct {
+	client ImmudbClient
+	logger *slog.Logger
+}
+
+// NewImmudbExpenseRepository creates a new ImmudbExpenseRepository.
+func NewImmudbExpenseRepository(client ImmudbClient, logger *slog.Logger) *ImmudbExpenseRepository {
+	return &ImmudbExpenseRepository{
+		client: client,
+		logger: logger,
+	}
+}
+
+// InitSchema creates the expenses table and indexes if they don't exist.
+func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
+	createTable := `CREATE TABLE IF NOT EXISTS expenses (
+		id              VARCHAR(36)  NOT NULL,
+		user_id         VARCHAR(36)  NOT NULL,
+		name            VARCHAR(255) NOT NULL,
+		amount          INTEGER      NOT NULL,
+		currency        VARCHAR(3)   NOT NULL,
+		expense_type    VARCHAR(20)  NOT NULL,
+		tag_id          VARCHAR(36)  NOT NULL,
+		expense_date    VARCHAR(10)  NOT NULL,
+		period_year     INTEGER      NOT NULL,
+		period_month    INTEGER      NOT NULL,
+		status          VARCHAR(20)  NOT NULL,
+		corrects_id     VARCHAR(36),
+		is_pro_rata     BOOLEAN      NOT NULL,
+		pro_rata_group  VARCHAR(36),
+		pro_rata_index  INTEGER,
+		pro_rata_total  INTEGER,
+		created_at      VARCHAR(30)  NOT NULL,
+		PRIMARY KEY (id)
+	);`
+
+	_, err := r.client.SQLExec(ctx, createTable, nil)
+	if err != nil {
+		return fmt.Errorf("creating expenses table: %w", err)
+	}
+
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
+		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_expenses_prorata_group ON expenses (pro_rata_group);`,
+	}
+
+	for _, idx := range indexes {
+		_, err := r.client.SQLExec(ctx, idx, nil)
+		if err != nil {
+			// Index creation may fail if it already exists; log and continue.
+			r.logger.Warn("index creation skipped (may already exist)",
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+
+	r.logger.Info("immudb schema initialized")
+	return nil
+}
+
+// CreateExpense inserts a new expense entry into the immudb ledger.
+func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *model.Expense) (*model.Expense, error) {
+	query := `INSERT INTO expenses (
+		id, user_id, name, amount, currency, expense_type, tag_id,
+		expense_date, period_year, period_month, status, corrects_id,
+		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
+	) VALUES (
+		@id, @user_id, @name, @amount, @currency, @expense_type, @tag_id,
+		@expense_date, @period_year, @period_month, @status, @corrects_id,
+		@is_pro_rata, @pro_rata_group, @pro_rata_index, @pro_rata_total, @created_at
+	);`
+
+	params := map[string]interface{}{
+		"id":             expense.ID,
+		"user_id":        expense.UserID,
+		"name":           expense.Name,
+		"amount":         expense.Amount,
+		"currency":       expense.Currency,
+		"expense_type":   expense.ExpenseType,
+		"tag_id":         expense.TagID,
+		"expense_date":   expense.ExpenseDate,
+		"period_year":    expense.PeriodYear,
+		"period_month":   expense.PeriodMonth,
+		"status":         expense.Status,
+		"corrects_id":    expense.CorrectsID,
+		"is_pro_rata":    expense.IsProRata,
+		"pro_rata_group": expense.ProRataGroup,
+		"pro_rata_index": expense.ProRataIndex,
+		"pro_rata_total": expense.ProRataTotal,
+		"created_at":     expense.CreatedAt,
+	}
+
+	_, err := r.client.SQLExec(ctx, query, params)
+	if err != nil {
+		return nil, fmt.Errorf("inserting expense: %w", err)
+	}
+
+	return expense, nil
+}
+
+// GetExpensesForPeriod returns materialized (active-only) expenses for the given
+// user and period, with pagination. Also returns the total count.
+func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
+	// Count query for pagination
+	countQuery := `SELECT COUNT(*) FROM expenses
+		WHERE user_id = @user_id
+		AND period_year = @year
+		AND period_month = @month
+		AND status = 'active';`
+
+	countParams := map[string]interface{}{
+		"user_id": userID,
+		"year":    year,
+		"month":   month,
+	}
+
+	countResult, err := r.client.SQLQuery(ctx, countQuery, countParams)
+	if err != nil {
+		return nil, 0, fmt.Errorf("counting expenses: %w", err)
+	}
+
+	var total int64
+	if len(countResult.Rows) > 0 && len(countResult.Rows[0].Values) > 0 {
+		total = countResult.Rows[0].Values[0].GetInt()
+	}
+
+	// Data query with pagination, ordered by expense_date DESC, created_at DESC
+	offset := (page - 1) * pageSize
+	dataQuery := `SELECT id, user_id, name, amount, currency, expense_type, tag_id,
+		expense_date, period_year, period_month, status, corrects_id,
+		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
+		FROM expenses
+		WHERE user_id = @user_id
+		AND period_year = @year
+		AND period_month = @month
+		AND status = 'active'
+		ORDER BY expense_date DESC, created_at DESC
+		LIMIT @limit OFFSET @offset;`
+
+	dataParams := map[string]interface{}{
+		"user_id": userID,
+		"year":    year,
+		"month":   month,
+		"limit":   pageSize,
+		"offset":  offset,
+	}
+
+	result, err := r.client.SQLQuery(ctx, dataQuery, dataParams)
+	if err != nil {
+		return nil, 0, fmt.Errorf("querying expenses: %w", err)
+	}
+
+	expenses := make([]*model.Expense, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		expense := rowToExpense(row)
+		expenses = append(expenses, expense)
+	}
+
+	return expenses, total, nil
+}
+
+// GetExpenseByID returns a single expense by ID. Returns nil if not found.
+func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string) (*model.Expense, error) {
+	query := `SELECT id, user_id, name, amount, currency, expense_type, tag_id,
+		expense_date, period_year, period_month, status, corrects_id,
+		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
+		FROM expenses
+		WHERE id = @id;`
+
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": id})
+	if err != nil {
+		return nil, fmt.Errorf("querying expense by ID: %w", err)
+	}
+
+	if len(result.Rows) == 0 {
+		return nil, nil
+	}
+
+	return rowToExpense(result.Rows[0]), nil
+}
+
+// rowToExpense maps an SQL result row to an Expense domain model.
+// Column order must match the SELECT clause in queries.
+func rowToExpense(row SQLRow) *model.Expense {
+	values := row.Values
+	return &model.Expense{
+		ID:           values[0].GetString(),
+		UserID:       values[1].GetString(),
+		Name:         values[2].GetString(),
+		Amount:       values[3].GetInt(),
+		Currency:     values[4].GetString(),
+		ExpenseType:  values[5].GetString(),
+		TagID:        values[6].GetString(),
+		ExpenseDate:  values[7].GetString(),
+		PeriodYear:   int32(values[8].GetInt()),
+		PeriodMonth:  int32(values[9].GetInt()),
+		Status:       values[10].GetString(),
+		CorrectsID:   values[11].GetString(),
+		IsProRata:    values[12].GetBool(),
+		ProRataGroup: values[13].GetString(),
+		ProRataIndex: int32(values[14].GetInt()),
+		ProRataTotal: int32(values[15].GetInt()),
+		CreatedAt:    values[16].GetString(),
+	}
+}

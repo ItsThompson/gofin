@@ -2,9 +2,9 @@
 FROM golang:1.26-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum* ./
-RUN [ -f go.sum ] && go mod download || true
+RUN go mod download || true
 COPY . .
-RUN CGO_ENABLED=0 go build -o /service ./cmd/main.go
+RUN CGO_ENABLED=0 go build -tags docker -o /service ./cmd/
 
 # Stage 2: Runtime
 FROM alpine:3.21

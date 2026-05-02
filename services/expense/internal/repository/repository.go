@@ -25,3 +25,31 @@ type ExpenseRepository interface {
 type SchemaInitializer interface {
 	InitSchema(ctx context.Context) error
 }
+
+// SQLResult represents the result of an SQL query row.
+type SQLResult struct {
+	Columns []string
+	Rows    []SQLRow
+}
+
+// SQLRow represents a single row from an SQL query result.
+type SQLRow struct {
+	Values []SQLValue
+}
+
+// SQLValue represents a single value in a row. The immudb client returns
+// typed values; this interface abstracts over them for testability.
+type SQLValue interface {
+	GetString() string
+	GetInt() int64
+	GetBool() bool
+}
+
+// ImmudbClient abstracts the immudb client operations used by the repository.
+// This thin interface decouples the repository from the concrete immudb client
+// import, making the code buildable without the immudb dependency (which is
+// resolved at container build time via Docker).
+type ImmudbClient interface {
+	SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error)
+	SQLQuery(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error)
+}
