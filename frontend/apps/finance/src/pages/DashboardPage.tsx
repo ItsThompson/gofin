@@ -10,6 +10,8 @@ import {
   type DefaultsResponse,
   type PeriodResponse,
   type CreatePeriodRequest,
+  type Expense,
+  type PaginatedResponse,
   type User,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
@@ -377,7 +379,37 @@ interface ActiveDashboardProps {
 }
 
 function ActiveDashboard({ period, user }: ActiveDashboardProps) {
-  const totalSpent = 0; // No expenses yet: wired in a later ticket
+  const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
+  const [totalSpent, setTotalSpent] = useState(0);
+  const [expensesLoaded, setExpensesLoaded] = useState(false);
+
+  useEffect(() => {
+    async function fetchExpenses() {
+      try {
+        const response = await apiClient<PaginatedResponse<Expense>>(
+          `/api/expenses?year=${period.year}&month=${period.month}&page=1&pageSize=5`,
+        );
+        setRecentExpenses(response.data);
+        // Compute total spent from all expenses (fetch full count page)
+        // For the summary bar, we need total across all pages. Fetch with
+        // large pageSize to get the full total for now.
+        const allResponse = await apiClient<PaginatedResponse<Expense>>(
+          `/api/expenses?year=${period.year}&month=${period.month}&page=1&pageSize=1000`,
+        );
+        const spent = allResponse.data.reduce(
+          (sum, expense) => sum + expense.amount,
+          0,
+        );
+        setTotalSpent(spent);
+      } catch {
+        // Non-fatal: dashboard still shows with 0 expenses
+      } finally {
+        setExpensesLoaded(true);
+      }
+    }
+    fetchExpenses();
+  }, [period.year, period.month]);
+
   const remaining = period.budgetAmount - totalSpent;
   const daysInMonth = new Date(period.year, period.month, 0).getDate();
   const today = new Date();
@@ -403,24 +435,76 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
         currency={user.currency}
       />
 
-      {/* Empty State */}
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Wallet className="mb-4 size-12 text-muted-foreground/50" />
-          <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
-          <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-            Start tracking your spending by logging your first expense for this
-            month.
-          </p>
-          <Button asChild>
-            <Link to="/expenses/new">
-              <PlusCircle className="size-4" />
-              Log your first expense
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Recent Expenses or Empty State */}
+      {expensesLoaded && recentExpenses.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Wallet className="mb-4 size-12 text-muted-foreground/50" />
+            <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
+            <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+              Start tracking your spending by logging your first expense for this
+              month.
+            </p>
+            <Button asChild>
+              <Link to="/expenses/new">
+                <PlusCircle className="size-4" />
+                Log your first expense
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : expensesLoaded ? (
+        <RecentExpenses
+          expenses={recentExpenses}
+          currency={user.currency}
+        />
+      ) : null}
     </div>
+  );
+}
+
+// --- Recent Expenses ---
+
+interface RecentExpensesProps {
+  expenses: Expense[];
+  currency: string;
+}
+
+function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>Recent Expenses</CardTitle>
+          <Link
+            to="/expenses"
+            className="text-sm text-primary hover:underline"
+          >
+            View All
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="divide-y">
+          {expenses.map((expense) => (
+            <div
+              key={expense.id}
+              className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{expense.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {expense.expenseDate}
+                </span>
+              </div>
+              <span className="text-sm font-semibold">
+                {formatCurrency(expense.amount, currency)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * Lazy-load the NewExpensePage from the finance remote package.
@@ -10,6 +11,10 @@ const NewExpensePage = lazy(() =>
 );
 
 export default function NewExpenseRoute() {
+  const { user } = useAuthStore();
+
+  if (!user) return null;
+
   return (
     <Suspense
       fallback={
@@ -18,7 +23,7 @@ export default function NewExpenseRoute() {
         </div>
       }
     >
-      <NewExpensePage />
+      <NewExpensePage user={user} />
     </Suspense>
   );
 }

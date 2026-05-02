@@ -94,6 +94,85 @@ function mockServerError(message: string) {
   });
 }
 
+function mockEmptyExpenses() {
+  // First call: recent expenses (pageSize=5)
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+  });
+  // Second call: all expenses for total (pageSize=1000)
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({ data: [], total: 0, page: 1, pageSize: 1000, hasMore: false }),
+  });
+}
+
+const mockExpenses = [
+  {
+    id: "exp-1",
+    userId: "user-1",
+    name: "Groceries",
+    amount: 5000,
+    currency: "USD",
+    expenseType: "essentials",
+    tagId: "tag-food",
+    expenseDate: "2026-05-02",
+    periodYear: 2026,
+    periodMonth: 5,
+    status: "active",
+    isProRata: false,
+    createdAt: "2026-05-02T10:00:00Z",
+  },
+  {
+    id: "exp-2",
+    userId: "user-1",
+    name: "Coffee",
+    amount: 450,
+    currency: "USD",
+    expenseType: "desires",
+    tagId: "tag-food",
+    expenseDate: "2026-05-01",
+    periodYear: 2026,
+    periodMonth: 5,
+    status: "active",
+    isProRata: false,
+    createdAt: "2026-05-01T09:00:00Z",
+  },
+];
+
+function mockExpensesFound() {
+  // First call: recent expenses (pageSize=5)
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        data: mockExpenses,
+        total: 2,
+        page: 1,
+        pageSize: 5,
+        hasMore: false,
+      }),
+  });
+  // Second call: all expenses for total (pageSize=1000)
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        data: mockExpenses,
+        total: 2,
+        page: 1,
+        pageSize: 1000,
+        hasMore: false,
+      }),
+  });
+}
+
 function mockCreatePeriodSuccess() {
   mockFetch.mockResolvedValueOnce({
     ok: true,
@@ -124,6 +203,7 @@ describe("DashboardPage", () => {
   describe("active period exists", () => {
     it("renders summary bar with budget values", async () => {
       mockPeriodFound();
+      mockEmptyExpenses();
       renderDashboard();
 
       await waitFor(() => {
@@ -132,7 +212,9 @@ describe("DashboardPage", () => {
 
       expect(screen.getByText("Total Budget")).toBeInTheDocument();
       // $3,000.00 appears in both Total Budget and Remaining cards
-      expect(screen.getAllByText("$3,000.00")).toHaveLength(2);
+      await waitFor(() => {
+        expect(screen.getAllByText("$3,000.00")).toHaveLength(2);
+      });
       expect(screen.getByText("Total Spent")).toBeInTheDocument();
       expect(screen.getByText("$0.00")).toBeInTheDocument();
       expect(screen.getByText("Remaining")).toBeInTheDocument();
@@ -141,6 +223,7 @@ describe("DashboardPage", () => {
 
     it("renders empty state with CTA to log expense", async () => {
       mockPeriodFound();
+      mockEmptyExpenses();
       renderDashboard();
 
       await waitFor(() => {
@@ -156,6 +239,7 @@ describe("DashboardPage", () => {
 
     it("displays currency symbol from user profile", async () => {
       mockPeriodFound();
+      mockEmptyExpenses();
       renderDashboard({ ...mockUser, currency: "EUR" });
 
       await waitFor(() => {
@@ -163,12 +247,15 @@ describe("DashboardPage", () => {
       });
 
       // €3,000.00 appears in Total Budget and Remaining
-      expect(screen.getAllByText("€3,000.00")).toHaveLength(2);
+      await waitFor(() => {
+        expect(screen.getAllByText("€3,000.00")).toHaveLength(2);
+      });
       expect(screen.getByText("€0.00")).toBeInTheDocument();
     });
 
     it("color-codes remaining balance green when > 30%", async () => {
       mockPeriodFound();
+      mockEmptyExpenses();
       renderDashboard();
 
       await waitFor(() => {
@@ -193,6 +280,7 @@ describe("DashboardPage", () => {
             period: { ...mockPeriod, budgetAmount: 0 },
           }),
       });
+      mockEmptyExpenses();
       renderDashboard();
 
       await waitFor(() => {
@@ -303,6 +391,7 @@ describe("DashboardPage", () => {
       mockPeriodNotFound();
       mockDefaultsFound();
       mockCreatePeriodSuccess();
+      mockEmptyExpenses(); // After period creation, dashboard fetches expenses
 
       const user = userEvent.setup();
       renderDashboard();
@@ -325,6 +414,7 @@ describe("DashboardPage", () => {
       mockPeriodNotFound();
       mockDefaultsFound();
       mockCreatePeriodSuccess();
+      mockEmptyExpenses(); // After period creation, dashboard fetches expenses
 
       const user = userEvent.setup();
       renderDashboard();
@@ -394,12 +484,61 @@ describe("DashboardPage", () => {
 
       // Retry succeeds
       mockPeriodFound();
+      mockEmptyExpenses();
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: /retry/i }));
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("recent expenses", () => {
+    it("shows recent expenses when expenses exist", async () => {
+      mockPeriodFound();
+      mockExpensesFound();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Groceries")).toBeInTheDocument();
+      expect(screen.getByText("Coffee")).toBeInTheDocument();
+      expect(screen.getByText("$50.00")).toBeInTheDocument(); // 5000 cents
+      expect(screen.getByText("$4.50")).toBeInTheDocument(); // 450 cents
+    });
+
+    it("shows View All link to /expenses", async () => {
+      mockPeriodFound();
+      mockExpensesFound();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+      });
+
+      const viewAllLink = screen.getByRole("link", { name: /view all/i });
+      expect(viewAllLink).toHaveAttribute("href", "/expenses");
+    });
+
+    it("updates total spent in summary bar from expenses", async () => {
+      mockPeriodFound();
+      mockExpensesFound();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+      });
+
+      // Total spent: 5000 + 450 = 5450 cents = $54.50
+      await waitFor(() => {
+        expect(screen.getByText("$54.50")).toBeInTheDocument();
+      });
+
+      // Remaining: $3,000.00 - $54.50 = $2,945.50
+      expect(screen.getByText("$2,945.50")).toBeInTheDocument();
     });
   });
 });
