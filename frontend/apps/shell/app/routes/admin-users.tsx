@@ -1,10 +1,9 @@
+import { Navigate } from "react-router";
+
+/**
+ * /admin/users redirects to /admin which contains the full admin panel.
+ * The admin panel page handles user list display.
+ */
 export default function AdminUsersPage() {
-  return (
-    <div>
-      <h1 className="text-2xl font-bold">User Management</h1>
-      <p className="mt-2 text-muted-foreground">
-        User list and identity assumption controls. Coming soon.
-      </p>
-    </div>
-  );
+  return <Navigate to="/admin" replace />;
 }

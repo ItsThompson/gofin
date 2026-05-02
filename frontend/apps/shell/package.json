@@ -12,6 +12,7 @@
     "typecheck": "react-router typegen && tsc -b"
   },
   "dependencies": {
+    "@gofin/admin": "*",
     "@gofin/types": "*",
     "@gofin/ui": "*",
     "@react-router/express": "^7.14.2",

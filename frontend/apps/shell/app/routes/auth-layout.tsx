@@ -10,6 +10,7 @@ import {
   Menu,
   X,
   Shield,
+  ArrowLeftToLine,
 } from "lucide-react";
 
 export default function AuthLayout() {
@@ -17,12 +18,15 @@ export default function AuthLayout() {
     user,
     isAuthenticated,
     isAdmin,
+    isAssuming,
     isLoading,
     checkAuth,
     logout,
+    restoreIdentity,
   } = useAuthStore();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -68,6 +72,16 @@ export default function AuthLayout() {
   const handleLogout = async () => {
     await logout();
     navigate("/login");
+  };
+
+  const handleReturnToAdmin = async () => {
+    setIsRestoring(true);
+    try {
+      await restoreIdentity();
+      navigate("/admin");
+    } catch {
+      setIsRestoring(false);
+    }
   };
 
   const navLinks = [
@@ -177,6 +191,22 @@ export default function AuthLayout() {
           </nav>
         )}
       </header>
+
+      {/* Floating "Return to Admin" button during identity assumption */}
+      {isAssuming && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleReturnToAdmin}
+            disabled={isRestoring}
+            className="shadow-lg"
+          >
+            <ArrowLeftToLine className="size-4" />
+            Return to Admin
+          </Button>
+        </div>
+      )}
 
       {/* Page content */}
       <main className="mx-auto max-w-7xl px-4 py-6">

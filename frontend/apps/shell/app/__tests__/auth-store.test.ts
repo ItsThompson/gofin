@@ -262,6 +262,108 @@ describe("auth store", () => {
     });
   });
 
+  describe("assumeIdentity", () => {
+    it("stores original admin and switches to assumed user", async () => {
+      useAuthStore.setState({
+        user: mockAdminUser,
+        isAuthenticated: true,
+        isAdmin: true,
+        isLoading: false,
+      });
+
+      const assumedUser = { ...mockUser, id: "assumed-789", username: "assumed" };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: assumedUser }),
+      });
+
+      await useAuthStore.getState().assumeIdentity("assumed-789");
+
+      const state = useAuthStore.getState();
+      expect(state.user).toEqual(assumedUser);
+      expect(state.isAssuming).toBe(true);
+      expect(state.originalAdminUser).toEqual(mockAdminUser);
+      expect(state.isAuthenticated).toBe(true);
+    });
+
+    it("sends correct request body", async () => {
+      useAuthStore.setState({
+        user: mockAdminUser,
+        isAuthenticated: true,
+        isAdmin: true,
+        isLoading: false,
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: mockUser }),
+      });
+
+      await useAuthStore.getState().assumeIdentity("user-123");
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/auth/assume", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: "user-123" }),
+      });
+    });
+  });
+
+  describe("restoreIdentity", () => {
+    it("restores admin user and clears assumption state", async () => {
+      useAuthStore.setState({
+        user: mockUser,
+        isAuthenticated: true,
+        isAdmin: false,
+        isAssuming: true,
+        originalAdminUser: mockAdminUser,
+        isLoading: false,
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: mockAdminUser }),
+      });
+
+      await useAuthStore.getState().restoreIdentity();
+
+      const state = useAuthStore.getState();
+      expect(state.user).toEqual(mockAdminUser);
+      expect(state.isAssuming).toBe(false);
+      expect(state.originalAdminUser).toBeNull();
+      expect(state.isAdmin).toBe(true);
+      expect(state.isAuthenticated).toBe(true);
+    });
+
+    it("sends POST to /api/auth/restore", async () => {
+      useAuthStore.setState({
+        user: mockUser,
+        isAuthenticated: true,
+        isAssuming: true,
+        originalAdminUser: mockAdminUser,
+        isLoading: false,
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: mockAdminUser }),
+      });
+
+      await useAuthStore.getState().restoreIdentity();
+
+      expect(mockFetch).toHaveBeenCalledWith("/api/auth/restore", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+  });
+
   describe("state transitions", () => {
     it("starts in loading state", () => {
       resetStore();
