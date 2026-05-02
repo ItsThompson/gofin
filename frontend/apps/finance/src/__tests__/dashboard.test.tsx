@@ -183,6 +183,30 @@ describe("DashboardPage", () => {
       );
       expect(greenAmount).toBeDefined();
     });
+
+    it("shows no color class when budget is $0", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            period: { ...mockPeriod, budgetAmount: 0 },
+          }),
+      });
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+      });
+
+      // Both budget and remaining are $0.00
+      const zeroAmounts = screen.getAllByText("$0.00");
+      zeroAmounts.forEach((element) => {
+        expect(element.className).not.toContain("text-green");
+        expect(element.className).not.toContain("text-yellow");
+        expect(element.className).not.toContain("text-red");
+      });
+    });
   });
 
   describe("no period exists (PERIOD_NOT_FOUND)", () => {

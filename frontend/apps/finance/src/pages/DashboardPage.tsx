@@ -4,6 +4,7 @@ import {
   apiClient,
   ApiRequestError,
   formatCurrency,
+  getCurrencySymbol,
   type BudgetPeriod,
   type DefaultSettings,
   type DefaultsResponse,
@@ -37,6 +38,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { DashboardState, FinancePageProps } from "@/types";
+import { getRemainingColor } from "@/lib/budget-utils";
 
 /**
  * Dashboard page: the central finance view.
@@ -180,6 +182,7 @@ function CreatePeriodPrompt({
 }: CreatePeriodPromptProps) {
   const effectiveDefaults = defaults ?? FALLBACK_DEFAULTS;
   const isZeroBudget = effectiveDefaults.budgetAmount === 0;
+  const currencySymbol = getCurrencySymbol(user.currency);
 
   const [budgetDollars, setBudgetDollars] = useState<string>(
     effectiveDefaults.budgetAmount > 0
@@ -289,7 +292,7 @@ function CreatePeriodPrompt({
               <FormLabel htmlFor="budget">Monthly Budget</FormLabel>
               <div className="relative">
                 <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  $
+                  {currencySymbol}
                 </span>
                 <Input
                   id="budget"
@@ -493,20 +496,3 @@ function SummaryCard({
   );
 }
 
-/**
- * Returns a Tailwind text color class based on remaining budget percentage.
- * - Green (> 30% remaining)
- * - Yellow (10–30% remaining)
- * - Red (< 10% remaining)
- *
- * When budget is $0, remaining is always 100% of nothing: show default.
- */
-function getRemainingColor(budget: number, remaining: number): string {
-  if (budget === 0) return "";
-
-  const percent = (remaining / budget) * 100;
-
-  if (percent > 30) return "text-green-600 dark:text-green-400";
-  if (percent >= 10) return "text-yellow-600 dark:text-yellow-400";
-  return "text-red-600 dark:text-red-400";
-}
