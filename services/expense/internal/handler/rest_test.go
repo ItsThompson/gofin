@@ -40,8 +40,8 @@ func (m *mockExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string) (*model.Expense, error) {
-	args := m.Called(ctx, id)
+func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
+	args := m.Called(ctx, id, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -293,7 +293,7 @@ func TestGetExpensesHandler_MissingUserID(t *testing.T) {
 func TestGetExpenseHandler_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
-	repo.On("GetExpenseByID", mock.Anything, "exp-123").
+	repo.On("GetExpenseByID", mock.Anything, "exp-123", "user-1").
 		Return(&model.Expense{
 			ID:          "exp-123",
 			UserID:      "user-1",
@@ -319,7 +319,7 @@ func TestGetExpenseHandler_Success(t *testing.T) {
 func TestGetExpenseHandler_NotFound(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
-	repo.On("GetExpenseByID", mock.Anything, "exp-999").Return(nil, nil)
+	repo.On("GetExpenseByID", mock.Anything, "exp-999", "user-1").Return(nil, nil)
 
 	r := setupTestRouter(repo)
 
@@ -338,4 +338,21 @@ func TestGetExpenseHandler_MissingUserID(t *testing.T) {
 
 	w := doJSONWithUserID(r, "GET", "/api/expenses/exp-123", "", nil)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestGetExpenseHandler_UserScopedNotFound(t *testing.T) {
+	repo := new(mockExpenseRepository)
+
+	// Expense belongs to user-1; user-2 requests it and gets nil (user-scoped query)
+	repo.On("GetExpenseByID", mock.Anything, "exp-123", "user-2").Return(nil, nil)
+
+	r := setupTestRouter(repo)
+
+	w := doJSONWithUserID(r, "GET", "/api/expenses/exp-123", "user-2", nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrNotFound, errResp.Code)
 }

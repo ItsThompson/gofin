@@ -80,7 +80,7 @@ func (h *GRPCHandler) GetExpensesForPeriod(ctx context.Context, req *pb.GetExpen
 }
 
 func (h *GRPCHandler) GetExpense(ctx context.Context, req *pb.GetExpenseRequest) (*pb.ExpenseResponse, error) {
-	expense, err := h.expenseService.GetExpense(ctx, req.GetId())
+	expense, err := h.expenseService.GetExpense(ctx, req.GetUserId(), req.GetId())
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

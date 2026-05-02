@@ -128,8 +128,8 @@ func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.Ge
 	}, nil
 }
 
-// GetExpense returns a single expense by ID.
-func (s *ExpenseService) GetExpense(ctx context.Context, id string) (*model.Expense, error) {
+// GetExpense returns a single expense by ID, scoped to the requesting user.
+func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id string) (*model.Expense, error) {
 	if id == "" {
 		return nil, &ServiceError{
 			Code:    model.ErrValidationError,
@@ -138,7 +138,7 @@ func (s *ExpenseService) GetExpense(ctx context.Context, id string) (*model.Expe
 		}
 	}
 
-	expense, err := s.repo.GetExpenseByID(ctx, id)
+	expense, err := s.repo.GetExpenseByID(ctx, id, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting expense: %w", err)
 	}

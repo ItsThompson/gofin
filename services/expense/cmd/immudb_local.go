@@ -81,11 +81,14 @@ func (c *inMemoryImmudbClient) SQLQuery(_ context.Context, sql string, params ma
 		}, nil
 	}
 
-	// SELECT by ID
+	// SELECT by ID (with user scoping)
 	if strings.Contains(sqlLower, "where id = @id") {
 		id, _ := params["id"].(string)
+		userID, _ := params["user_id"].(string)
 		for _, row := range c.rows {
-			if fmt.Sprintf("%v", row["id"]) == id {
+			rowID := fmt.Sprintf("%v", row["id"])
+			rowUserID := fmt.Sprintf("%v", row["user_id"])
+			if rowID == id && (userID == "" || rowUserID == userID) {
 				return &repository.SQLResult{
 					Rows: []repository.SQLRow{rowToSQLRow(row)},
 				}, nil

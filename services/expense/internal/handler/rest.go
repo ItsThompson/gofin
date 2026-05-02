@@ -148,7 +148,7 @@ func (h *RESTHandler) GetExpense(c *gin.Context) {
 	}
 
 	id := c.Param("id")
-	expense, err := h.expenseService.GetExpense(c.Request.Context(), id)
+	expense, err := h.expenseService.GetExpense(c.Request.Context(), userID, id)
 	if err != nil {
 		h.handleError(c, err)
 		return

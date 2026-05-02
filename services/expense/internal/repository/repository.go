@@ -17,8 +17,9 @@ type ExpenseRepository interface {
 	// Returns the matching expenses and the total count for pagination.
 	GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error)
 
-	// GetExpenseByID returns a single expense by ID (active only).
-	GetExpenseByID(ctx context.Context, id string) (*model.Expense, error)
+	// GetExpenseByID returns a single expense by ID, scoped to the given user.
+	// Returns nil if the expense doesn't exist or belongs to a different user.
+	GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error)
 }
 
 // SchemaInitializer creates the required tables and indexes on startup.

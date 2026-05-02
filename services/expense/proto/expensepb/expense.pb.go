@@ -532,6 +532,7 @@ func (x *ExpenseListResponse) GetHasMore() bool {
 type GetExpenseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -569,6 +570,13 @@ func (*GetExpenseRequest) Descriptor() ([]byte, []int) {
 func (x *GetExpenseRequest) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+func (x *GetExpenseRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
 	}
 	return ""
 }
@@ -853,9 +861,10 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x19\n" +
-	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"#\n" +
+	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"<\n" +
 	"\x11GetExpenseRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\xd8\x01\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xd8\x01\n" +
 	"\x15CorrectExpenseRequest\x12\x1d\n" +
 	"\n" +
 	"expense_id\x18\x01 \x01(\tR\texpenseId\x12\x17\n" +

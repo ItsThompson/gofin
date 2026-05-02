@@ -171,15 +171,16 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 	return expenses, total, nil
 }
 
-// GetExpenseByID returns a single expense by ID. Returns nil if not found.
-func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string) (*model.Expense, error) {
+// GetExpenseByID returns a single expense by ID, scoped to the given user.
+// Returns nil if not found or if the expense belongs to a different user.
+func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
 	query := `SELECT id, user_id, name, amount, currency, expense_type, tag_id,
 		expense_date, period_year, period_month, status, corrects_id,
 		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
 		FROM expenses
-		WHERE id = @id;`
+		WHERE id = @id AND user_id = @user_id;`
 
-	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": id})
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": id, "user_id": userID})
 	if err != nil {
 		return nil, fmt.Errorf("querying expense by ID: %w", err)
 	}

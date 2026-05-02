@@ -34,8 +34,8 @@ func (m *mockExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string) (*model.Expense, error) {
-	args := m.Called(ctx, id)
+func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
+	args := m.Called(ctx, id, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -316,10 +316,10 @@ func TestGetExpense_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	repo.On("GetExpenseByID", mock.Anything, "exp-123").
-		Return(&model.Expense{ID: "exp-123", Name: "Coffee", Status: "active"}, nil)
+	repo.On("GetExpenseByID", mock.Anything, "exp-123", "user-1").
+		Return(&model.Expense{ID: "exp-123", UserID: "user-1", Name: "Coffee", Status: "active"}, nil)
 
-	expense, err := svc.GetExpense(context.Background(), "exp-123")
+	expense, err := svc.GetExpense(context.Background(), "user-1", "exp-123")
 
 	require.NoError(t, err)
 	assert.Equal(t, "exp-123", expense.ID)
@@ -329,9 +329,9 @@ func TestGetExpense_NotFound(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	repo.On("GetExpenseByID", mock.Anything, "exp-999").Return(nil, nil)
+	repo.On("GetExpenseByID", mock.Anything, "exp-999", "user-1").Return(nil, nil)
 
-	_, err := svc.GetExpense(context.Background(), "exp-999")
+	_, err := svc.GetExpense(context.Background(), "user-1", "exp-999")
 
 	require.Error(t, err)
 	svcErr, ok := err.(*ServiceError)
@@ -344,7 +344,7 @@ func TestGetExpense_EmptyID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	_, err := svc.GetExpense(context.Background(), "")
+	_, err := svc.GetExpense(context.Background(), "user-1", "")
 
 	require.Error(t, err)
 	svcErr, ok := err.(*ServiceError)
