@@ -36,6 +36,8 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		auth.POST("/refresh", h.Refresh)
 		auth.POST("/logout", h.Logout)
 		auth.GET("/me", h.Me)
+		auth.PUT("/me", h.UpdateProfile)
+		auth.POST("/me/password", h.ChangePassword)
 		auth.POST("/onboarding-complete", h.CompleteOnboarding)
 		auth.POST("/assume", h.AssumeIdentity)
 		auth.POST("/restore", h.RestoreIdentity)
@@ -373,6 +375,89 @@ func (h *RESTHandler) RestoreIdentity(c *gin.Context) {
 	h.logger.Info("restore identity handler completed",
 		slog.String("method", "POST /api/auth/restore"),
 		slog.String("admin_user_id", assumedBy),
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
+}
+
+// UpdateProfile handles PUT /api/auth/me.
+// Updates the user's username, email, and currency.
+func (h *RESTHandler) UpdateProfile(c *gin.Context) {
+	start := time.Now()
+
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	user, err := h.authService.UpdateProfile(c.Request.Context(), userID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	h.logger.Info("update profile handler completed",
+		slog.String("method", "PUT /api/auth/me"),
+		slog.String("user_id", userID),
+		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+	)
+
+	c.JSON(http.StatusOK, model.AuthResponse{
+		User: user.ToResponse(),
+	})
+}
+
+// ChangePassword handles POST /api/auth/me/password.
+// Validates current password, updates to new password, revokes all tokens,
+// and returns fresh cookies for the current session.
+func (h *RESTHandler) ChangePassword(c *gin.Context) {
+	start := time.Now()
+
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	user, tokens, err := h.authService.ChangePassword(c.Request.Context(), userID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	h.setAuthCookies(c, tokens)
+
+	h.logger.Info("change password handler completed",
+		slog.String("method", "POST /api/auth/me/password"),
+		slog.String("user_id", userID),
 		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 	)
 

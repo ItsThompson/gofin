@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -146,4 +147,70 @@ func (r *PostgresUserRepository) ListAllUsers(ctx context.Context) ([]*model.Use
 		})
 	}
 	return users, nil
+}
+
+func (r *PostgresUserRepository) UpdateUser(ctx context.Context, userID, username, email, currency string) (*model.User, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+
+	dbUser, err := r.queries.UpdateUser(ctx, db.UpdateUserParams{
+		Username: username,
+		Email:    email,
+		Currency: currency,
+		ID:       uid,
+	})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, &DuplicateError{Constraint: pgErr.ConstraintName}
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbUserToModel(dbUser), nil
+}
+
+func (r *PostgresUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return err
+	}
+
+	return r.queries.UpdatePassword(ctx, db.UpdatePasswordParams{
+		PasswordHash: passwordHash,
+		ID:           uid,
+	})
+}
+
+func (r *PostgresUserRepository) RevokeAllUserTokens(ctx context.Context, userID string) error {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return err
+	}
+
+	return r.queries.RevokeAllUserTokens(ctx, uid)
+}
+
+func (r *PostgresUserRepository) GetTokensRevokedAt(ctx context.Context, userID string) (*time.Time, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+
+	ts, err := r.queries.GetTokensRevokedAt(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if !ts.Valid {
+		return nil, nil
+	}
+	t := ts.Time
+	return &t, nil
 }

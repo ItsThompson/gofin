@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 )
@@ -15,4 +16,8 @@ type UserRepository interface {
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
 	CompleteOnboarding(ctx context.Context, userID string, currency string) (*model.User, error)
 	ListAllUsers(ctx context.Context) ([]*model.User, error)
+	UpdateUser(ctx context.Context, userID, username, email, currency string) (*model.User, error)
+	UpdatePassword(ctx context.Context, userID, passwordHash string) error
+	RevokeAllUserTokens(ctx context.Context, userID string) error
+	GetTokensRevokedAt(ctx context.Context, userID string) (*time.Time, error)
 }

@@ -68,6 +68,32 @@ func (m *mockUserRepository) ListAllUsers(ctx context.Context) ([]*model.User, e
 	return args.Get(0).([]*model.User), args.Error(1)
 }
 
+func (m *mockUserRepository) UpdateUser(ctx context.Context, userID, username, email, currency string) (*model.User, error) {
+	args := m.Called(ctx, userID, username, email, currency)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.User), args.Error(1)
+}
+
+func (m *mockUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	args := m.Called(ctx, userID, passwordHash)
+	return args.Error(0)
+}
+
+func (m *mockUserRepository) RevokeAllUserTokens(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *mockUserRepository) GetTokensRevokedAt(ctx context.Context, userID string) (*time.Time, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*time.Time), args.Error(1)
+}
+
 func newTestAuthService(repo *mockUserRepository) *AuthService {
 	blacklistRepo := new(mockBlacklistRepository)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -353,12 +379,16 @@ func TestLogin_UserNotFound(t *testing.T) {
 func TestValidateToken_Success(t *testing.T) {
 	repo := new(mockUserRepository)
 	svc := newTestAuthService(repo)
+	ctx := context.Background()
 
 	jwtSvc := NewJWTService("test-secret")
 	access, _, err := jwtSvc.GenerateTokenPair("user-123", "admin", "johndoe")
 	require.NoError(t, err)
 
-	result, err := svc.ValidateToken(access)
+	// Token not revoked
+	repo.On("GetTokensRevokedAt", ctx, "user-123").Return(nil, nil)
+
+	result, err := svc.ValidateToken(ctx, access)
 	require.NoError(t, err)
 	assert.Equal(t, "user-123", result.UserID)
 	assert.Equal(t, "admin", result.Role)
@@ -368,12 +398,34 @@ func TestValidateToken_Success(t *testing.T) {
 func TestValidateToken_Invalid(t *testing.T) {
 	repo := new(mockUserRepository)
 	svc := newTestAuthService(repo)
+	ctx := context.Background()
 
-	_, err := svc.ValidateToken("garbage-token")
+	_, err := svc.ValidateToken(ctx, "garbage-token")
 	require.Error(t, err)
 	var authErr *AuthError
 	require.ErrorAs(t, err, &authErr)
 	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+}
+
+func TestValidateToken_RevokedToken(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	jwtSvc := NewJWTService("test-secret")
+	access, _, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	// Token revoked AFTER the token was issued: simulate password change
+	revokedTime := time.Now().Add(1 * time.Second)
+	repo.On("GetTokensRevokedAt", ctx, "user-123").Return(&revokedTime, nil)
+
+	_, err = svc.ValidateToken(ctx, access)
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+	assert.Contains(t, authErr.Message, "revoked")
 }
 
 // --- RefreshToken Tests ---
@@ -729,4 +781,215 @@ func TestSeedAdmin_IdempotentSkipsExisting(t *testing.T) {
 
 	require.NoError(t, err)
 	repo.AssertNotCalled(t, "CreateUser")
+}
+
+// --- UpdateProfile Tests ---
+
+func TestUpdateProfile_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	repo.On("GetUserByEmail", ctx, "new@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", ctx, "newname").Return(nil, nil)
+	repo.On("UpdateUser", ctx, "user-123", "newname", "new@example.com", "EUR").Return(&model.User{
+		ID:       "user-123",
+		Username: "newname",
+		Email:    "new@example.com",
+		Currency: "EUR",
+		Role:     "user",
+	}, nil)
+
+	user, err := svc.UpdateProfile(ctx, "user-123", &model.UpdateProfileRequest{
+		Username: "newname",
+		Email:    "new@example.com",
+		Currency: "EUR",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "newname", user.Username)
+	assert.Equal(t, "new@example.com", user.Email)
+	assert.Equal(t, "EUR", user.Currency)
+	repo.AssertExpectations(t)
+}
+
+func TestUpdateProfile_DuplicateEmail(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	repo.On("GetUserByEmail", ctx, "taken@example.com").Return(&model.User{
+		ID:    "other-user",
+		Email: "taken@example.com",
+	}, nil)
+
+	_, err := svc.UpdateProfile(ctx, "user-123", &model.UpdateProfileRequest{
+		Username: "myname",
+		Email:    "taken@example.com",
+		Currency: "USD",
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrDuplicateEmail, authErr.Code)
+	assert.Equal(t, 409, authErr.Status)
+}
+
+func TestUpdateProfile_DuplicateUsername(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	repo.On("GetUserByEmail", ctx, "me@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", ctx, "takenuser").Return(&model.User{
+		ID:       "other-user",
+		Username: "takenuser",
+	}, nil)
+
+	_, err := svc.UpdateProfile(ctx, "user-123", &model.UpdateProfileRequest{
+		Username: "takenuser",
+		Email:    "me@example.com",
+		Currency: "USD",
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrDuplicateUsername, authErr.Code)
+	assert.Equal(t, 409, authErr.Status)
+}
+
+func TestUpdateProfile_SameEmailSameUser_Succeeds(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	// The user keeps their own email: should not be a conflict
+	repo.On("GetUserByEmail", ctx, "me@example.com").Return(&model.User{
+		ID:    "user-123",
+		Email: "me@example.com",
+	}, nil)
+	repo.On("GetUserByUsername", ctx, "myname").Return(&model.User{
+		ID:       "user-123",
+		Username: "myname",
+	}, nil)
+	repo.On("UpdateUser", ctx, "user-123", "myname", "me@example.com", "USD").Return(&model.User{
+		ID:       "user-123",
+		Username: "myname",
+		Email:    "me@example.com",
+		Currency: "USD",
+	}, nil)
+
+	user, err := svc.UpdateProfile(ctx, "user-123", &model.UpdateProfileRequest{
+		Username: "myname",
+		Email:    "me@example.com",
+		Currency: "USD",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", user.ID)
+}
+
+// --- ChangePassword Tests ---
+
+func TestChangePassword_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("OldPass123")
+	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
+		ID:           "user-123",
+		Username:     "testuser",
+		Email:        "test@example.com",
+		PasswordHash: hash,
+		Role:         "user",
+	}, nil)
+	repo.On("UpdatePassword", ctx, "user-123", mock.AnythingOfType("string")).Return(nil)
+	repo.On("RevokeAllUserTokens", ctx, "user-123").Return(nil)
+
+	user, tokens, err := svc.ChangePassword(ctx, "user-123", &model.ChangePasswordRequest{
+		CurrentPassword: "OldPass123",
+		NewPassword:     "NewPass456",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", user.ID)
+	assert.NotEmpty(t, tokens.AccessToken)
+	assert.NotEmpty(t, tokens.RefreshToken)
+	repo.AssertCalled(t, "UpdatePassword", ctx, "user-123", mock.AnythingOfType("string"))
+	repo.AssertCalled(t, "RevokeAllUserTokens", ctx, "user-123")
+}
+
+func TestChangePassword_WrongCurrentPassword(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("CorrectPass1")
+	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
+		ID:           "user-123",
+		PasswordHash: hash,
+	}, nil)
+
+	_, _, err := svc.ChangePassword(ctx, "user-123", &model.ChangePasswordRequest{
+		CurrentPassword: "WrongPass1",
+		NewPassword:     "NewPass456",
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrInvalidCredentials, authErr.Code)
+	assert.Equal(t, 401, authErr.Status)
+}
+
+func TestChangePassword_WeakNewPassword(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("OldPass123")
+	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
+		ID:           "user-123",
+		PasswordHash: hash,
+	}, nil)
+
+	_, _, err := svc.ChangePassword(ctx, "user-123", &model.ChangePasswordRequest{
+		CurrentPassword: "OldPass123",
+		NewPassword:     "weak",
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
+	assert.Equal(t, 400, authErr.Status)
+}
+
+func TestChangePassword_TokenRevocation(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("OldPass123")
+	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
+		ID:           "user-123",
+		Username:     "testuser",
+		PasswordHash: hash,
+		Role:         "user",
+	}, nil)
+	repo.On("UpdatePassword", ctx, "user-123", mock.AnythingOfType("string")).Return(nil)
+	repo.On("RevokeAllUserTokens", ctx, "user-123").Return(nil)
+
+	_, _, err := svc.ChangePassword(ctx, "user-123", &model.ChangePasswordRequest{
+		CurrentPassword: "OldPass123",
+		NewPassword:     "NewPass456",
+	})
+
+	require.NoError(t, err)
+	// RevokeAllUserTokens was called, which sets tokens_revoked_at on the user.
+	// Any token with iat before that timestamp will be rejected by ValidateToken.
+	repo.AssertCalled(t, "RevokeAllUserTokens", ctx, "user-123")
 }

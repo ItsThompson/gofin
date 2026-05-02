@@ -34,3 +34,22 @@ RETURNING *;
 SELECT id, username, email, role, created_at
 FROM auth.users
 ORDER BY created_at ASC;
+
+-- name: UpdateUser :one
+UPDATE auth.users
+SET username = $1, email = $2, currency = $3, updated_at = now()
+WHERE id = $4
+RETURNING *;
+
+-- name: UpdatePassword :exec
+UPDATE auth.users
+SET password_hash = $1, updated_at = now()
+WHERE id = $2;
+
+-- name: RevokeAllUserTokens :exec
+UPDATE auth.users
+SET tokens_revoked_at = now(), updated_at = now()
+WHERE id = $1;
+
+-- name: GetTokensRevokedAt :one
+SELECT tokens_revoked_at FROM auth.users WHERE id = $1;

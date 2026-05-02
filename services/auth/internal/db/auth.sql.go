@@ -104,6 +104,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (AuthUse
 	return i, err
 }
 
+const getTokensRevokedAt = `-- name: GetTokensRevokedAt :one
+SELECT tokens_revoked_at FROM auth.users WHERE id = $1
+`
+
+func (q *Queries) GetTokensRevokedAt(ctx context.Context, id pgtype.UUID) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, getTokensRevokedAt, id)
+	var tokens_revoked_at pgtype.Timestamptz
+	err := row.Scan(&tokens_revoked_at)
+	return tokens_revoked_at, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at FROM auth.users WHERE email = $1
 `
@@ -221,4 +232,68 @@ func (q *Queries) ListAllUsers(ctx context.Context) ([]ListAllUsersRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const revokeAllUserTokens = `-- name: RevokeAllUserTokens :exec
+UPDATE auth.users
+SET tokens_revoked_at = now(), updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) RevokeAllUserTokens(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, revokeAllUserTokens, id)
+	return err
+}
+
+const updatePassword = `-- name: UpdatePassword :exec
+UPDATE auth.users
+SET password_hash = $1, updated_at = now()
+WHERE id = $2
+`
+
+type UpdatePasswordParams struct {
+	PasswordHash string      `json:"password_hash"`
+	ID           pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error {
+	_, err := q.db.Exec(ctx, updatePassword, arg.PasswordHash, arg.ID)
+	return err
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE auth.users
+SET username = $1, email = $2, currency = $3, updated_at = now()
+WHERE id = $4
+RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at
+`
+
+type UpdateUserParams struct {
+	Username string      `json:"username"`
+	Email    string      `json:"email"`
+	Currency string      `json:"currency"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (AuthUser, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.Username,
+		arg.Email,
+		arg.Currency,
+		arg.ID,
+	)
+	var i AuthUser
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.Currency,
+		&i.HasCompletedOnboarding,
+		&i.TokensRevokedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

@@ -94,6 +94,32 @@ func (m *mockUserRepository) ListAllUsers(ctx context.Context) ([]*model.User, e
 	return args.Get(0).([]*model.User), args.Error(1)
 }
 
+func (m *mockUserRepository) UpdateUser(ctx context.Context, userID, username, email, currency string) (*model.User, error) {
+	args := m.Called(ctx, userID, username, email, currency)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.User), args.Error(1)
+}
+
+func (m *mockUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	args := m.Called(ctx, userID, passwordHash)
+	return args.Error(0)
+}
+
+func (m *mockUserRepository) RevokeAllUserTokens(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *mockUserRepository) GetTokensRevokedAt(ctx context.Context, userID string) (*time.Time, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*time.Time), args.Error(1)
+}
+
 func setupTestRouter(repo *mockUserRepository) *gin.Engine {
 	return setupTestRouterWithBlacklist(repo, new(mockBlacklistRepository))
 }

@@ -172,13 +172,40 @@ func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 }
 
 // ValidateToken verifies an access token and returns the user identity.
-func (s *AuthService) ValidateToken(tokenString string) (*model.ValidateTokenResult, error) {
+// Checks both JWT validity and the tokens_revoked_at timestamp on the user record.
+func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*model.ValidateTokenResult, error) {
 	claims, err := s.jwt.ValidateAccessToken(tokenString)
 	if err != nil {
 		return nil, &AuthError{
 			Code:    model.ErrUnauthorized,
 			Message: "Please log in again",
 			Status:  401,
+		}
+	}
+
+	// Check if user's tokens have been revoked (e.g., after password change)
+	revokedAt, err := s.repo.GetTokensRevokedAt(ctx, claims.Subject)
+	if err != nil {
+		s.logger.Error("failed to check token revocation",
+			slog.String("user_id", claims.Subject),
+			slog.String("error", err.Error()),
+		)
+		// Fail open: if we can't check revocation, still reject to be safe
+		return nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "Unable to validate token",
+			Status:  401,
+		}
+	}
+
+	if revokedAt != nil && claims.IssuedAt != nil {
+		tokenIssuedAt := claims.IssuedAt.Time
+		if tokenIssuedAt.Before(*revokedAt) {
+			return nil, &AuthError{
+				Code:    model.ErrUnauthorized,
+				Message: "Token has been revoked. Please log in again.",
+				Status:  401,
+			}
 		}
 	}
 
@@ -345,6 +372,74 @@ func (s *AuthService) CompleteOnboarding(ctx context.Context, userID string, cur
 	return user, nil
 }
 
+// UpdateProfile updates the user's username, email, and currency.
+// Validates uniqueness for both username and email.
+func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req *model.UpdateProfileRequest) (*model.User, error) {
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	username := strings.TrimSpace(req.Username)
+	currency := strings.TrimSpace(req.Currency)
+
+	// Check for duplicate email (exclude current user)
+	existingByEmail, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("checking email uniqueness: %w", err)
+	}
+	if existingByEmail != nil && existingByEmail.ID != userID {
+		return nil, &AuthError{
+			Code:    model.ErrDuplicateEmail,
+			Message: "An account with this email already exists",
+			Status:  409,
+		}
+	}
+
+	// Check for duplicate username (exclude current user)
+	existingByUsername, err := s.repo.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("checking username uniqueness: %w", err)
+	}
+	if existingByUsername != nil && existingByUsername.ID != userID {
+		return nil, &AuthError{
+			Code:    model.ErrDuplicateUsername,
+			Message: "This username is already taken",
+			Status:  409,
+		}
+	}
+
+	user, err := s.repo.UpdateUser(ctx, userID, username, email, currency)
+	if err != nil {
+		var dupErr *repository.DuplicateError
+		if errors.As(err, &dupErr) {
+			if strings.Contains(dupErr.Constraint, "email") {
+				return nil, &AuthError{
+					Code:    model.ErrDuplicateEmail,
+					Message: "An account with this email already exists",
+					Status:  409,
+				}
+			}
+			return nil, &AuthError{
+				Code:    model.ErrDuplicateUsername,
+				Message: "This username is already taken",
+				Status:  409,
+			}
+		}
+		return nil, fmt.Errorf("updating user: %w", err)
+	}
+	if user == nil {
+		return nil, &AuthError{
+			Code:    model.ErrNotFound,
+			Message: "User not found",
+			Status:  404,
+		}
+	}
+
+	s.logger.Info("profile updated",
+		slog.String("method", "UpdateProfile"),
+		slog.String("user_id", user.ID),
+	)
+
+	return user, nil
+}
+
 // ListUsers returns all registered users. Admin-only.
 func (s *AuthService) ListUsers(ctx context.Context) ([]*model.User, error) {
 	users, err := s.repo.ListAllUsers(ctx)
@@ -484,4 +579,72 @@ func (s *AuthService) SeedAdmin(ctx context.Context, username, email, password s
 	)
 
 	return nil
+}
+
+// ChangePassword validates the current password, checks the strength of the new
+// password, hashes it, updates the user record, and revokes all existing tokens.
+// Returns a fresh token pair so the current session stays active.
+func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *model.ChangePasswordRequest) (*model.User, *model.TokenPair, error) {
+	// Look up the user to get their current password hash
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("looking up user: %w", err)
+	}
+	if user == nil {
+		return nil, nil, &AuthError{
+			Code:    model.ErrUnauthorized,
+			Message: "User not found",
+			Status:  401,
+		}
+	}
+
+	// Verify current password
+	if !s.password.CheckPassword(req.CurrentPassword, user.PasswordHash) {
+		return nil, nil, &AuthError{
+			Code:    model.ErrInvalidCredentials,
+			Message: "Current password is incorrect",
+			Status:  401,
+		}
+	}
+
+	// Validate new password strength
+	if err := ValidatePasswordStrength(req.NewPassword); err != nil {
+		return nil, nil, &AuthError{
+			Code:    model.ErrWeakPassword,
+			Message: err.Error(),
+			Status:  400,
+		}
+	}
+
+	// Hash new password
+	hash, err := s.password.HashPassword(req.NewPassword)
+	if err != nil {
+		return nil, nil, fmt.Errorf("hashing new password: %w", err)
+	}
+
+	// Update the password
+	if err := s.repo.UpdatePassword(ctx, userID, hash); err != nil {
+		return nil, nil, fmt.Errorf("updating password: %w", err)
+	}
+
+	// Revoke all existing tokens (forces re-login on other sessions)
+	if err := s.repo.RevokeAllUserTokens(ctx, userID); err != nil {
+		return nil, nil, fmt.Errorf("revoking tokens: %w", err)
+	}
+
+	// Generate fresh tokens for the current session
+	accessToken, refreshToken, err := s.jwt.GenerateTokenPair(user.ID, user.Role, user.Username)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generating tokens: %w", err)
+	}
+
+	s.logger.Info("password changed",
+		slog.String("method", "ChangePassword"),
+		slog.String("user_id", user.ID),
+	)
+
+	return user, &model.TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }

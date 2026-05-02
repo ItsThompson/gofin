@@ -28,8 +28,8 @@ func NewGRPCHandler(authService *service.AuthService, logger *slog.Logger) *GRPC
 	}
 }
 
-func (h *GRPCHandler) ValidateToken(_ context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
-	result, err := h.authService.ValidateToken(req.GetAccessToken())
+func (h *GRPCHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
+	result, err := h.authService.ValidateToken(ctx, req.GetAccessToken())
 	if err != nil {
 		h.logger.Warn("token validation failed",
 			slog.String("method", "ValidateToken"),

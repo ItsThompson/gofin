@@ -43,6 +43,19 @@ type AssumeIdentityRequest struct {
 	UserID string `json:"userId" binding:"required"`
 }
 
+// UpdateProfileRequest is the input for PUT /api/auth/me (profile update).
+type UpdateProfileRequest struct {
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Currency string `json:"currency" binding:"required"`
+}
+
+// ChangePasswordRequest is the input for POST /api/auth/me/password.
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" binding:"required"`
+	NewPassword     string `json:"newPassword" binding:"required"`
+}
+
 // AdminUserResponse is the public-facing user representation for admin user lists.
 type AdminUserResponse struct {
 	ID        string `json:"id"`
