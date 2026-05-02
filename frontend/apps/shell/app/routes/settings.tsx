@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
@@ -11,7 +11,11 @@ const SettingsPage = lazy(() =>
 );
 
 export default function SettingsRoute() {
-  const { user } = useAuthStore();
+  const { user, checkAuth } = useAuthStore();
+
+  const handleUserUpdated = useCallback(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   if (!user) return null;
 
@@ -23,7 +27,7 @@ export default function SettingsRoute() {
         </div>
       }
     >
-      <SettingsPage user={user} />
+      <SettingsPage user={user} onUserUpdated={handleUserUpdated} />
     </Suspense>
   );
 }

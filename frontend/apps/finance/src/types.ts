@@ -5,6 +5,12 @@ export interface FinancePageProps {
   user: User;
 }
 
+/** Props for the SettingsPage, extending FinancePageProps with a user-refresh callback. */
+export interface SettingsPageProps extends FinancePageProps {
+  /** Called after a successful profile or password change so the shell can refresh the auth store. */
+  onUserUpdated?: () => void;
+}
+
 /**
  * Dashboard loading states.
  * - loading: initial fetch in progress

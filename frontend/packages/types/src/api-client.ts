@@ -23,10 +23,12 @@ const SESSION_RETURN_TO_KEY = "gofin_return_to";
 
 /**
  * Routes that should NOT trigger silent refresh or session expiry redirect.
- * These are auth-related endpoints: either they don't use the access token
- * (refresh, register, login), or they are the session check itself (me).
+ * These are auth-related endpoints where a 401 is a domain error (wrong
+ * password, invalid credentials) rather than an expired access token.
+ * Uses prefix matching so sub-paths (e.g., /api/auth/me/password) are
+ * also covered.
  */
-const AUTH_ENDPOINTS = [
+const AUTH_ENDPOINT_PREFIXES = [
   "/api/auth/me",
   "/api/auth/login",
   "/api/auth/register",
@@ -34,7 +36,9 @@ const AUTH_ENDPOINTS = [
 ];
 
 function isAuthEndpoint(url: string): boolean {
-  return AUTH_ENDPOINTS.some((endpoint) => url.endsWith(endpoint));
+  return AUTH_ENDPOINT_PREFIXES.some(
+    (prefix) => url.endsWith(prefix) || url.includes(prefix + "/"),
+  );
 }
 
 /**

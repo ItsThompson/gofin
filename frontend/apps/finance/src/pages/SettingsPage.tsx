@@ -28,7 +28,7 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
-import type { FinancePageProps } from "@/types";
+import type { SettingsPageProps } from "@/types";
 
 const CURRENCY_OPTIONS = [
   { code: "USD", label: "USD ($)" },
@@ -160,10 +160,13 @@ function DefaultBudgetSection({ user }: { user: User }) {
           body: JSON.stringify(body),
         });
 
-        // Sync currency to auth service
+        // Sync currency to auth service. Fetch the current profile
+        // from the server to avoid sending stale username/email if the
+        // user edited their profile in another tab before saving here.
+        const currentProfile = await apiClient<AuthResponse>("/api/auth/me");
         const profileBody: UpdateProfileRequest = {
-          username: user.username,
-          email: user.email,
+          username: currentProfile.user.username,
+          email: currentProfile.user.email,
           currency,
         };
 
@@ -184,7 +187,7 @@ function DefaultBudgetSection({ user }: { user: User }) {
         setLoading(false);
       }
     },
-    [budgetDollars, essentials, desires, savings, currency, user],
+    [budgetDollars, essentials, desires, savings, currency],
   );
 
   if (fetching) {
@@ -279,7 +282,7 @@ function DefaultBudgetSection({ user }: { user: User }) {
   );
 }
 
-function ProfileSection({ user }: { user: User }) {
+function ProfileSection({ user, onUserUpdated }: { user: User; onUserUpdated?: () => void }) {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
   const [error, setError] = useState<string | null>(null);
@@ -305,6 +308,7 @@ function ProfileSection({ user }: { user: User }) {
           body: JSON.stringify(body),
         });
 
+        onUserUpdated?.();
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       } catch (err) {
@@ -367,7 +371,7 @@ function ProfileSection({ user }: { user: User }) {
   );
 }
 
-function PasswordSection() {
+function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -402,6 +406,7 @@ function PasswordSection() {
 
         setCurrentPassword("");
         setNewPassword("");
+        onUserUpdated?.();
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);
       } catch (err) {
@@ -483,7 +488,7 @@ function TagsSection() {
  * Desktop: tabbed layout. Mobile: accordion sections.
  * Exported via Module Federation for the shell to load dynamically.
  */
-export function SettingsPage({ user }: FinancePageProps) {
+export function SettingsPage({ user, onUserUpdated }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("budget");
   const [expandedAccordion, setExpandedAccordion] = useState<SettingsTab | null>("budget");
 
@@ -497,14 +502,14 @@ export function SettingsPage({ user }: FinancePageProps) {
         case "budget":
           return <DefaultBudgetSection user={user} />;
         case "profile":
-          return <ProfileSection user={user} />;
+          return <ProfileSection user={user} onUserUpdated={onUserUpdated} />;
         case "password":
-          return <PasswordSection />;
+          return <PasswordSection onUserUpdated={onUserUpdated} />;
         case "tags":
           return <TagsSection />;
       }
     },
-    [user],
+    [user, onUserUpdated],
   );
 
   return (

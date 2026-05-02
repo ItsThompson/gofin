@@ -154,8 +154,9 @@ describe("SettingsPage", () => {
       });
 
       // Submit with current values
-      // Mock finance defaults PUT + auth PUT
+      // Mock: finance defaults PUT, auth GET (fresh profile), auth PUT (currency sync)
       mockApiSuccess({ defaults: mockDefaults });
+      mockApiSuccess({ user: mockUser });
       mockApiSuccess({ user: mockUser });
 
       const submitButton = screen.getAllByRole("button", {
@@ -386,14 +387,8 @@ describe("SettingsPage", () => {
       );
       await user.type(screen.getByLabelText("New Password"), "NewPass456");
 
-      // apiClient sees 401 on non-auth endpoint → tries refresh → retries → gets 401 again
-      // Mock: 1) password 401, 2) refresh 200, 3) retry password 401
-      mockApiError(
-        401,
-        "INVALID_CREDENTIALS",
-        "Current password is incorrect",
-      );
-      mockApiSuccess({}); // refresh succeeds
+      // /api/auth/me/password is an auth endpoint: 401 passes through
+      // directly without triggering the refresh cycle.
       mockApiError(
         401,
         "INVALID_CREDENTIALS",
