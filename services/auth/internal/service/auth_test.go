@@ -416,7 +416,7 @@ func TestValidateToken_RevokedToken(t *testing.T) {
 	access, _, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
 	require.NoError(t, err)
 
-	// Token revoked AFTER the token was issued: simulate password change
+	// Token revoked well AFTER the token was issued: clear revocation case
 	revokedTime := time.Now().Add(1 * time.Second)
 	repo.On("GetTokensRevokedAt", ctx, "user-123").Return(&revokedTime, nil)
 
@@ -426,6 +426,32 @@ func TestValidateToken_RevokedToken(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
 	assert.Contains(t, authErr.Message, "revoked")
+}
+
+func TestValidateToken_SameSecondGracePeriod(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	jwtSvc := NewJWTService("test-secret")
+	access, _, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	// Parse the token to get its actual iat (whole seconds)
+	claims, err := jwtSvc.ValidateAccessToken(access)
+	require.NoError(t, err)
+	tokenIat := claims.IssuedAt.Time // e.g., 10:00:05.000000000
+
+	// Simulate the ChangePassword race: revocation happens within the
+	// same second as token issuance, but with a microsecond offset.
+	// PostgreSQL stores microsecond precision, JWT iat is whole seconds.
+	// The truncation fix should treat these as the same second.
+	revokedTime := tokenIat.Add(500 * time.Millisecond) // same second, 500ms after iat
+	repo.On("GetTokensRevokedAt", ctx, "user-123").Return(&revokedTime, nil)
+
+	result, err := svc.ValidateToken(ctx, access)
+	require.NoError(t, err, "token issued in same second as revocation should not be rejected")
+	assert.Equal(t, "user-123", result.UserID)
 }
 
 // --- RefreshToken Tests ---

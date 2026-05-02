@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
@@ -200,7 +201,14 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*m
 
 	if revokedAt != nil && claims.IssuedAt != nil {
 		tokenIssuedAt := claims.IssuedAt.Time
-		if tokenIssuedAt.Before(*revokedAt) {
+		// Truncate revokedAt to second precision for comparison. JWT iat
+		// is Unix seconds (no sub-second component), but PostgreSQL
+		// stores tokens_revoked_at with microsecond precision. Without
+		// truncation, a token issued in the same second as the revocation
+		// would be incorrectly rejected because its iat (whole second) is
+		// before the microsecond-precise revocation timestamp.
+		revokedAtTruncated := revokedAt.Truncate(time.Second)
+		if tokenIssuedAt.Before(revokedAtTruncated) {
 			return nil, &AuthError{
 				Code:    model.ErrUnauthorized,
 				Message: "Token has been revoked. Please log in again.",
