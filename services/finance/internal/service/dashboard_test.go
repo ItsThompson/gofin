@@ -2,11 +2,16 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
+
+// historicalNow is a fixed time far in the future, ensuring any test month
+// is treated as a past (fully elapsed) period.
+var historicalNow = time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
 
 // --- Category Allocation Tests ---
 
@@ -68,9 +73,9 @@ func TestBuildCategorySummary_OverBudget(t *testing.T) {
 }
 
 func TestBuildCategorySummary_ZeroAllocatedWithSpending(t *testing.T) {
-	// 0% allocated but has spending: percent should be 100 (over budget)
+	// 0% allocated but has spending: percentUsed must be > 100 to trigger over-budget.
 	cs := buildCategorySummary(0, 5000)
-	assert.Equal(t, float64(100), cs.PercentUsed)
+	assert.Greater(t, cs.PercentUsed, float64(100))
 }
 
 func TestBuildCategorySummary_ZeroAllocatedNoSpending(t *testing.T) {
@@ -95,8 +100,7 @@ func TestComputePeriodSummary_BasicScenario(t *testing.T) {
 		{ID: "e3", Amount: 10000, ExpenseType: "savings", TagID: "t3", ExpenseDate: "2025-01-07"},
 	}
 
-	// Use a historical month so all days are elapsed
-	summary := ComputePeriodSummary(period, expenses, 2025, 1)
+	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)
 
 	assert.Equal(t, "period-1", summary.PeriodID)
 	assert.Equal(t, int64(300000), summary.TotalBudget)
@@ -125,7 +129,7 @@ func TestComputePeriodSummary_NoExpenses(t *testing.T) {
 		SavingsPercent:    20,
 	}
 
-	summary := ComputePeriodSummary(period, []ExpenseData{}, 2025, 3)
+	summary := ComputePeriodSummary(period, []ExpenseData{}, 2025, 3, historicalNow)
 
 	assert.Equal(t, int64(0), summary.TotalSpent)
 	assert.Equal(t, int64(300000), summary.Remaining)
@@ -146,7 +150,7 @@ func TestComputePeriodSummary_OverBudget(t *testing.T) {
 		{ID: "e1", Amount: 120000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-02-15"},
 	}
 
-	summary := ComputePeriodSummary(period, expenses, 2025, 2)
+	summary := ComputePeriodSummary(period, expenses, 2025, 2, historicalNow)
 
 	assert.Equal(t, int64(120000), summary.TotalSpent)
 	assert.Equal(t, int64(-20000), summary.Remaining)
@@ -162,7 +166,7 @@ func TestComputePeriodSummary_ZeroBudget(t *testing.T) {
 		SavingsPercent:    20,
 	}
 
-	summary := ComputePeriodSummary(period, []ExpenseData{}, 2025, 4)
+	summary := ComputePeriodSummary(period, []ExpenseData{}, 2025, 4, historicalNow)
 
 	assert.Equal(t, int64(0), summary.TotalBudget)
 	assert.Equal(t, int64(0), summary.TotalSpent)
@@ -188,7 +192,7 @@ func TestComputePeriodSummary_PacingCalculation(t *testing.T) {
 	}
 
 	// Historical month: all 31 days elapsed
-	summary := ComputePeriodSummary(period, expenses, 2025, 1)
+	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)
 
 	assert.Equal(t, int32(31), summary.DaysElapsed) // historical
 	// dailySpendRate = 150000 / 31 = 4838 cents
@@ -331,4 +335,34 @@ func TestParseDayFromDate(t *testing.T) {
 	assert.Equal(t, int32(1), parseDayFromDate("2025-12-01"))
 	assert.Equal(t, int32(0), parseDayFromDate("not-a-date"))
 	assert.Equal(t, int32(0), parseDayFromDate(""))
+}
+
+// --- Current-month pacing test (uses injected now) ---
+
+func TestComputePeriodSummary_CurrentMonthPacing(t *testing.T) {
+	period := &model.BudgetPeriod{
+		ID:                "period-1",
+		BudgetAmount:      310000, // $3100 — 31 days, $100/day ideal
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+	}
+
+	expenses := []ExpenseData{
+		{ID: "e1", Amount: 100000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+	}
+
+	// Simulate being on Jan 10: 10 days elapsed, spent 100000
+	now := time.Date(2025, 1, 10, 14, 0, 0, 0, time.UTC)
+	summary := ComputePeriodSummary(period, expenses, 2025, 1, now)
+
+	assert.Equal(t, int32(10), summary.DaysElapsed)
+	// dailySpendRate = 100000 / 10 = 10000
+	assert.Equal(t, int64(10000), summary.DailySpendRate)
+	// idealRate = 310000 / 31 = 10000 → exactly on track
+	assert.True(t, summary.IsOnTrack)
+	// budgetPace = (310000 - 100000) / (31 - 10) = 210000 / 21 = 10000
+	assert.Equal(t, int64(10000), summary.BudgetPace)
+	// daysRemaining = 31 - 10 = 21
+	assert.Equal(t, int32(21), summary.DaysInPeriod-summary.DaysElapsed)
 }

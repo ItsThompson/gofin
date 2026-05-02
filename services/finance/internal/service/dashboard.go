@@ -24,7 +24,7 @@ func (s *FinanceService) GetPeriodSummary(ctx context.Context, userID string, ye
 		return nil, fmt.Errorf("fetching expenses: %w", err)
 	}
 
-	return ComputePeriodSummary(period, expenses, year, month), nil
+	return ComputePeriodSummary(period, expenses, year, month, time.Now()), nil
 }
 
 // GetSpendingByTag computes per-tag spending for a budget period.
@@ -71,9 +71,11 @@ func (s *FinanceService) GetCumulativeSpend(ctx context.Context, userID string, 
 
 // ComputePeriodSummary is the pure computation for a period summary.
 // Exported for direct testing without service/repo dependencies.
-func ComputePeriodSummary(period *model.BudgetPeriod, expenses []ExpenseData, year, month int32) *model.PeriodSummary {
+// The now parameter controls the clock for days-elapsed calculation,
+// making current-month pacing deterministic in tests.
+func ComputePeriodSummary(period *model.BudgetPeriod, expenses []ExpenseData, year, month int32, now time.Time) *model.PeriodSummary {
 	daysInPeriod := daysInMonth(year, month)
-	daysElapsed := computeDaysElapsed(year, month, daysInPeriod)
+	daysElapsed := computeDaysElapsed(year, month, daysInPeriod, now)
 
 	// Sum expenses by type
 	var totalSpent, essentialsSpent, desiresSpent, savingsSpent int64
@@ -254,8 +256,9 @@ func buildCategorySummary(allocated, spent int64) model.CategorySummary {
 	if allocated > 0 {
 		percentUsed = math.Round(float64(spent)/float64(allocated)*10000) / 100
 	} else if spent > 0 {
-		// 0% allocated but has spending: show as over budget
-		percentUsed = 100
+		// 0% allocated but has spending: any amount is infinitely over budget.
+		// Report as 100+ so the frontend's >= 100 check triggers the over-budget indicator.
+		percentUsed = 100 + math.Round(float64(spent)/100)
 	}
 	return model.CategorySummary{
 		Allocated:   allocated,
@@ -273,10 +276,9 @@ func daysInMonth(year, month int32) int32 {
 }
 
 // computeDaysElapsed determines how many days have elapsed in the period.
-// If the period is the current month, returns today's date. Otherwise
-// returns the total days in the month (period is fully elapsed).
-func computeDaysElapsed(year, month, daysInPeriod int32) int32 {
-	now := time.Now()
+// If the period matches now's month, returns now's day. Otherwise returns
+// the full day count (period is fully elapsed).
+func computeDaysElapsed(year, month, daysInPeriod int32, now time.Time) int32 {
 	if int32(now.Year()) == year && int32(now.Month()) == month {
 		return int32(now.Day())
 	}
