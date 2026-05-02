@@ -684,6 +684,42 @@ describe("DashboardPage", () => {
       expect(within(essentialsGauge).getByText("133%")).toBeInTheDocument();
       expect(within(essentialsGauge).getByText(/over by/i)).toBeInTheDocument();
     });
+
+    it("shows over-budget indicator for zero-allocation category with spending", async () => {
+      mockPeriodFound();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            summary: {
+              ...mockSummary,
+              // 0% allocation with $50 spent: percentUsed > 100
+              savings: { allocated: 0, spent: 5000, remaining: -5000, percentUsed: 150 },
+            },
+          }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ tagSpending: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ points: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+      });
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("gauge-savings")).toBeInTheDocument();
+      });
+
+      const savingsGauge = screen.getByTestId("gauge-savings");
+      expect(within(savingsGauge).getByText(/over by/i)).toBeInTheDocument();
+    });
   });
 
   describe("pacing indicator", () => {
@@ -762,6 +798,22 @@ describe("DashboardPage", () => {
 
       await waitFor(() => {
         expect(screen.getByText(/over by \$500\.00/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("dashboard data error", () => {
+    it("shows error banner when dashboard data fetch fails", async () => {
+      mockPeriodFound();
+      // All 4 parallel fetches fail
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Network error")).toBeInTheDocument();
       });
     });
   });

@@ -160,6 +160,17 @@ function renderExpenseLog(user: User = mockUser) {
   );
 }
 
+function renderExpenseLogWithSearchParams(
+  searchParams: string,
+  user: User = mockUser,
+) {
+  return render(
+    <MemoryRouter initialEntries={[`/expenses?${searchParams}`]}>
+      <ExpenseLogPage user={user} />
+    </MemoryRouter>,
+  );
+}
+
 describe("ExpenseLogPage", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -733,6 +744,25 @@ describe("ExpenseLogPage", () => {
 
       // Tag column should show the raw tag ID (at least in desktop table)
       expect(screen.getAllByText("tag-food").length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe("URL search params", () => {
+    it("initializes tag filter from ?tag= URL parameter", async () => {
+      mockAllDataSuccess();
+      renderExpenseLogWithSearchParams("tag=tag-food");
+
+      await waitFor(() => {
+        expect(screen.getByText("Expense Log")).toBeInTheDocument();
+      });
+
+      // Filter panel should be visible (auto-opened when tag param present)
+      expect(screen.getByText("Expense Type")).toBeInTheDocument();
+
+      // Only food-tagged expenses should be shown
+      await waitFor(() => {
+        expect(screen.getByText("2 expenses")).toBeInTheDocument();
+      });
     });
   });
 });

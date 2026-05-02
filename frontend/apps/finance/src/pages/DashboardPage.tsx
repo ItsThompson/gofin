@@ -405,6 +405,7 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
   >([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -429,8 +430,10 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
         setTagSpending(tagRes.tagSpending);
         setCumulativeData(cumulativeRes.points);
         setRecentExpenses(expensesRes.data);
-      } catch {
-        // Non-fatal: dashboard still renders with defaults
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to load dashboard data";
+        setDataError(message);
       } finally {
         setDataLoaded(true);
       }
@@ -456,6 +459,16 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
           </Link>
         </Button>
       </div>
+
+      {/* Data fetch error banner */}
+      {dataError && (
+        <Card>
+          <CardContent className="flex items-center gap-3 py-3">
+            <AlertTriangle className="size-4 shrink-0 text-destructive" />
+            <p className="text-sm text-destructive">{dataError}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Bar */}
       <SummaryBar
@@ -559,7 +572,7 @@ function CategoryGauge({
   category: PeriodSummary["essentials"];
   currency: string;
 }) {
-  const isOverBudget = category.percentUsed > 100;
+  const isOverBudget = category.percentUsed >= 100;
   const progressPercent = Math.min(category.percentUsed, 100);
 
   return (
@@ -739,14 +752,23 @@ interface CumulativeSpendChartProps {
 }
 
 function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
-  const chartData = data.map((point) => ({
-    day: point.day,
-    actual: point.actual / 100,
-    ideal: point.ideal / 100,
-    // For area shading: compute the difference
-    surplus: Math.max(0, (point.ideal - point.actual) / 100),
-    deficit: Math.max(0, (point.actual - point.ideal) / 100),
-  }));
+  // Compute chart data with area-between-lines shading.
+  // surplusBase/surplusTop fill green between ideal and actual when under budget.
+  // deficitBase/deficitTop fill red between actual and ideal when over budget.
+  const chartData = data.map((point) => {
+    const actual = point.actual / 100;
+    const ideal = point.ideal / 100;
+    const underBudget = actual <= ideal;
+    return {
+      day: point.day,
+      actual,
+      ideal,
+      surplusBase: underBudget ? actual : undefined,
+      surplusTop: underBudget ? ideal : undefined,
+      deficitBase: !underBudget ? ideal : undefined,
+      deficitTop: !underBudget ? actual : undefined,
+    };
+  });
 
   return (
     <Card>
@@ -772,17 +794,21 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             />
             <Area
               type="monotone"
-              dataKey="surplus"
+              dataKey="surplusTop"
               fill="rgba(34, 197, 94, 0.15)"
               stroke="none"
               name="Under Budget"
+              connectNulls={false}
+              isAnimationActive={false}
             />
             <Area
               type="monotone"
-              dataKey="deficit"
+              dataKey="deficitTop"
               fill="rgba(239, 68, 68, 0.15)"
               stroke="none"
               name="Over Budget"
+              connectNulls={false}
+              isAnimationActive={false}
             />
             <Line
               type="monotone"

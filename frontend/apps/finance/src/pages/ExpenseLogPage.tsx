@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   useReactTable,
   getCoreRowModel,
@@ -60,6 +60,7 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
  */
 export function ExpenseLogPage({ user }: FinancePageProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -70,10 +71,13 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter state
-  const [showFilters, setShowFilters] = useState(false);
+  // Filter state: initialize tag filter from URL search params
+  const [showFilters, setShowFilters] = useState(() => searchParams.has("tag"));
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(() => {
+    const tagParam = searchParams.get("tag");
+    return tagParam ? new Set([tagParam]) : new Set();
+  });
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -183,6 +187,13 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
       } else {
         next.add(tagId);
       }
+      // Sync URL: set or clear the tag param
+      if (next.size === 1) {
+        setSearchParams({ tag: [...next][0] }, { replace: true });
+      } else {
+        searchParams.delete("tag");
+        setSearchParams(searchParams, { replace: true });
+      }
       return next;
     });
   }
@@ -192,6 +203,8 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
     setSelectedTags(new Set());
     setDateFrom("");
     setDateTo("");
+    // Clear URL params
+    setSearchParams({}, { replace: true });
   }
 
   const hasActiveFilters =
