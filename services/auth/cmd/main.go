@@ -20,6 +20,7 @@ import (
 	"github.com/ItsThompson/gofin/services/auth/internal/handler"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/metrics"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
 
@@ -84,7 +85,9 @@ func run() error {
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
 	// Start gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
+	)
 	grpcHandler := handler.NewGRPCHandler(authSvc, logger)
 	pb.RegisterAuthServiceServer(grpcServer, grpcHandler)
 
@@ -108,6 +111,9 @@ func run() error {
 	}
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(metrics.HTTPMetrics())
+
+	metrics.Register(router)
 
 	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction())
 	restHandler.RegisterRoutes(router)

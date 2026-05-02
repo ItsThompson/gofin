@@ -21,6 +21,7 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/handler"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
+	"github.com/ItsThompson/gofin/services/metrics"
 	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
@@ -96,7 +97,9 @@ func run() error {
 	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expenseClient)
 
 	// Start gRPC server
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
+	)
 	grpcHandler := handler.NewGRPCHandler(financeSvc, logger)
 	pb.RegisterFinanceServiceServer(grpcServer, grpcHandler)
 
@@ -120,6 +123,9 @@ func run() error {
 	}
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(metrics.HTTPMetrics())
+
+	metrics.Register(router)
 
 	restHandler := handler.NewRESTHandler(financeSvc, logger)
 	restHandler.RegisterRoutes(router)

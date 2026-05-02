@@ -9,6 +9,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 // ServiceURLs holds the parsed downstream service URLs.
@@ -32,8 +33,12 @@ func New(
 
 	engine := gin.New()
 	engine.Use(gin.Recovery())
+	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
 	engine.Use(middleware.Auth(validator, logger))
+
+	// Prometheus metrics endpoint (excluded from auth middleware via exception list).
+	metrics.Register(engine)
 
 	// Health check endpoint: auth middleware skips it via the exception list.
 	engine.GET("/health", func(c *gin.Context) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 // RESTHandler handles HTTP requests for the auth service.
@@ -241,10 +242,12 @@ func (h *RESTHandler) Refresh(c *gin.Context) {
 
 	user, tokens, err := h.authService.RefreshToken(c.Request.Context(), cookie.Value)
 	if err != nil {
+		metrics.TokenRefreshTotal.WithLabelValues("failure").Inc()
 		h.handleError(c, err)
 		return
 	}
 
+	metrics.TokenRefreshTotal.WithLabelValues("success").Inc()
 	h.setAuthCookies(c, tokens)
 
 	h.logger.Info("refresh handler completed",

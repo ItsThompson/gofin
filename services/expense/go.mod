@@ -3,12 +3,15 @@ module github.com/ItsThompson/gofin/services/expense
 go 1.26
 
 require (
+	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
+
+replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
