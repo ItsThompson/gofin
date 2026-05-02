@@ -640,3 +640,108 @@ func TestCreatePeriodHandler_MissingUserID(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
+
+// --- UpdateDefaults Handler Tests ---
+
+func TestUpdateDefaultsHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	repo.On("UpsertDefaults", mock.Anything, mock.AnythingOfType("*model.DefaultSettings")).
+		Return(&model.DefaultSettings{
+			UserID:            "user-123",
+			BudgetAmount:      500000,
+			EssentialsPercent: 60,
+			DesiresPercent:    20,
+			SavingsPercent:    20,
+			Currency:          "EUR",
+		}, nil)
+
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/defaults", "user-123", map[string]interface{}{
+		"budgetAmount":      500000,
+		"essentialsPercent": 60,
+		"desiresPercent":    20,
+		"savingsPercent":    20,
+		"currency":          "EUR",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.DefaultsResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "user-123", resp.Defaults.UserID)
+	assert.Equal(t, int64(500000), resp.Defaults.BudgetAmount)
+	assert.Equal(t, int32(60), resp.Defaults.EssentialsPercent)
+	assert.Equal(t, "EUR", resp.Defaults.Currency)
+}
+
+func TestUpdateDefaultsHandler_InvalidSplit(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/defaults", "user-123", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    19,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Contains(t, errResp.Message, "sum to 100%")
+}
+
+func TestUpdateDefaultsHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/defaults", "", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestUpdateDefaultsHandler_DoesNotAffectPeriods(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	// The handler calls UpsertDefaults, NOT CreatePeriod or UpdatePeriod.
+	repo.On("UpsertDefaults", mock.Anything, mock.AnythingOfType("*model.DefaultSettings")).
+		Return(&model.DefaultSettings{
+			UserID:            "user-123",
+			BudgetAmount:      500000,
+			EssentialsPercent: 60,
+			DesiresPercent:    20,
+			SavingsPercent:    20,
+			Currency:          "USD",
+		}, nil)
+
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/defaults", "user-123", map[string]interface{}{
+		"budgetAmount":      500000,
+		"essentialsPercent": 60,
+		"desiresPercent":    20,
+		"savingsPercent":    20,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Verify no period-related methods were called
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "GetCurrentPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}

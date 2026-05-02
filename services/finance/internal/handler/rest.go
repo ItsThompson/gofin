@@ -31,6 +31,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		finance.POST("/onboarding", h.CompleteOnboarding)
 		finance.GET("/defaults", h.GetDefaults)
+		finance.PUT("/defaults", h.UpdateDefaults)
 		finance.GET("/periods/current", h.GetCurrentPeriod)
 		finance.POST("/periods", h.CreatePeriod)
 	}
@@ -80,6 +81,38 @@ func (h *RESTHandler) GetDefaults(c *gin.Context) {
 	}
 
 	defaults, err := h.financeService.GetDefaults(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.DefaultsResponse{
+		Defaults: defaults,
+	})
+}
+
+// UpdateDefaults handles PUT /api/finance/defaults.
+// Updates the user's default budget settings. Does not affect current or past periods.
+func (h *RESTHandler) UpdateDefaults(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.UpdateDefaultsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	defaults, err := h.financeService.UpdateDefaults(c.Request.Context(), userID, &req)
 	if err != nil {
 		h.handleError(c, err)
 		return

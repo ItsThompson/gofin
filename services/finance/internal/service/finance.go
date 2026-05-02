@@ -138,6 +138,45 @@ func (s *FinanceService) GetDefaults(ctx context.Context, userID string) (*model
 	return defaults, nil
 }
 
+// UpdateDefaults updates the user's default budget settings.
+// Does not affect current or past budget periods.
+func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req *model.UpdateDefaultsRequest) (*model.DefaultSettings, error) {
+	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: err.Error(),
+			Status:  400,
+		}
+	}
+
+	if req.BudgetAmount < 0 {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "Budget amount must be non-negative",
+			Status:  400,
+		}
+	}
+
+	defaults, err := s.repo.UpsertDefaults(ctx, &model.DefaultSettings{
+		UserID:            userID,
+		BudgetAmount:      req.BudgetAmount,
+		EssentialsPercent: req.EssentialsPercent,
+		DesiresPercent:    req.DesiresPercent,
+		SavingsPercent:    req.SavingsPercent,
+		Currency:          req.Currency,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating defaults: %w", err)
+	}
+
+	s.logger.Info("defaults updated",
+		slog.String("method", "UpdateDefaults"),
+		slog.String("user_id", userID),
+	)
+
+	return defaults, nil
+}
+
 // GetCurrentPeriod retrieves the budget period for a given user, year, and month.
 // Returns a PERIOD_NOT_FOUND ServiceError (404) when no period exists.
 func (s *FinanceService) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
