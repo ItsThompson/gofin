@@ -15,6 +15,7 @@ export default defineConfig({
         "./DashboardPage": "./src/pages/DashboardPage.tsx",
         "./SettingsPage": "./src/pages/SettingsPage.tsx",
         "./NewExpensePage": "./src/pages/NewExpensePage.tsx",
+        "./ExpenseLogPage": "./src/pages/ExpenseLogPage.tsx",
         "./routes": "./src/routes.ts",
       },
       shared: {

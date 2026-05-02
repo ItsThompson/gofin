@@ -12,4 +12,8 @@ export const financeRoutes = {
     path: "/expenses/new",
     component: "NewExpensePage",
   },
+  expenseLog: {
+    path: "/expenses",
+    component: "ExpenseLogPage",
+  },
 } as const;

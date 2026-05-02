@@ -1,10 +1,29 @@
-export default function ExpensesPage() {
+import { lazy, Suspense } from "react";
+import { useAuthStore } from "@/stores/auth-store";
+
+/**
+ * Lazy-load the ExpenseLogPage from the finance remote package.
+ */
+const ExpenseLogPage = lazy(() =>
+  import("@gofin/finance/src/pages/ExpenseLogPage").then((mod) => ({
+    default: mod.ExpenseLogPage,
+  })),
+);
+
+export default function ExpensesRoute() {
+  const { user } = useAuthStore();
+
+  if (!user) return null;
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold">Expenses</h1>
-      <p className="mt-2 text-muted-foreground">
-        Your expense log will appear here. Coming soon.
-      </p>
-    </div>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-muted-foreground">Loading expense log...</div>
+        </div>
+      }
+    >
+      <ExpenseLogPage user={user} />
+    </Suspense>
   );
 }
