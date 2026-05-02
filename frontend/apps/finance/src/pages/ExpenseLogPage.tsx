@@ -441,7 +441,7 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
                           key={row.id}
                           className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50"
                           onClick={() => handleRowClick(row.original)}
-                          role="link"
+                          aria-label={`View expense: ${row.original.name}`}
                           tabIndex={0}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
@@ -479,7 +479,7 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
                         key={row.id}
                         className="flex cursor-pointer items-center justify-between px-4 py-3 transition-colors hover:bg-muted/50"
                         onClick={() => handleRowClick(expense)}
-                        role="link"
+                        aria-label={`View expense: ${expense.name}`}
                         tabIndex={0}
                         onKeyDown={(event) => {
                           if (

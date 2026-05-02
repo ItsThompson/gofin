@@ -96,7 +96,7 @@ export interface Expense {
   expenseDate: string;
   periodYear: number;
   periodMonth: number;
-  status: string;
+  status: "active" | "corrected";
   correctsId?: string;
   isProRata: boolean;
   proRataGroup?: string;
@@ -157,6 +157,7 @@ export interface Tag {
   name: string;
   isDefault: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 /** Response from GET /api/finance/tags. */

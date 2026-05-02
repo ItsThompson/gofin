@@ -601,9 +601,10 @@ describe("ExpenseLogPage", () => {
         expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
       });
 
-      // Click the first row containing "Groceries" (from desktop table)
-      const rows = screen.getAllByRole("link");
-      const groceriesRow = rows.find((row) =>
+      // Click the first table row containing "Groceries"
+      const tableElement = document.querySelector("table")!;
+      const tableRows = tableElement.querySelectorAll("tbody tr");
+      const groceriesRow = Array.from(tableRows).find((row) =>
         row.textContent?.includes("Groceries"),
       );
       expect(groceriesRow).toBeDefined();
