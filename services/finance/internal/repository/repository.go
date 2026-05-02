@@ -15,6 +15,7 @@ type FinanceRepository interface {
 	CountUserTags(ctx context.Context, userID string) (int64, error)
 	GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error)
 	CreatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error)
+	ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error)
 }
 
 // TxBeginner abstracts the ability to begin a transaction for use in service layer.

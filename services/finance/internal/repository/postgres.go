@@ -144,6 +144,24 @@ func (r *PostgresFinanceRepository) CreatePeriod(ctx context.Context, period *mo
 	return dbPeriodToModel(row), nil
 }
 
+func (r *PostgresFinanceRepository) ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	rows, err := r.queries.ListPeriods(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	periods := make([]*model.BudgetPeriod, len(rows))
+	for i, row := range rows {
+		periods[i] = dbPeriodToModel(row)
+	}
+	return periods, nil
+}
+
 // dbDefaultsToModel converts a sqlc-generated row to the domain model.
 func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	return &model.DefaultSettings{

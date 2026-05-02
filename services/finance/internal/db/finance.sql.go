@@ -140,6 +140,43 @@ func (q *Queries) GetDefaults(ctx context.Context, userID pgtype.UUID) (FinanceD
 	return i, err
 }
 
+const listPeriods = `-- name: ListPeriods :many
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+WHERE user_id = $1
+ORDER BY year DESC, month DESC
+`
+
+func (q *Queries) ListPeriods(ctx context.Context, userID pgtype.UUID) ([]FinanceBudgetPeriod, error) {
+	rows, err := q.db.Query(ctx, listPeriods, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FinanceBudgetPeriod{}
+	for rows.Next() {
+		var i FinanceBudgetPeriod
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Year,
+			&i.Month,
+			&i.BudgetAmount,
+			&i.EssentialsPercent,
+			&i.DesiresPercent,
+			&i.SavingsPercent,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTags = `-- name: ListTags :many
 SELECT id, user_id, name, is_default, created_at, updated_at FROM finance.tags
 WHERE user_id = $1

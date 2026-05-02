@@ -33,7 +33,14 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		finance.GET("/defaults", h.GetDefaults)
 		finance.PUT("/defaults", h.UpdateDefaults)
 		finance.GET("/periods/current", h.GetCurrentPeriod)
+		finance.GET("/periods", h.ListPeriods)
 		finance.POST("/periods", h.CreatePeriod)
+		finance.GET("/tags", h.ListTags)
+
+		// Dashboard aggregation endpoints
+		finance.GET("/summary", h.GetPeriodSummary)
+		finance.GET("/spending/by-tag", h.GetSpendingByTag)
+		finance.GET("/spending/cumulative", h.GetCumulativeSpend)
 	}
 }
 
@@ -201,6 +208,52 @@ func (h *RESTHandler) CreatePeriod(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, model.PeriodResponse{
 		Period: period,
+	})
+}
+
+// ListPeriods handles GET /api/finance/periods.
+// Returns all budget periods for the authenticated user, ordered by year/month descending.
+func (h *RESTHandler) ListPeriods(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	periods, err := h.financeService.ListPeriods(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.PeriodListResponse{
+		Periods: periods,
+	})
+}
+
+// ListTags handles GET /api/finance/tags.
+// Returns all tags for the authenticated user, ordered alphabetically.
+func (h *RESTHandler) ListTags(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	tags, err := h.financeService.ListTags(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.TagListResponse{
+		Tags: tags,
 	})
 }
 

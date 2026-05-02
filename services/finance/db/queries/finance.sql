@@ -32,6 +32,11 @@ SELECT count(*) FROM finance.tags WHERE user_id = $1;
 SELECT * FROM finance.budget_periods
 WHERE user_id = $1 AND year = $2 AND month = $3;
 
+-- name: ListPeriods :many
+SELECT * FROM finance.budget_periods
+WHERE user_id = $1
+ORDER BY year DESC, month DESC;
+
 -- name: CreatePeriod :one
 INSERT INTO finance.budget_periods
     (user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent)

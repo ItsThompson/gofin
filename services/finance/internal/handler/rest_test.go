@@ -79,6 +79,14 @@ func (m *mockFinanceRepository) CreatePeriod(ctx context.Context, period *model.
 	return args.Get(0).(*model.BudgetPeriod), args.Error(1)
 }
 
+func (m *mockFinanceRepository) ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.BudgetPeriod), args.Error(1)
+}
+
 // mockTxBeginner implements repository.TxBeginner.
 type mockTxBeginner struct {
 	mock.Mock
