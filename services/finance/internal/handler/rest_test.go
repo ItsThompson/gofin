@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -201,6 +202,51 @@ func TestCompleteOnboardingHandler_InvalidSplit(t *testing.T) {
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
+func TestCompleteOnboardingHandler_ZeroPercentAllocations(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	txRepo := new(mockFinanceRepository)
+	tx := &mockTx{repo: txRepo}
+
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+	tx.On("Commit", mock.Anything).Return(nil)
+
+	// 100/0/0 is a valid split: user puts everything in essentials
+	txRepo.On("UpsertDefaults", mock.Anything, mock.AnythingOfType("*model.DefaultSettings")).
+		Return(&model.DefaultSettings{
+			UserID:            "user-123",
+			BudgetAmount:      500000,
+			EssentialsPercent: 100,
+			DesiresPercent:    0,
+			SavingsPercent:    0,
+			Currency:          "USD",
+		}, nil)
+
+	for _, tagName := range service.DefaultTags {
+		txRepo.On("CreateTag", mock.Anything, "user-123", tagName, true).
+			Return(&model.Tag{ID: "tag-" + tagName, Name: tagName, IsDefault: true}, nil)
+	}
+
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/onboarding", "user-123", map[string]interface{}{
+		"budgetAmount":      500000,
+		"essentialsPercent": 100,
+		"desiresPercent":    0,
+		"savingsPercent":    0,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.DefaultsResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, int32(100), resp.Defaults.EssentialsPercent)
+	assert.Equal(t, int32(0), resp.Defaults.DesiresPercent)
+	assert.Equal(t, int32(0), resp.Defaults.SavingsPercent)
+}
+
 func TestCompleteOnboardingHandler_MissingUserID(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
@@ -215,6 +261,58 @@ func TestCompleteOnboardingHandler_MissingUserID(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestCompleteOnboardingHandler_TagSeedingFailureRollsBack(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	txRepo := new(mockFinanceRepository)
+	tx := &mockTx{repo: txRepo}
+
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+
+	txRepo.On("UpsertDefaults", mock.Anything, mock.AnythingOfType("*model.DefaultSettings")).
+		Return(&model.DefaultSettings{
+			UserID:            "user-123",
+			BudgetAmount:      300000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+			Currency:          "USD",
+		}, nil)
+
+	// First 3 tags succeed, 4th fails
+	for i, tagName := range service.DefaultTags {
+		if i < 3 {
+			txRepo.On("CreateTag", mock.Anything, "user-123", tagName, true).
+				Return(&model.Tag{ID: "tag-" + tagName, Name: tagName, IsDefault: true}, nil)
+		} else if i == 3 {
+			txRepo.On("CreateTag", mock.Anything, "user-123", tagName, true).
+				Return(nil, fmt.Errorf("unique constraint violation"))
+		}
+		// Tags after index 3 are never reached
+	}
+
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/onboarding", "user-123", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrInternalServerError, errResp.Code)
+
+	// Verify rollback was called (commit should NOT have been called)
+	tx.AssertCalled(t, "Rollback", mock.Anything)
+	tx.AssertNotCalled(t, "Commit", mock.Anything)
 }
 
 func TestCompleteOnboardingHandler_SkipDefaults(t *testing.T) {
