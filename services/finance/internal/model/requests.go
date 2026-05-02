@@ -35,6 +35,16 @@ type PeriodResponse struct {
 	Period *BudgetPeriod `json:"period"`
 }
 
+// PeriodListResponse is the JSON body returned for listing periods.
+type PeriodListResponse struct {
+	Periods []*BudgetPeriod `json:"periods"`
+}
+
+// TagListResponse is the JSON body returned for listing tags.
+type TagListResponse struct {
+	Tags []*Tag `json:"tags"`
+}
+
 // UpdateDefaultsRequest is the input for PUT /api/finance/defaults.
 // Note: percentage fields intentionally omit binding:"required" because Gin's
 // validator treats the int32 zero value as "missing", which would reject valid
@@ -45,4 +55,19 @@ type UpdateDefaultsRequest struct {
 	DesiresPercent    int32  `json:"desiresPercent"`
 	SavingsPercent    int32  `json:"savingsPercent"`
 	Currency          string `json:"currency" binding:"required"`
+}
+
+// SummaryResponse is the JSON body returned for GET /api/finance/summary.
+type SummaryResponse struct {
+	Summary *PeriodSummary `json:"summary"`
+}
+
+// TagSpendingResponse is the JSON body returned for GET /api/finance/spending/by-tag.
+type TagSpendingResponse struct {
+	TagSpending []TagSpending `json:"tagSpending"`
+}
+
+// CumulativeSpendResponse is the JSON body returned for GET /api/finance/spending/cumulative.
+type CumulativeSpendResponse struct {
+	Points []CumulativeSpendPoint `json:"points"`
 }

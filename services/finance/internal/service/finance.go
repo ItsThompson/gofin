@@ -25,9 +25,10 @@ var DefaultTags = []string{
 
 // FinanceService contains the business logic for finance operations.
 type FinanceService struct {
-	repo      repository.FinanceRepository
-	txBeginner repository.TxBeginner
-	logger    *slog.Logger
+	repo          repository.FinanceRepository
+	txBeginner    repository.TxBeginner
+	expenseClient ExpenseClient
+	logger        *slog.Logger
 }
 
 // NewFinanceService creates a new FinanceService.
@@ -37,10 +38,17 @@ func NewFinanceService(
 	logger *slog.Logger,
 ) *FinanceService {
 	return &FinanceService{
-		repo:      repo,
+		repo:       repo,
 		txBeginner: txBeginner,
-		logger:    logger,
+		logger:     logger,
 	}
+}
+
+// WithExpenseClient returns a copy of the service with the expense client set.
+// This is used to inject the gRPC client after the service is constructed.
+func (s *FinanceService) WithExpenseClient(client ExpenseClient) *FinanceService {
+	s.expenseClient = client
+	return s
 }
 
 // ServiceError is a typed error that carries an HTTP status code and error code.
@@ -250,4 +258,22 @@ func (s *FinanceService) CreatePeriod(ctx context.Context, userID string, req *m
 	)
 
 	return period, nil
+}
+
+// ListPeriods returns all budget periods for a user, ordered by year/month descending.
+func (s *FinanceService) ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error) {
+	periods, err := s.repo.ListPeriods(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing periods: %w", err)
+	}
+	return periods, nil
+}
+
+// ListTags returns all tags for a user, ordered alphabetically.
+func (s *FinanceService) ListTags(ctx context.Context, userID string) ([]*model.Tag, error) {
+	tags, err := s.repo.ListTags(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing tags: %w", err)
+	}
+	return tags, nil
 }
