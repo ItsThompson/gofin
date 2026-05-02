@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { DashboardPage } from "@/pages/DashboardPage";
@@ -41,6 +41,69 @@ const mockDefaults = {
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
 };
+
+const mockSummary = {
+  periodId: "period-abc",
+  year: 2026,
+  month: 5,
+  totalBudget: 300000,
+  totalSpent: 54500,
+  remaining: 245500,
+  daysInPeriod: 31,
+  daysElapsed: 3,
+  dailySpendRate: 18166,
+  budgetPace: 8767,
+  isOnTrack: false,
+  essentials: { allocated: 150000, spent: 50000, remaining: 100000, percentUsed: 33.33 },
+  desires: { allocated: 90000, spent: 4500, remaining: 85500, percentUsed: 5.0 },
+  savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0.0 },
+};
+
+const mockTagSpending = [
+  { tagId: "tag-food", tagName: "Food", amount: 50000, percentOfTotal: 91.74 },
+  { tagId: "tag-social", tagName: "Social", amount: 4500, percentOfTotal: 8.26 },
+];
+
+const mockCumulativeData = Array.from({ length: 31 }, (_, index) => ({
+  day: index + 1,
+  actual: index < 3 ? (index + 1) * 18166 : 54500,
+  ideal: Math.round((300000 / 31) * (index + 1)),
+}));
+
+const mockExpenses = [
+  {
+    id: "exp-1",
+    userId: "user-1",
+    name: "Groceries",
+    amount: 50000,
+    currency: "USD",
+    expenseType: "essentials",
+    tagId: "tag-food",
+    expenseDate: "2026-05-02",
+    periodYear: 2026,
+    periodMonth: 5,
+    status: "active",
+    isProRata: false,
+    createdAt: "2026-05-02T10:00:00Z",
+  },
+  {
+    id: "exp-2",
+    userId: "user-1",
+    name: "Coffee",
+    amount: 4500,
+    currency: "USD",
+    expenseType: "desires",
+    tagId: "tag-social",
+    expenseDate: "2026-05-01",
+    periodYear: 2026,
+    periodMonth: 5,
+    status: "active",
+    isProRata: false,
+    createdAt: "2026-05-01T09:00:00Z",
+  },
+];
+
+// --- Fetch mock helpers ---
 
 function mockPeriodFound() {
   mockFetch.mockResolvedValueOnce({
@@ -94,58 +157,71 @@ function mockServerError(message: string) {
   });
 }
 
-function mockEmptyExpenses() {
-  // First call: recent expenses (pageSize=5)
+/**
+ * Mocks the 4 parallel dashboard data fetches after a period is found:
+ * summary, spending/by-tag, spending/cumulative, expenses (recent 5)
+ */
+function mockDashboardDataEmpty() {
+  // summary
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        summary: {
+          ...mockSummary,
+          totalSpent: 0,
+          remaining: 300000,
+          dailySpendRate: 0,
+          budgetPace: 9677,
+          isOnTrack: true,
+          essentials: { allocated: 150000, spent: 0, remaining: 150000, percentUsed: 0 },
+          desires: { allocated: 90000, spent: 0, remaining: 90000, percentUsed: 0 },
+          savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0 },
+        },
+      }),
+  });
+  // spending/by-tag
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ tagSpending: [] }),
+  });
+  // spending/cumulative
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ points: [] }),
+  });
+  // recent expenses
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
     json: () =>
       Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
   });
-  // Second call: all expenses for total (pageSize=1000)
+}
+
+function mockDashboardDataWithExpenses() {
+  // summary
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
-    json: () =>
-      Promise.resolve({ data: [], total: 0, page: 1, pageSize: 1000, hasMore: false }),
+    json: () => Promise.resolve({ summary: mockSummary }),
   });
-}
-
-const mockExpenses = [
-  {
-    id: "exp-1",
-    userId: "user-1",
-    name: "Groceries",
-    amount: 5000,
-    currency: "USD",
-    expenseType: "essentials",
-    tagId: "tag-food",
-    expenseDate: "2026-05-02",
-    periodYear: 2026,
-    periodMonth: 5,
-    status: "active",
-    isProRata: false,
-    createdAt: "2026-05-02T10:00:00Z",
-  },
-  {
-    id: "exp-2",
-    userId: "user-1",
-    name: "Coffee",
-    amount: 450,
-    currency: "USD",
-    expenseType: "desires",
-    tagId: "tag-food",
-    expenseDate: "2026-05-01",
-    periodYear: 2026,
-    periodMonth: 5,
-    status: "active",
-    isProRata: false,
-    createdAt: "2026-05-01T09:00:00Z",
-  },
-];
-
-function mockExpensesFound() {
-  // First call: recent expenses (pageSize=5)
+  // spending/by-tag
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ tagSpending: mockTagSpending }),
+  });
+  // spending/cumulative
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ points: mockCumulativeData }),
+  });
+  // recent expenses
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -155,19 +231,6 @@ function mockExpensesFound() {
         total: 2,
         page: 1,
         pageSize: 5,
-        hasMore: false,
-      }),
-  });
-  // Second call: all expenses for total (pageSize=1000)
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: () =>
-      Promise.resolve({
-        data: mockExpenses,
-        total: 2,
-        page: 1,
-        pageSize: 1000,
         hasMore: false,
       }),
   });
@@ -189,6 +252,8 @@ function renderDashboard(user: User = mockUser) {
   );
 }
 
+// --- Tests ---
+
 describe("DashboardPage", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -203,7 +268,7 @@ describe("DashboardPage", () => {
   describe("active period exists", () => {
     it("renders summary bar with budget values", async () => {
       mockPeriodFound();
-      mockEmptyExpenses();
+      mockDashboardDataEmpty();
       renderDashboard();
 
       await waitFor(() => {
@@ -211,7 +276,6 @@ describe("DashboardPage", () => {
       });
 
       expect(screen.getByText("Total Budget")).toBeInTheDocument();
-      // $3,000.00 appears in both Total Budget and Remaining cards
       await waitFor(() => {
         expect(screen.getAllByText("$3,000.00")).toHaveLength(2);
       });
@@ -223,7 +287,7 @@ describe("DashboardPage", () => {
 
     it("renders empty state with CTA to log expense", async () => {
       mockPeriodFound();
-      mockEmptyExpenses();
+      mockDashboardDataEmpty();
       renderDashboard();
 
       await waitFor(() => {
@@ -239,14 +303,13 @@ describe("DashboardPage", () => {
 
     it("displays currency symbol from user profile", async () => {
       mockPeriodFound();
-      mockEmptyExpenses();
+      mockDashboardDataEmpty();
       renderDashboard({ ...mockUser, currency: "EUR" });
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
 
-      // €3,000.00 appears in Total Budget and Remaining
       await waitFor(() => {
         expect(screen.getAllByText("€3,000.00")).toHaveLength(2);
       });
@@ -255,15 +318,13 @@ describe("DashboardPage", () => {
 
     it("color-codes remaining balance green when > 30%", async () => {
       mockPeriodFound();
-      mockEmptyExpenses();
+      mockDashboardDataEmpty();
       renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
 
-      // Remaining is $3,000 out of $3,000 = 100%, should be green
-      // The two $3,000.00 elements: one without color (Total Budget), one with green (Remaining)
       const amounts = screen.getAllByText("$3,000.00");
       const greenAmount = amounts.find((element) =>
         element.className.includes("text-green"),
@@ -280,14 +341,41 @@ describe("DashboardPage", () => {
             period: { ...mockPeriod, budgetAmount: 0 },
           }),
       });
-      mockEmptyExpenses();
+      // Summary with $0 budget
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            summary: {
+              ...mockSummary,
+              totalBudget: 0,
+              totalSpent: 0,
+              remaining: 0,
+              essentials: { allocated: 0, spent: 0, remaining: 0, percentUsed: 0 },
+              desires: { allocated: 0, spent: 0, remaining: 0, percentUsed: 0 },
+              savings: { allocated: 0, spent: 0, remaining: 0, percentUsed: 0 },
+            },
+          }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ tagSpending: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ points: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+      });
       renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
 
-      // Both budget and remaining are $0.00
       const zeroAmounts = screen.getAllByText("$0.00");
       zeroAmounts.forEach((element) => {
         expect(element.className).not.toContain("text-green");
@@ -307,7 +395,6 @@ describe("DashboardPage", () => {
         expect(screen.getByText(/set up/i)).toBeInTheDocument();
       });
 
-      // Fields should be pre-filled with defaults
       const budgetInput = screen.getByLabelText(
         "Monthly Budget",
       ) as HTMLInputElement;
@@ -355,7 +442,6 @@ describe("DashboardPage", () => {
         expect(screen.getByText(/set up/i)).toBeInTheDocument();
       });
 
-      // Fallback: 50/30/20 split, empty budget
       const essentialsInput = screen.getByLabelText(
         "Essentials %",
       ) as HTMLInputElement;
@@ -373,12 +459,10 @@ describe("DashboardPage", () => {
         expect(screen.getByText(/set up/i)).toBeInTheDocument();
       });
 
-      // Change savings to 19 (total = 99%)
       const savingsInput = screen.getByLabelText("Savings %");
       await user.clear(savingsInput);
       await user.type(savingsInput, "19");
 
-      // Submit
       const submitButton = screen.getByRole("button", { name: /create/i });
       await user.click(submitButton);
 
@@ -391,7 +475,7 @@ describe("DashboardPage", () => {
       mockPeriodNotFound();
       mockDefaultsFound();
       mockCreatePeriodSuccess();
-      mockEmptyExpenses(); // After period creation, dashboard fetches expenses
+      mockDashboardDataEmpty();
 
       const user = userEvent.setup();
       renderDashboard();
@@ -403,7 +487,6 @@ describe("DashboardPage", () => {
       const submitButton = screen.getByRole("button", { name: /create/i });
       await user.click(submitButton);
 
-      // After creation, dashboard should render with summary bar
       await waitFor(() => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
         expect(screen.getAllByText("$3,000.00")).toHaveLength(2);
@@ -414,7 +497,7 @@ describe("DashboardPage", () => {
       mockPeriodNotFound();
       mockDefaultsFound();
       mockCreatePeriodSuccess();
-      mockEmptyExpenses(); // After period creation, dashboard fetches expenses
+      mockDashboardDataEmpty();
 
       const user = userEvent.setup();
       renderDashboard();
@@ -423,7 +506,6 @@ describe("DashboardPage", () => {
         expect(screen.getByText(/set up/i)).toBeInTheDocument();
       });
 
-      // Override budget to $5,000
       const budgetInput = screen.getByLabelText("Monthly Budget");
       await user.clear(budgetInput);
       await user.type(budgetInput, "5000");
@@ -431,7 +513,6 @@ describe("DashboardPage", () => {
       const submitButton = screen.getByRole("button", { name: /create/i });
       await user.click(submitButton);
 
-      // Verify the POST was to /api/finance/periods (not /api/finance/defaults)
       await waitFor(() => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
@@ -444,9 +525,8 @@ describe("DashboardPage", () => {
       );
       expect(createCall).toBeDefined();
       const body = JSON.parse(createCall![1].body);
-      expect(body.budgetAmount).toBe(500000); // $5,000 in cents
+      expect(body.budgetAmount).toBe(500000);
 
-      // No call to PUT /api/finance/defaults should have been made
       const defaultsUpdateCall = mockFetch.mock.calls.find(
         (call) =>
           typeof call[0] === "string" &&
@@ -482,9 +562,8 @@ describe("DashboardPage", () => {
         expect(screen.getByText("Error")).toBeInTheDocument();
       });
 
-      // Retry succeeds
       mockPeriodFound();
-      mockEmptyExpenses();
+      mockDashboardDataEmpty();
       const user = userEvent.setup();
       await user.click(screen.getByRole("button", { name: /retry/i }));
 
@@ -497,7 +576,7 @@ describe("DashboardPage", () => {
   describe("recent expenses", () => {
     it("shows recent expenses when expenses exist", async () => {
       mockPeriodFound();
-      mockExpensesFound();
+      mockDashboardDataWithExpenses();
       renderDashboard();
 
       await waitFor(() => {
@@ -506,13 +585,13 @@ describe("DashboardPage", () => {
 
       expect(screen.getByText("Groceries")).toBeInTheDocument();
       expect(screen.getByText("Coffee")).toBeInTheDocument();
-      expect(screen.getByText("$50.00")).toBeInTheDocument(); // 5000 cents
-      expect(screen.getByText("$4.50")).toBeInTheDocument(); // 450 cents
+      expect(screen.getByText("$500.00")).toBeInTheDocument();
+      expect(screen.getByText("$45.00")).toBeInTheDocument();
     });
 
     it("shows View All link to /expenses", async () => {
       mockPeriodFound();
-      mockExpensesFound();
+      mockDashboardDataWithExpenses();
       renderDashboard();
 
       await waitFor(() => {
@@ -523,22 +602,197 @@ describe("DashboardPage", () => {
       expect(viewAllLink).toHaveAttribute("href", "/expenses");
     });
 
-    it("updates total spent in summary bar from expenses", async () => {
+    it("updates total spent in summary bar from summary endpoint", async () => {
       mockPeriodFound();
-      mockExpensesFound();
+      mockDashboardDataWithExpenses();
       renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
       });
 
-      // Total spent: 5000 + 450 = 5450 cents = $54.50
+      // totalSpent from summary: 54500 cents = $545.00
       await waitFor(() => {
-        expect(screen.getByText("$54.50")).toBeInTheDocument();
+        expect(screen.getByText("$545.00")).toBeInTheDocument();
       });
 
-      // Remaining: $3,000.00 - $54.50 = $2,945.50
-      expect(screen.getByText("$2,945.50")).toBeInTheDocument();
+      // Remaining: $3,000.00 - $545.00 = $2,455.00
+      expect(screen.getByText("$2,455.00")).toBeInTheDocument();
+    });
+  });
+
+  describe("category gauges", () => {
+    it("renders three category gauges with allocated and spent amounts", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("gauge-essentials")).toBeInTheDocument();
+      });
+
+      // Essentials gauge
+      const essentialsGauge = screen.getByTestId("gauge-essentials");
+      expect(within(essentialsGauge).getByText("Essentials")).toBeInTheDocument();
+      expect(within(essentialsGauge).getByText("33%")).toBeInTheDocument();
+      expect(within(essentialsGauge).getByText(/\$500\.00 of \$1,500\.00/)).toBeInTheDocument();
+
+      // Desires gauge
+      const desiresGauge = screen.getByTestId("gauge-desires");
+      expect(within(desiresGauge).getByText("Desires")).toBeInTheDocument();
+      expect(within(desiresGauge).getByText("5%")).toBeInTheDocument();
+
+      // Savings gauge
+      const savingsGauge = screen.getByTestId("gauge-savings");
+      expect(within(savingsGauge).getByText("Savings")).toBeInTheDocument();
+      expect(within(savingsGauge).getByText("0%")).toBeInTheDocument();
+    });
+
+    it("shows over-budget indicator when category exceeds allocation", async () => {
+      mockPeriodFound();
+      // Override summary to have essentials over budget
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            summary: {
+              ...mockSummary,
+              essentials: { allocated: 150000, spent: 200000, remaining: -50000, percentUsed: 133.33 },
+            },
+          }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ tagSpending: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ points: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+      });
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("gauge-essentials")).toBeInTheDocument();
+      });
+
+      const essentialsGauge = screen.getByTestId("gauge-essentials");
+      expect(within(essentialsGauge).getByText("133%")).toBeInTheDocument();
+      expect(within(essentialsGauge).getByText(/over by/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("pacing indicator", () => {
+    it("renders pacing data from summary endpoint", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Spending Pace")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Daily Average")).toBeInTheDocument();
+      expect(screen.getByText("Required Rate")).toBeInTheDocument();
+      expect(screen.getByText("Status")).toBeInTheDocument();
+    });
+
+    it("shows on-track indicator when spending is under pace", async () => {
+      mockPeriodFound();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            summary: { ...mockSummary, isOnTrack: true, totalSpent: 10000, remaining: 290000 },
+          }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ tagSpending: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ points: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+      });
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("On Track")).toBeInTheDocument();
+      });
+    });
+
+    it("shows over-budget amount when totalSpent exceeds budget", async () => {
+      mockPeriodFound();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            summary: {
+              ...mockSummary,
+              totalBudget: 100000,
+              totalSpent: 150000,
+              remaining: -50000,
+              isOnTrack: false,
+            },
+          }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ tagSpending: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ points: [] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true, status: 200,
+        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+      });
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText(/over by \$500\.00/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("responsive layout", () => {
+    it("shows Log Expense button on mobile viewport", async () => {
+      mockPeriodFound();
+      mockDashboardDataEmpty();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+      });
+
+      // The mobile Log Expense button has md:hidden class
+      const logExpenseLinks = screen.getAllByRole("link", { name: /log expense/i });
+      expect(logExpenseLinks.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("charts container has hidden md:block class for mobile hiding", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      const { container } = renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Spending by Tag")).toBeInTheDocument();
+      });
+
+      // Verify the charts wrapper has the responsive hidden class
+      const hiddenCharts = container.querySelector(".hidden.md\\:block");
+      expect(hiddenCharts).not.toBeNull();
     });
   });
 });

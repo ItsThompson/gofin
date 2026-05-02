@@ -12,10 +12,12 @@
   "dependencies": {
     "@gofin/types": "*",
     "@gofin/ui": "*",
+    "@tanstack/react-table": "^8.21.3",
     "lucide-react": "^1.14.0",
     "react": "^19",
     "react-dom": "^19",
     "react-router": "^7.14.2",
+    "recharts": "^3.8.1",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

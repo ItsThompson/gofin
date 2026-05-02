@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
   apiClient,
   ApiRequestError,
@@ -12,6 +12,12 @@ import {
   type CreatePeriodRequest,
   type Expense,
   type PaginatedResponse,
+  type PeriodSummary,
+  type SummaryResponse,
+  type TagSpending,
+  type TagSpendingResponse,
+  type CumulativeSpendPoint,
+  type CumulativeSpendResponse,
   type User,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
@@ -36,9 +42,25 @@ import {
   PlusCircle,
   Wallet,
   TrendingDown,
+  TrendingUp,
   Calendar,
   AlertTriangle,
+  Activity,
+  Target,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ComposedChart,
+} from "recharts";
 import type { DashboardState, FinancePageProps } from "@/types";
 import { getRemainingColor } from "@/lib/budget-utils";
 
@@ -47,9 +69,7 @@ import { getRemainingColor } from "@/lib/budget-utils";
  *
  * On load, fetches the current month's budget period. If none exists,
  * shows a creation prompt with default values. After creation (or if
- * a period already exists), renders the summary bar and empty state.
- *
- * Exported via Module Federation for the shell to load dynamically.
+ * a period already exists), renders the full analytics dashboard.
  */
 export function DashboardPage({ user }: FinancePageProps) {
   const [state, setState] = useState<DashboardState>("loading");
@@ -75,13 +95,11 @@ export function DashboardPage({ user }: FinancePageProps) {
         error instanceof ApiRequestError &&
         error.code === "PERIOD_NOT_FOUND"
       ) {
-        // Expected: no period for this month yet. Fetch defaults for the prompt.
         try {
           const defaultsResponse =
             await apiClient<DefaultsResponse>("/api/finance/defaults");
           setDefaults(defaultsResponse.defaults);
         } catch {
-          // Defaults not found is non-fatal: use hardcoded fallbacks
           setDefaults(null);
         }
         setState("no-period");
@@ -121,7 +139,6 @@ export function DashboardPage({ user }: FinancePageProps) {
     );
   }
 
-  // state === "active"
   return <ActiveDashboard period={period!} user={user} />;
 }
 
@@ -232,7 +249,9 @@ function CreatePeriodPrompt({
       return;
     }
 
-    const budgetAmountCents = Math.round((parseFloat(budgetDollars) || 0) * 100);
+    const budgetAmountCents = Math.round(
+      (parseFloat(budgetDollars) || 0) * 100,
+    );
 
     const body: CreatePeriodRequest = {
       year,
@@ -379,51 +398,63 @@ interface ActiveDashboardProps {
 }
 
 function ActiveDashboard({ period, user }: ActiveDashboardProps) {
+  const [summary, setSummary] = useState<PeriodSummary | null>(null);
+  const [tagSpending, setTagSpending] = useState<TagSpending[]>([]);
+  const [cumulativeData, setCumulativeData] = useState<
+    CumulativeSpendPoint[]
+  >([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
-  const [totalSpent, setTotalSpent] = useState(0);
-  const [expensesLoaded, setExpensesLoaded] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-    async function fetchExpenses() {
+    async function fetchDashboardData() {
       try {
-        const response = await apiClient<PaginatedResponse<Expense>>(
-          `/api/expenses?year=${period.year}&month=${period.month}&page=1&pageSize=5`,
-        );
-        setRecentExpenses(response.data);
-        // Compute total spent from all expenses (fetch full count page)
-        // For the summary bar, we need total across all pages. Fetch with
-        // large pageSize to get the full total for now.
-        const allResponse = await apiClient<PaginatedResponse<Expense>>(
-          `/api/expenses?year=${period.year}&month=${period.month}&page=1&pageSize=1000`,
-        );
-        const spent = allResponse.data.reduce(
-          (sum, expense) => sum + expense.amount,
-          0,
-        );
-        setTotalSpent(spent);
+        const [summaryRes, tagRes, cumulativeRes, expensesRes] =
+          await Promise.all([
+            apiClient<SummaryResponse>(
+              `/api/finance/summary?year=${period.year}&month=${period.month}`,
+            ),
+            apiClient<TagSpendingResponse>(
+              `/api/finance/spending/by-tag?year=${period.year}&month=${period.month}`,
+            ),
+            apiClient<CumulativeSpendResponse>(
+              `/api/finance/spending/cumulative?year=${period.year}&month=${period.month}`,
+            ),
+            apiClient<PaginatedResponse<Expense>>(
+              `/api/expenses?year=${period.year}&month=${period.month}&page=1&pageSize=5`,
+            ),
+          ]);
+
+        setSummary(summaryRes.summary);
+        setTagSpending(tagRes.tagSpending);
+        setCumulativeData(cumulativeRes.points);
+        setRecentExpenses(expensesRes.data);
       } catch {
-        // Non-fatal: dashboard still shows with 0 expenses
+        // Non-fatal: dashboard still renders with defaults
       } finally {
-        setExpensesLoaded(true);
+        setDataLoaded(true);
       }
     }
-    fetchExpenses();
+    fetchDashboardData();
   }, [period.year, period.month]);
 
-  const remaining = period.budgetAmount - totalSpent;
-  const daysInMonth = new Date(period.year, period.month, 0).getDate();
-  const today = new Date();
-  const daysElapsed =
-    period.year === today.getFullYear() && period.month === today.getMonth() + 1
-      ? today.getDate()
-      : daysInMonth;
-  const daysLeft = Math.max(0, daysInMonth - daysElapsed);
+  const totalSpent = summary?.totalSpent ?? 0;
+  const remaining = summary?.remaining ?? period.budgetAmount;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <LayoutDashboard className="size-6 text-primary" />
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <LayoutDashboard className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+        </div>
+        {/* Mobile-only Log Expense button */}
+        <Button asChild className="md:hidden">
+          <Link to="/expenses/new">
+            <PlusCircle className="size-4" />
+            Log Expense
+          </Link>
+        </Button>
       </div>
 
       {/* Summary Bar */}
@@ -431,12 +462,42 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
         budgetAmount={period.budgetAmount}
         totalSpent={totalSpent}
         remaining={remaining}
-        daysLeft={daysLeft}
+        daysLeft={
+          summary
+            ? summary.daysInPeriod - summary.daysElapsed
+            : Math.max(
+                0,
+                new Date(period.year, period.month, 0).getDate() -
+                  new Date().getDate(),
+              )
+        }
         currency={user.currency}
       />
 
+      {/* Category Gauges */}
+      {summary && <CategoryGauges summary={summary} currency={user.currency} />}
+
+      {/* Pacing Indicator */}
+      {summary && <PacingIndicator summary={summary} currency={user.currency} />}
+
+      {/* Charts: hidden on mobile per US-DASH-09 */}
+      <div className="hidden md:block space-y-6">
+        {/* Tag Spending Chart */}
+        {tagSpending.length > 0 && (
+          <TagSpendingChart tagSpending={tagSpending} currency={user.currency} />
+        )}
+
+        {/* Cumulative Spend Chart */}
+        {cumulativeData.length > 0 && (
+          <CumulativeSpendChart
+            data={cumulativeData}
+            currency={user.currency}
+          />
+        )}
+      </div>
+
       {/* Recent Expenses or Empty State */}
-      {expensesLoaded && recentExpenses.length === 0 ? (
+      {dataLoaded && recentExpenses.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Wallet className="mb-4 size-12 text-muted-foreground/50" />
@@ -453,13 +514,297 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
             </Button>
           </CardContent>
         </Card>
-      ) : expensesLoaded ? (
-        <RecentExpenses
-          expenses={recentExpenses}
-          currency={user.currency}
-        />
+      ) : dataLoaded ? (
+        <RecentExpenses expenses={recentExpenses} currency={user.currency} />
       ) : null}
     </div>
+  );
+}
+
+// --- Category Gauges ---
+
+interface CategoryGaugesProps {
+  summary: PeriodSummary;
+  currency: string;
+}
+
+function CategoryGauges({ summary, currency }: CategoryGaugesProps) {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <CategoryGauge
+        label="Essentials"
+        category={summary.essentials}
+        currency={currency}
+      />
+      <CategoryGauge
+        label="Desires"
+        category={summary.desires}
+        currency={currency}
+      />
+      <CategoryGauge
+        label="Savings"
+        category={summary.savings}
+        currency={currency}
+      />
+    </div>
+  );
+}
+
+function CategoryGauge({
+  label,
+  category,
+  currency,
+}: {
+  label: string;
+  category: PeriodSummary["essentials"];
+  currency: string;
+}) {
+  const isOverBudget = category.percentUsed > 100;
+  const progressPercent = Math.min(category.percentUsed, 100);
+
+  return (
+    <Card data-testid={`gauge-${label.toLowerCase()}`}>
+      <CardContent className="px-4 py-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">{label}</span>
+          <span
+            className={`text-xs font-semibold ${isOverBudget ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}
+          >
+            {category.percentUsed.toFixed(0)}%
+          </span>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full transition-all ${isOverBudget ? "bg-red-500" : "bg-primary"}`}
+            style={{ width: `${progressPercent}%` }}
+            role="progressbar"
+            aria-valuenow={category.percentUsed}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${label} budget usage`}
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+          <span>
+            {formatCurrency(category.spent, currency)} of{" "}
+            {formatCurrency(category.allocated, currency)}
+          </span>
+          <span>
+            {isOverBudget ? (
+              <span className="text-red-600 dark:text-red-400">
+                Over by {formatCurrency(Math.abs(category.remaining), currency)}
+              </span>
+            ) : (
+              <span>
+                {formatCurrency(category.remaining, currency)} left
+              </span>
+            )}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Pacing Indicator ---
+
+interface PacingIndicatorProps {
+  summary: PeriodSummary;
+  currency: string;
+}
+
+function PacingIndicator({ summary, currency }: PacingIndicatorProps) {
+  const isOverBudget = summary.totalSpent > summary.totalBudget;
+  const overAmount = isOverBudget ? summary.totalSpent - summary.totalBudget : 0;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Activity className="size-4 text-muted-foreground" />
+          <CardTitle className="text-base">Spending Pace</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Daily Average</p>
+            <p className="text-lg font-semibold">
+              {formatCurrency(summary.dailySpendRate, currency)}/day
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Required Rate</p>
+            <p className="text-lg font-semibold">
+              {summary.budgetPace > 0
+                ? `${formatCurrency(summary.budgetPace, currency)}/day`
+                : "N/A"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Status</p>
+            {isOverBudget ? (
+              <div className="flex items-center gap-1">
+                <TrendingUp className="size-4 text-red-600 dark:text-red-400" />
+                <p className="text-lg font-semibold text-red-600 dark:text-red-400">
+                  Over by {formatCurrency(overAmount, currency)}
+                </p>
+              </div>
+            ) : summary.isOnTrack ? (
+              <div className="flex items-center gap-1">
+                <Target className="size-4 text-green-600 dark:text-green-400" />
+                <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                  On Track
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <AlertTriangle className="size-4 text-yellow-600 dark:text-yellow-400" />
+                <p className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">
+                  Over Pace
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Tag Spending Bar Chart ---
+
+interface TagSpendingChartProps {
+  tagSpending: TagSpending[];
+  currency: string;
+}
+
+function TagSpendingChart({ tagSpending, currency }: TagSpendingChartProps) {
+  const navigate = useNavigate();
+
+  const chartData = tagSpending.map((tag) => ({
+    name: tag.tagName,
+    amount: tag.amount / 100,
+    tagId: tag.tagId,
+    percent: tag.percentOfTotal,
+  }));
+
+  function handleBarClick(data: { tagId?: string }) {
+    if (data.tagId) {
+      navigate(`/expenses?tag=${data.tagId}`);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Spending by Tag</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={Math.max(200, tagSpending.length * 40)}>
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tickFormatter={(value) => `${getCurrencySymbol(currency)}${value}`} />
+            <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
+            <Tooltip
+              formatter={(value: number, _name: string, props: { payload: { percent: number } }) => [
+                `${formatCurrency(value * 100, currency)} (${props.payload.percent.toFixed(1)}%)`,
+                "Spent",
+              ]}
+            />
+            <Bar
+              dataKey="amount"
+              fill="hsl(var(--primary))"
+              radius={[0, 4, 4, 0]}
+              cursor="pointer"
+              onClick={(_data: unknown, index: number) => handleBarClick(chartData[index])}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Cumulative Spend Line Chart ---
+
+interface CumulativeSpendChartProps {
+  data: CumulativeSpendPoint[];
+  currency: string;
+}
+
+function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
+  const chartData = data.map((point) => ({
+    day: point.day,
+    actual: point.actual / 100,
+    ideal: point.ideal / 100,
+    // For area shading: compute the difference
+    surplus: Math.max(0, (point.ideal - point.actual) / 100),
+    deficit: Math.max(0, (point.actual - point.ideal) / 100),
+  }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Cumulative Spending</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="day"
+              label={{ value: "Day of Month", position: "insideBottom", offset: -5 }}
+            />
+            <YAxis
+              tickFormatter={(value) => `${getCurrencySymbol(currency)}${value}`}
+            />
+            <Tooltip
+              formatter={(value: number) => formatCurrency(value * 100, currency)}
+            />
+            <Area
+              type="monotone"
+              dataKey="surplus"
+              fill="rgba(34, 197, 94, 0.15)"
+              stroke="none"
+              name="Under Budget"
+            />
+            <Area
+              type="monotone"
+              dataKey="deficit"
+              fill="rgba(239, 68, 68, 0.15)"
+              stroke="none"
+              name="Over Budget"
+            />
+            <Line
+              type="monotone"
+              dataKey="ideal"
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="5 5"
+              strokeWidth={2}
+              dot={false}
+              name="Budget Pace"
+            />
+            <Line
+              type="monotone"
+              dataKey="actual"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              dot={false}
+              name="Actual"
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -579,4 +924,3 @@ function SummaryCard({
     </Card>
   );
 }
-
