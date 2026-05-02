@@ -1,15 +1,18 @@
 package model
 
 // CreateExpenseRequest is the input for POST /api/expenses.
+// Note: binding tags are intentionally omitted. Validation is handled by the
+// service layer's validateCreateExpenseRequest, which returns field-level error
+// details in the ApiError response.
 type CreateExpenseRequest struct {
-	Name        string `json:"name" binding:"required"`
+	Name        string `json:"name"`
 	Amount      int64  `json:"amount"`
-	Currency    string `json:"currency" binding:"required"`
-	ExpenseType string `json:"expenseType" binding:"required"`
-	TagID       string `json:"tagId" binding:"required"`
-	ExpenseDate string `json:"expenseDate" binding:"required"`
-	PeriodYear  int32  `json:"periodYear" binding:"required"`
-	PeriodMonth int32  `json:"periodMonth" binding:"required"`
+	Currency    string `json:"currency"`
+	ExpenseType string `json:"expenseType"`
+	TagID       string `json:"tagId"`
+	ExpenseDate string `json:"expenseDate"`
+	PeriodYear  int32  `json:"periodYear"`
+	PeriodMonth int32  `json:"periodMonth"`
 
 	// Pro-rata fields (optional for standard expenses)
 	IsProRata    bool   `json:"isProRata,omitempty"`

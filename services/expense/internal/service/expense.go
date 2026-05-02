@@ -32,11 +32,13 @@ func NewExpenseService(
 	}
 }
 
-// ServiceError is a typed error that carries an HTTP status code and error code.
+// ServiceError is a typed error that carries an HTTP status code, error code,
+// and optional field-level validation details.
 type ServiceError struct {
 	Code    string
 	Message string
 	Status  int
+	Fields  map[string]string
 }
 
 func (e *ServiceError) Error() string {
@@ -189,6 +191,7 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *ServiceError
 			Code:    model.ErrValidationError,
 			Message: "validation failed",
 			Status:  400,
+			Fields:  fields,
 		}
 	}
 	return nil

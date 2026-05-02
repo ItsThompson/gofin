@@ -165,6 +165,7 @@ func (h *RESTHandler) handleError(c *gin.Context, err error) {
 		c.JSON(svcErr.Status, model.ApiError{
 			Code:    svcErr.Code,
 			Message: svcErr.Message,
+			Fields:  svcErr.Fields,
 		})
 		return
 	}

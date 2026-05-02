@@ -175,6 +175,9 @@ func TestCreateExpenseHandler_ValidationError(t *testing.T) {
 	var errResp model.ApiError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, "validation failed", errResp.Message)
+	require.NotNil(t, errResp.Fields)
+	assert.Equal(t, "amount must be positive", errResp.Fields["amount"])
 }
 
 func TestCreateExpenseHandler_InvalidExpenseType(t *testing.T) {
@@ -193,6 +196,38 @@ func TestCreateExpenseHandler_InvalidExpenseType(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	require.NotNil(t, errResp.Fields)
+	assert.Contains(t, errResp.Fields["expenseType"], "essentials, desires, savings")
+}
+
+func TestCreateExpenseHandler_MultipleFieldErrors(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	r := setupTestRouter(repo)
+
+	// Missing name, zero amount, invalid type: should report all field errors
+	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
+		"name":        "",
+		"amount":      0,
+		"currency":    "USD",
+		"expenseType": "invalid",
+		"tagId":       "tag-food",
+		"expenseDate": "2026-05-03",
+		"periodYear":  2026,
+		"periodMonth": 5,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	require.NotNil(t, errResp.Fields)
+	assert.Len(t, errResp.Fields, 3) // name, amount, expenseType
+	assert.NotEmpty(t, errResp.Fields["name"])
+	assert.NotEmpty(t, errResp.Fields["amount"])
+	assert.NotEmpty(t, errResp.Fields["expenseType"])
 }
 
 // --- GetExpenses Handler Tests ---
