@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from "react-router";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEffect, useState } from "react";
 import { Button } from "@gofin/ui/components/button";
@@ -34,6 +34,20 @@ export default function AuthLayout() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
+  // Onboarding redirect guards
+  const location = useLocation();
+  const isOnOnboarding = location.pathname === "/onboarding";
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !user) return;
+
+    if (!user.hasCompletedOnboarding && !isOnOnboarding) {
+      navigate("/onboarding");
+    } else if (user.hasCompletedOnboarding && isOnOnboarding) {
+      navigate("/dashboard");
+    }
+  }, [isLoading, isAuthenticated, user, isOnOnboarding, navigate]);
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -44,6 +58,11 @@ export default function AuthLayout() {
 
   if (!isAuthenticated) {
     return null;
+  }
+
+  // Render onboarding page without the nav chrome
+  if (!user?.hasCompletedOnboarding && isOnOnboarding) {
+    return <Outlet />;
   }
 
   const handleLogout = async () => {
