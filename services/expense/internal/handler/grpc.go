@@ -104,6 +104,17 @@ func (h *GRPCHandler) GetProRataGroup(ctx context.Context, req *pb.GetProRataGro
 	return nil, status.Error(codes.Unimplemented, "GetProRataGroup not yet implemented")
 }
 
+func (h *GRPCHandler) CountExpensesByTag(ctx context.Context, req *pb.CountExpensesByTagRequest) (*pb.CountExpensesByTagResponse, error) {
+	count, err := h.expenseService.CountExpensesByTag(ctx, req.GetUserId(), req.GetTagId())
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	return &pb.CountExpensesByTagResponse{
+		Count: count,
+	}, nil
+}
+
 // expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{

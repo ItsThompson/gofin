@@ -11,6 +11,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -85,6 +86,8 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		slog.String("expense_type", created.ExpenseType),
 	)
 
+	metrics.ExpenseEntriesTotal.Inc()
+
 	return created, nil
 }
 
@@ -153,6 +156,24 @@ func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id strin
 	}
 
 	return expense, nil
+}
+
+// CountExpensesByTag returns the count of active expenses for a user that reference a given tag.
+func (s *ExpenseService) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
+	if tagID == "" {
+		return 0, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "tag_id is required",
+			Status:  400,
+		}
+	}
+
+	count, err := s.repo.CountExpensesByTag(ctx, userID, tagID)
+	if err != nil {
+		return 0, fmt.Errorf("counting expenses by tag: %w", err)
+	}
+
+	return count, nil
 }
 
 // validateCreateExpenseRequest checks all required fields and business rules.

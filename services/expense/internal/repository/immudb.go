@@ -192,7 +192,28 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 	return rowToExpense(result.Rows[0]), nil
 }
 
-// rowToExpense maps an SQL result row to an Expense domain model.
+// CountExpensesByTag returns the count of active expenses referencing the given tag
+// for a specific user. Used by the finance service to check tag usage before deletion.
+func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
+	query := `SELECT COUNT(*) FROM expenses
+		WHERE user_id = @user_id
+		AND tag_id = @tag_id
+		AND status = 'active';`
+
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{
+		"user_id": userID,
+		"tag_id":  tagID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("counting expenses by tag: %w", err)
+	}
+
+	if len(result.Rows) > 0 && len(result.Rows[0].Values) > 0 {
+		return result.Rows[0].Values[0].GetInt(), nil
+	}
+
+	return 0, nil
+}
 // Column order must match the SELECT clause in queries.
 func rowToExpense(row SQLRow) *model.Expense {
 	values := row.Values

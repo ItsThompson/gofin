@@ -20,6 +20,9 @@ type ExpenseRepository interface {
 	// GetExpenseByID returns a single expense by ID, scoped to the given user.
 	// Returns nil if the expense doesn't exist or belongs to a different user.
 	GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error)
+
+	// CountExpensesByTag returns the number of active expenses referencing the given tag.
+	CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error)
 }
 
 // SchemaInitializer creates the required tables and indexes on startup.

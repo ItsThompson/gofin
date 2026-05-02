@@ -10,6 +10,9 @@ service ExpenseService {
   rpc GetExpensesForPeriod(GetExpensesForPeriodRequest) returns (ExpenseListResponse);
   rpc GetExpense(GetExpenseRequest) returns (ExpenseResponse);
 
+  // Tag usage check (called by finance service during tag deletion)
+  rpc CountExpensesByTag(CountExpensesByTagRequest) returns (CountExpensesByTagResponse);
+
   // Stubs: implemented in later tickets
   rpc CorrectExpense(CorrectExpenseRequest) returns (ExpenseResponse);
   rpc GetCorrectionHistory(GetCorrectionHistoryRequest) returns (CorrectionHistoryResponse);
@@ -117,4 +120,17 @@ message CorrectionHistoryResponse {
 
 message GetProRataGroupRequest {
   string group_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// CountExpensesByTag
+// ---------------------------------------------------------------------------
+
+message CountExpensesByTagRequest {
+  string tag_id = 1;
+  string user_id = 2;
+}
+
+message CountExpensesByTagResponse {
+  int64 count = 1;
 }

@@ -48,6 +48,11 @@ func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, u
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
+func (m *mockExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
+	args := m.Called(ctx, userID, tagID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

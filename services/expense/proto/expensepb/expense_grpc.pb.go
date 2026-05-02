@@ -22,6 +22,7 @@ const (
 	ExpenseService_CreateExpense_FullMethodName        = "/expense.ExpenseService/CreateExpense"
 	ExpenseService_GetExpensesForPeriod_FullMethodName = "/expense.ExpenseService/GetExpensesForPeriod"
 	ExpenseService_GetExpense_FullMethodName           = "/expense.ExpenseService/GetExpense"
+	ExpenseService_CountExpensesByTag_FullMethodName   = "/expense.ExpenseService/CountExpensesByTag"
 	ExpenseService_CorrectExpense_FullMethodName       = "/expense.ExpenseService/CorrectExpense"
 	ExpenseService_GetCorrectionHistory_FullMethodName = "/expense.ExpenseService/GetCorrectionHistory"
 	ExpenseService_GetProRataGroup_FullMethodName      = "/expense.ExpenseService/GetProRataGroup"
@@ -35,6 +36,8 @@ type ExpenseServiceClient interface {
 	CreateExpense(ctx context.Context, in *CreateExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	GetExpensesForPeriod(ctx context.Context, in *GetExpensesForPeriodRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
 	GetExpense(ctx context.Context, in *GetExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
+	// Tag usage check (called by finance service during tag deletion)
+	CountExpensesByTag(ctx context.Context, in *CountExpensesByTagRequest, opts ...grpc.CallOption) (*CountExpensesByTagResponse, error)
 	// Stubs: implemented in later tickets
 	CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	GetCorrectionHistory(ctx context.Context, in *GetCorrectionHistoryRequest, opts ...grpc.CallOption) (*CorrectionHistoryResponse, error)
@@ -79,6 +82,16 @@ func (c *expenseServiceClient) GetExpense(ctx context.Context, in *GetExpenseReq
 	return out, nil
 }
 
+func (c *expenseServiceClient) CountExpensesByTag(ctx context.Context, in *CountExpensesByTagRequest, opts ...grpc.CallOption) (*CountExpensesByTagResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CountExpensesByTagResponse)
+	err := c.cc.Invoke(ctx, ExpenseService_CountExpensesByTag_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExpenseResponse)
@@ -117,6 +130,8 @@ type ExpenseServiceServer interface {
 	CreateExpense(context.Context, *CreateExpenseRequest) (*ExpenseResponse, error)
 	GetExpensesForPeriod(context.Context, *GetExpensesForPeriodRequest) (*ExpenseListResponse, error)
 	GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error)
+	// Tag usage check (called by finance service during tag deletion)
+	CountExpensesByTag(context.Context, *CountExpensesByTagRequest) (*CountExpensesByTagResponse, error)
 	// Stubs: implemented in later tickets
 	CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error)
 	GetCorrectionHistory(context.Context, *GetCorrectionHistoryRequest) (*CorrectionHistoryResponse, error)
@@ -139,6 +154,9 @@ func (UnimplementedExpenseServiceServer) GetExpensesForPeriod(context.Context, *
 }
 func (UnimplementedExpenseServiceServer) GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetExpense not implemented")
+}
+func (UnimplementedExpenseServiceServer) CountExpensesByTag(context.Context, *CountExpensesByTagRequest) (*CountExpensesByTagResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CountExpensesByTag not implemented")
 }
 func (UnimplementedExpenseServiceServer) CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CorrectExpense not implemented")
@@ -224,6 +242,24 @@ func _ExpenseService_GetExpense_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExpenseService_CountExpensesByTag_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CountExpensesByTagRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExpenseServiceServer).CountExpensesByTag(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExpenseService_CountExpensesByTag_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExpenseServiceServer).CountExpensesByTag(ctx, req.(*CountExpensesByTagRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ExpenseService_CorrectExpense_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CorrectExpenseRequest)
 	if err := dec(in); err != nil {
@@ -296,6 +332,10 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetExpense",
 			Handler:    _ExpenseService_GetExpense_Handler,
+		},
+		{
+			MethodName: "CountExpensesByTag",
+			Handler:    _ExpenseService_CountExpensesByTag_Handler,
 		},
 		{
 			MethodName: "CorrectExpense",
