@@ -257,6 +257,103 @@ func (h *RESTHandler) ListTags(c *gin.Context) {
 	})
 }
 
+// GetPeriodSummary handles GET /api/finance/summary?year=YYYY&month=MM.
+func (h *RESTHandler) GetPeriodSummary(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	summary, err := h.financeService.GetPeriodSummary(c.Request.Context(), userID, year, month)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.SummaryResponse{
+		Summary: summary,
+	})
+}
+
+// GetSpendingByTag handles GET /api/finance/spending/by-tag?year=YYYY&month=MM.
+func (h *RESTHandler) GetSpendingByTag(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	tags, err := h.financeService.GetSpendingByTag(c.Request.Context(), userID, year, month)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.TagSpendingResponse{
+		TagSpending: tags,
+	})
+}
+
+// GetCumulativeSpend handles GET /api/finance/spending/cumulative?year=YYYY&month=MM.
+func (h *RESTHandler) GetCumulativeSpend(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	points, err := h.financeService.GetCumulativeSpend(c.Request.Context(), userID, year, month)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.CumulativeSpendResponse{
+		Points: points,
+	})
+}
+
+// parseUserAndPeriodParams extracts and validates X-User-ID, year, and month from the request.
+// Returns (userID, year, month, ok). When ok is false, an error response has already been sent.
+func (h *RESTHandler) parseUserAndPeriodParams(c *gin.Context) (string, int32, int32, bool) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return "", 0, 0, false
+	}
+
+	yearStr := c.Query("year")
+	monthStr := c.Query("month")
+	if yearStr == "" || monthStr == "" {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "year and month query parameters are required",
+		})
+		return "", 0, 0, false
+	}
+
+	year, err := strconv.ParseInt(yearStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "year must be a valid integer",
+		})
+		return "", 0, 0, false
+	}
+
+	month, err := strconv.ParseInt(monthStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "month must be a valid integer",
+		})
+		return "", 0, 0, false
+	}
+
+	return userID, int32(year), int32(month), true
+}
+
 // handleError maps service errors to HTTP responses following the ApiError contract.
 func (h *RESTHandler) handleError(c *gin.Context, err error) {
 	if svcErr, ok := err.(*service.ServiceError); ok {

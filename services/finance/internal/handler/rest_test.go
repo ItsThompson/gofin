@@ -753,3 +753,258 @@ func TestUpdateDefaultsHandler_DoesNotAffectPeriods(t *testing.T) {
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "GetCurrentPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+// --- Dashboard Aggregation Handler Tests ---
+
+// mockExpenseClient implements service.ExpenseClient for tests.
+type mockExpenseClient struct {
+	mock.Mock
+}
+
+func (m *mockExpenseClient) GetExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]service.ExpenseData, error) {
+	args := m.Called(ctx, userID, year, month)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]service.ExpenseData), args.Error(1)
+}
+
+func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *mockTxBeginner, expClient *mockExpenseClient) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expClient)
+
+	h := NewRESTHandler(financeSvc, logger)
+	r := gin.New()
+	h.RegisterRoutes(r)
+	return r
+}
+
+func TestGetPeriodSummaryHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return(&model.BudgetPeriod{
+			ID:                "period-abc",
+			UserID:            "user-123",
+			Year:              2025,
+			Month:             1,
+			BudgetAmount:      300000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+		}, nil)
+
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return([]service.ExpenseData{
+			{ID: "e1", Amount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+			{ID: "e2", Amount: 20000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-10"},
+		}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/summary?year=2025&month=1", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.SummaryResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "period-abc", resp.Summary.PeriodID)
+	assert.Equal(t, int64(300000), resp.Summary.TotalBudget)
+	assert.Equal(t, int64(70000), resp.Summary.TotalSpent)
+	assert.Equal(t, int64(230000), resp.Summary.Remaining)
+	assert.Equal(t, int64(150000), resp.Summary.Essentials.Allocated)
+	assert.Equal(t, int64(50000), resp.Summary.Essentials.Spent)
+	assert.Equal(t, int64(90000), resp.Summary.Desires.Allocated)
+	assert.Equal(t, int64(20000), resp.Summary.Desires.Spent)
+}
+
+func TestGetPeriodSummaryHandler_PeriodNotFound(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2025), int32(6)).
+		Return(nil, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/summary?year=2025&month=6", "user-123", nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrPeriodNotFound, errResp.Code)
+}
+
+func TestGetPeriodSummaryHandler_MissingParams(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{"missing both", "/api/finance/summary"},
+		{"missing month", "/api/finance/summary?year=2025"},
+		{"missing year", "/api/finance/summary?month=1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := doJSONWithUserID(r, "GET", tt.query, "user-123", nil)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	}
+}
+
+func TestGetPeriodSummaryHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/summary?year=2025&month=1", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestGetSpendingByTagHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return(&model.BudgetPeriod{
+			ID:                "period-abc",
+			UserID:            "user-123",
+			Year:              2025,
+			Month:             1,
+			BudgetAmount:      300000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+		}, nil)
+
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return([]service.ExpenseData{
+			{TagID: "tag-food", Amount: 30000},
+			{TagID: "tag-food", Amount: 20000},
+			{TagID: "tag-bills", Amount: 50000},
+		}, nil)
+
+	repo.On("ListTags", mock.Anything, "user-123").
+		Return([]*model.Tag{
+			{ID: "tag-food", Name: "Food"},
+			{ID: "tag-bills", Name: "Bills"},
+		}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/by-tag?year=2025&month=1", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.TagSpendingResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Len(t, resp.TagSpending, 2)
+	// Sorted by amount descending: Food (50000), Bills (50000). Bills first alphabetically? No, Bills = 50000, Food = 50000.
+	// Actually: food = 30000+20000 = 50000, bills = 50000. Same amount.
+	// But sort is by amount desc. They have same amount. Order is map-iteration dependent.
+	// Check that both exist and amounts are correct.
+	var foodTag, billsTag model.TagSpending
+	for _, tag := range resp.TagSpending {
+		if tag.TagName == "Food" {
+			foodTag = tag
+		} else if tag.TagName == "Bills" {
+			billsTag = tag
+		}
+	}
+	assert.Equal(t, int64(50000), foodTag.Amount)
+	assert.Equal(t, int64(50000), billsTag.Amount)
+	assert.InDelta(t, 50.0, foodTag.PercentOfTotal, 0.01)
+	assert.InDelta(t, 50.0, billsTag.PercentOfTotal, 0.01)
+}
+
+func TestGetSpendingByTagHandler_NoExpenses(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return(&model.BudgetPeriod{
+			ID:   "period-abc",
+			Year: 2025, Month: 1,
+			BudgetAmount:      300000,
+			EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		}, nil)
+
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return([]service.ExpenseData{}, nil)
+
+	repo.On("ListTags", mock.Anything, "user-123").
+		Return([]*model.Tag{}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/by-tag?year=2025&month=1", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.TagSpendingResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Empty(t, resp.TagSpending)
+}
+
+func TestGetCumulativeSpendHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return(&model.BudgetPeriod{
+			ID:                "period-abc",
+			UserID:            "user-123",
+			Year:              2025,
+			Month:             1,
+			BudgetAmount:      310000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+		}, nil)
+
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+		Return([]service.ExpenseData{
+			{ExpenseDate: "2025-01-01", Amount: 10000},
+			{ExpenseDate: "2025-01-03", Amount: 20000},
+		}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/cumulative?year=2025&month=1", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.CumulativeSpendResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Len(t, resp.Points, 31) // January has 31 days
+	assert.Equal(t, int64(10000), resp.Points[0].Actual) // day 1
+	assert.Equal(t, int64(10000), resp.Points[1].Actual) // day 2 (carry forward)
+	assert.Equal(t, int64(30000), resp.Points[2].Actual) // day 3
+	assert.Equal(t, int64(10000), resp.Points[0].Ideal)  // 310000/31*1 = 10000
+}
+
+func TestGetCumulativeSpendHandler_MissingParams(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/cumulative", "user-123", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
