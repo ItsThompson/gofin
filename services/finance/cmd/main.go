@@ -14,12 +14,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/config"
 	"github.com/ItsThompson/gofin/services/finance/internal/db"
 	"github.com/ItsThompson/gofin/services/finance/internal/handler"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
+	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
@@ -71,11 +73,27 @@ func run() error {
 		slog.String("addr", cfg.ExpenseServiceAddr),
 	)
 
+	// Connect to expense service gRPC for dashboard aggregation
+	expenseConn, err := grpc.NewClient(
+		cfg.ExpenseServiceAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("connecting to expense service at %s: %w", cfg.ExpenseServiceAddr, err)
+	}
+	defer expenseConn.Close()
+	logger.Info("expense service gRPC client created",
+		slog.String("addr", cfg.ExpenseServiceAddr),
+	)
+
 	// Build dependency graph
 	queries := db.New(pool)
 	repo := repository.NewPostgresFinanceRepository(queries)
 	txBeginner := repository.NewPostgresTxBeginner(pool)
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	expenseClient := service.NewGRPCExpenseClient(
+		expensepb.NewExpenseServiceClient(expenseConn),
+	)
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expenseClient)
 
 	// Start gRPC server
 	grpcServer := grpc.NewServer()
