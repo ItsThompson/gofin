@@ -22,6 +22,11 @@ type FinanceRepository interface {
 	CreatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error)
 	UpdatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error)
 	ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error)
+	GetLatestPeriod(ctx context.Context, userID string) (*model.BudgetPeriod, error)
+	CreateProRataSchedule(ctx context.Context, schedule *model.ProRataSchedule) (*model.ProRataSchedule, error)
+	GetPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error)
+	MarkProRataApplied(ctx context.Context, scheduleID string) error
+	GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error)
 }
 
 // TxBeginner abstracts the ability to begin a transaction for use in service layer.

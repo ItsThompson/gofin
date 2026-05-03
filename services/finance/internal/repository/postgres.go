@@ -276,6 +276,103 @@ func (r *PostgresFinanceRepository) ListPeriods(ctx context.Context, userID stri
 	return periods, nil
 }
 
+func (r *PostgresFinanceRepository) GetLatestPeriod(ctx context.Context, userID string) (*model.BudgetPeriod, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.GetLatestPeriod(ctx, uid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbPeriodToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) CreateProRataSchedule(ctx context.Context, schedule *model.ProRataSchedule) (*model.ProRataSchedule, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(schedule.UserID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+	groupID := pgtype.UUID{}
+	if err := groupID.Scan(schedule.ProRataGroup); err != nil {
+		return nil, fmt.Errorf("parsing pro-rata group: %w", err)
+	}
+	tagID := pgtype.UUID{}
+	if err := tagID.Scan(schedule.TagID); err != nil {
+		return nil, fmt.Errorf("parsing tag ID: %w", err)
+	}
+
+	row, err := r.queries.CreateProRataSchedule(ctx, db.CreateProRataScheduleParams{
+		UserID:           uid,
+		ProRataGroup:     groupID,
+		Name:             schedule.Name,
+		Amount:           schedule.Amount,
+		Currency:         schedule.Currency,
+		ExpenseType:      schedule.ExpenseType,
+		TagID:            tagID,
+		TargetYear:       schedule.TargetYear,
+		TargetMonth:      schedule.TargetMonth,
+		InstallmentIndex: schedule.InstallmentIndex,
+		InstallmentTotal: schedule.InstallmentTotal,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dbScheduleToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) GetPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	rows, err := r.queries.GetPendingProRata(ctx, db.GetPendingProRataParams{
+		UserID:      uid,
+		TargetYear:  year,
+		TargetMonth: month,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	schedules := make([]*model.ProRataSchedule, len(rows))
+	for i, row := range rows {
+		schedules[i] = dbScheduleToModel(row)
+	}
+	return schedules, nil
+}
+
+func (r *PostgresFinanceRepository) MarkProRataApplied(ctx context.Context, scheduleID string) error {
+	sid := pgtype.UUID{}
+	if err := sid.Scan(scheduleID); err != nil {
+		return fmt.Errorf("parsing schedule ID: %w", err)
+	}
+	return r.queries.MarkProRataApplied(ctx, sid)
+}
+
+func (r *PostgresFinanceRepository) GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	rows, err := r.queries.GetUpcomingProRata(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	schedules := make([]*model.ProRataSchedule, len(rows))
+	for i, row := range rows {
+		schedules[i] = dbScheduleToModel(row)
+	}
+	return schedules, nil
+}
+
 func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	return &model.DefaultSettings{
 		UserID:            formatUUID(d.UserID.Bytes),
@@ -313,6 +410,30 @@ func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 		CreatedAt:         p.CreatedAt.Time,
 		UpdatedAt:         p.UpdatedAt.Time,
 	}
+}
+
+func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
+	result := &model.ProRataSchedule{
+		ID:               formatUUID(s.ID.Bytes),
+		UserID:           formatUUID(s.UserID.Bytes),
+		ProRataGroup:     formatUUID(s.ProRataGroup.Bytes),
+		Name:             s.Name,
+		Amount:           s.Amount,
+		Currency:         s.Currency,
+		ExpenseType:      s.ExpenseType,
+		TagID:            formatUUID(s.TagID.Bytes),
+		TargetYear:       s.TargetYear,
+		TargetMonth:      s.TargetMonth,
+		InstallmentIndex: s.InstallmentIndex,
+		InstallmentTotal: s.InstallmentTotal,
+		Status:           s.Status,
+		CreatedAt:        s.CreatedAt.Time,
+	}
+	if s.AppliedAt.Valid {
+		appliedAt := s.AppliedAt.Time
+		result.AppliedAt = &appliedAt
+	}
+	return result
 }
 
 func formatUUID(b [16]byte) string {

@@ -69,3 +69,31 @@ RETURNING *;
 -- name: GetPeriodByID :one
 SELECT * FROM finance.budget_periods
 WHERE id = $1 AND user_id = $2;
+
+-- name: GetLatestPeriod :one
+SELECT * FROM finance.budget_periods
+WHERE user_id = $1
+ORDER BY year DESC, month DESC
+LIMIT 1;
+
+-- name: CreateProRataSchedule :one
+INSERT INTO finance.pro_rata_schedules
+    (user_id, pro_rata_group, name, amount, currency, expense_type, tag_id,
+     target_year, target_month, installment_index, installment_total)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING *;
+
+-- name: GetPendingProRata :many
+SELECT * FROM finance.pro_rata_schedules
+WHERE user_id = $1 AND target_year = $2 AND target_month = $3 AND status = 'pending'
+ORDER BY installment_index ASC;
+
+-- name: MarkProRataApplied :exec
+UPDATE finance.pro_rata_schedules
+SET status = 'applied', applied_at = now()
+WHERE id = $1;
+
+-- name: GetUpcomingProRata :many
+SELECT * FROM finance.pro_rata_schedules
+WHERE user_id = $1 AND status = 'pending'
+ORDER BY target_year ASC, target_month ASC, installment_index ASC;

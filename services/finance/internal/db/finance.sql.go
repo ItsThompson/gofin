@@ -82,6 +82,63 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Fin
 	return i, err
 }
 
+const createProRataSchedule = `-- name: CreateProRataSchedule :one
+INSERT INTO finance.pro_rata_schedules
+    (user_id, pro_rata_group, name, amount, currency, expense_type, tag_id,
+     target_year, target_month, installment_index, installment_total)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at
+`
+
+type CreateProRataScheduleParams struct {
+	UserID           pgtype.UUID `json:"user_id"`
+	ProRataGroup     pgtype.UUID `json:"pro_rata_group"`
+	Name             string      `json:"name"`
+	Amount           int64       `json:"amount"`
+	Currency         string      `json:"currency"`
+	ExpenseType      string      `json:"expense_type"`
+	TagID            pgtype.UUID `json:"tag_id"`
+	TargetYear       int32       `json:"target_year"`
+	TargetMonth      int32       `json:"target_month"`
+	InstallmentIndex int32       `json:"installment_index"`
+	InstallmentTotal int32       `json:"installment_total"`
+}
+
+func (q *Queries) CreateProRataSchedule(ctx context.Context, arg CreateProRataScheduleParams) (FinanceProRataSchedule, error) {
+	row := q.db.QueryRow(ctx, createProRataSchedule,
+		arg.UserID,
+		arg.ProRataGroup,
+		arg.Name,
+		arg.Amount,
+		arg.Currency,
+		arg.ExpenseType,
+		arg.TagID,
+		arg.TargetYear,
+		arg.TargetMonth,
+		arg.InstallmentIndex,
+		arg.InstallmentTotal,
+	)
+	var i FinanceProRataSchedule
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ProRataGroup,
+		&i.Name,
+		&i.Amount,
+		&i.Currency,
+		&i.ExpenseType,
+		&i.TagID,
+		&i.TargetYear,
+		&i.TargetMonth,
+		&i.InstallmentIndex,
+		&i.InstallmentTotal,
+		&i.Status,
+		&i.CreatedAt,
+		&i.AppliedAt,
+	)
+	return i, err
+}
+
 const createTag = `-- name: CreateTag :one
 INSERT INTO finance.tags (user_id, name, is_default)
 VALUES ($1, $2, $3)
@@ -171,6 +228,79 @@ func (q *Queries) GetDefaults(ctx context.Context, userID pgtype.UUID) (FinanceD
 	return i, err
 }
 
+const getLatestPeriod = `-- name: GetLatestPeriod :one
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+WHERE user_id = $1
+ORDER BY year DESC, month DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestPeriod(ctx context.Context, userID pgtype.UUID) (FinanceBudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, getLatestPeriod, userID)
+	var i FinanceBudgetPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.BudgetAmount,
+		&i.EssentialsPercent,
+		&i.DesiresPercent,
+		&i.SavingsPercent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPendingProRata = `-- name: GetPendingProRata :many
+SELECT id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at FROM finance.pro_rata_schedules
+WHERE user_id = $1 AND target_year = $2 AND target_month = $3 AND status = 'pending'
+ORDER BY installment_index ASC
+`
+
+type GetPendingProRataParams struct {
+	UserID      pgtype.UUID `json:"user_id"`
+	TargetYear  int32       `json:"target_year"`
+	TargetMonth int32       `json:"target_month"`
+}
+
+func (q *Queries) GetPendingProRata(ctx context.Context, arg GetPendingProRataParams) ([]FinanceProRataSchedule, error) {
+	rows, err := q.db.Query(ctx, getPendingProRata, arg.UserID, arg.TargetYear, arg.TargetMonth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FinanceProRataSchedule{}
+	for rows.Next() {
+		var i FinanceProRataSchedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ProRataGroup,
+			&i.Name,
+			&i.Amount,
+			&i.Currency,
+			&i.ExpenseType,
+			&i.TagID,
+			&i.TargetYear,
+			&i.TargetMonth,
+			&i.InstallmentIndex,
+			&i.InstallmentTotal,
+			&i.Status,
+			&i.CreatedAt,
+			&i.AppliedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPeriodByID = `-- name: GetPeriodByID :one
 SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE id = $1 AND user_id = $2
@@ -221,6 +351,48 @@ func (q *Queries) GetTagByID(ctx context.Context, arg GetTagByIDParams) (Finance
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getUpcomingProRata = `-- name: GetUpcomingProRata :many
+SELECT id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at FROM finance.pro_rata_schedules
+WHERE user_id = $1 AND status = 'pending'
+ORDER BY target_year ASC, target_month ASC, installment_index ASC
+`
+
+func (q *Queries) GetUpcomingProRata(ctx context.Context, userID pgtype.UUID) ([]FinanceProRataSchedule, error) {
+	rows, err := q.db.Query(ctx, getUpcomingProRata, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FinanceProRataSchedule{}
+	for rows.Next() {
+		var i FinanceProRataSchedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ProRataGroup,
+			&i.Name,
+			&i.Amount,
+			&i.Currency,
+			&i.ExpenseType,
+			&i.TagID,
+			&i.TargetYear,
+			&i.TargetMonth,
+			&i.InstallmentIndex,
+			&i.InstallmentTotal,
+			&i.Status,
+			&i.CreatedAt,
+			&i.AppliedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPeriods = `-- name: ListPeriods :many
@@ -291,6 +463,17 @@ func (q *Queries) ListTags(ctx context.Context, userID pgtype.UUID) ([]FinanceTa
 		return nil, err
 	}
 	return items, nil
+}
+
+const markProRataApplied = `-- name: MarkProRataApplied :exec
+UPDATE finance.pro_rata_schedules
+SET status = 'applied', applied_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) MarkProRataApplied(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markProRataApplied, id)
+	return err
 }
 
 const updatePeriod = `-- name: UpdatePeriod :one
