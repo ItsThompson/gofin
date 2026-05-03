@@ -131,6 +131,43 @@ func (m *mockFinanceRepository) CountTagInProRata(ctx context.Context, tagID, us
 	return args.Get(0).(int64), args.Error(1)
 }
 
+func (m *mockFinanceRepository) GetLatestPeriod(ctx context.Context, userID string) (*model.BudgetPeriod, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BudgetPeriod), args.Error(1)
+}
+
+func (m *mockFinanceRepository) CreateProRataSchedule(ctx context.Context, schedule *model.ProRataSchedule) (*model.ProRataSchedule, error) {
+	args := m.Called(ctx, schedule)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.ProRataSchedule), args.Error(1)
+}
+
+func (m *mockFinanceRepository) GetPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error) {
+	args := m.Called(ctx, userID, year, month)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.ProRataSchedule), args.Error(1)
+}
+
+func (m *mockFinanceRepository) MarkProRataApplied(ctx context.Context, scheduleID string) error {
+	args := m.Called(ctx, scheduleID)
+	return args.Error(0)
+}
+
+func (m *mockFinanceRepository) GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.ProRataSchedule), args.Error(1)
+}
+
 // mockTxBeginner implements repository.TxBeginner.
 type mockTxBeginner struct {
 	mock.Mock
@@ -816,6 +853,14 @@ func (m *mockExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 func (m *mockExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error) {
 	args := m.Called(ctx, userID, tagID)
 	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *mockExpenseClient) CreateExpense(ctx context.Context, req service.CreateExpenseInput) (*service.CreatedExpenseData, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.CreatedExpenseData), args.Error(1)
 }
 
 func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *mockTxBeginner, expClient *mockExpenseClient) *gin.Engine {

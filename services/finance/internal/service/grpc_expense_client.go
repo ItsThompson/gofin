@@ -53,3 +53,29 @@ func (c *GRPCExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagI
 	}
 	return resp.GetCount(), nil
 }
+
+func (c *GRPCExpenseClient) CreateExpense(ctx context.Context, req CreateExpenseInput) (*CreatedExpenseData, error) {
+	resp, err := c.client.CreateExpense(ctx, &expensepb.CreateExpenseRequest{
+		UserId:       req.UserID,
+		Name:         req.Name,
+		Amount:       req.Amount,
+		Currency:     req.Currency,
+		ExpenseType:  req.ExpenseType,
+		TagId:        req.TagID,
+		ExpenseDate:  req.ExpenseDate,
+		PeriodYear:   req.PeriodYear,
+		PeriodMonth:  req.PeriodMonth,
+		IsProRata:    req.IsProRata,
+		ProRataGroup: req.ProRataGroup,
+		ProRataIndex: req.ProRataIndex,
+		ProRataTotal: req.ProRataTotal,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("gRPC CreateExpense: %w", err)
+	}
+
+	return &CreatedExpenseData{
+		ID:        resp.GetExpense().GetId(),
+		CreatedAt: resp.GetExpense().GetCreatedAt(),
+	}, nil
+}
