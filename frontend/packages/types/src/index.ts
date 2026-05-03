@@ -1,5 +1,11 @@
 export { apiClient, ApiRequestError, consumeReturnToPath } from "./api-client";
 export { formatCurrency, getCurrencySymbol } from "./currency";
+export {
+  useApiToast,
+  isNetworkError,
+  NETWORK_ERROR_MESSAGE,
+} from "./use-api-toast";
+export type { UseApiToastOptions } from "./use-api-toast";
 
 /** Core user model returned by the auth API. */
 export interface User {
