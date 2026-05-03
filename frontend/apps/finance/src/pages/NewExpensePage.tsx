@@ -6,6 +6,8 @@ import {
   getCurrencySymbol,
   type ExpenseResponse,
   type CreateExpenseRequest,
+  type CreateProRataRequest,
+  type ProRataResponse,
   type Tag,
   type TagListResponse,
 } from "@gofin/types";
@@ -65,6 +67,8 @@ export function NewExpensePage({ user }: FinancePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [isProRata, setIsProRata] = useState(false);
+  const [proRataMonths, setProRataMonths] = useState("");
 
   useEffect(() => {
     async function fetchTags() {
@@ -103,6 +107,13 @@ export function NewExpensePage({ user }: FinancePageProps) {
       errors.tagId = "Tag is required";
     }
 
+    if (isProRata) {
+      const months = parseInt(proRataMonths, 10);
+      if (!proRataMonths || isNaN(months) || months < 2) {
+        errors.proRataMonths = "Must be at least 2 months";
+      }
+    }
+
     return errors;
   }
 
@@ -119,23 +130,38 @@ export function NewExpensePage({ user }: FinancePageProps) {
 
     const amountCents = Math.round(parseFloat(amountDollars) * 100);
 
-    const body: CreateExpenseRequest = {
-      name: name.trim(),
-      amount: amountCents,
-      currency: user.currency,
-      expenseType,
-      tagId,
-      expenseDate,
-      periodYear: currentYear,
-      periodMonth: currentMonth,
-    };
-
     setSubmitting(true);
     try {
-      await apiClient<ExpenseResponse>("/api/expenses", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      if (isProRata) {
+        const body: CreateProRataRequest = {
+          name: name.trim(),
+          totalAmount: amountCents,
+          currency: user.currency,
+          expenseType,
+          tagId,
+          expenseDate,
+          months: parseInt(proRataMonths, 10),
+        };
+        await apiClient<ProRataResponse>("/api/finance/prorata", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } else {
+        const body: CreateExpenseRequest = {
+          name: name.trim(),
+          amount: amountCents,
+          currency: user.currency,
+          expenseType,
+          tagId,
+          expenseDate,
+          periodYear: currentYear,
+          periodMonth: currentMonth,
+        };
+        await apiClient<ExpenseResponse>("/api/expenses", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
       navigate("/dashboard");
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -272,6 +298,46 @@ export function NewExpensePage({ user }: FinancePageProps) {
               />
               <FormMessage>{fieldErrors.expenseDate}</FormMessage>
             </FormField>
+
+            {/* Pro-rata Toggle */}
+            <FormField>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={isProRata}
+                  onChange={(event) => {
+                    setIsProRata(event.target.checked);
+                    if (!event.target.checked) {
+                      setProRataMonths("");
+                      setFieldErrors((prev) => ({ ...prev, proRataMonths: "" }));
+                    }
+                  }}
+                  className="size-4 accent-primary"
+                />
+                <span className="text-sm font-medium">Spread across months</span>
+              </label>
+            </FormField>
+
+            {/* Pro-rata Months */}
+            {isProRata && (
+              <FormField>
+                <FormLabel htmlFor="pro-rata-months">Number of months</FormLabel>
+                <Input
+                  id="pro-rata-months"
+                  type="number"
+                  min="2"
+                  step="1"
+                  placeholder="e.g. 3"
+                  value={proRataMonths}
+                  onChange={(event) => {
+                    setProRataMonths(event.target.value);
+                    setFieldErrors((prev) => ({ ...prev, proRataMonths: "" }));
+                  }}
+                  aria-invalid={!!fieldErrors.proRataMonths}
+                />
+                <FormMessage>{fieldErrors.proRataMonths}</FormMessage>
+              </FormField>
+            )}
 
             {/* Error Message */}
             {error && <FormMessage>{error}</FormMessage>}
