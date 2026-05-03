@@ -1,0 +1,22 @@
+# Cloudflare Tunnel Configuration
+#
+# For local/dev, the docker-compose tunnels use `trycloudflare.com` quick tunnels
+# (no config file needed: `cloudflared tunnel --url <target>`).
+#
+# This config is for named tunnels with custom domains in production.
+# See: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+
+tunnel: gofin
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # App tunnel: routes to the MFE shell
+  - hostname: app.gofin.example.com
+    service: http://mfe:3000
+
+  # Grafana tunnel: routes to the auth proxy (NOT directly to Grafana)
+  - hostname: grafana.gofin.example.com
+    service: http://grafana-auth-proxy:3002
+
+  # Catch-all: required by cloudflared
+  - service: http_status:404
