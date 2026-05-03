@@ -165,6 +165,21 @@ export interface TagListResponse {
   tags: Tag[];
 }
 
+/** Response from POST/PUT /api/finance/tags. */
+export interface TagResponse {
+  tag: Tag;
+}
+
+/** Request body for POST /api/finance/tags. */
+export interface CreateTagRequest {
+  name: string;
+}
+
+/** Request body for PUT /api/finance/tags/:id. */
+export interface UpdateTagRequest {
+  name: string;
+}
+
 /** Response from GET /api/finance/periods. */
 export interface PeriodListResponse {
   periods: BudgetPeriod[];

@@ -407,4 +407,163 @@ describe("SettingsPage", () => {
       });
     });
   });
+
+  describe("Tags section", () => {
+    const mockTags = [
+      { id: "tag-1", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+      { id: "tag-2", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+      { id: "tag-3", name: "Custom", isDefault: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+    ];
+
+    function mockTagsApiSuccess() {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ tags: mockTags }),
+      });
+    }
+
+    async function switchToTagsTab() {
+      const user = userEvent.setup();
+      // Mock tags fetch BEFORE switching tab (component fetches on mount)
+      mockTagsApiSuccess();
+      const tagsTabs = screen.getAllByText("Tags");
+      await user.click(tagsTabs[0]);
+      return user;
+    }
+
+    it("shows tag list with default badges", async () => {
+      mockDefaultsFound();
+      renderSettings();
+
+      const user = await switchToTagsTab();
+
+      await waitFor(() => {
+        expect(screen.getByText("Bills")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Food")).toBeInTheDocument();
+      expect(screen.getByText("Custom")).toBeInTheDocument();
+
+      // Default tags show badge
+      const defaultBadges = screen.getAllByText("Default");
+      expect(defaultBadges.length).toBe(2);
+    });
+
+    it("adds a new tag", async () => {
+      mockDefaultsFound();
+      renderSettings();
+
+      const user = await switchToTagsTab();
+
+      await waitFor(() => {
+        expect(screen.getByText("Bills")).toBeInTheDocument();
+      });
+
+      // Type and submit new tag
+      const input = screen.getByLabelText("New tag name");
+      await user.type(input, "Groceries");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({
+          tag: { id: "tag-4", name: "Groceries", isDefault: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+        }),
+      });
+
+      const addButton = screen.getByRole("button", { name: /add tag/i });
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Groceries")).toBeInTheDocument();
+      });
+    });
+
+    it("shows error on duplicate tag name", async () => {
+      mockDefaultsFound();
+      renderSettings();
+
+      const user = await switchToTagsTab();
+
+      await waitFor(() => {
+        expect(screen.getByText("Bills")).toBeInTheDocument();
+      });
+
+      const input = screen.getByLabelText("New tag name");
+      await user.type(input, "Bills");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ code: "DUPLICATE_TAG", message: "A tag named \"Bills\" already exists" }),
+      });
+
+      const addButton = screen.getByRole("button", { name: /add tag/i });
+      await user.click(addButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/already exists/i)).toBeInTheDocument();
+      });
+    });
+
+    it("hides delete button for default tags", async () => {
+      mockDefaultsFound();
+      renderSettings();
+
+      const user = await switchToTagsTab();
+
+      await waitFor(() => {
+        expect(screen.getByText("Bills")).toBeInTheDocument();
+      });
+
+      // Custom tag has delete button, default tags do not
+      expect(screen.getByLabelText("Delete Custom")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Delete Bills")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Delete Food")).not.toBeInTheDocument();
+    });
+
+    it("allows renaming a tag via inline edit", async () => {
+      mockDefaultsFound();
+      renderSettings();
+
+      const user = await switchToTagsTab();
+
+      await waitFor(() => {
+        expect(screen.getByText("Bills")).toBeInTheDocument();
+      });
+
+      // Click edit on Bills tag
+      const editButton = screen.getByLabelText("Edit Bills");
+      await user.click(editButton);
+
+      // Should show edit input with current name
+      const editInput = screen.getByLabelText("Edit tag name");
+      expect((editInput as HTMLInputElement).value).toBe("Bills");
+
+      await user.clear(editInput);
+      await user.type(editInput, "Utilities");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          tag: { id: "tag-1", name: "Utilities", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+        }),
+      });
+
+      // Click save (check button)
+      const saveButtons = screen.getAllByRole("button");
+      const checkButton = saveButtons.find((btn) => btn.querySelector("svg"));
+      // Click the first small button in the edit row (save)
+      const saveButton = screen.getAllByRole("button").find(
+        (btn) => btn.closest("li") && btn.querySelector("svg"),
+      );
+      if (saveButton) await user.click(saveButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Utilities")).toBeInTheDocument();
+      });
+    });
+  });
 });

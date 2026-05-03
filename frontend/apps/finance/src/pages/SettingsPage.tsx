@@ -9,6 +9,9 @@ import {
   type UpdateProfileRequest,
   type ChangePasswordRequest,
   type AuthResponse,
+  type Tag,
+  type TagListResponse,
+  type TagResponse,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
@@ -27,6 +30,11 @@ import {
   Tags,
   Check,
   Loader2,
+  Pencil,
+  Trash2,
+  Plus,
+  X,
+  Shield,
 } from "lucide-react";
 import type { SettingsPageProps } from "@/types";
 
@@ -473,9 +481,225 @@ function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void }) {
 }
 
 function TagsSection() {
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newTagName, setNewTagName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const fetchTags = useCallback(async () => {
+    try {
+      const response = await apiClient<TagListResponse>("/api/finance/tags");
+      setTags(response.tags);
+    } catch {
+      setError("Failed to load tags.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTags();
+  }, [fetchTags]);
+
+  const handleAddTag = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault();
+      const trimmed = newTagName.trim();
+      if (!trimmed) return;
+      setError(null);
+      setSaving(true);
+
+      try {
+        const response = await apiClient<TagResponse>("/api/finance/tags", {
+          method: "POST",
+          body: JSON.stringify({ name: trimmed }),
+        });
+        setTags((prev) => [...prev, response.tag].sort((a, b) => a.name.localeCompare(b.name)));
+        setNewTagName("");
+      } catch (err) {
+        if (err instanceof ApiRequestError) {
+          setError(err.code === "DUPLICATE_TAG" ? `A tag named "${trimmed}" already exists.` : err.message);
+        } else {
+          setError("Failed to create tag.");
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    [newTagName],
+  );
+
+  const handleStartEdit = useCallback((tag: Tag) => {
+    setEditingId(tag.id);
+    setEditingName(tag.name);
+    setError(null);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditingName("");
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    async (tagId: string) => {
+      const trimmed = editingName.trim();
+      if (!trimmed) return;
+      setError(null);
+      setSaving(true);
+
+      try {
+        const response = await apiClient<TagResponse>(`/api/finance/tags/${tagId}`, {
+          method: "PUT",
+          body: JSON.stringify({ name: trimmed }),
+        });
+        setTags((prev) =>
+          prev.map((tag) => (tag.id === tagId ? response.tag : tag)).sort((a, b) => a.name.localeCompare(b.name)),
+        );
+        setEditingId(null);
+        setEditingName("");
+      } catch (err) {
+        if (err instanceof ApiRequestError) {
+          setError(err.code === "DUPLICATE_TAG" ? `A tag named "${trimmed}" already exists.` : err.message);
+        } else {
+          setError("Failed to rename tag.");
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    [editingName],
+  );
+
+  const handleDelete = useCallback(async (tagId: string) => {
+    setError(null);
+    try {
+      await apiClient(`/api/finance/tags/${tagId}`, { method: "DELETE" });
+      setTags((prev) => prev.filter((tag) => tag.id !== tagId));
+    } catch (err) {
+      if (err instanceof ApiRequestError) {
+        if (err.code === "DEFAULT_TAG") {
+          setError("Default tags cannot be deleted, only renamed.");
+        } else if (err.code === "TAG_IN_USE") {
+          setError(err.message);
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Failed to delete tag.");
+      }
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-8 text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        <span>Loading tags...</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="py-4 text-muted-foreground">
-      <p>Tag management coming soon.</p>
+    <div className="space-y-4">
+      {error && (
+        <p className="text-sm text-red-600" role="alert">{error}</p>
+      )}
+
+      {/* Add Tag Form */}
+      <form onSubmit={handleAddTag} className="flex gap-2">
+        <Input
+          type="text"
+          placeholder="New tag name"
+          value={newTagName}
+          onChange={(event) => setNewTagName(event.target.value)}
+          maxLength={50}
+          aria-label="New tag name"
+          className="flex-1"
+        />
+        <Button type="submit" disabled={saving || !newTagName.trim()} size="sm">
+          <Plus className="size-4" />
+          Add Tag
+        </Button>
+      </form>
+
+      {/* Tags List */}
+      <ul className="divide-y" role="list">
+        {tags.map((tag) => (
+          <li key={tag.id} className="flex items-center justify-between py-2 gap-2">
+            {editingId === tag.id ? (
+              <div className="flex flex-1 items-center gap-2">
+                <Input
+                  type="text"
+                  value={editingName}
+                  onChange={(event) => setEditingName(event.target.value)}
+                  maxLength={50}
+                  aria-label="Edit tag name"
+                  className="flex-1"
+                  autoFocus
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleSaveEdit(tag.id)}
+                  disabled={saving || !editingName.trim()}
+                >
+                  <Check className="size-3" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                >
+                  <X className="size-3" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{tag.name}</span>
+                  {tag.isDefault && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      <Shield className="size-3" />
+                      Default
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleStartEdit(tag)}
+                    aria-label={`Edit ${tag.name}`}
+                  >
+                    <Pencil className="size-3" />
+                  </Button>
+                  {!tag.isDefault && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(tag.id)}
+                      aria-label={`Delete ${tag.name}`}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {tags.length === 0 && (
+        <p className="text-sm text-muted-foreground">No tags yet. Add one above.</p>
+      )}
     </div>
   );
 }

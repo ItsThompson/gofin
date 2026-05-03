@@ -28,7 +28,22 @@ const mockUser: User = {
   createdAt: "2026-01-01T00:00:00Z",
 };
 
+const mockTags = [
+  { id: "tag-bills", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+];
+
+function mockTagsResponse() {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ tags: mockTags }),
+  });
+}
+
 function renderNewExpensePage(user: User = mockUser) {
+  // Every render triggers a tags fetch on mount
+  mockTagsResponse();
   return render(
     <MemoryRouter>
       <NewExpensePage user={user} />
@@ -117,6 +132,15 @@ describe("NewExpensePage", () => {
   });
 
   it("converts dollar amount to cents and submits", async () => {
+    const user = userEvent.setup();
+    renderNewExpensePage();
+
+    // Wait for tags to load
+    await waitFor(() => {
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+    });
+
+    // Queue submission mock AFTER tags are loaded
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 201,
@@ -132,9 +156,6 @@ describe("NewExpensePage", () => {
           },
         }),
     });
-
-    const user = userEvent.setup();
-    renderNewExpensePage();
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "4.50");
@@ -162,6 +183,13 @@ describe("NewExpensePage", () => {
   });
 
   it("redirects to /dashboard on successful submission", async () => {
+    const user = userEvent.setup();
+    renderNewExpensePage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+    });
+
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 201,
@@ -170,9 +198,6 @@ describe("NewExpensePage", () => {
           expense: { id: "exp-123", name: "Groceries", status: "active" },
         }),
     });
-
-    const user = userEvent.setup();
-    renderNewExpensePage();
 
     await user.type(screen.getByLabelText("Name"), "Groceries");
     await user.type(screen.getByLabelText("Amount"), "25.00");
@@ -185,6 +210,13 @@ describe("NewExpensePage", () => {
   });
 
   it("shows API error message on submission failure", async () => {
+    const user = userEvent.setup();
+    renderNewExpensePage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+    });
+
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
@@ -194,9 +226,6 @@ describe("NewExpensePage", () => {
           message: "amount must be positive",
         }),
     });
-
-    const user = userEvent.setup();
-    renderNewExpensePage();
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "5.00");
@@ -212,11 +241,15 @@ describe("NewExpensePage", () => {
   });
 
   it("disables submit button while submitting", async () => {
-    // Never-resolving promise to keep the submitting state
-    mockFetch.mockReturnValueOnce(new Promise(() => {}));
-
     const user = userEvent.setup();
     renderNewExpensePage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+    });
+
+    // Never-resolving promise to keep the submitting state
+    mockFetch.mockReturnValueOnce(new Promise(() => {}));
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "5.00");

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import {
   apiClient,
@@ -6,6 +6,8 @@ import {
   getCurrencySymbol,
   type ExpenseResponse,
   type CreateExpenseRequest,
+  type Tag,
+  type TagListResponse,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
@@ -28,20 +30,6 @@ import type { FinancePageProps } from "@/types";
 /** Valid expense types matching the backend enum. */
 const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
 type ExpenseType = (typeof EXPENSE_TYPES)[number];
-
-/** Placeholder tags until ticket 10 wires tag API. */
-const PLACEHOLDER_TAGS = [
-  { id: "tag-bills", name: "Bills" },
-  { id: "tag-food", name: "Food" },
-  { id: "tag-household", name: "Household" },
-  { id: "tag-investment", name: "Investment" },
-  { id: "tag-personal-care", name: "Personal Care" },
-  { id: "tag-recreation", name: "Recreation/Entertainment" },
-  { id: "tag-self-investment", name: "Self Investment" },
-  { id: "tag-social", name: "Social" },
-  { id: "tag-transport", name: "Transport" },
-  { id: "tag-travel", name: "Travel" },
-];
 
 function todayISO(): string {
   const now = new Date();
@@ -67,14 +55,33 @@ export function NewExpensePage({ user }: FinancePageProps) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(true);
   const [name, setName] = useState("");
   const [amountDollars, setAmountDollars] = useState("");
   const [expenseType, setExpenseType] = useState<ExpenseType>("essentials");
-  const [tagId, setTagId] = useState(PLACEHOLDER_TAGS[0].id);
+  const [tagId, setTagId] = useState("");
   const [expenseDate, setExpenseDate] = useState(todayISO());
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function fetchTags() {
+      try {
+        const response = await apiClient<TagListResponse>("/api/finance/tags");
+        setTags(response.tags);
+        if (response.tags.length > 0) {
+          setTagId(response.tags[0].id);
+        }
+      } catch {
+        // If tags fail to load, form will show empty dropdown
+      } finally {
+        setTagsLoading(false);
+      }
+    }
+    fetchTags();
+  }, []);
 
   function validate(): Record<string, string> {
     const errors: Record<string, string> = {};
@@ -237,11 +244,15 @@ export function NewExpensePage({ user }: FinancePageProps) {
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 aria-invalid={!!fieldErrors.tagId}
               >
-                {PLACEHOLDER_TAGS.map((tag) => (
-                  <option key={tag.id} value={tag.id}>
-                    {tag.name}
-                  </option>
-                ))}
+                {tagsLoading ? (
+                  <option value="">Loading tags...</option>
+                ) : (
+                  tags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </option>
+                  ))
+                )}
               </select>
               <FormMessage>{fieldErrors.tagId}</FormMessage>
             </FormField>
