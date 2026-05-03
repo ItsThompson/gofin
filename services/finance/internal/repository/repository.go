@@ -11,8 +11,12 @@ type FinanceRepository interface {
 	UpsertDefaults(ctx context.Context, settings *model.DefaultSettings) (*model.DefaultSettings, error)
 	GetDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error)
 	CreateTag(ctx context.Context, userID, name string, isDefault bool) (*model.Tag, error)
+	GetTag(ctx context.Context, tagID, userID string) (*model.Tag, error)
 	ListTags(ctx context.Context, userID string) ([]*model.Tag, error)
+	UpdateTag(ctx context.Context, tagID, userID, name string) (*model.Tag, error)
+	DeleteTag(ctx context.Context, tagID, userID string) error
 	CountUserTags(ctx context.Context, userID string) (int64, error)
+	CountTagInProRata(ctx context.Context, tagID, userID string) (int64, error)
 	GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error)
 	CreatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error)
 	ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error)

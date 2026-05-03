@@ -20,6 +20,22 @@ INSERT INTO finance.tags (user_id, name, is_default)
 VALUES ($1, $2, $3)
 RETURNING *;
 
+-- name: GetTagByID :one
+SELECT * FROM finance.tags
+WHERE id = $1 AND user_id = $2;
+
+-- name: UpdateTag :one
+UPDATE finance.tags SET name = $1, updated_at = now()
+WHERE id = $2 AND user_id = $3
+RETURNING *;
+
+-- name: DeleteTag :exec
+DELETE FROM finance.tags WHERE id = $1 AND user_id = $2 AND is_default = false;
+
+-- name: CountTagInProRata :one
+SELECT count(*) FROM finance.pro_rata_schedules
+WHERE tag_id = $1 AND user_id = $2 AND status = 'pending';
+
 -- name: ListTags :many
 SELECT * FROM finance.tags
 WHERE user_id = $1

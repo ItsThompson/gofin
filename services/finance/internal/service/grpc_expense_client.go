@@ -17,15 +17,13 @@ func NewGRPCExpenseClient(client expensepb.ExpenseServiceClient) *GRPCExpenseCli
 	return &GRPCExpenseClient{client: client}
 }
 
-// GetExpensesForPeriod calls the expense service to fetch all active expenses for a period.
-// It uses a large page size to retrieve all expenses in a single call.
 func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
 	resp, err := c.client.GetExpensesForPeriod(ctx, &expensepb.GetExpensesForPeriodRequest{
 		UserId:   userID,
 		Year:     year,
 		Month:    month,
 		Page:     1,
-		PageSize: 10000, // fetch all: the finance service needs every expense for accurate aggregation
+		PageSize: 10000,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gRPC GetExpensesForPeriod: %w", err)
@@ -43,4 +41,15 @@ func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 	}
 
 	return expenses, nil
+}
+
+func (c *GRPCExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error) {
+	resp, err := c.client.CountExpensesByTag(ctx, &expensepb.CountExpensesByTagRequest{
+		UserId: userID,
+		TagId:  tagID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("gRPC CountExpensesByTag: %w", err)
+	}
+	return resp.GetCount(), nil
 }

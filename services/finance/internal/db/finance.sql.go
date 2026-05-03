@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countTagInProRata = `-- name: CountTagInProRata :one
+SELECT count(*) FROM finance.pro_rata_schedules
+WHERE tag_id = $1 AND user_id = $2 AND status = 'pending'
+`
+
+type CountTagInProRataParams struct {
+	TagID  pgtype.UUID `json:"tag_id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) CountTagInProRata(ctx context.Context, arg CountTagInProRataParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTagInProRata, arg.TagID, arg.UserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUserTags = `-- name: CountUserTags :one
 SELECT count(*) FROM finance.tags WHERE user_id = $1
 `
@@ -91,6 +108,20 @@ func (q *Queries) CreateTag(ctx context.Context, arg CreateTagParams) (FinanceTa
 	return i, err
 }
 
+const deleteTag = `-- name: DeleteTag :exec
+DELETE FROM finance.tags WHERE id = $1 AND user_id = $2 AND is_default = false
+`
+
+type DeleteTagParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteTag(ctx context.Context, arg DeleteTagParams) error {
+	_, err := q.db.Exec(ctx, deleteTag, arg.ID, arg.UserID)
+	return err
+}
+
 const getCurrentPeriod = `-- name: GetCurrentPeriod :one
 SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE user_id = $1 AND year = $2 AND month = $3
@@ -134,6 +165,30 @@ func (q *Queries) GetDefaults(ctx context.Context, userID pgtype.UUID) (FinanceD
 		&i.DesiresPercent,
 		&i.SavingsPercent,
 		&i.Currency,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTagByID = `-- name: GetTagByID :one
+SELECT id, user_id, name, is_default, created_at, updated_at FROM finance.tags
+WHERE id = $1 AND user_id = $2
+`
+
+type GetTagByIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetTagByID(ctx context.Context, arg GetTagByIDParams) (FinanceTag, error) {
+	row := q.db.QueryRow(ctx, getTagByID, arg.ID, arg.UserID)
+	var i FinanceTag
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.IsDefault,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -208,6 +263,32 @@ func (q *Queries) ListTags(ctx context.Context, userID pgtype.UUID) ([]FinanceTa
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTag = `-- name: UpdateTag :one
+UPDATE finance.tags SET name = $1, updated_at = now()
+WHERE id = $2 AND user_id = $3
+RETURNING id, user_id, name, is_default, created_at, updated_at
+`
+
+type UpdateTagParams struct {
+	Name   string      `json:"name"`
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) UpdateTag(ctx context.Context, arg UpdateTagParams) (FinanceTag, error) {
+	row := q.db.QueryRow(ctx, updateTag, arg.Name, arg.ID, arg.UserID)
+	var i FinanceTag
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.IsDefault,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertDefaults = `-- name: UpsertDefaults :one

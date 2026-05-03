@@ -87,6 +87,32 @@ func (m *mockFinanceRepository) ListPeriods(ctx context.Context, userID string) 
 	return args.Get(0).([]*model.BudgetPeriod), args.Error(1)
 }
 
+func (m *mockFinanceRepository) GetTag(ctx context.Context, tagID, userID string) (*model.Tag, error) {
+	args := m.Called(ctx, tagID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Tag), args.Error(1)
+}
+
+func (m *mockFinanceRepository) UpdateTag(ctx context.Context, tagID, userID, name string) (*model.Tag, error) {
+	args := m.Called(ctx, tagID, userID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Tag), args.Error(1)
+}
+
+func (m *mockFinanceRepository) DeleteTag(ctx context.Context, tagID, userID string) error {
+	args := m.Called(ctx, tagID, userID)
+	return args.Error(0)
+}
+
+func (m *mockFinanceRepository) CountTagInProRata(ctx context.Context, tagID, userID string) (int64, error) {
+	args := m.Called(ctx, tagID, userID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // mockTxBeginner implements repository.TxBeginner.
 type mockTxBeginner struct {
 	mock.Mock
@@ -767,6 +793,11 @@ func (m *mockExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]service.ExpenseData), args.Error(1)
+}
+
+func (m *mockExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error) {
+	args := m.Called(ctx, userID, tagID)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *mockTxBeginner, expClient *mockExpenseClient) *gin.Engine {

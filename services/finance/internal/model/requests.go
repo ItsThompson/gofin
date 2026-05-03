@@ -45,6 +45,21 @@ type TagListResponse struct {
 	Tags []*Tag `json:"tags"`
 }
 
+// CreateTagRequest is the input for POST /api/finance/tags.
+type CreateTagRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// TagResponse is the JSON body returned for single tag endpoints.
+type TagResponse struct {
+	Tag *Tag `json:"tag"`
+}
+
+// UpdateTagRequest is the input for PUT /api/finance/tags/:id.
+type UpdateTagRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
 // UpdateDefaultsRequest is the input for PUT /api/finance/defaults.
 // Note: percentage fields intentionally omit binding:"required" because Gin's
 // validator treats the int32 zero value as "missing", which would reject valid

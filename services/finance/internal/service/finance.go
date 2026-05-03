@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
@@ -270,10 +274,138 @@ func (s *FinanceService) ListPeriods(ctx context.Context, userID string) ([]*mod
 }
 
 // ListTags returns all tags for a user, ordered alphabetically.
+// If the user has no tags, default tags are lazy-seeded before returning.
 func (s *FinanceService) ListTags(ctx context.Context, userID string) ([]*model.Tag, error) {
+	count, err := s.repo.CountUserTags(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("counting user tags: %w", err)
+	}
+
+	if count == 0 {
+		tx, err := s.txBeginner.BeginTx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("beginning transaction for tag seeding: %w", err)
+		}
+		defer tx.Rollback(ctx)
+
+		txRepo := tx.Repo()
+		for _, tagName := range DefaultTags {
+			_, err := txRepo.CreateTag(ctx, userID, tagName, true)
+			if err != nil {
+				return nil, fmt.Errorf("lazy-seeding tag %q: %w", tagName, err)
+			}
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("committing tag seeding: %w", err)
+		}
+
+		s.logger.Info("lazy-seeded default tags",
+			slog.String("method", "ListTags"),
+			slog.String("user_id", userID),
+		)
+	}
+
 	tags, err := s.repo.ListTags(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("listing tags: %w", err)
 	}
 	return tags, nil
+}
+
+func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *model.CreateTagRequest) (*model.Tag, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name is required", Status: 400}
+	}
+	if len(name) > 50 {
+		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name must be 50 characters or fewer", Status: 400}
+	}
+
+	tag, err := s.repo.CreateTag(ctx, userID, name, false)
+	if err != nil {
+		if isDuplicateKeyError(err) {
+			return nil, &ServiceError{Code: model.ErrDuplicateTag, Message: fmt.Sprintf("A tag named %q already exists", name), Status: 409}
+		}
+		return nil, fmt.Errorf("creating tag: %w", err)
+	}
+
+	s.logger.Info("tag created", slog.String("method", "CreateTag"), slog.String("user_id", userID), slog.String("tag_name", name))
+	return tag, nil
+}
+
+func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, req *model.UpdateTagRequest) (*model.Tag, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name is required", Status: 400}
+	}
+	if len(name) > 50 {
+		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name must be 50 characters or fewer", Status: 400}
+	}
+
+	tag, err := s.repo.UpdateTag(ctx, tagID, userID, name)
+	if err != nil {
+		if isDuplicateKeyError(err) {
+			return nil, &ServiceError{Code: model.ErrDuplicateTag, Message: fmt.Sprintf("A tag named %q already exists", name), Status: 409}
+		}
+		return nil, fmt.Errorf("updating tag: %w", err)
+	}
+	if tag == nil {
+		return nil, &ServiceError{Code: model.ErrNotFound, Message: "Tag not found", Status: 404}
+	}
+
+	s.logger.Info("tag updated", slog.String("method", "UpdateTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
+	return tag, nil
+}
+
+func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) error {
+	tag, err := s.repo.GetTag(ctx, tagID, userID)
+	if err != nil {
+		return fmt.Errorf("getting tag: %w", err)
+	}
+	if tag == nil {
+		return &ServiceError{Code: model.ErrNotFound, Message: "Tag not found", Status: 404}
+	}
+	if tag.IsDefault {
+		return &ServiceError{Code: model.ErrDefaultTag, Message: "Default tags cannot be deleted, only renamed", Status: 403}
+	}
+
+	var expenseCount int64
+	if s.expenseClient != nil {
+		expenseCount, err = s.expenseClient.CountExpensesByTag(ctx, userID, tagID)
+		if err != nil {
+			return fmt.Errorf("checking tag usage in expenses: %w", err)
+		}
+	}
+
+	proRataCount, err := s.repo.CountTagInProRata(ctx, tagID, userID)
+	if err != nil {
+		return fmt.Errorf("checking tag usage in pro-rata schedules: %w", err)
+	}
+
+	if expenseCount > 0 || proRataCount > 0 {
+		parts := make([]string, 0, 2)
+		if expenseCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d expense(s)", expenseCount))
+		}
+		if proRataCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d pending schedule(s)", proRataCount))
+		}
+		return &ServiceError{Code: model.ErrTagInUse, Message: fmt.Sprintf("Tag is referenced by %s", strings.Join(parts, " and ")), Status: 409}
+	}
+
+	if err := s.repo.DeleteTag(ctx, tagID, userID); err != nil {
+		return fmt.Errorf("deleting tag: %w", err)
+	}
+
+	s.logger.Info("tag deleted", slog.String("method", "DeleteTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
+	return nil
+}
+
+func isDuplicateKeyError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }

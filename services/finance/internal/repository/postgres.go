@@ -76,6 +76,26 @@ func (r *PostgresFinanceRepository) CreateTag(ctx context.Context, userID, name 
 	return dbTagToModel(row), nil
 }
 
+func (r *PostgresFinanceRepository) GetTag(ctx context.Context, tagID, userID string) (*model.Tag, error) {
+	tid := pgtype.UUID{}
+	if err := tid.Scan(tagID); err != nil {
+		return nil, fmt.Errorf("parsing tag ID: %w", err)
+	}
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.GetTagByID(ctx, db.GetTagByIDParams{ID: tid, UserID: uid})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbTagToModel(row), nil
+}
+
 func (r *PostgresFinanceRepository) ListTags(ctx context.Context, userID string) ([]*model.Tag, error) {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(userID); err != nil {
@@ -94,6 +114,38 @@ func (r *PostgresFinanceRepository) ListTags(ctx context.Context, userID string)
 	return tags, nil
 }
 
+func (r *PostgresFinanceRepository) UpdateTag(ctx context.Context, tagID, userID, name string) (*model.Tag, error) {
+	tid := pgtype.UUID{}
+	if err := tid.Scan(tagID); err != nil {
+		return nil, fmt.Errorf("parsing tag ID: %w", err)
+	}
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.UpdateTag(ctx, db.UpdateTagParams{Name: name, ID: tid, UserID: uid})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbTagToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) DeleteTag(ctx context.Context, tagID, userID string) error {
+	tid := pgtype.UUID{}
+	if err := tid.Scan(tagID); err != nil {
+		return fmt.Errorf("parsing tag ID: %w", err)
+	}
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return fmt.Errorf("parsing user ID: %w", err)
+	}
+	return r.queries.DeleteTag(ctx, db.DeleteTagParams{ID: tid, UserID: uid})
+}
+
 func (r *PostgresFinanceRepository) CountUserTags(ctx context.Context, userID string) (int64, error) {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(userID); err != nil {
@@ -101,6 +153,18 @@ func (r *PostgresFinanceRepository) CountUserTags(ctx context.Context, userID st
 	}
 
 	return r.queries.CountUserTags(ctx, uid)
+}
+
+func (r *PostgresFinanceRepository) CountTagInProRata(ctx context.Context, tagID, userID string) (int64, error) {
+	tid := pgtype.UUID{}
+	if err := tid.Scan(tagID); err != nil {
+		return 0, fmt.Errorf("parsing tag ID: %w", err)
+	}
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return 0, fmt.Errorf("parsing user ID: %w", err)
+	}
+	return r.queries.CountTagInProRata(ctx, db.CountTagInProRataParams{TagID: tid, UserID: uid})
 }
 
 func (r *PostgresFinanceRepository) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
@@ -162,7 +226,6 @@ func (r *PostgresFinanceRepository) ListPeriods(ctx context.Context, userID stri
 	return periods, nil
 }
 
-// dbDefaultsToModel converts a sqlc-generated row to the domain model.
 func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	return &model.DefaultSettings{
 		UserID:            formatUUID(d.UserID.Bytes),
@@ -176,7 +239,6 @@ func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	}
 }
 
-// dbTagToModel converts a sqlc-generated tag row to the domain model.
 func dbTagToModel(t db.FinanceTag) *model.Tag {
 	return &model.Tag{
 		ID:        formatUUID(t.ID.Bytes),
@@ -188,7 +250,6 @@ func dbTagToModel(t db.FinanceTag) *model.Tag {
 	}
 }
 
-// dbPeriodToModel converts a sqlc-generated budget period row to the domain model.
 func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 	return &model.BudgetPeriod{
 		ID:                formatUUID(p.ID.Bytes),
@@ -204,7 +265,6 @@ func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 	}
 }
 
-// formatUUID formats a [16]byte as a UUID string.
 func formatUUID(b [16]byte) string {
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
@@ -215,7 +275,6 @@ type PostgresTxBeginner struct {
 	pool *pgxpool.Pool
 }
 
-// NewPostgresTxBeginner creates a new PostgresTxBeginner.
 func NewPostgresTxBeginner(pool *pgxpool.Pool) *PostgresTxBeginner {
 	return &PostgresTxBeginner{pool: pool}
 }
@@ -235,6 +294,6 @@ type postgresTx struct {
 	repo FinanceRepository
 }
 
-func (t *postgresTx) Commit(ctx context.Context) error   { return t.tx.Commit(ctx) }
-func (t *postgresTx) Rollback(ctx context.Context) error  { return t.tx.Rollback(ctx) }
-func (t *postgresTx) Repo() FinanceRepository             { return t.repo }
+func (t *postgresTx) Commit(ctx context.Context) error  { return t.tx.Commit(ctx) }
+func (t *postgresTx) Rollback(ctx context.Context) error { return t.tx.Rollback(ctx) }
+func (t *postgresTx) Repo() FinanceRepository            { return t.repo }

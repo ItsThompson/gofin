@@ -15,4 +15,7 @@ const (
 	ErrNotFound            = "NOT_FOUND"
 	ErrPeriodNotFound      = "PERIOD_NOT_FOUND"
 	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
+	ErrDuplicateTag        = "DUPLICATE_TAG"
+	ErrTagInUse            = "TAG_IN_USE"
+	ErrDefaultTag          = "DEFAULT_TAG"
 )
