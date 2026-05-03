@@ -21,6 +21,9 @@ import {
   type CumulativeSpendResponse,
   type HistoricalComparison,
   type HistoricalComparisonResponse,
+  type ProRataSchedule,
+  type UpcomingProRataResponse,
+  type CreatePeriodResponse,
   type User,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
@@ -269,10 +272,17 @@ function CreatePeriodPrompt({
 
     setSubmitting(true);
     try {
-      const response = await apiClient<PeriodResponse>("/api/finance/periods", {
+      const response = await apiClient<CreatePeriodResponse>("/api/finance/periods", {
         method: "POST",
         body: JSON.stringify(body),
       });
+
+      // Show notification if missed months were auto-created
+      if (response.autoCreatedPeriods && response.autoCreatedPeriods > 0 && response.autoCreatedMonths) {
+        const monthsList = response.autoCreatedMonths.join(", ");
+        alert(`${response.autoCreatedPeriods} period(s) were automatically created for ${monthsList} with your default settings.`);
+      }
+
       onPeriodCreated(response.period);
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -412,6 +422,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
   >([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [comparison, setComparison] = useState<HistoricalComparison | null>(null);
+  const [upcomingProRata, setUpcomingProRata] = useState<ProRataSchedule[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -421,7 +432,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
     setDataLoaded(false);
     setDataError(null);
     try {
-      const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes] =
+      const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
         await Promise.all([
           apiClient<SummaryResponse>(
             `/api/finance/summary?year=${currentPeriod.year}&month=${currentPeriod.month}`,
@@ -438,6 +449,9 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           apiClient<HistoricalComparisonResponse>(
             `/api/finance/spending/comparison?year=${currentPeriod.year}&month=${currentPeriod.month}`,
           ).catch(() => null),
+          apiClient<UpcomingProRataResponse>(
+            `/api/finance/prorata/upcoming`,
+          ).catch(() => ({ schedules: [] })),
         ]);
 
       setSummary(summaryRes.summary);
@@ -446,6 +460,9 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
       setRecentExpenses(expensesRes.data);
       if (comparisonRes) {
         setComparison(comparisonRes.comparison);
+      }
+      if (upcomingRes) {
+        setUpcomingProRata(upcomingRes.schedules);
       }
     } catch (error) {
       const message =
@@ -549,6 +566,11 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
       {/* Pacing Indicator */}
       {summary && <PacingIndicator summary={summary} currency={user.currency} />}
+
+      {/* Upcoming Pro-rata */}
+      {upcomingProRata.length > 0 && (
+        <UpcomingProRataSection schedules={upcomingProRata} currency={user.currency} />
+      )}
 
       {/* Charts: hidden on mobile per US-DASH-09 */}
       <div className="hidden md:block space-y-6">
@@ -745,6 +767,46 @@ function PacingIndicator({ summary, currency }: PacingIndicatorProps) {
               </div>
             )}
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Upcoming Pro-rata Section ---
+
+interface UpcomingProRataSectionProps {
+  schedules: ProRataSchedule[];
+  currency: string;
+}
+
+function UpcomingProRataSection({ schedules, currency }: UpcomingProRataSectionProps) {
+  return (
+    <Card data-testid="upcoming-prorata">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <Calendar className="size-4 text-muted-foreground" />
+          <CardTitle className="text-base">Upcoming Pro-rata</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="divide-y">
+          {schedules.map((schedule) => (
+            <div
+              key={schedule.id}
+              className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{schedule.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  Installment {schedule.installmentIndex} of {schedule.installmentTotal}
+                </span>
+              </div>
+              <span className="text-sm font-semibold">
+                {formatCurrency(schedule.amount, currency)}
+              </span>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
