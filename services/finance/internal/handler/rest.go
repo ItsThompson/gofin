@@ -46,6 +46,10 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		finance.GET("/spending/by-tag", h.GetSpendingByTag)
 		finance.GET("/spending/cumulative", h.GetCumulativeSpend)
 		finance.GET("/spending/comparison", h.GetHistoricalComparison)
+
+		// Pro-rata endpoints
+		finance.POST("/prorata", h.CreateProRataExpense)
+		finance.GET("/prorata/upcoming", h.GetUpcomingProRata)
 	}
 }
 
@@ -186,6 +190,7 @@ func (h *RESTHandler) GetCurrentPeriod(c *gin.Context) {
 }
 
 // CreatePeriod handles POST /api/finance/periods.
+// Creates a budget period, auto-creates missed months, and applies pending pro-rata.
 func (h *RESTHandler) CreatePeriod(c *gin.Context) {
 	userID := c.GetHeader("X-User-ID")
 	if userID == "" {
@@ -205,15 +210,13 @@ func (h *RESTHandler) CreatePeriod(c *gin.Context) {
 		return
 	}
 
-	period, err := h.financeService.CreatePeriod(c.Request.Context(), userID, &req)
+	result, err := h.financeService.CreatePeriodWithProRata(c.Request.Context(), userID, &req)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusCreated, model.PeriodResponse{
-		Period: period,
-	})
+	c.JSON(http.StatusCreated, result)
 }
 
 // ListPeriods handles GET /api/finance/periods.
@@ -498,6 +501,59 @@ func (h *RESTHandler) parseUserAndPeriodParams(c *gin.Context) (string, int32, i
 	}
 
 	return userID, int32(year), int32(month), true
+}
+
+// CreateProRataExpense handles POST /api/finance/prorata.
+// Creates a pro-rata expense: writes first installment, schedules future ones.
+func (h *RESTHandler) CreateProRataExpense(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.CreateProRataRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	result, err := h.financeService.CreateProRataExpense(c.Request.Context(), userID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
+// GetUpcomingProRata handles GET /api/finance/prorata/upcoming.
+// Returns all pending pro-rata schedules for the user.
+func (h *RESTHandler) GetUpcomingProRata(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	schedules, err := h.financeService.GetUpcomingProRata(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.UpcomingProRataResponse{
+		Schedules: schedules,
+	})
 }
 
 // handleError maps service errors to HTTP responses following the ApiError contract.

@@ -607,6 +607,7 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
 
+	repo.On("GetLatestPeriod", mock.Anything, "user-123").Return(nil, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).
 		Return(&model.BudgetPeriod{
 			ID:                "period-new",
@@ -618,6 +619,8 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 			DesiresPercent:    30,
 			SavingsPercent:    20,
 		}, nil)
+	repo.On("GetPendingProRata", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return([]*model.ProRataSchedule{}, nil)
 
 	r := setupTestRouter(repo, txBeginner)
 
@@ -632,7 +635,7 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var resp model.PeriodResponse
+	var resp model.CreatePeriodResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "period-new", resp.Period.ID)
 	assert.Equal(t, int32(2026), resp.Period.Year)
@@ -644,6 +647,7 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
 
+	repo.On("GetLatestPeriod", mock.Anything, "user-123").Return(nil, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).
 		Return(&model.BudgetPeriod{
 			ID:                "period-zero",
@@ -655,6 +659,8 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 			DesiresPercent:    30,
 			SavingsPercent:    20,
 		}, nil)
+	repo.On("GetPendingProRata", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return([]*model.ProRataSchedule{}, nil)
 
 	r := setupTestRouter(repo, txBeginner)
 
@@ -669,7 +675,7 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 
-	var resp model.PeriodResponse
+	var resp model.CreatePeriodResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, int64(0), resp.Period.BudgetAmount)
 }
