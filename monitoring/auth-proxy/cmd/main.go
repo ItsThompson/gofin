@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -93,6 +94,8 @@ func validateToken(tokenString string, secret []byte) (*accessTokenClaims, error
 func renderError(w http.ResponseWriter, status int, title, message string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
+	safeTitle := html.EscapeString(title)
+	safeMessage := html.EscapeString(message)
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -118,7 +121,7 @@ func renderError(w http.ResponseWriter, status int, title, message string) {
     <a href="/">← Back to gofin</a>
   </div>
 </body>
-</html>`, title, statusIcon(status), title, message)
+</html>`, safeTitle, statusIcon(status), safeTitle, safeMessage)
 }
 
 // newReverseProxy creates a reverse proxy for the given target URL.
