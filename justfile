@@ -44,6 +44,10 @@ test-backend:
 test-frontend:
     cd frontend && npx turbo test
 
+# Run E2E tests (requires full stack via `just up`)
+test-e2e:
+    cd e2e && npx playwright test
+
 # Run all tests
 test: test-backend test-frontend
 
