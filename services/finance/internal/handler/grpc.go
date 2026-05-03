@@ -99,19 +99,80 @@ func (h *GRPCHandler) ListPeriods(ctx context.Context, req *pb.ListPeriodsReques
 }
 
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ListTags not yet implemented")
+	tags, err := h.financeService.ListTags(ctx, req.GetUserId())
+	if err != nil {
+		if svcErr, ok := err.(*service.ServiceError); ok {
+			return nil, status.Error(codes.Internal, svcErr.Message)
+		}
+		return nil, status.Error(codes.Internal, "failed to list tags")
+	}
+
+	pbTags := make([]*pb.TagData, len(tags))
+	for i, tag := range tags {
+		pbTags[i] = &pb.TagData{
+			Id:        tag.ID,
+			UserId:    tag.UserID,
+			Name:      tag.Name,
+			IsDefault: tag.IsDefault,
+		}
+	}
+
+	return &pb.TagListResponse{Tags: pbTags}, nil
 }
 
 func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (*pb.TagResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "CreateTag not yet implemented")
+	tag, err := h.financeService.CreateTag(ctx, req.GetUserId(), &model.CreateTagRequest{Name: req.GetName()})
+	if err != nil {
+		if svcErr, ok := err.(*service.ServiceError); ok {
+			switch svcErr.Code {
+			case model.ErrValidationError:
+				return nil, status.Error(codes.InvalidArgument, svcErr.Message)
+			case model.ErrDuplicateTag:
+				return nil, status.Error(codes.AlreadyExists, svcErr.Message)
+			}
+		}
+		return nil, status.Error(codes.Internal, "failed to create tag")
+	}
+
+	return &pb.TagResponse{Tag: &pb.TagData{Id: tag.ID, UserId: tag.UserID, Name: tag.Name, IsDefault: tag.IsDefault}}, nil
 }
 
 func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (*pb.TagResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "UpdateTag not yet implemented")
+	tag, err := h.financeService.UpdateTag(ctx, req.GetUserId(), req.GetTagId(), &model.UpdateTagRequest{Name: req.GetName()})
+	if err != nil {
+		if svcErr, ok := err.(*service.ServiceError); ok {
+			switch svcErr.Code {
+			case model.ErrValidationError:
+				return nil, status.Error(codes.InvalidArgument, svcErr.Message)
+			case model.ErrDuplicateTag:
+				return nil, status.Error(codes.AlreadyExists, svcErr.Message)
+			case model.ErrNotFound:
+				return nil, status.Error(codes.NotFound, svcErr.Message)
+			}
+		}
+		return nil, status.Error(codes.Internal, "failed to update tag")
+	}
+
+	return &pb.TagResponse{Tag: &pb.TagData{Id: tag.ID, UserId: tag.UserID, Name: tag.Name, IsDefault: tag.IsDefault}}, nil
 }
 
 func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (*pb.DeleteTagResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "DeleteTag not yet implemented")
+	err := h.financeService.DeleteTag(ctx, req.GetUserId(), req.GetTagId())
+	if err != nil {
+		if svcErr, ok := err.(*service.ServiceError); ok {
+			switch svcErr.Code {
+			case model.ErrNotFound:
+				return nil, status.Error(codes.NotFound, svcErr.Message)
+			case model.ErrDefaultTag:
+				return nil, status.Error(codes.PermissionDenied, svcErr.Message)
+			case model.ErrTagInUse:
+				return nil, status.Error(codes.FailedPrecondition, svcErr.Message)
+			}
+		}
+		return nil, status.Error(codes.Internal, "failed to delete tag")
+	}
+
+	return &pb.DeleteTagResponse{}, nil
 }
 
 func (h *GRPCHandler) CheckTagUsage(ctx context.Context, req *pb.CheckTagUsageRequest) (*pb.TagUsageResponse, error) {
