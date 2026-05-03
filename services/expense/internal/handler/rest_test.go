@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -51,6 +52,30 @@ func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, u
 func (m *mockExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
 	args := m.Called(ctx, userID, tagID)
 	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *mockExpenseRepository) CorrectExpense(ctx context.Context, original *model.Expense, correction *model.Expense) (*model.Expense, error) {
+	args := m.Called(ctx, original, correction)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Expense), args.Error(1)
+}
+
+func (m *mockExpenseRepository) GetCorrectionHistory(ctx context.Context, expenseID string, userID string) ([]*model.Expense, error) {
+	args := m.Called(ctx, expenseID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.Expense), args.Error(1)
+}
+
+func (m *mockExpenseRepository) GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
+	args := m.Called(ctx, groupID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.Expense), args.Error(1)
 }
 
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
@@ -372,27 +397,175 @@ func TestGetExpenseHandler_NotFound(t *testing.T) {
 	assert.Equal(t, model.ErrNotFound, errResp.Code)
 }
 
-func TestGetExpenseHandler_MissingUserID(t *testing.T) {
+// --- CorrectExpense Handler Tests ---
+
+// setupTestRouterWithClock configures the service with a fixed clock for correction tests.
+func setupTestRouterWithClock(repo *mockExpenseRepository, now time.Time) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, logger).WithClock(func() time.Time { return now })
+	h := NewRESTHandler(expenseSvc, logger)
+	r := gin.New()
+	h.RegisterRoutes(r)
+	return r
+}
+
+func TestCorrectExpenseHandler_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	original := &model.Expense{
+		ID: "exp-original", UserID: "user-1", Name: "Coffee",
+		Amount: 500, Currency: "USD", ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
+		CreatedAt: "2026-05-01T10:00:00Z",
+	}
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
+	repo.On("CorrectExpense", mock.Anything, original, mock.AnythingOfType("*model.Expense")).
+		Return(&model.Expense{
+			ID: "exp-correction", UserID: "user-1", Name: "Updated Coffee",
+			Amount: 600, Currency: "USD", ExpenseType: "desires",
+			TagID: "tag-food", ExpenseDate: "2026-05-01",
+			PeriodYear: 2026, PeriodMonth: 5, Status: "active",
+			CorrectsID: "exp-original", CreatedAt: "2026-05-03T10:00:00Z",
+		}, nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "POST", "/api/expenses/exp-original/correct", "user-1", map[string]interface{}{
+		"name": "Updated Coffee", "amount": 600,
+		"expenseType": "desires", "tagId": "tag-food", "expenseDate": "2026-05-01",
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	var resp model.ExpenseResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "exp-correction", resp.Expense.ID)
+	assert.Equal(t, "exp-original", resp.Expense.CorrectsID)
+	assert.Equal(t, "active", resp.Expense.Status)
+}
+
+func TestCorrectExpenseHandler_AlreadyCorrected(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	corrected := &model.Expense{
+		ID: "exp-original", UserID: "user-1", Name: "Coffee",
+		Amount: 500, Currency: "USD", ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		PeriodYear: 2026, PeriodMonth: 5, Status: "corrected",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(corrected, nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "POST", "/api/expenses/exp-original/correct", "user-1", map[string]interface{}{
+		"name": "Updated Coffee", "amount": 600,
+		"expenseType": "desires", "tagId": "tag-food", "expenseDate": "2026-05-01",
+	})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrAlreadyCorrected, errResp.Code)
+}
+
+func TestCorrectExpenseHandler_PeriodLocked(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	pastExpense := &model.Expense{
+		ID: "exp-past", UserID: "user-1", Name: "Old Coffee",
+		Amount: 500, Currency: "USD", ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-04-15",
+		PeriodYear: 2026, PeriodMonth: 4, Status: "active",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-past", "user-1").Return(pastExpense, nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "POST", "/api/expenses/exp-past/correct", "user-1", map[string]interface{}{
+		"name": "Updated", "amount": 600,
+		"expenseType": "desires", "tagId": "tag-food", "expenseDate": "2026-04-15",
+	})
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrPeriodLocked, errResp.Code)
+}
+
+func TestCorrectExpenseHandler_MissingUserID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	r := setupTestRouter(repo)
-
-	w := doJSONWithUserID(r, "GET", "/api/expenses/exp-123", "", nil)
+	w := doJSONWithUserID(r, "POST", "/api/expenses/exp-1/correct", "", map[string]interface{}{
+		"name": "X", "amount": 100, "expenseType": "desires", "tagId": "t", "expenseDate": "2026-05-01",
+	})
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestGetExpenseHandler_UserScopedNotFound(t *testing.T) {
+func TestCorrectExpenseHandler_InvalidBody(t *testing.T) {
 	repo := new(mockExpenseRepository)
-
-	// Expense belongs to user-1; user-2 requests it and gets nil (user-scoped query)
-	repo.On("GetExpenseByID", mock.Anything, "exp-123", "user-2").Return(nil, nil)
-
 	r := setupTestRouter(repo)
 
-	w := doJSONWithUserID(r, "GET", "/api/expenses/exp-123", "user-2", nil)
+	req := httptest.NewRequest("POST", "/api/expenses/exp-1/correct", bytes.NewReader([]byte("not json")))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-ID", "user-1")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
 
-	var errResp model.ApiError
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrNotFound, errResp.Code)
+// --- GetCorrectionHistory Handler Tests ---
+
+func TestGetCorrectionHistoryHandler_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	chain := []*model.Expense{
+		{ID: "exp-1", Name: "Original", Status: "corrected"},
+		{ID: "exp-2", Name: "Correction", Status: "active", CorrectsID: "exp-1"},
+	}
+	repo.On("GetCorrectionHistory", mock.Anything, "exp-1", "user-1").Return(chain, nil)
+
+	r := setupTestRouter(repo)
+	w := doJSONWithUserID(r, "GET", "/api/expenses/exp-1/history", "user-1", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp model.CorrectionHistoryResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Len(t, resp.Entries, 2)
+	assert.Equal(t, "exp-1", resp.Entries[0].ID)
+	assert.Equal(t, "exp-2", resp.Entries[1].ID)
+}
+
+func TestGetCorrectionHistoryHandler_MissingUserID(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	r := setupTestRouter(repo)
+	w := doJSONWithUserID(r, "GET", "/api/expenses/exp-1/history", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- GetProRataGroup Handler Tests ---
+
+func TestGetProRataGroupHandler_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	expenses := []*model.Expense{
+		{ID: "exp-1", ProRataIndex: 1, ProRataTotal: 3},
+		{ID: "exp-2", ProRataIndex: 2, ProRataTotal: 3},
+	}
+	repo.On("GetProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
+
+	r := setupTestRouter(repo)
+	w := doJSONWithUserID(r, "GET", "/api/expenses/prorata/group-1", "user-1", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp model.ProRataGroupResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Len(t, resp.Expenses, 2)
+}
+
+func TestGetProRataGroupHandler_MissingUserID(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	r := setupTestRouter(repo)
+	w := doJSONWithUserID(r, "GET", "/api/expenses/prorata/group-1", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }

@@ -93,15 +93,58 @@ func (h *GRPCHandler) GetExpense(ctx context.Context, req *pb.GetExpenseRequest)
 // Stub RPCs: return Unimplemented for later tickets.
 
 func (h *GRPCHandler) CorrectExpense(ctx context.Context, req *pb.CorrectExpenseRequest) (*pb.ExpenseResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "CorrectExpense not yet implemented")
+	expense, err := h.expenseService.CorrectExpense(ctx, req.GetUserId(), req.GetExpenseId(), &model.CorrectExpenseRequest{
+		Name:        req.GetName(),
+		Amount:      req.GetAmount(),
+		ExpenseType: req.GetExpenseType(),
+		TagID:       req.GetTagId(),
+		ExpenseDate: req.GetExpenseDate(),
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	return &pb.ExpenseResponse{
+		Expense: expenseToProto(expense),
+	}, nil
 }
 
 func (h *GRPCHandler) GetCorrectionHistory(ctx context.Context, req *pb.GetCorrectionHistoryRequest) (*pb.CorrectionHistoryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetCorrectionHistory not yet implemented")
+	// The proto request only has expense_id; extract user_id from context
+	// or use a convention. For now, since the proto doesn't carry user_id,
+	// we pass an empty string. The REST API is the primary consumer.
+	entries, err := h.expenseService.GetCorrectionHistory(ctx, "", req.GetExpenseId())
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	protoEntries := make([]*pb.ExpenseData, len(entries))
+	for i, entry := range entries {
+		protoEntries[i] = expenseToProto(entry)
+	}
+
+	return &pb.CorrectionHistoryResponse{
+		Entries: protoEntries,
+	}, nil
 }
 
 func (h *GRPCHandler) GetProRataGroup(ctx context.Context, req *pb.GetProRataGroupRequest) (*pb.ExpenseListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetProRataGroup not yet implemented")
+	// Similar to GetCorrectionHistory: proto doesn't carry user_id.
+	// REST API is the primary consumer.
+	expenses, err := h.expenseService.GetProRataGroup(ctx, "", req.GetGroupId())
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	protoExpenses := make([]*pb.ExpenseData, len(expenses))
+	for i, expense := range expenses {
+		protoExpenses[i] = expenseToProto(expense)
+	}
+
+	return &pb.ExpenseListResponse{
+		Data:  protoExpenses,
+		Total: int64(len(protoExpenses)),
+	}, nil
 }
 
 func (h *GRPCHandler) CountExpensesByTag(ctx context.Context, req *pb.CountExpensesByTagRequest) (*pb.CountExpensesByTagResponse, error) {
@@ -146,6 +189,10 @@ func mapServiceError(err error) error {
 			return status.Error(codes.InvalidArgument, svcErr.Message)
 		case model.ErrNotFound:
 			return status.Error(codes.NotFound, svcErr.Message)
+		case model.ErrAlreadyCorrected:
+			return status.Error(codes.FailedPrecondition, svcErr.Message)
+		case model.ErrPeriodLocked:
+			return status.Error(codes.PermissionDenied, svcErr.Message)
 		default:
 			return status.Error(codes.Internal, svcErr.Message)
 		}

@@ -31,7 +31,10 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		expenses.POST("", h.CreateExpense)
 		expenses.GET("", h.GetExpenses)
+		expenses.GET("/prorata/:groupId", h.GetProRataGroup)
 		expenses.GET("/:id", h.GetExpense)
+		expenses.POST("/:id/correct", h.CorrectExpense)
+		expenses.GET("/:id/history", h.GetCorrectionHistory)
 	}
 }
 
@@ -181,5 +184,86 @@ func (h *RESTHandler) handleError(c *gin.Context, err error) {
 	c.JSON(http.StatusInternalServerError, model.ApiError{
 		Code:    model.ErrInternalServerError,
 		Message: "An unexpected error occurred",
+	})
+}
+
+// CorrectExpense handles POST /api/expenses/:id/correct.
+func (h *RESTHandler) CorrectExpense(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	expenseID := c.Param("id")
+
+	var req model.CorrectExpenseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	expense, err := h.expenseService.CorrectExpense(c.Request.Context(), userID, expenseID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, model.ExpenseResponse{
+		Expense: expense,
+	})
+}
+
+// GetCorrectionHistory handles GET /api/expenses/:id/history.
+func (h *RESTHandler) GetCorrectionHistory(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	expenseID := c.Param("id")
+
+	entries, err := h.expenseService.GetCorrectionHistory(c.Request.Context(), userID, expenseID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.CorrectionHistoryResponse{
+		Entries: entries,
+	})
+}
+
+// GetProRataGroup handles GET /api/expenses/prorata/:groupId.
+func (h *RESTHandler) GetProRataGroup(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	groupID := c.Param("groupId")
+
+	expenses, err := h.expenseService.GetProRataGroup(c.Request.Context(), userID, groupID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.ProRataGroupResponse{
+		Expenses: expenses,
 	})
 }
