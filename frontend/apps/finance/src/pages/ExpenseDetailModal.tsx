@@ -9,6 +9,7 @@ import {
   type ExpenseResponse,
   type CorrectExpenseRequest,
   type Tag,
+  type PaginatedResponse,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
@@ -71,6 +72,7 @@ export function ExpenseDetailModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ModalView>("detail");
+  const [proRataGroup, setProRataGroup] = useState<Expense[]>([]);
 
   const fetchExpenseData = useCallback(async () => {
     if (!expenseId) return;
@@ -86,6 +88,21 @@ export function ExpenseDetailModal({
       ]);
       setExpense(expenseResp.expense);
       setHistory(historyResp.entries);
+
+      // Fetch pro-rata group if this is a pro-rata expense
+      if (expenseResp.expense.isProRata && expenseResp.expense.proRataGroup) {
+        try {
+          const groupResp = await apiClient<PaginatedResponse<Expense>>(
+            `/api/expenses/prorata/${expenseResp.expense.proRataGroup}`,
+          );
+          setProRataGroup(groupResp.data);
+        } catch {
+          // Non-critical: pro-rata group display is supplementary
+          setProRataGroup([]);
+        }
+      } else {
+        setProRataGroup([]);
+      }
     } catch {
       setError("Failed to load expense details.");
     } finally {
@@ -159,6 +176,7 @@ export function ExpenseDetailModal({
             correctsEntry={correctsEntry}
             hasCorrections={hasCorrections}
             history={history}
+            proRataGroup={proRataGroup}
             onCorrectClick={() => setView("correct")}
           />
         )}
@@ -188,6 +206,7 @@ interface DetailViewProps {
   correctsEntry: Expense | null | undefined;
   hasCorrections: boolean;
   history: Expense[];
+  proRataGroup: Expense[];
   onCorrectClick: () => void;
 }
 
@@ -200,6 +219,7 @@ function DetailView({
   correctsEntry,
   hasCorrections,
   history,
+  proRataGroup,
   onCorrectClick,
 }: DetailViewProps) {
   return (
@@ -258,6 +278,55 @@ function DetailView({
           }
         />
       </div>
+
+      {/* Pro-rata Metadata */}
+      {expense.isProRata && (
+        <div className="border-t pt-4">
+          <div className="mb-3 text-sm font-medium">Pro-rata Details</div>
+          <div className="grid gap-2 text-sm">
+            {expense.proRataTotal && (
+              <DetailField
+                label="Installment"
+                value={`${expense.proRataIndex} of ${expense.proRataTotal}`}
+              />
+            )}
+            {proRataGroup.length > 0 && (
+              <DetailField
+                label="Total Original Amount"
+                value={formatCurrency(
+                  proRataGroup.reduce((sum, entry) => sum + entry.amount, 0),
+                  currency,
+                )}
+              />
+            )}
+          </div>
+          {proRataGroup.length > 1 && (
+            <div className="mt-3">
+              <div className="mb-2 text-xs text-muted-foreground">Related Installments</div>
+              <div className="space-y-1">
+                {proRataGroup.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={`flex items-center justify-between rounded px-2 py-1.5 text-sm ${
+                      entry.id === expense.id
+                        ? "bg-primary/5 font-medium"
+                        : "bg-muted/30"
+                    }`}
+                  >
+                    <span>
+                      {entry.proRataIndex} of {entry.proRataTotal}
+                      {entry.id === expense.id && " (current)"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {formatCurrency(entry.amount, currency)} · {entry.expenseDate}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Correction History Timeline */}
       {hasCorrections && (
