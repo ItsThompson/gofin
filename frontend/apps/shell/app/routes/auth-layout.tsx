@@ -11,6 +11,7 @@ import {
   X,
   Shield,
   ArrowLeftToLine,
+  PlusCircle,
 } from "lucide-react";
 
 export default function AuthLayout() {
@@ -205,6 +206,23 @@ export default function AuthLayout() {
             <ArrowLeftToLine className="size-4" />
             Return to Admin
           </Button>
+        </div>
+      )}
+
+      {/* Mobile floating "Log Expense" FAB: visible on mobile, hidden when
+          already on the new-expense page or when the admin return button is
+          visible (to avoid overlap). */}
+      {!isAssuming && location.pathname !== "/expenses/new" && (
+        <div className="fixed bottom-6 right-6 z-40 md:hidden">
+          <NavLink to="/expenses/new">
+            <Button
+              size="lg"
+              className="rounded-full shadow-lg size-14"
+              aria-label="Log Expense"
+            >
+              <PlusCircle className="size-6" />
+            </Button>
+          </NavLink>
         </div>
       )}
 
