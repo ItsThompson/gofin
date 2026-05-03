@@ -124,6 +124,22 @@ export interface CreateExpenseRequest {
   periodMonth: number;
 }
 
+/** Request body for POST /api/expenses/:id/correct. */
+export interface CorrectExpenseRequest {
+  name: string;
+  /** Amount in minor units (cents). */
+  amount: number;
+  expenseType: "essentials" | "desires" | "savings";
+  tagId: string;
+  /** ISO date string (YYYY-MM-DD). */
+  expenseDate: string;
+}
+
+/** Response from GET /api/expenses/:id/history. */
+export interface CorrectionHistoryResponse {
+  entries: Expense[];
+}
+
 /** Request body for PUT /api/finance/defaults. */
 export interface UpdateDefaultsRequest {
   budgetAmount: number;
@@ -256,4 +272,30 @@ export interface CumulativeSpendPoint {
 /** Response from GET /api/finance/spending/cumulative. */
 export interface CumulativeSpendResponse {
   points: CumulativeSpendPoint[];
+}
+
+/** Request body for PUT /api/finance/periods/:id. */
+export interface UpdatePeriodRequest {
+  /** Budget amount in minor units (cents). */
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+}
+
+/** Historical spending comparison data. */
+export interface HistoricalComparison {
+  /** Current period total spent in minor units (cents). */
+  currentSpent: number;
+  /** Previous period total spent in minor units (cents). */
+  previousSpent: number;
+  /** Rolling average of last 3 periods' totalSpent. Null if < 3 periods. */
+  rollingAverage: number | null;
+  /** Percentage change from previous period. */
+  changePercent: number;
+}
+
+/** Response from GET /api/finance/spending/comparison. */
+export interface HistoricalComparisonResponse {
+  comparison: HistoricalComparison;
 }
