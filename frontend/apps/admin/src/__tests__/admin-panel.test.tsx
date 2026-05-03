@@ -120,6 +120,38 @@ describe("AdminPanelPage", () => {
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
+  it("renders System Monitoring section with Grafana link", async () => {
+    mockFetchSuccess();
+    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("System Monitoring")).toBeInTheDocument();
+    });
+
+    const grafanaLink = screen.getByRole("link", { name: /open grafana dashboards/i });
+    expect(grafanaLink).toHaveAttribute("href", "http://localhost:3002");
+    expect(grafanaLink).toHaveAttribute("target", "_blank");
+    expect(grafanaLink).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("uses custom Grafana URL when provided", async () => {
+    mockFetchSuccess();
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+        grafanaUrl="https://grafana.example.com"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("System Monitoring")).toBeInTheDocument();
+    });
+
+    const grafanaLink = screen.getByRole("link", { name: /open grafana dashboards/i });
+    expect(grafanaLink).toHaveAttribute("href", "https://grafana.example.com");
+  });
+
   it("retries fetch on retry button click", async () => {
     mockFetchError("Server error");
     const user = userEvent.setup();
