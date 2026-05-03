@@ -48,3 +48,23 @@ type ExpenseListResponse struct {
 	PageSize int32      `json:"pageSize"`
 	HasMore  bool       `json:"hasMore"`
 }
+
+// CorrectExpenseRequest is the input for POST /api/expenses/:id/correct.
+type CorrectExpenseRequest struct {
+	Name        string `json:"name"`
+	Amount      int64  `json:"amount"`
+	ExpenseType string `json:"expenseType"`
+	TagID       string `json:"tagId"`
+	ExpenseDate string `json:"expenseDate"`
+}
+
+// CorrectionHistoryResponse is the response for GET /api/expenses/:id/history.
+// Entries are ordered chronologically: original first, latest correction last.
+type CorrectionHistoryResponse struct {
+	Entries []*Expense `json:"entries"`
+}
+
+// ProRataGroupResponse is the response for GET /api/expenses/prorata/:groupId.
+type ProRataGroupResponse struct {
+	Expenses []*Expense `json:"expenses"`
+}

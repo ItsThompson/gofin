@@ -23,6 +23,18 @@ type ExpenseRepository interface {
 
 	// CountExpensesByTag returns the number of active expenses referencing the given tag.
 	CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error)
+
+	// CorrectExpense atomically marks the original expense as "corrected" and
+	// inserts a new correction entry with status "active". Returns the new entry.
+	CorrectExpense(ctx context.Context, original *model.Expense, correction *model.Expense) (*model.Expense, error)
+
+	// GetCorrectionHistory returns the full correction chain for an expense,
+	// ordered chronologically (original first, latest correction last).
+	GetCorrectionHistory(ctx context.Context, expenseID string, userID string) ([]*model.Expense, error)
+
+	// GetProRataGroup returns all expenses belonging to a pro-rata group,
+	// scoped to a user.
+	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
 }
 
 // SchemaInitializer creates the required tables and indexes on startup.

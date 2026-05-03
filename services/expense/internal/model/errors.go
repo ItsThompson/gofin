@@ -14,4 +14,6 @@ const (
 	ErrUnauthorized        = "UNAUTHORIZED"
 	ErrNotFound            = "NOT_FOUND"
 	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
+	ErrAlreadyCorrected    = "ALREADY_CORRECTED"
+	ErrPeriodLocked        = "PERIOD_LOCKED"
 )

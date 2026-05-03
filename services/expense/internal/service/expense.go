@@ -20,6 +20,7 @@ var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 type ExpenseService struct {
 	repo   repository.ExpenseRepository
 	logger *slog.Logger
+	clock  func() time.Time
 }
 
 // NewExpenseService creates a new ExpenseService.
@@ -30,7 +31,15 @@ func NewExpenseService(
 	return &ExpenseService{
 		repo:   repo,
 		logger: logger,
+		clock:  time.Now,
 	}
+}
+
+// WithClock returns a copy of the service with a custom clock function.
+// Used in tests to inject a fixed time.
+func (s *ExpenseService) WithClock(clock func() time.Time) *ExpenseService {
+	s.clock = clock
+	return s
 }
 
 // ServiceError is a typed error that carries an HTTP status code, error code,
@@ -174,6 +183,171 @@ func (s *ExpenseService) CountExpensesByTag(ctx context.Context, userID string, 
 	}
 
 	return count, nil
+}
+
+// CorrectExpense creates a correction entry that supersedes the original.
+// The original is marked as "corrected" and a new entry with status "active"
+// is created atomically. Returns the new correction entry.
+func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expenseID string, req *model.CorrectExpenseRequest) (*model.Expense, error) {
+	if expenseID == "" {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "expense ID is required",
+			Status:  400,
+		}
+	}
+
+	if err := validateCorrectExpenseRequest(req); err != nil {
+		return nil, err
+	}
+
+	// Fetch the original expense
+	original, err := s.repo.GetExpenseByID(ctx, expenseID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching expense for correction: %w", err)
+	}
+	if original == nil {
+		return nil, &ServiceError{
+			Code:    model.ErrNotFound,
+			Message: fmt.Sprintf("expense %s not found", expenseID),
+			Status:  404,
+		}
+	}
+
+	// Check if already corrected
+	if original.Status != "active" {
+		return nil, &ServiceError{
+			Code:    model.ErrAlreadyCorrected,
+			Message: "this expense has already been corrected",
+			Status:  409,
+		}
+	}
+
+	// Check if the expense is in the current budget period
+	now := s.clock()
+	currentYear := int32(now.Year())
+	currentMonth := int32(now.Month())
+	if original.PeriodYear != currentYear || original.PeriodMonth != currentMonth {
+		return nil, &ServiceError{
+			Code:    model.ErrPeriodLocked,
+			Message: "cannot correct expenses from a past period",
+			Status:  403,
+		}
+	}
+
+	// Build the correction entry
+	correction := &model.Expense{
+		ID:           uuid.New().String(),
+		UserID:       userID,
+		Name:         req.Name,
+		Amount:       req.Amount,
+		Currency:     original.Currency, // Currency is inherited, not changeable
+		ExpenseType:  req.ExpenseType,
+		TagID:        req.TagID,
+		ExpenseDate:  req.ExpenseDate,
+		PeriodYear:   original.PeriodYear,  // Period is immutable
+		PeriodMonth:  original.PeriodMonth, // Period is immutable
+		Status:       "active",
+		CorrectsID:   original.ID,
+		IsProRata:    original.IsProRata,
+		ProRataGroup: original.ProRataGroup,
+		ProRataIndex: original.ProRataIndex,
+		ProRataTotal: original.ProRataTotal,
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+	}
+
+	created, err := s.repo.CorrectExpense(ctx, original, correction)
+	if err != nil {
+		return nil, fmt.Errorf("correcting expense: %w", err)
+	}
+
+	s.logger.Info("expense corrected",
+		slog.String("method", "CorrectExpense"),
+		slog.String("user_id", userID),
+		slog.String("original_id", original.ID),
+		slog.String("correction_id", created.ID),
+	)
+
+	metrics.CorrectionsTotal.Inc()
+
+	return created, nil
+}
+
+// GetCorrectionHistory returns the full correction chain for an expense,
+// ordered chronologically (original first, latest correction last).
+func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string, expenseID string) ([]*model.Expense, error) {
+	if expenseID == "" {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "expense ID is required",
+			Status:  400,
+		}
+	}
+
+	chain, err := s.repo.GetCorrectionHistory(ctx, expenseID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting correction history: %w", err)
+	}
+	if chain == nil {
+		return nil, &ServiceError{
+			Code:    model.ErrNotFound,
+			Message: fmt.Sprintf("expense %s not found", expenseID),
+			Status:  404,
+		}
+	}
+
+	return chain, nil
+}
+
+// GetProRataGroup returns all expenses belonging to a pro-rata group.
+func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
+	if groupID == "" {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "group ID is required",
+			Status:  400,
+		}
+	}
+
+	expenses, err := s.repo.GetProRataGroup(ctx, groupID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting pro-rata group: %w", err)
+	}
+
+	return expenses, nil
+}
+
+// validateCorrectExpenseRequest checks all required fields for a correction.
+func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *ServiceError {
+	fields := make(map[string]string)
+
+	if req.Name == "" {
+		fields["name"] = "name is required"
+	}
+	if req.Amount <= 0 {
+		fields["amount"] = "amount must be positive"
+	}
+	if !model.ValidExpenseTypes[req.ExpenseType] {
+		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"
+	}
+	if req.TagID == "" {
+		fields["tagId"] = "tag_id is required"
+	}
+	if req.ExpenseDate == "" {
+		fields["expenseDate"] = "expense_date is required"
+	} else if !isoDateRegex.MatchString(req.ExpenseDate) {
+		fields["expenseDate"] = "expense_date must be in ISO format (YYYY-MM-DD)"
+	}
+
+	if len(fields) > 0 {
+		return &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "validation failed",
+			Status:  400,
+			Fields:  fields,
+		}
+	}
+	return nil
 }
 
 // validateCreateExpenseRequest checks all required fields and business rules.
