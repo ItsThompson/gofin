@@ -108,6 +108,22 @@ func (m *mockRepo) ListPeriods(ctx context.Context, userID string) ([]*model.Bud
 	return args.Get(0).([]*model.BudgetPeriod), args.Error(1)
 }
 
+func (m *mockRepo) GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error) {
+	args := m.Called(ctx, periodID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BudgetPeriod), args.Error(1)
+}
+
+func (m *mockRepo) UpdatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error) {
+	args := m.Called(ctx, period)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BudgetPeriod), args.Error(1)
+}
+
 // mockTxBeg implements repository.TxBeginner.
 type mockTxBeg struct {
 	mock.Mock

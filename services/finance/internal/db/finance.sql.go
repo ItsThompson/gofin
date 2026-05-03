@@ -171,6 +171,34 @@ func (q *Queries) GetDefaults(ctx context.Context, userID pgtype.UUID) (FinanceD
 	return i, err
 }
 
+const getPeriodByID = `-- name: GetPeriodByID :one
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+WHERE id = $1 AND user_id = $2
+`
+
+type GetPeriodByIDParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetPeriodByID(ctx context.Context, arg GetPeriodByIDParams) (FinanceBudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, getPeriodByID, arg.ID, arg.UserID)
+	var i FinanceBudgetPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.BudgetAmount,
+		&i.EssentialsPercent,
+		&i.DesiresPercent,
+		&i.SavingsPercent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTagByID = `-- name: GetTagByID :one
 SELECT id, user_id, name, is_default, created_at, updated_at FROM finance.tags
 WHERE id = $1 AND user_id = $2
@@ -263,6 +291,48 @@ func (q *Queries) ListTags(ctx context.Context, userID pgtype.UUID) ([]FinanceTa
 		return nil, err
 	}
 	return items, nil
+}
+
+const updatePeriod = `-- name: UpdatePeriod :one
+UPDATE finance.budget_periods
+SET budget_amount = $1, essentials_percent = $2, desires_percent = $3,
+    savings_percent = $4, updated_at = now()
+WHERE id = $5 AND user_id = $6
+RETURNING id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at
+`
+
+type UpdatePeriodParams struct {
+	BudgetAmount      int64       `json:"budget_amount"`
+	EssentialsPercent int32       `json:"essentials_percent"`
+	DesiresPercent    int32       `json:"desires_percent"`
+	SavingsPercent    int32       `json:"savings_percent"`
+	ID                pgtype.UUID `json:"id"`
+	UserID            pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (FinanceBudgetPeriod, error) {
+	row := q.db.QueryRow(ctx, updatePeriod,
+		arg.BudgetAmount,
+		arg.EssentialsPercent,
+		arg.DesiresPercent,
+		arg.SavingsPercent,
+		arg.ID,
+		arg.UserID,
+	)
+	var i FinanceBudgetPeriod
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.BudgetAmount,
+		&i.EssentialsPercent,
+		&i.DesiresPercent,
+		&i.SavingsPercent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateTag = `-- name: UpdateTag :one

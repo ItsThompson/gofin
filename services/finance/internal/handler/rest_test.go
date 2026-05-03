@@ -88,6 +88,22 @@ func (m *mockFinanceRepository) ListPeriods(ctx context.Context, userID string) 
 	return args.Get(0).([]*model.BudgetPeriod), args.Error(1)
 }
 
+func (m *mockFinanceRepository) GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error) {
+	args := m.Called(ctx, periodID, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BudgetPeriod), args.Error(1)
+}
+
+func (m *mockFinanceRepository) UpdatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error) {
+	args := m.Called(ctx, period)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.BudgetPeriod), args.Error(1)
+}
+
 func (m *mockFinanceRepository) GetTag(ctx context.Context, tagID, userID string) (*model.Tag, error) {
 	args := m.Called(ctx, tagID, userID)
 	if args.Get(0) == nil {

@@ -208,6 +208,56 @@ func (r *PostgresFinanceRepository) CreatePeriod(ctx context.Context, period *mo
 	return dbPeriodToModel(row), nil
 }
 
+func (r *PostgresFinanceRepository) GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error) {
+	pid := pgtype.UUID{}
+	if err := pid.Scan(periodID); err != nil {
+		return nil, fmt.Errorf("parsing period ID: %w", err)
+	}
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.GetPeriodByID(ctx, db.GetPeriodByIDParams{
+		ID:     pid,
+		UserID: uid,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbPeriodToModel(row), nil
+}
+
+func (r *PostgresFinanceRepository) UpdatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error) {
+	pid := pgtype.UUID{}
+	if err := pid.Scan(period.ID); err != nil {
+		return nil, fmt.Errorf("parsing period ID: %w", err)
+	}
+	uid := pgtype.UUID{}
+	if err := uid.Scan(period.UserID); err != nil {
+		return nil, fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	row, err := r.queries.UpdatePeriod(ctx, db.UpdatePeriodParams{
+		BudgetAmount:      period.BudgetAmount,
+		EssentialsPercent: period.EssentialsPercent,
+		DesiresPercent:    period.DesiresPercent,
+		SavingsPercent:    period.SavingsPercent,
+		ID:                pid,
+		UserID:            uid,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbPeriodToModel(row), nil
+}
+
 func (r *PostgresFinanceRepository) ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error) {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(userID); err != nil {

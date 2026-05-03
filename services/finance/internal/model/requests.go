@@ -86,3 +86,31 @@ type TagSpendingResponse struct {
 type CumulativeSpendResponse struct {
 	Points []CumulativeSpendPoint `json:"points"`
 }
+
+// UpdatePeriodRequest is the input for PUT /api/finance/periods/:id.
+// Note: percentage fields intentionally omit binding:"required" because Gin's
+// validator treats the int32 zero value as "missing", which would reject valid
+// splits like 100/0/0. The sum-to-100 constraint is enforced by ValidateEDSSplit.
+type UpdatePeriodRequest struct {
+	BudgetAmount      int64 `json:"budgetAmount"`
+	EssentialsPercent int32 `json:"essentialsPercent"`
+	DesiresPercent    int32 `json:"desiresPercent"`
+	SavingsPercent    int32 `json:"savingsPercent"`
+}
+
+// HistoricalComparison is the response for the historical comparison widget.
+type HistoricalComparison struct {
+	// CurrentSpent is the total spent in the requested period (cents).
+	CurrentSpent int64 `json:"currentSpent"`
+	// PreviousSpent is the total spent in the period before (cents).
+	PreviousSpent int64 `json:"previousSpent"`
+	// RollingAverage is the average of the last 3 periods' totalSpent. Null if < 3 periods.
+	RollingAverage *int64 `json:"rollingAverage"`
+	// ChangePercent is the percentage change from previous period.
+	ChangePercent float64 `json:"changePercent"`
+}
+
+// HistoricalComparisonResponse is the JSON body returned for GET /api/finance/spending/comparison.
+type HistoricalComparisonResponse struct {
+	Comparison *HistoricalComparison `json:"comparison"`
+}

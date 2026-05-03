@@ -58,3 +58,14 @@ INSERT INTO finance.budget_periods
     (user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
+
+-- name: UpdatePeriod :one
+UPDATE finance.budget_periods
+SET budget_amount = $1, essentials_percent = $2, desires_percent = $3,
+    savings_percent = $4, updated_at = now()
+WHERE id = $5 AND user_id = $6
+RETURNING *;
+
+-- name: GetPeriodByID :one
+SELECT * FROM finance.budget_periods
+WHERE id = $1 AND user_id = $2;

@@ -18,4 +18,5 @@ const (
 	ErrDuplicateTag        = "DUPLICATE_TAG"
 	ErrTagInUse            = "TAG_IN_USE"
 	ErrDefaultTag          = "DEFAULT_TAG"
+	ErrPeriodLocked        = "PERIOD_LOCKED"
 )

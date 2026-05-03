@@ -18,7 +18,9 @@ type FinanceRepository interface {
 	CountUserTags(ctx context.Context, userID string) (int64, error)
 	CountTagInProRata(ctx context.Context, tagID, userID string) (int64, error)
 	GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error)
+	GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error)
 	CreatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error)
+	UpdatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error)
 	ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error)
 }
 

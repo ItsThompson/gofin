@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -33,6 +34,7 @@ type FinanceService struct {
 	repo          repository.FinanceRepository
 	txBeginner    repository.TxBeginner
 	expenseClient ExpenseClient
+	nowFunc       func() time.Time
 	logger        *slog.Logger
 }
 
@@ -45,6 +47,7 @@ func NewFinanceService(
 	return &FinanceService{
 		repo:       repo,
 		txBeginner: txBeginner,
+		nowFunc:    time.Now,
 		logger:     logger,
 	}
 }
@@ -53,6 +56,13 @@ func NewFinanceService(
 // This is used to inject the gRPC client after the service is constructed.
 func (s *FinanceService) WithExpenseClient(client ExpenseClient) *FinanceService {
 	s.expenseClient = client
+	return s
+}
+
+// WithNowFunc overrides the clock function used for time-dependent logic.
+// Used in tests to inject a fixed time.
+func (s *FinanceService) WithNowFunc(f func() time.Time) *FinanceService {
+	s.nowFunc = f
 	return s
 }
 
@@ -272,6 +282,76 @@ func (s *FinanceService) ListPeriods(ctx context.Context, userID string) ([]*mod
 		return nil, fmt.Errorf("listing periods: %w", err)
 	}
 	return periods, nil
+}
+
+// UpdatePeriod updates the budget and E/D/S split for a period.
+// Only the current period can be updated: past periods are immutable (PERIOD_LOCKED).
+func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID string, req *model.UpdatePeriodRequest) (*model.BudgetPeriod, error) {
+	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: err.Error(),
+			Status:  400,
+		}
+	}
+
+	if req.BudgetAmount < 0 {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "Budget amount must be non-negative",
+			Status:  400,
+		}
+	}
+
+	// Fetch the period to check ownership and whether it's current.
+	existing, err := s.repo.GetPeriodByID(ctx, periodID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching period: %w", err)
+	}
+	if existing == nil {
+		return nil, &ServiceError{
+			Code:    model.ErrNotFound,
+			Message: "Budget period not found",
+			Status:  404,
+		}
+	}
+
+	// Enforce: only the current month's period can be edited.
+	now := s.nowFunc()
+	if existing.Year != int32(now.Year()) || existing.Month != int32(now.Month()) {
+		return nil, &ServiceError{
+			Code:    model.ErrPeriodLocked,
+			Message: "Past periods are read-only and cannot be modified",
+			Status:  403,
+		}
+	}
+
+	updated, err := s.repo.UpdatePeriod(ctx, &model.BudgetPeriod{
+		ID:                periodID,
+		UserID:            userID,
+		BudgetAmount:      req.BudgetAmount,
+		EssentialsPercent: req.EssentialsPercent,
+		DesiresPercent:    req.DesiresPercent,
+		SavingsPercent:    req.SavingsPercent,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("updating period: %w", err)
+	}
+	if updated == nil {
+		return nil, &ServiceError{
+			Code:    model.ErrNotFound,
+			Message: "Budget period not found",
+			Status:  404,
+		}
+	}
+
+	s.logger.Info("budget period updated",
+		slog.String("method", "UpdatePeriod"),
+		slog.String("user_id", userID),
+		slog.String("period_id", periodID),
+	)
+
+	return updated, nil
 }
 
 // ListTags returns all tags for a user, ordered alphabetically.
