@@ -1,5 +1,7 @@
-import { lazy, Suspense, useCallback } from "react";
+import { lazy, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth-store";
+import { RemoteBoundary } from "@/components/remote-boundary";
+import { SettingsSkeleton } from "@gofin/ui/components/skeletons";
 
 /**
  * Lazy-load the SettingsPage from the finance remote package.
@@ -20,14 +22,11 @@ export default function SettingsRoute() {
   if (!user) return null;
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-muted-foreground">Loading settings...</div>
-        </div>
-      }
+    <RemoteBoundary
+      sectionName="Settings"
+      loadingFallback={<SettingsSkeleton />}
     >
       <SettingsPage user={user} onUserUpdated={handleUserUpdated} />
-    </Suspense>
+    </RemoteBoundary>
   );
 }

@@ -1,5 +1,7 @@
-import { lazy, Suspense } from "react";
+import { lazy } from "react";
 import { useAuthStore } from "@/stores/auth-store";
+import { RemoteBoundary } from "@/components/remote-boundary";
+import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 
 /**
  * Lazy-load the DashboardPage from the finance remote package.
@@ -18,14 +20,11 @@ export default function DashboardRoute() {
   if (!user) return null;
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-muted-foreground">Loading dashboard...</div>
-        </div>
-      }
+    <RemoteBoundary
+      sectionName="Dashboard"
+      loadingFallback={<DashboardSkeleton />}
     >
       <DashboardPage user={user} />
-    </Suspense>
+    </RemoteBoundary>
   );
 }

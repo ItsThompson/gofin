@@ -1,5 +1,7 @@
-import { lazy, Suspense } from "react";
+import { lazy } from "react";
 import { useAuthStore } from "@/stores/auth-store";
+import { RemoteBoundary } from "@/components/remote-boundary";
+import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
 
 /**
  * Lazy-load the ExpenseLogPage from the finance remote package.
@@ -16,14 +18,11 @@ export default function ExpensesRoute() {
   if (!user) return null;
 
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[300px] items-center justify-center">
-          <div className="text-muted-foreground">Loading expense log...</div>
-        </div>
-      }
+    <RemoteBoundary
+      sectionName="Expense Log"
+      loadingFallback={<ExpenseLogSkeleton />}
     >
       <ExpenseLogPage user={user} />
-    </Suspense>
+    </RemoteBoundary>
   );
 }
