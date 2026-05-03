@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1038,4 +1039,222 @@ func TestGetCumulativeSpendHandler_MissingParams(t *testing.T) {
 
 	w := doJSONWithUserID(r, "GET", "/api/finance/spending/cumulative", "user-123", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- Tag CRUD Handler Tests ---
+
+func TestListTagsHandler_LazySeeds(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	txRepo := new(mockFinanceRepository)
+	tx := &mockTx{repo: txRepo}
+
+	// User has 0 tags: triggers lazy seeding
+	repo.On("CountUserTags", mock.Anything, "user-1").Return(int64(0), nil)
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+	tx.On("Commit", mock.Anything).Return(nil)
+
+	for _, tagName := range service.DefaultTags {
+		txRepo.On("CreateTag", mock.Anything, "user-1", tagName, true).
+			Return(&model.Tag{ID: "t-" + tagName, Name: tagName, IsDefault: true}, nil)
+	}
+
+	repo.On("ListTags", mock.Anything, "user-1").
+		Return([]*model.Tag{{ID: "t-Bills", Name: "Bills", IsDefault: true}}, nil)
+
+	r := setupTestRouter(repo, txBeginner)
+	w := doJSONWithUserID(r, "GET", "/api/finance/tags", "user-1", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.TagListResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Len(t, resp.Tags, 1)
+	assert.Equal(t, "Bills", resp.Tags[0].Name)
+	tx.AssertCalled(t, "Commit", mock.Anything)
+}
+
+func TestListTagsHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/tags", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestCreateTagHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	repo.On("CreateTag", mock.Anything, "user-1", "Groceries", false).
+		Return(&model.Tag{ID: "tag-new", Name: "Groceries", IsDefault: false}, nil)
+
+	r := setupTestRouter(repo, txBeginner)
+	w := doJSONWithUserID(r, "POST", "/api/finance/tags", "user-1", map[string]interface{}{
+		"name": "Groceries",
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var resp model.TagResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "Groceries", resp.Tag.Name)
+	assert.False(t, resp.Tag.IsDefault)
+}
+
+func TestCreateTagHandler_DuplicateName(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	// Simulate PG unique constraint violation
+	pgErr := &pgconn.PgError{Code: "23505"}
+	repo.On("CreateTag", mock.Anything, "user-1", "Bills", false).
+		Return(nil, pgErr)
+
+	r := setupTestRouter(repo, txBeginner)
+	w := doJSONWithUserID(r, "POST", "/api/finance/tags", "user-1", map[string]interface{}{
+		"name": "Bills",
+	})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrDuplicateTag, errResp.Code)
+}
+
+func TestCreateTagHandler_MissingBody(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/tags", "user-1", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateTagHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/tags", "", map[string]interface{}{"name": "Test"})
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestUpdateTagHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	repo.On("UpdateTag", mock.Anything, "tag-1", "user-1", "Renamed").
+		Return(&model.Tag{ID: "tag-1", Name: "Renamed", IsDefault: true}, nil)
+
+	r := setupTestRouter(repo, txBeginner)
+	w := doJSONWithUserID(r, "PUT", "/api/finance/tags/tag-1", "user-1", map[string]interface{}{
+		"name": "Renamed",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.TagResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "Renamed", resp.Tag.Name)
+}
+
+func TestUpdateTagHandler_NotFound(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	repo.On("UpdateTag", mock.Anything, "nonexistent", "user-1", "Test").
+		Return(nil, nil)
+
+	r := setupTestRouter(repo, txBeginner)
+	w := doJSONWithUserID(r, "PUT", "/api/finance/tags/nonexistent", "user-1", map[string]interface{}{
+		"name": "Test",
+	})
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUpdateTagHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/tags/tag-1", "", map[string]interface{}{"name": "X"})
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestDeleteTagHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetTag", mock.Anything, "tag-c", "user-1").
+		Return(&model.Tag{ID: "tag-c", Name: "Custom", IsDefault: false}, nil)
+	expClient.On("CountExpensesByTag", mock.Anything, "user-1", "tag-c").
+		Return(int64(0), nil)
+	repo.On("CountTagInProRata", mock.Anything, "tag-c", "user-1").
+		Return(int64(0), nil)
+	repo.On("DeleteTag", mock.Anything, "tag-c", "user-1").
+		Return(nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+	w := doJSONWithUserID(r, "DELETE", "/api/finance/tags/tag-c", "user-1", nil)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	repo.AssertCalled(t, "DeleteTag", mock.Anything, "tag-c", "user-1")
+}
+
+func TestDeleteTagHandler_DefaultTagForbidden(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetTag", mock.Anything, "tag-bills", "user-1").
+		Return(&model.Tag{ID: "tag-bills", Name: "Bills", IsDefault: true}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+	w := doJSONWithUserID(r, "DELETE", "/api/finance/tags/tag-bills", "user-1", nil)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrDefaultTag, errResp.Code)
+	assert.Contains(t, errResp.Message, "Default tags cannot be deleted")
+}
+
+func TestDeleteTagHandler_TagInUse(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetTag", mock.Anything, "tag-c", "user-1").
+		Return(&model.Tag{ID: "tag-c", Name: "Custom", IsDefault: false}, nil)
+	expClient.On("CountExpensesByTag", mock.Anything, "user-1", "tag-c").
+		Return(int64(5), nil)
+	repo.On("CountTagInProRata", mock.Anything, "tag-c", "user-1").
+		Return(int64(0), nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+	w := doJSONWithUserID(r, "DELETE", "/api/finance/tags/tag-c", "user-1", nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrTagInUse, errResp.Code)
+	assert.Contains(t, errResp.Message, "5 expense(s)")
+}
+
+func TestDeleteTagHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "DELETE", "/api/finance/tags/tag-c", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }

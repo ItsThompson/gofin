@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -318,7 +319,7 @@ func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *mode
 	if name == "" {
 		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name is required", Status: 400}
 	}
-	if len(name) > 50 {
+	if utf8.RuneCountInString(name) > 50 {
 		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name must be 50 characters or fewer", Status: 400}
 	}
 
@@ -339,7 +340,7 @@ func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, re
 	if name == "" {
 		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name is required", Status: 400}
 	}
-	if len(name) > 50 {
+	if utf8.RuneCountInString(name) > 50 {
 		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name must be 50 characters or fewer", Status: 400}
 	}
 

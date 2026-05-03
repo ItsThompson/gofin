@@ -36,6 +36,9 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		finance.GET("/periods", h.ListPeriods)
 		finance.POST("/periods", h.CreatePeriod)
 		finance.GET("/tags", h.ListTags)
+		finance.POST("/tags", h.CreateTag)
+		finance.PUT("/tags/:id", h.UpdateTag)
+		finance.DELETE("/tags/:id", h.DeleteTag)
 
 		// Dashboard aggregation endpoints
 		finance.GET("/summary", h.GetPeriodSummary)
@@ -255,6 +258,95 @@ func (h *RESTHandler) ListTags(c *gin.Context) {
 	c.JSON(http.StatusOK, model.TagListResponse{
 		Tags: tags,
 	})
+}
+
+// CreateTag handles POST /api/finance/tags.
+// Creates a new custom tag. Name must be unique per user (case-insensitive), max 50 chars.
+func (h *RESTHandler) CreateTag(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	var req model.CreateTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	tag, err := h.financeService.CreateTag(c.Request.Context(), userID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, model.TagResponse{
+		Tag: tag,
+	})
+}
+
+// UpdateTag handles PUT /api/finance/tags/:id.
+// Renames a tag (any tag, including defaults).
+func (h *RESTHandler) UpdateTag(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	tagID := c.Param("id")
+
+	var req model.UpdateTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	tag, err := h.financeService.UpdateTag(c.Request.Context(), userID, tagID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.TagResponse{
+		Tag: tag,
+	})
+}
+
+// DeleteTag handles DELETE /api/finance/tags/:id.
+// Deletes a tag only if it's not a default and not referenced by expenses or schedules.
+func (h *RESTHandler) DeleteTag(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	tagID := c.Param("id")
+
+	err := h.financeService.DeleteTag(c.Request.Context(), userID, tagID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // GetPeriodSummary handles GET /api/finance/summary?year=YYYY&month=MM.
