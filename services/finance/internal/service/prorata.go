@@ -14,7 +14,7 @@ import (
 
 // CalculateInstallments divides totalAmount across months using integer division.
 // The first installment absorbs the remainder.
-// Example: 10000 cents / 3 = [3400, 3300, 3300].
+// Example: 10000 cents / 3 = [3334, 3333, 3333].
 func CalculateInstallments(totalAmount int64, months int32) []int64 {
 	if months <= 0 {
 		return nil

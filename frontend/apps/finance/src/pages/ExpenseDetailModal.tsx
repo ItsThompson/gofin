@@ -290,9 +290,9 @@ function DetailView({
                 value={`${expense.proRataIndex} of ${expense.proRataTotal}`}
               />
             )}
-            {proRataGroup.length > 0 && (
+            {proRataGroup.length > 0 && proRataGroup.length === expense.proRataTotal && (
               <DetailField
-                label="Total Original Amount"
+                label="Total Amount (all installments)"
                 value={formatCurrency(
                   proRataGroup.reduce((sum, entry) => sum + entry.amount, 0),
                   currency,
