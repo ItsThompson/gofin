@@ -158,8 +158,9 @@ function mockServerError(message: string) {
 }
 
 /**
- * Mocks the 5 parallel dashboard data fetches after a period is found:
- * summary, spending/by-tag, spending/cumulative, expenses (recent 5), spending/comparison
+ * Mocks the 6 parallel dashboard data fetches after a period is found:
+ * summary, spending/by-tag, spending/cumulative, expenses (recent 5),
+ * spending/comparison, prorata/upcoming
  */
 function mockDashboardDataEmpty() {
   // summary
@@ -206,6 +207,12 @@ function mockDashboardDataEmpty() {
     status: 404,
     json: () =>
       Promise.resolve({ code: "PERIOD_NOT_FOUND", message: "Not enough data" }),
+  });
+  // prorata/upcoming
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ schedules: [] }),
   });
 }
 
@@ -254,6 +261,12 @@ function mockDashboardDataWithExpenses() {
           changePercent: 13.54,
         },
       }),
+  });
+  // prorata/upcoming
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ schedules: [] }),
   });
 }
 
