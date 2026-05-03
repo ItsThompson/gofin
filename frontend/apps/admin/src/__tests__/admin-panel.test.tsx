@@ -113,10 +113,9 @@ describe("AdminPanelPage", () => {
     render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Error")).toBeInTheDocument();
+      expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Server error")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
   });
 
@@ -158,7 +157,7 @@ describe("AdminPanelPage", () => {
     render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Error")).toBeInTheDocument();
+      expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     });
 
     // Second fetch succeeds

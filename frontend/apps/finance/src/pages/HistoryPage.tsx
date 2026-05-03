@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   apiClient,
+  useApiToast,
   formatCurrency,
   type BudgetPeriod,
   type PeriodListResponse,
@@ -13,9 +14,6 @@ import { Button } from "@gofin/ui/components/button";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
 } from "@gofin/ui/components/card";
 import { History, ArrowLeft, Loader2, ArrowRight } from "lucide-react";
 import type { FinancePageProps } from "@/types";
@@ -34,19 +32,18 @@ interface HistoricalPeriodRow {
 export function HistoryPage({ user }: FinancePageProps) {
   const [periods, setPeriods] = useState<HistoricalPeriodRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<BudgetPeriod | null>(
     null,
   );
+  const { call: toastCall } = useApiToast();
 
   useEffect(() => {
     async function fetchPeriods() {
-      try {
+      const result = await toastCall(async () => {
         const periodsRes =
           await apiClient<PeriodListResponse>("/api/finance/periods");
         const allPeriods = periodsRes.periods;
 
-        // Fetch summary for each period to get totalSpent
         const rows = await Promise.all(
           allPeriods.map(async (period) => {
             try {
@@ -65,17 +62,16 @@ export function HistoryPage({ user }: FinancePageProps) {
           }),
         );
 
-        setPeriods(rows);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load periods";
-        setError(message);
-      } finally {
-        setLoading(false);
+        return rows;
+      });
+
+      if (result) {
+        setPeriods(result);
       }
+      setLoading(false);
     }
     fetchPeriods();
-  }, []);
+  }, [toastCall]);
 
   if (selectedPeriod) {
     return (
@@ -99,17 +95,6 @@ export function HistoryPage({ user }: FinancePageProps) {
         <Loader2 className="size-6 animate-spin text-muted-foreground" />
         <span className="ml-2 text-muted-foreground">Loading history...</span>
       </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">Error</CardTitle>
-          <CardDescription>{error}</CardDescription>
-        </CardHeader>
-      </Card>
     );
   }
 

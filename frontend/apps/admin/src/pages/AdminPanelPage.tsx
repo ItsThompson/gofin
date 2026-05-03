@@ -7,7 +7,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@gofin/ui/components/card";
-import { apiClient } from "@gofin/types";
+import { apiClient, useApiToast } from "@gofin/types";
 import { Shield, UserCheck, Loader2, Activity, ExternalLink } from "lucide-react";
 import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "@/types";
 
@@ -20,22 +20,22 @@ type LoadState = "loading" | "error" | "success";
 export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "http://localhost:3002" }: AdminPanelPageProps) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
   const [assumingUserId, setAssumingUserId] = useState<string | null>(null);
+  const { call: toastCall } = useApiToast();
 
   const fetchUsers = useCallback(async () => {
     setLoadState("loading");
-    setErrorMessage("");
-    try {
+    const result = await toastCall(async () => {
       const response = await apiClient<AdminUsersResponse>("/api/admin/users");
-      setUsers(response.users);
+      return response;
+    });
+    if (result) {
+      setUsers(result.users);
       setLoadState("success");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to load users";
-      setErrorMessage(message);
+    } else {
       setLoadState("error");
     }
-  }, []);
+  }, [toastCall]);
 
   useEffect(() => {
     fetchUsers();
@@ -45,9 +45,8 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
     setAssumingUserId(userId);
     try {
       await onAssumeIdentity(userId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to assume identity";
-      setErrorMessage(message);
+    } catch {
+      // Toast handles the error notification
       setAssumingUserId(null);
     }
   };
@@ -65,8 +64,11 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-destructive">Error</CardTitle>
-          <CardDescription>{errorMessage}</CardDescription>
+          <CardTitle className="text-destructive">Something went wrong</CardTitle>
+          <CardDescription>
+            Could not load the admin panel. The error details were shown in a
+            notification.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Button variant="outline" onClick={fetchUsers}>
@@ -88,12 +90,6 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
           </p>
         </div>
       </div>
-
-      {errorMessage && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-          {errorMessage}
-        </div>
-      )}
 
       <Card>
         <CardHeader>

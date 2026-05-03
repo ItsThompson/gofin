@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-table";
 import {
   apiClient,
+  useApiToast,
   formatCurrency,
   type BudgetPeriod,
   type Expense,
@@ -25,12 +26,9 @@ import { Input } from "@gofin/ui/components/input";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@gofin/ui/components/card";
 import {
   Receipt,
-  Loader2,
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
@@ -48,6 +46,7 @@ import {
   type ExpenseRow,
 } from "@/lib/expense-table-columns";
 import { ExpenseDetailModal } from "@/pages/ExpenseDetailModal";
+import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
 
 const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
@@ -69,7 +68,7 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [periods, setPeriods] = useState<BudgetPeriod[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { call: toastCall } = useApiToast();
 
   // Modal state: which expense is being viewed
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -90,8 +89,7 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    try {
+    const result = await toastCall(async () => {
       const [expensesResponse, tagsResponse, periodsResponse] =
         await Promise.all([
           apiClient<PaginatedResponse<Expense>>(
@@ -104,16 +102,16 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
             (): PeriodListResponse => ({ periods: [] }),
           ),
         ]);
+      return { expensesResponse, tagsResponse, periodsResponse };
+    });
 
-      setExpenses(expensesResponse.data);
-      setTags(tagsResponse.tags);
-      setPeriods(periodsResponse.periods);
-    } catch {
-      setError("Failed to load expenses. Please try again.");
-    } finally {
-      setLoading(false);
+    if (result) {
+      setExpenses(result.expensesResponse.data);
+      setTags(result.tagsResponse.tags);
+      setPeriods(result.periodsResponse.periods);
     }
-  }, [selectedYear, selectedMonth]);
+    setLoading(false);
+  }, [selectedYear, selectedMonth, toastCall]);
 
   useEffect(() => {
     fetchData();
@@ -219,30 +217,7 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
   const periodValue = `${selectedYear}-${selectedMonth}`;
 
   if (loading) {
-    return (
-      <div className="flex min-h-[300px] items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">
-          Loading expenses...
-        </span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">Error</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4 text-sm text-muted-foreground">{error}</p>
-          <Button variant="outline" onClick={fetchData}>
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
+    return <ExpenseLogSkeleton />;
   }
 
   return (

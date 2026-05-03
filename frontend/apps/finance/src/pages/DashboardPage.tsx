@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import {
   apiClient,
   ApiRequestError,
+  useApiToast,
   formatCurrency,
   getCurrencySymbol,
   type BudgetPeriod,
@@ -42,6 +43,8 @@ import {
   FormMessage,
   FormDescription,
 } from "@gofin/ui/components/form";
+import { SectionErrorBoundary } from "@gofin/ui/components/section-error-boundary";
+import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 import {
   LayoutDashboard,
   Loader2,
@@ -83,7 +86,7 @@ export function DashboardPage({ user }: FinancePageProps) {
   const [state, setState] = useState<DashboardState>("loading");
   const [period, setPeriod] = useState<BudgetPeriod | null>(null);
   const [defaults, setDefaults] = useState<DefaultSettings | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
+  const { call: toastCall } = useApiToast();
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -91,7 +94,6 @@ export function DashboardPage({ user }: FinancePageProps) {
 
   const fetchPeriod = useCallback(async () => {
     setState("loading");
-    setErrorMessage("");
     try {
       const response = await apiClient<PeriodResponse>(
         `/api/finance/periods/current?year=${currentYear}&month=${currentMonth}`,
@@ -113,23 +115,22 @@ export function DashboardPage({ user }: FinancePageProps) {
         setState("no-period");
         return;
       }
-      const message =
-        error instanceof Error ? error.message : "Failed to load dashboard";
-      setErrorMessage(message);
+      // Use toast for non-domain errors
+      await toastCall(() => Promise.reject(error));
       setState("error");
     }
-  }, [currentYear, currentMonth]);
+  }, [currentYear, currentMonth, toastCall]);
 
   useEffect(() => {
     fetchPeriod();
   }, [fetchPeriod]);
 
   if (state === "loading") {
-    return <LoadingState />;
+    return <DashboardSkeleton />;
   }
 
   if (state === "error") {
-    return <ErrorState message={errorMessage} onRetry={fetchPeriod} />;
+    return <ErrorState onRetry={fetchPeriod} />;
   }
 
   if (state === "no-period") {
@@ -152,27 +153,19 @@ export function DashboardPage({ user }: FinancePageProps) {
 
 // --- Sub-components ---
 
-function LoadingState() {
-  return (
-    <div className="flex min-h-[300px] items-center justify-center">
-      <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      <span className="ml-2 text-muted-foreground">Loading dashboard...</span>
-    </div>
-  );
-}
-
 function ErrorState({
-  message,
   onRetry,
 }: {
-  message: string;
   onRetry: () => void;
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-destructive">Error</CardTitle>
-        <CardDescription>{message}</CardDescription>
+        <CardTitle className="text-destructive">Something went wrong</CardTitle>
+        <CardDescription>
+          Could not load the dashboard. The error details were shown in a
+          notification.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Button variant="outline" onClick={onRetry}>
@@ -424,14 +417,13 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
   const [comparison, setComparison] = useState<HistoricalComparison | null>(null);
   const [upcomingProRata, setUpcomingProRata] = useState<ProRataSchedule[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
-  const [dataError, setDataError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState(period);
+  const { call: toastCall } = useApiToast();
 
   const fetchDashboardData = useCallback(async () => {
     setDataLoaded(false);
-    setDataError(null);
-    try {
+    const result = await toastCall(async () => {
       const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
         await Promise.all([
           apiClient<SummaryResponse>(
@@ -454,24 +446,23 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           ).catch(() => ({ schedules: [] })),
         ]);
 
-      setSummary(summaryRes.summary);
-      setTagSpending(tagRes.tagSpending);
-      setCumulativeData(cumulativeRes.points);
-      setRecentExpenses(expensesRes.data);
-      if (comparisonRes) {
-        setComparison(comparisonRes.comparison);
+      return { summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes };
+    });
+
+    if (result) {
+      setSummary(result.summaryRes.summary);
+      setTagSpending(result.tagRes.tagSpending);
+      setCumulativeData(result.cumulativeRes.points);
+      setRecentExpenses(result.expensesRes.data);
+      if (result.comparisonRes) {
+        setComparison(result.comparisonRes.comparison);
       }
-      if (upcomingRes) {
-        setUpcomingProRata(upcomingRes.schedules);
+      if (result.upcomingRes) {
+        setUpcomingProRata(result.upcomingRes.schedules);
       }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to load dashboard data";
-      setDataError(message);
-    } finally {
-      setDataLoaded(true);
     }
-  }, [currentPeriod.year, currentPeriod.month]);
+    setDataLoaded(true);
+  }, [currentPeriod.year, currentPeriod.month, toastCall]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -526,26 +517,19 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
       {/* Budget Settings Editor */}
       {showSettings && !readOnly && (
-        <BudgetSettingsEditor
-          period={currentPeriod}
-          currency={user.currency}
-          onSaved={handlePeriodUpdated}
-          onCancel={() => setShowSettings(false)}
-        />
-      )}
-
-      {/* Data fetch error banner */}
-      {dataError && (
-        <Card>
-          <CardContent className="flex items-center gap-3 py-3">
-            <AlertTriangle className="size-4 shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{dataError}</p>
-          </CardContent>
-        </Card>
+        <SectionErrorBoundary sectionName="Budget Settings">
+          <BudgetSettingsEditor
+            period={currentPeriod}
+            currency={user.currency}
+            onSaved={handlePeriodUpdated}
+            onCancel={() => setShowSettings(false)}
+          />
+        </SectionErrorBoundary>
       )}
 
       {/* Summary Bar */}
-      <SummaryBar
+      <SectionErrorBoundary sectionName="Summary">
+        <SummaryBar
         budgetAmount={currentPeriod.budgetAmount}
         totalSpent={totalSpent}
         remaining={remaining}
@@ -560,43 +544,57 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         }
         currency={user.currency}
       />
+      </SectionErrorBoundary>
 
       {/* Category Gauges */}
-      {summary && <CategoryGauges summary={summary} currency={user.currency} />}
+      <SectionErrorBoundary sectionName="Category Gauges">
+        {summary && <CategoryGauges summary={summary} currency={user.currency} />}
+      </SectionErrorBoundary>
 
       {/* Pacing Indicator */}
-      {summary && <PacingIndicator summary={summary} currency={user.currency} />}
+      <SectionErrorBoundary sectionName="Spending Pace">
+        {summary && <PacingIndicator summary={summary} currency={user.currency} />}
+      </SectionErrorBoundary>
 
       {/* Upcoming Pro-rata */}
-      {upcomingProRata.length > 0 && (
-        <UpcomingProRataSection schedules={upcomingProRata} currency={user.currency} />
-      )}
+      <SectionErrorBoundary sectionName="Upcoming Pro-rata">
+        {upcomingProRata.length > 0 && (
+          <UpcomingProRataSection schedules={upcomingProRata} currency={user.currency} />
+        )}
+      </SectionErrorBoundary>
 
       {/* Charts: hidden on mobile per US-DASH-09 */}
       <div className="hidden md:block space-y-6">
         {/* Historical Comparison Widget */}
-        {comparison && (
-          <HistoricalComparisonWidget
-            comparison={comparison}
-            currency={user.currency}
-          />
-        )}
+        <SectionErrorBoundary sectionName="Historical Comparison">
+          {comparison && (
+            <HistoricalComparisonWidget
+              comparison={comparison}
+              currency={user.currency}
+            />
+          )}
+        </SectionErrorBoundary>
 
         {/* Tag Spending Chart */}
-        {tagSpending.length > 0 && (
-          <TagSpendingChart tagSpending={tagSpending} currency={user.currency} />
-        )}
+        <SectionErrorBoundary sectionName="Tag Spending">
+          {tagSpending.length > 0 && (
+            <TagSpendingChart tagSpending={tagSpending} currency={user.currency} />
+          )}
+        </SectionErrorBoundary>
 
         {/* Cumulative Spend Chart */}
-        {cumulativeData.length > 0 && (
-          <CumulativeSpendChart
-            data={cumulativeData}
-            currency={user.currency}
-          />
-        )}
+        <SectionErrorBoundary sectionName="Cumulative Spending">
+          {cumulativeData.length > 0 && (
+            <CumulativeSpendChart
+              data={cumulativeData}
+              currency={user.currency}
+            />
+          )}
+        </SectionErrorBoundary>
       </div>
 
       {/* Recent Expenses or Empty State */}
+      <SectionErrorBoundary sectionName="Recent Expenses">
       {dataLoaded && recentExpenses.length === 0 && !readOnly ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -617,6 +615,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
       ) : dataLoaded && recentExpenses.length > 0 ? (
         <RecentExpenses expenses={recentExpenses} currency={user.currency} />
       ) : null}
+      </SectionErrorBoundary>
     </div>
   );
 }

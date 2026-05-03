@@ -280,10 +280,12 @@ describe("DashboardPage", () => {
     mockFetch.mockReset();
   });
 
-  it("renders loading state initially", () => {
+  it("renders skeleton loading state initially", () => {
     mockFetch.mockReturnValueOnce(new Promise(() => {}));
     renderDashboard();
-    expect(screen.getByText("Loading dashboard...")).toBeInTheDocument();
+    // Skeleton renders data-slot="skeleton" elements instead of loading text
+    const skeletons = document.querySelectorAll('[data-slot="skeleton"]');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   describe("active period exists", () => {
@@ -564,12 +566,9 @@ describe("DashboardPage", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Error")).toBeInTheDocument();
+        expect(screen.getByText("Something went wrong")).toBeInTheDocument();
       });
 
-      expect(
-        screen.getByText("Database connection failed"),
-      ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /retry/i }),
       ).toBeInTheDocument();
@@ -580,7 +579,7 @@ describe("DashboardPage", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Error")).toBeInTheDocument();
+        expect(screen.getByText("Something went wrong")).toBeInTheDocument();
       });
 
       mockPeriodFound();
@@ -825,17 +824,18 @@ describe("DashboardPage", () => {
   });
 
   describe("dashboard data error", () => {
-    it("shows error banner when dashboard data fetch fails", async () => {
+    it("does not crash when dashboard data fetch fails", async () => {
       mockPeriodFound();
-      // All 4 parallel fetches fail
+      // All 4 parallel fetches fail: toast handles the error, dashboard stays up
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
       renderDashboard();
 
+      // Dashboard header should still render even with data errors
       await waitFor(() => {
-        expect(screen.getByText("Network error")).toBeInTheDocument();
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
     });
   });

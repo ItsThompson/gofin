@@ -187,7 +187,7 @@ describe("HistoryPage", () => {
     expect(screen.queryByLabelText("Budget Settings")).not.toBeInTheDocument();
   });
 
-  it("shows error state when periods fetch fails", async () => {
+  it("shows empty state when periods fetch fails (toast handles error)", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -200,8 +200,9 @@ describe("HistoryPage", () => {
 
     renderHistoryPage();
 
+    // On error, the page renders with empty data
     await waitFor(() => {
-      expect(screen.getByText("Error")).toBeInTheDocument();
+      expect(screen.getByText("No budget periods yet.")).toBeInTheDocument();
     });
   });
 });
