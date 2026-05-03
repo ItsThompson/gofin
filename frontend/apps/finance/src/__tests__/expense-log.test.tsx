@@ -602,14 +602,26 @@ describe("ExpenseLogPage", () => {
     });
   });
 
-  describe("row click navigation", () => {
-    it("navigates to expense detail on row click", async () => {
+  describe("row click opens detail modal", () => {
+    it("opens expense detail modal on row click", async () => {
       mockAllDataSuccess();
       const user = userEvent.setup();
       renderExpenseLog();
 
       await waitFor(() => {
         expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+      });
+
+      // Mock the modal's fetch calls: GET /api/expenses/exp-1 + GET /api/expenses/exp-1/history
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ expense: mockExpenses[0] }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ entries: [mockExpenses[0]] }),
       });
 
       // Click the first table row containing "Groceries"
@@ -621,7 +633,15 @@ describe("ExpenseLogPage", () => {
       expect(groceriesRow).toBeDefined();
       await user.click(groceriesRow!);
 
-      expect(mockNavigate).toHaveBeenCalledWith("/expenses/exp-1");
+      // The modal should appear with expense details
+      await waitFor(() => {
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+      });
+
+      // Verify modal shows expense data
+      await waitFor(() => {
+        expect(screen.getByText("Expense Detail")).toBeInTheDocument();
+      });
     });
   });
 

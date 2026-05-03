@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import {
   useReactTable,
   getCoreRowModel,
@@ -47,6 +47,7 @@ import {
   resolveTagNames,
   type ExpenseRow,
 } from "@/lib/expense-table-columns";
+import { ExpenseDetailModal } from "@/pages/ExpenseDetailModal";
 
 const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
@@ -59,7 +60,6 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
  * pagination are all client-side.
  */
 export function ExpenseLogPage({ user }: FinancePageProps) {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -70,6 +70,9 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
   const [periods, setPeriods] = useState<BudgetPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Modal state: which expense is being viewed
+  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
   // Filter state: initialize tag filter from URL search params
   const [showFilters, setShowFilters] = useState(() => searchParams.has("tag"));
@@ -164,7 +167,7 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
   }
 
   function handleRowClick(row: ExpenseRow) {
-    navigate(`/expenses/${row.id}`);
+    setSelectedExpenseId(row.id);
   }
 
   function toggleTypeFilter(type: string) {
@@ -539,6 +542,17 @@ export function ExpenseLogPage({ user }: FinancePageProps) {
           <PaginationControls table={table} />
         </>
       )}
+
+      {/* Expense Detail Modal */}
+      <ExpenseDetailModal
+        expenseId={selectedExpenseId}
+        currency={user.currency}
+        tags={tags}
+        currentYear={now.getFullYear()}
+        currentMonth={now.getMonth() + 1}
+        onClose={() => setSelectedExpenseId(null)}
+        onCorrected={() => fetchData()}
+      />
     </div>
   );
 }
