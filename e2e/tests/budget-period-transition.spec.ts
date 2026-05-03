@@ -1,68 +1,92 @@
 import { test, expect } from "@playwright/test";
+import { registerAndOnboard } from "../helpers/auth.js";
 import {
-  registerAndOnboard,
-  confirmNewPeriod,
-  logExpense,
-} from "../helpers/auth.js";
+  apiCreatePeriod,
+  apiCreateExpense,
+  apiGetTags,
+} from "../helpers/api.js";
 
 test.describe("Budget Period Transition", () => {
-  test("creates a past period with expenses, then verifies new-month prompt for current month", async ({
+  test("shows new-month prompt when transitioning from a past period to the current month", async ({
     page,
   }) => {
-    // Setup: register and onboard
+    // Compute a past month (2 months ago) so it never collides with the current month.
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const pastDate = new Date(currentYear, currentMonth - 3, 15);
+    const pastYear = pastDate.getFullYear();
+    const pastMonth = pastDate.getMonth() + 1;
+    const pastDateISO = `${pastYear}-${String(pastMonth).padStart(2, "0")}-15`;
+
+    // Step 1: Register and onboard (no period created yet for current month)
     await registerAndOnboard(page, { budget: "2000" });
-    await confirmNewPeriod(page);
 
-    // Step 1: Log expenses in the current period
-    await logExpense(page, {
-      name: "Rent Payment",
-      amount: "800",
-      type: "essentials",
+    // After onboarding, the dashboard shows the "Set Up [Month]" prompt
+    // for the current month. We need to NOT confirm it: instead, create a
+    // past-month period via API so the user has historical data.
+
+    // Step 2: Create a past-month period via direct API calls
+    await apiCreatePeriod(page.request, {
+      year: pastYear,
+      month: pastMonth,
+      budgetAmount: 200_000, // $2,000 in cents
     });
 
-    await logExpense(page, {
-      name: "Dining Out",
-      amount: "50",
-      type: "desires",
+    // Step 3: Fetch tags (created during onboarding) and log expenses into the past period
+    const { tags } = await apiGetTags(page.request);
+    const firstTag = tags[0];
+
+    await apiCreateExpense(page.request, {
+      name: "Past Rent",
+      amount: 80_000, // $800
+      expenseType: "essentials",
+      tagId: firstTag.id,
+      expenseDate: pastDateISO,
+      periodYear: pastYear,
+      periodMonth: pastMonth,
     });
 
-    // Verify expenses are reflected on the dashboard
-    await expect(page.getByText("Rent Payment")).toBeVisible();
+    await apiCreateExpense(page.request, {
+      name: "Past Groceries",
+      amount: 15_000, // $150
+      expenseType: "essentials",
+      tagId: firstTag.id,
+      expenseDate: pastDateISO,
+      periodYear: pastYear,
+      periodMonth: pastMonth,
+    });
 
-    // Step 2: Navigate to a different month to simulate period transition.
-    // The dashboard loads based on the current system date. Since we can't
-    // change the clock, we verify the period creation flow works by checking
-    // that the period was created successfully and the dashboard is active.
-    //
-    // The "new month prompt" UX is already verified by the registration flow
-    // above (confirmNewPeriod). Here we verify the dashboard shows real data
-    // after expenses are logged.
+    // Step 4: Navigate to the dashboard, which loads the CURRENT month.
+    // Since no period exists for the current month, the "Set Up" prompt appears.
+    await page.goto("/dashboard");
 
-    // Verify the summary bar shows the spent amount
+    // Verify the new-month prompt is visible
+    const monthName = now.toLocaleString("en-US", { month: "long" });
+    await expect(
+      page.getByRole("heading", { name: new RegExp(`Set Up ${monthName}`) }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("No budget period exists for this month"),
+    ).toBeVisible();
+
+    // Step 5: Confirm the defaults to create the current month's period
+    await page
+      .getByRole("button", { name: new RegExp(`Create ${monthName} Period`) })
+      .click();
+
+    // Step 6: Verify the dashboard is fresh with $0 spent
+    await expect(page.getByText("Total Budget")).toBeVisible();
     await expect(page.getByText("Total Spent")).toBeVisible();
 
-    // Verify Total Budget is correct
-    await expect(page.getByText("$2,000.00")).toBeVisible();
+    // The fresh period should show $0.00 for Total Spent
+    const totalSpentCard = page.locator("text=Total Spent").locator("..");
+    await expect(totalSpentCard).toContainText("$0.00");
 
-    // Verify the essentials gauge shows spending
-    const essentialsGauge = page.getByTestId("gauge-essentials");
-    await expect(essentialsGauge).toBeVisible();
-
-    // Verify category gauges render with spending data
-    const desiresGauge = page.getByTestId("gauge-desires");
-    await expect(desiresGauge).toBeVisible();
-
-    // Step 3: Test that the "Set Up [Month]" prompt works by navigating
-    // to the dashboard (which we know shows this prompt when no period exists).
-    // Since we already have a period for the current month, this path was
-    // exercised during confirmNewPeriod above. The key assertion is that
-    // after creating a period and logging expenses, the dashboard is fully
-    // functional with real data.
-
-    // Verify the Recent Expenses section
-    await expect(page.getByText("Rent Payment")).toBeVisible();
-    await expect(page.getByText("$800.00")).toBeVisible();
-    await expect(page.getByText("Dining Out")).toBeVisible();
-    await expect(page.getByText("$50.00")).toBeVisible();
+    // No recent expenses in the current month
+    await expect(page.getByText("No expenses yet")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Log your first expense" }),
+    ).toBeVisible();
   });
 });
