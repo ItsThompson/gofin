@@ -44,8 +44,22 @@ test-backend:
 test-frontend:
     cd frontend && npx turbo test
 
-# Run E2E tests (requires full stack via `just up`)
+# Run E2E tests (requires full stack via `just up` and `just seed-admin`)
 test-e2e:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Checking stack health..."
+    if ! curl -sf -o /dev/null http://localhost:3000 2>/dev/null; then
+        echo "ERROR: Frontend is not reachable at http://localhost:3000" >&2
+        echo "Run 'just up' to start the full stack before running E2E tests." >&2
+        exit 1
+    fi
+    if ! curl -sf -o /dev/null http://localhost:3000/api/health 2>/dev/null; then
+        echo "ERROR: API gateway is not reachable at http://localhost:3000/api/health" >&2
+        echo "Run 'just up' and wait for all services to be healthy." >&2
+        exit 1
+    fi
+    echo "Stack is healthy. Running E2E tests..."
     cd e2e && npx playwright test
 
 # Run all tests
