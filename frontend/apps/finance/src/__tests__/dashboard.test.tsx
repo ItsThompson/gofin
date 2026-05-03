@@ -158,8 +158,8 @@ function mockServerError(message: string) {
 }
 
 /**
- * Mocks the 4 parallel dashboard data fetches after a period is found:
- * summary, spending/by-tag, spending/cumulative, expenses (recent 5)
+ * Mocks the 5 parallel dashboard data fetches after a period is found:
+ * summary, spending/by-tag, spending/cumulative, expenses (recent 5), spending/comparison
  */
 function mockDashboardDataEmpty() {
   // summary
@@ -200,6 +200,13 @@ function mockDashboardDataEmpty() {
     json: () =>
       Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
   });
+  // spending/comparison (fails gracefully for empty dashboard)
+  mockFetch.mockResolvedValueOnce({
+    ok: false,
+    status: 404,
+    json: () =>
+      Promise.resolve({ code: "PERIOD_NOT_FOUND", message: "Not enough data" }),
+  });
 }
 
 function mockDashboardDataWithExpenses() {
@@ -232,6 +239,20 @@ function mockDashboardDataWithExpenses() {
         page: 1,
         pageSize: 5,
         hasMore: false,
+      }),
+  });
+  // spending/comparison
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        comparison: {
+          currentSpent: 54500,
+          previousSpent: 48000,
+          rollingAverage: null,
+          changePercent: 13.54,
+        },
       }),
   });
 }
@@ -612,8 +633,9 @@ describe("DashboardPage", () => {
       });
 
       // totalSpent from summary: 54500 cents = $545.00
+      // Appears in both summary bar and historical comparison widget
       await waitFor(() => {
-        expect(screen.getByText("$545.00")).toBeInTheDocument();
+        expect(screen.getAllByText("$545.00").length).toBeGreaterThanOrEqual(1);
       });
 
       // Remaining: $3,000.00 - $545.00 = $2,455.00
@@ -845,6 +867,143 @@ describe("DashboardPage", () => {
       // Verify the charts wrapper has the responsive hidden class
       const hiddenCharts = container.querySelector(".hidden.md\\:block");
       expect(hiddenCharts).not.toBeNull();
+    });
+  });
+
+  describe("budget settings editor", () => {
+    it("shows budget settings editor when gear button is clicked", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+      });
+
+      const settingsButton = screen.getByLabelText("Budget Settings");
+      await userEvent.click(settingsButton);
+
+      expect(screen.getByTestId("budget-settings-editor")).toBeInTheDocument();
+      expect(screen.getByLabelText("Monthly Budget")).toBeInTheDocument();
+      expect(screen.getByLabelText("Essentials %")).toBeInTheDocument();
+      expect(screen.getByLabelText("Desires %")).toBeInTheDocument();
+      expect(screen.getByLabelText("Savings %")).toBeInTheDocument();
+    });
+
+    it("hides editor when cancel is clicked", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+      });
+
+      await userEvent.click(screen.getByLabelText("Budget Settings"));
+      expect(screen.getByTestId("budget-settings-editor")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByText("Cancel"));
+      expect(screen.queryByTestId("budget-settings-editor")).not.toBeInTheDocument();
+    });
+
+    it("validates E/D/S split sums to 100% on save", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+      });
+
+      await userEvent.click(screen.getByLabelText("Budget Settings"));
+
+      const savingsInput = screen.getByLabelText("Savings %");
+      await userEvent.clear(savingsInput);
+      await userEvent.type(savingsInput, "19");
+
+      await userEvent.click(screen.getByText("Save Changes"));
+
+      await waitFor(() => {
+        expect(screen.getByText(/must sum to 100%/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("historical comparison widget", () => {
+    it("shows historical comparison data with change indicator", async () => {
+      mockPeriodFound();
+      mockDashboardDataWithExpenses();
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("historical-comparison")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Historical Comparison")).toBeInTheDocument();
+      expect(screen.getByText("Current Period")).toBeInTheDocument();
+      expect(screen.getByText("Previous Period")).toBeInTheDocument();
+      expect(screen.getByText("$480.00")).toBeInTheDocument(); // previousSpent
+      expect(screen.getByText(/13\.5% from last period/)).toBeInTheDocument();
+    });
+
+    it("shows 'not enough data' when only one period exists", async () => {
+      mockPeriodFound();
+      // Mock dashboard data but comparison returns only-one-period data
+      // summary
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ summary: mockSummary }),
+      });
+      // spending/by-tag
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ tagSpending: mockTagSpending }),
+      });
+      // spending/cumulative
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ points: mockCumulativeData }),
+      });
+      // recent expenses
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: mockExpenses,
+            total: 2,
+            page: 1,
+            pageSize: 5,
+            hasMore: false,
+          }),
+      });
+      // comparison: only one period
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            comparison: {
+              currentSpent: 54500,
+              previousSpent: 0,
+              rollingAverage: null,
+              changePercent: 0,
+            },
+          }),
+      });
+
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("historical-comparison")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText("Not enough data for comparison"),
+      ).toBeInTheDocument();
     });
   });
 });

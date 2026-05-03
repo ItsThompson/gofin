@@ -10,6 +10,7 @@ import {
   type DefaultsResponse,
   type PeriodResponse,
   type CreatePeriodRequest,
+  type UpdatePeriodRequest,
   type Expense,
   type PaginatedResponse,
   type PeriodSummary,
@@ -18,6 +19,8 @@ import {
   type TagSpendingResponse,
   type CumulativeSpendPoint,
   type CumulativeSpendResponse,
+  type HistoricalComparison,
+  type HistoricalComparisonResponse,
   type User,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
@@ -47,6 +50,8 @@ import {
   AlertTriangle,
   Activity,
   Target,
+  Settings2,
+  History,
 } from "lucide-react";
 import {
   BarChart,
@@ -392,73 +397,125 @@ function CreatePeriodPrompt({
 
 // --- Active Dashboard ---
 
-interface ActiveDashboardProps {
+export interface ActiveDashboardProps {
   period: BudgetPeriod;
   user: User;
+  /** When true, hides editing controls and Log Expense CTA. */
+  readOnly?: boolean;
 }
 
-function ActiveDashboard({ period, user }: ActiveDashboardProps) {
+export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashboardProps) {
   const [summary, setSummary] = useState<PeriodSummary | null>(null);
   const [tagSpending, setTagSpending] = useState<TagSpending[]>([]);
   const [cumulativeData, setCumulativeData] = useState<
     CumulativeSpendPoint[]
   >([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
+  const [comparison, setComparison] = useState<HistoricalComparison | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [currentPeriod, setCurrentPeriod] = useState(period);
+
+  const fetchDashboardData = useCallback(async () => {
+    setDataLoaded(false);
+    setDataError(null);
+    try {
+      const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes] =
+        await Promise.all([
+          apiClient<SummaryResponse>(
+            `/api/finance/summary?year=${currentPeriod.year}&month=${currentPeriod.month}`,
+          ),
+          apiClient<TagSpendingResponse>(
+            `/api/finance/spending/by-tag?year=${currentPeriod.year}&month=${currentPeriod.month}`,
+          ),
+          apiClient<CumulativeSpendResponse>(
+            `/api/finance/spending/cumulative?year=${currentPeriod.year}&month=${currentPeriod.month}`,
+          ),
+          apiClient<PaginatedResponse<Expense>>(
+            `/api/expenses?year=${currentPeriod.year}&month=${currentPeriod.month}&page=1&pageSize=5`,
+          ),
+          apiClient<HistoricalComparisonResponse>(
+            `/api/finance/spending/comparison?year=${currentPeriod.year}&month=${currentPeriod.month}`,
+          ).catch(() => null),
+        ]);
+
+      setSummary(summaryRes.summary);
+      setTagSpending(tagRes.tagSpending);
+      setCumulativeData(cumulativeRes.points);
+      setRecentExpenses(expensesRes.data);
+      if (comparisonRes) {
+        setComparison(comparisonRes.comparison);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load dashboard data";
+      setDataError(message);
+    } finally {
+      setDataLoaded(true);
+    }
+  }, [currentPeriod.year, currentPeriod.month]);
 
   useEffect(() => {
-    async function fetchDashboardData() {
-      try {
-        const [summaryRes, tagRes, cumulativeRes, expensesRes] =
-          await Promise.all([
-            apiClient<SummaryResponse>(
-              `/api/finance/summary?year=${period.year}&month=${period.month}`,
-            ),
-            apiClient<TagSpendingResponse>(
-              `/api/finance/spending/by-tag?year=${period.year}&month=${period.month}`,
-            ),
-            apiClient<CumulativeSpendResponse>(
-              `/api/finance/spending/cumulative?year=${period.year}&month=${period.month}`,
-            ),
-            apiClient<PaginatedResponse<Expense>>(
-              `/api/expenses?year=${period.year}&month=${period.month}&page=1&pageSize=5`,
-            ),
-          ]);
-
-        setSummary(summaryRes.summary);
-        setTagSpending(tagRes.tagSpending);
-        setCumulativeData(cumulativeRes.points);
-        setRecentExpenses(expensesRes.data);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Failed to load dashboard data";
-        setDataError(message);
-      } finally {
-        setDataLoaded(true);
-      }
-    }
     fetchDashboardData();
-  }, [period.year, period.month]);
+  }, [fetchDashboardData]);
+
+  function handlePeriodUpdated(updatedPeriod: BudgetPeriod) {
+    setCurrentPeriod(updatedPeriod);
+    setShowSettings(false);
+    fetchDashboardData();
+  }
 
   const totalSpent = summary?.totalSpent ?? 0;
-  const remaining = summary?.remaining ?? period.budgetAmount;
+  const remaining = summary?.remaining ?? currentPeriod.budgetAmount;
+
+  const monthName = new Date(currentPeriod.year, currentPeriod.month - 1).toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LayoutDashboard className="size-6 text-primary" />
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-bold">
+            {readOnly ? monthName : "Dashboard"}
+          </h1>
         </div>
-        {/* Mobile-only Log Expense button */}
-        <Button asChild className="md:hidden">
-          <Link to="/expenses/new">
-            <PlusCircle className="size-4" />
-            Log Expense
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {!readOnly && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSettings(!showSettings)}
+                aria-label="Budget Settings"
+              >
+                <Settings2 className="size-4" />
+                <span className="hidden sm:inline ml-1">Budget Settings</span>
+              </Button>
+              {/* Mobile-only Log Expense button */}
+              <Button asChild className="md:hidden">
+                <Link to="/expenses/new">
+                  <PlusCircle className="size-4" />
+                  Log Expense
+                </Link>
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Budget Settings Editor */}
+      {showSettings && !readOnly && (
+        <BudgetSettingsEditor
+          period={currentPeriod}
+          currency={user.currency}
+          onSaved={handlePeriodUpdated}
+          onCancel={() => setShowSettings(false)}
+        />
+      )}
 
       {/* Data fetch error banner */}
       {dataError && (
@@ -472,7 +529,7 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
 
       {/* Summary Bar */}
       <SummaryBar
-        budgetAmount={period.budgetAmount}
+        budgetAmount={currentPeriod.budgetAmount}
         totalSpent={totalSpent}
         remaining={remaining}
         daysLeft={
@@ -480,7 +537,7 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
             ? summary.daysInPeriod - summary.daysElapsed
             : Math.max(
                 0,
-                new Date(period.year, period.month, 0).getDate() -
+                new Date(currentPeriod.year, currentPeriod.month, 0).getDate() -
                   new Date().getDate(),
               )
         }
@@ -495,6 +552,14 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
 
       {/* Charts: hidden on mobile per US-DASH-09 */}
       <div className="hidden md:block space-y-6">
+        {/* Historical Comparison Widget */}
+        {comparison && (
+          <HistoricalComparisonWidget
+            comparison={comparison}
+            currency={user.currency}
+          />
+        )}
+
         {/* Tag Spending Chart */}
         {tagSpending.length > 0 && (
           <TagSpendingChart tagSpending={tagSpending} currency={user.currency} />
@@ -510,7 +575,7 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
       </div>
 
       {/* Recent Expenses or Empty State */}
-      {dataLoaded && recentExpenses.length === 0 ? (
+      {dataLoaded && recentExpenses.length === 0 && !readOnly ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Wallet className="mb-4 size-12 text-muted-foreground/50" />
@@ -527,7 +592,7 @@ function ActiveDashboard({ period, user }: ActiveDashboardProps) {
             </Button>
           </CardContent>
         </Card>
-      ) : dataLoaded ? (
+      ) : dataLoaded && recentExpenses.length > 0 ? (
         <RecentExpenses expenses={recentExpenses} currency={user.currency} />
       ) : null}
     </div>
@@ -946,6 +1011,250 @@ function SummaryCard({
         <p className={`mt-1 text-xl font-bold ${valueClassName ?? ""}`}>
           {value}
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Budget Settings Editor ---
+
+interface BudgetSettingsEditorProps {
+  period: BudgetPeriod;
+  currency: string;
+  onSaved: (period: BudgetPeriod) => void;
+  onCancel: () => void;
+}
+
+function BudgetSettingsEditor({
+  period,
+  currency,
+  onSaved,
+  onCancel,
+}: BudgetSettingsEditorProps) {
+  const currencySymbol = getCurrencySymbol(currency);
+  const [budgetDollars, setBudgetDollars] = useState(
+    (period.budgetAmount / 100).toString(),
+  );
+  const [essentials, setEssentials] = useState(String(period.essentialsPercent));
+  const [desires, setDesires] = useState(String(period.desiresPercent));
+  const [savings, setSavings] = useState(String(period.savingsPercent));
+  const [splitError, setSplitError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const splitTotal =
+    (parseInt(essentials, 10) || 0) +
+    (parseInt(desires, 10) || 0) +
+    (parseInt(savings, 10) || 0);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+
+    const essentialsVal = parseInt(essentials, 10) || 0;
+    const desiresVal = parseInt(desires, 10) || 0;
+    const savingsVal = parseInt(savings, 10) || 0;
+    const total = essentialsVal + desiresVal + savingsVal;
+
+    if (total !== 100) {
+      setSplitError(`Percentages must sum to 100%. Currently: ${total}%`);
+      return;
+    }
+
+    const budgetAmountCents = Math.round((parseFloat(budgetDollars) || 0) * 100);
+
+    const body: UpdatePeriodRequest = {
+      budgetAmount: budgetAmountCents,
+      essentialsPercent: essentialsVal,
+      desiresPercent: desiresVal,
+      savingsPercent: savingsVal,
+    };
+
+    setSubmitting(true);
+    try {
+      const response = await apiClient<PeriodResponse>(
+        `/api/finance/periods/${period.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify(body),
+        },
+      );
+      onSaved(response.period);
+    } catch (err) {
+      if (err instanceof ApiRequestError) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card data-testid="budget-settings-editor">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Settings2 className="size-4 text-muted-foreground" />
+            <CardTitle className="text-base">Budget Settings</CardTitle>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <FormField>
+              <FormLabel htmlFor="edit-budget">Monthly Budget</FormLabel>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  {currencySymbol}
+                </span>
+                <Input
+                  id="edit-budget"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={budgetDollars}
+                  onChange={(event) => setBudgetDollars(event.target.value)}
+                  className="pl-6"
+                />
+              </div>
+            </FormField>
+            <FormField>
+              <FormLabel htmlFor="edit-essentials">Essentials %</FormLabel>
+              <Input
+                id="edit-essentials"
+                type="number"
+                min="0"
+                max="100"
+                value={essentials}
+                onChange={(event) => {
+                  setEssentials(event.target.value);
+                  setSplitError(null);
+                }}
+              />
+            </FormField>
+            <FormField>
+              <FormLabel htmlFor="edit-desires">Desires %</FormLabel>
+              <Input
+                id="edit-desires"
+                type="number"
+                min="0"
+                max="100"
+                value={desires}
+                onChange={(event) => {
+                  setDesires(event.target.value);
+                  setSplitError(null);
+                }}
+              />
+            </FormField>
+            <FormField>
+              <FormLabel htmlFor="edit-savings">Savings %</FormLabel>
+              <Input
+                id="edit-savings"
+                type="number"
+                min="0"
+                max="100"
+                value={savings}
+                onChange={(event) => {
+                  setSavings(event.target.value);
+                  setSplitError(null);
+                }}
+              />
+            </FormField>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <FormDescription>Total: {splitTotal}%</FormDescription>
+            <Button type="submit" size="sm" disabled={submitting}>
+              {submitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+          {splitError && <FormMessage>{splitError}</FormMessage>}
+          {error && <FormMessage>{error}</FormMessage>}
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Historical Comparison Widget ---
+
+interface HistoricalComparisonWidgetProps {
+  comparison: HistoricalComparison;
+  currency: string;
+}
+
+function HistoricalComparisonWidget({
+  comparison,
+  currency,
+}: HistoricalComparisonWidgetProps) {
+  const hasPrevious = comparison.previousSpent > 0 || comparison.currentSpent > 0;
+  const isOnlyOnePeriod = comparison.previousSpent === 0 && comparison.changePercent === 0;
+
+  return (
+    <Card data-testid="historical-comparison">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <History className="size-4 text-muted-foreground" />
+          <CardTitle className="text-base">Historical Comparison</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isOnlyOnePeriod ? (
+          <p className="text-sm text-muted-foreground">
+            Not enough data for comparison
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <p className="text-xs text-muted-foreground">Current Period</p>
+              <p className="text-lg font-semibold">
+                {formatCurrency(comparison.currentSpent, currency)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Previous Period</p>
+              <p className="text-lg font-semibold">
+                {formatCurrency(comparison.previousSpent, currency)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                {comparison.rollingAverage != null ? "Rolling Average (3mo)" : "Change"}
+              </p>
+              {comparison.rollingAverage != null ? (
+                <p className="text-lg font-semibold">
+                  {formatCurrency(comparison.rollingAverage, currency)}
+                </p>
+              ) : null}
+              {hasPrevious && (
+                <div className="flex items-center gap-1 mt-1">
+                  {comparison.changePercent > 0 ? (
+                    <TrendingUp className="size-4 text-red-600 dark:text-red-400" />
+                  ) : comparison.changePercent < 0 ? (
+                    <TrendingDown className="size-4 text-green-600 dark:text-green-400" />
+                  ) : null}
+                  <span
+                    className={`text-sm font-medium ${
+                      comparison.changePercent > 0
+                        ? "text-red-600 dark:text-red-400"
+                        : comparison.changePercent < 0
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {comparison.changePercent > 0 ? "+" : ""}
+                    {comparison.changePercent.toFixed(1)}% from last period
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
