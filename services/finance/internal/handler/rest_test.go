@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1273,4 +1274,185 @@ func TestDeleteTagHandler_MissingUserID(t *testing.T) {
 
 	w := doJSONWithUserID(r, "DELETE", "/api/finance/tags/tag-c", "", nil)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- UpdatePeriod Handler Tests ---
+
+func setupTestRouterWithNowFunc(repo *mockFinanceRepository, txBeginner *mockTxBeginner, expClient *mockExpenseClient, nowFunc func() time.Time) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expClient).WithNowFunc(nowFunc)
+
+	h := NewRESTHandler(financeSvc, logger)
+	r := gin.New()
+	h.RegisterRoutes(r)
+	return r
+}
+
+func TestUpdatePeriodHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	// Lock to May 2026
+	nowFunc := func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
+
+	repo.On("GetPeriodByID", mock.Anything, "period-abc", "user-123").Return(&model.BudgetPeriod{
+		ID: "period-abc", UserID: "user-123", Year: 2026, Month: 5,
+		BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+	}, nil)
+
+	repo.On("UpdatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).Return(&model.BudgetPeriod{
+		ID: "period-abc", UserID: "user-123", Year: 2026, Month: 5,
+		BudgetAmount: 500000, EssentialsPercent: 60, DesiresPercent: 20, SavingsPercent: 20,
+	}, nil)
+
+	r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, nowFunc)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/periods/period-abc", "user-123", map[string]interface{}{
+		"budgetAmount":      500000,
+		"essentialsPercent": 60,
+		"desiresPercent":    20,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.PeriodResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, int64(500000), resp.Period.BudgetAmount)
+	assert.Equal(t, int32(60), resp.Period.EssentialsPercent)
+}
+
+func TestUpdatePeriodHandler_PastPeriodLocked(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	nowFunc := func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
+
+	// Period is from April (past month)
+	repo.On("GetPeriodByID", mock.Anything, "period-old", "user-123").Return(&model.BudgetPeriod{
+		ID: "period-old", UserID: "user-123", Year: 2026, Month: 4,
+		BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+	}, nil)
+
+	r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, nowFunc)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/periods/period-old", "user-123", map[string]interface{}{
+		"budgetAmount":      500000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrPeriodLocked, errResp.Code)
+}
+
+func TestUpdatePeriodHandler_InvalidSplit(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	nowFunc := func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
+	r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, nowFunc)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/periods/period-abc", "user-123", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    19, // sums to 99
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp model.ApiError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Contains(t, errResp.Message, "sum to 100%")
+}
+
+func TestUpdatePeriodHandler_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	nowFunc := func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
+	r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, nowFunc)
+
+	w := doJSONWithUserID(r, "PUT", "/api/finance/periods/period-abc", "", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- GetHistoricalComparison Handler Tests ---
+
+func TestGetHistoricalComparisonHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return(&model.BudgetPeriod{
+			ID: "p5", UserID: "user-123", Year: 2026, Month: 5,
+			BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		}, nil)
+
+	repo.On("ListPeriods", mock.Anything, "user-123").Return([]*model.BudgetPeriod{
+		{ID: "p5", UserID: "user-123", Year: 2026, Month: 5, BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20},
+		{ID: "p4", UserID: "user-123", Year: 2026, Month: 4, BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20},
+	}, nil)
+
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return([]service.ExpenseData{{Amount: 80000}}, nil)
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(4)).
+		Return([]service.ExpenseData{{Amount: 60000}}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/comparison?year=2026&month=5", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.HistoricalComparisonResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, int64(80000), resp.Comparison.CurrentSpent)
+	assert.Equal(t, int64(60000), resp.Comparison.PreviousSpent)
+	assert.Nil(t, resp.Comparison.RollingAverage) // only 1 prior period
+	assert.InDelta(t, 33.33, resp.Comparison.ChangePercent, 0.01)
+}
+
+func TestGetHistoricalComparisonHandler_MissingParams(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/comparison", "user-123", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestGetHistoricalComparisonHandler_PeriodNotFound(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return(nil, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/spending/comparison?year=2026&month=5", "user-123", nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }

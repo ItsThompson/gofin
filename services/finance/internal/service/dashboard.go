@@ -69,6 +69,108 @@ func (s *FinanceService) GetCumulativeSpend(ctx context.Context, userID string, 
 	return ComputeCumulativeSpend(expenses, period.BudgetAmount, daysInMonth), nil
 }
 
+// GetHistoricalComparison computes the historical spending comparison for a period.
+// Returns current vs previous period spending, rolling 3-period average, and change percent.
+func (s *FinanceService) GetHistoricalComparison(ctx context.Context, userID string, year, month int32) (*model.HistoricalComparison, error) {
+	// Validate the requested period exists
+	_, err := s.GetCurrentPeriod(ctx, userID, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	// List all periods (ordered year DESC, month DESC)
+	periods, err := s.repo.ListPeriods(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing periods: %w", err)
+	}
+
+	// Find the requested period's position and collect up to 3 prior periods
+	return s.computeHistoricalComparison(ctx, userID, year, month, periods)
+}
+
+// computeHistoricalComparison builds the HistoricalComparison from ordered periods.
+// periods must be ordered year DESC, month DESC.
+func (s *FinanceService) computeHistoricalComparison(
+	ctx context.Context,
+	userID string,
+	year, month int32,
+	periods []*model.BudgetPeriod,
+) (*model.HistoricalComparison, error) {
+	// Find the index of the requested period
+	requestedIdx := -1
+	for i, p := range periods {
+		if p.Year == year && p.Month == month {
+			requestedIdx = i
+			break
+		}
+	}
+	if requestedIdx == -1 {
+		// Should not happen since we validated above, but be defensive
+		return nil, fmt.Errorf("requested period not found in list")
+	}
+
+	// Get current period's total spent
+	currentSpent, err := s.getTotalSpentForPeriod(ctx, userID, periods[requestedIdx])
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect up to 3 prior periods (the ones after requestedIdx in DESC order)
+	var priorPeriods []*model.BudgetPeriod
+	for i := requestedIdx + 1; i < len(periods) && len(priorPeriods) < 3; i++ {
+		priorPeriods = append(priorPeriods, periods[i])
+	}
+
+	result := &model.HistoricalComparison{
+		CurrentSpent: currentSpent,
+	}
+
+	// Previous period spent
+	if len(priorPeriods) > 0 {
+		prevSpent, err := s.getTotalSpentForPeriod(ctx, userID, priorPeriods[0])
+		if err != nil {
+			return nil, err
+		}
+		result.PreviousSpent = prevSpent
+
+		// Change percent
+		if prevSpent > 0 {
+			result.ChangePercent = math.Round(float64(currentSpent-prevSpent)/float64(prevSpent)*10000) / 100
+		} else if currentSpent > 0 {
+			result.ChangePercent = 100.0
+		}
+	}
+
+	// Rolling average: need at least 3 prior periods
+	if len(priorPeriods) >= 3 {
+		var totalForAvg int64
+		for _, p := range priorPeriods[:3] {
+			spent, err := s.getTotalSpentForPeriod(ctx, userID, p)
+			if err != nil {
+				return nil, err
+			}
+			totalForAvg += spent
+		}
+		avg := totalForAvg / 3
+		result.RollingAverage = &avg
+	}
+
+	return result, nil
+}
+
+// getTotalSpentForPeriod fetches expenses for a period and returns the total spent.
+func (s *FinanceService) getTotalSpentForPeriod(ctx context.Context, userID string, period *model.BudgetPeriod) (int64, error) {
+	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, period.Year, period.Month)
+	if err != nil {
+		return 0, fmt.Errorf("fetching expenses for %d-%02d: %w", period.Year, period.Month, err)
+	}
+	var total int64
+	for _, exp := range expenses {
+		total += exp.Amount
+	}
+	return total, nil
+}
+
 // ComputePeriodSummary is the pure computation for a period summary.
 // Exported for direct testing without service/repo dependencies.
 // The now parameter controls the clock for days-elapsed calculation,

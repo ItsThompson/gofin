@@ -35,6 +35,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		finance.GET("/periods/current", h.GetCurrentPeriod)
 		finance.GET("/periods", h.ListPeriods)
 		finance.POST("/periods", h.CreatePeriod)
+		finance.PUT("/periods/:id", h.UpdatePeriod)
 		finance.GET("/tags", h.ListTags)
 		finance.POST("/tags", h.CreateTag)
 		finance.PUT("/tags/:id", h.UpdateTag)
@@ -44,6 +45,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		finance.GET("/summary", h.GetPeriodSummary)
 		finance.GET("/spending/by-tag", h.GetSpendingByTag)
 		finance.GET("/spending/cumulative", h.GetCumulativeSpend)
+		finance.GET("/spending/comparison", h.GetHistoricalComparison)
 	}
 }
 
@@ -400,6 +402,58 @@ func (h *RESTHandler) GetCumulativeSpend(c *gin.Context) {
 
 	c.JSON(http.StatusOK, model.CumulativeSpendResponse{
 		Points: points,
+	})
+}
+
+// UpdatePeriod handles PUT /api/finance/periods/:id.
+// Updates the current period's budget and E/D/S split. Past periods return 403.
+func (h *RESTHandler) UpdatePeriod(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	periodID := c.Param("id")
+
+	var req model.UpdatePeriodRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	period, err := h.financeService.UpdatePeriod(c.Request.Context(), userID, periodID, &req)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.PeriodResponse{
+		Period: period,
+	})
+}
+
+// GetHistoricalComparison handles GET /api/finance/spending/comparison?year=YYYY&month=MM.
+func (h *RESTHandler) GetHistoricalComparison(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	comparison, err := h.financeService.GetHistoricalComparison(c.Request.Context(), userID, year, month)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.HistoricalComparisonResponse{
+		Comparison: comparison,
 	})
 }
 
