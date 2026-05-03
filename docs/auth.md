@@ -6,12 +6,12 @@ Authentication and authorization span two layers: the **Auth Service** (Go, Node
 
 ## JWT Token Architecture
 
-| Token | Cookie Name | Lifetime | Path Scope | Purpose |
-|-------|-------------|----------|------------|---------|
-| Access token | `gofin_access` | 15 minutes | `/api` | Authenticates API requests |
-| Refresh token | `gofin_refresh` | 7 days | `/api/auth/refresh` | Obtains new access tokens |
+| Token | Cookie Name | Path Scope | Purpose |
+|-------|-------------|------------|---------|
+| Access token | `gofin_access` | `/api` | Authenticates API requests (short-lived) |
+| Refresh token | `gofin_refresh` | `/api/auth/refresh` | Obtains new access tokens (long-lived) |
 
-Both cookies are `HttpOnly`, `Secure`, and `SameSite=Strict`. JavaScript cannot access them (XSS protection), and they are only sent over HTTPS in production. The refresh token's narrow path scope prevents it from being sent on non-refresh requests.
+Both cookies are `HttpOnly`, `Secure`, and `SameSite=Strict`. JavaScript cannot access them (XSS protection), and they are only sent over HTTPS in production. The refresh token's narrow path scope prevents it from being sent on non-refresh requests. Token lifetimes are configured in the Auth Service.
 
 ### Access Token Claims
 
@@ -55,7 +55,7 @@ exp  : Expiration timestamp
 ### Registration
 
 1. User submits username, email, and password
-2. Auth Service validates uniqueness and password strength (min 8 chars, 1 uppercase, 1 lowercase, 1 digit)
+2. Auth Service validates uniqueness and password strength (configurable; see Auth Service code for current rules)
 3. Password is bcrypt-hashed and user record is created
 4. JWT pair is generated, set as httpOnly cookies
 5. User is redirected to onboarding

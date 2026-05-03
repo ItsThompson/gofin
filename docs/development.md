@@ -2,15 +2,13 @@
 
 ## Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| [Docker](https://docs.docker.com/get-docker/) | 24+ | Container runtime |
-| [Just](https://github.com/casey/just) | 1.0+ | Command runner |
-| [Go](https://go.dev/dl/) | 1.22+ | Backend services |
-| [Node.js](https://nodejs.org/) | 20+ | Frontend and tooling |
-| [protoc](https://grpc.io/docs/protoc-installation/) | 3.x | Protobuf compilation |
-| [golang-migrate](https://github.com/golang-migrate/migrate) | 4.x | Database migrations |
-| [sqlc](https://sqlc.dev/) | 1.x | Type-safe SQL code generation |
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Just](https://github.com/casey/just) command runner
+- [Go](https://go.dev/dl/) (see `services/*/go.mod` for required version)
+- [Node.js](https://nodejs.org/) (see `frontend/package.json` for required version)
+- [protoc](https://grpc.io/docs/protoc-installation/) (for protobuf compilation)
+- [golang-migrate](https://github.com/golang-migrate/migrate) (for database migrations)
+- [sqlc](https://sqlc.dev/) (for type-safe SQL code generation)
 
 ## Environment Setup
 
@@ -115,61 +113,23 @@ npx turbo test    # Run all frontend tests
 
 ## Environment Variables
 
-### Shared
+All environment variables are documented in `.env.example` with sensible defaults for local development:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `JWT_SECRET` | Shared JWT signing key | (required) |
-| `LOG_LEVEL` | Structured logging level | `info` |
-| `ENVIRONMENT` | Runtime environment | `development` |
+```bash
+cp .env.example .env
+```
 
-### Auth Service
+Key variable groups:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AUTH_DB_URL` | PostgreSQL connection string (auth schema) | (required) |
-| `BCRYPT_COST` | Password hashing cost factor | `12` (dev override: `4`) |
-| `ADMIN_USERNAME` | Admin seed username | (seed-admin only) |
-| `ADMIN_EMAIL` | Admin seed email | (seed-admin only) |
-| `ADMIN_PASSWORD` | Admin seed password | (seed-admin only) |
+- **Shared**: `JWT_SECRET`, `LOG_LEVEL`, `ENVIRONMENT`
+- **Auth Service**: PostgreSQL connection, bcrypt cost, admin seed credentials
+- **Finance Service**: PostgreSQL connection, expense service gRPC address
+- **Expense Service**: immudb connection credentials
+- **API Gateway**: service addresses (gRPC and REST) for auth, expense, and finance
+- **MFE (Shell)**: API gateway URL, cookie security flag
+- **Grafana Auth Proxy**: JWT secret, Grafana URL
 
-### Finance Service
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FINANCE_DB_URL` | PostgreSQL connection string (finance schema) | (required) |
-| `EXPENSE_SERVICE_ADDR` | gRPC address of expense service | (required) |
-
-### Expense Service
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `IMMUDB_ADDR` | immudb connection address | (required) |
-| `IMMUDB_USERNAME` | immudb credentials | (required) |
-| `IMMUDB_PASSWORD` | immudb credentials | (required) |
-
-### API Gateway
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AUTH_SERVICE_ADDR` | Auth service gRPC address | (required) |
-| `AUTH_SERVICE_REST` | Auth service REST address | (required) |
-| `EXPENSE_SERVICE_REST` | Expense service REST address | (required) |
-| `FINANCE_SERVICE_REST` | Finance service REST address | (required) |
-
-### MFE (Shell)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `API_GATEWAY_URL` | Internal URL for API proxy target | (required) |
-| `COOKIE_SECURE` | Require HTTPS for cookies | `false` (dev), `true` (prod) |
-
-### Grafana Auth Proxy
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `JWT_SECRET` | Same signing key as auth service | (required) |
-| `GRAFANA_URL` | Internal Grafana URL | (required) |
+See `.env.example` for the complete list with descriptions and example values.
 
 ## Admin Bootstrap
 

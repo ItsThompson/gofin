@@ -95,8 +95,8 @@ graph TB
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [Just](https://github.com/casey/just) command runner
-- [Go 1.22+](https://go.dev/dl/) (for backend development)
-- [Node.js 20+](https://nodejs.org/) (for frontend development)
+- [Go](https://go.dev/dl/) (see `services/*/go.mod` for version)
+- [Node.js](https://nodejs.org/) (see `frontend/package.json` for version)
 
 ### One-Command Start
 
@@ -138,39 +138,28 @@ docker compose --profile tunnels up -d --build
 
 ## Available Commands
 
+Run `just --list` for the full set of recipes. Key commands:
+
 | Command | Description |
 |---------|-------------|
 | `just up` | Build and start the full stack |
-| `just up-dev` | Start with dev overrides (volume mounts, debug ports) |
 | `just down` | Stop all containers |
 | `just reset` | Stop and remove all volumes (full data reset) |
 | `just dev-infra` | Start only databases and monitoring |
 | `just dev-service <name>` | Run a single Go service locally |
 | `just dev-frontend` | Start the Turborepo frontend with hot reload |
 | `just test` | Run all backend and frontend tests |
-| `just test-backend` | Run Go tests across all services |
-| `just test-frontend` | Run frontend tests via Turborepo |
-| `just test-e2e` | Run Playwright E2E tests (requires running stack) |
-| `just lint` | Lint all backend and frontend code |
 | `just seed-admin` | Create the initial admin user |
-| `just migrate <service> [up\|down]` | Run database migrations |
-| `just sqlc <service>` | Regenerate sqlc type-safe query code |
-| `just proto <service>` | Regenerate protobuf/gRPC code |
-| `just logs <service>` | Tail logs for a specific container |
 
 ## Service Ports
 
-| Service | HTTP | gRPC | Purpose |
-|---------|------|------|---------|
-| Shell (MFE) | 3000 | — | SSR frontend + API reverse proxy |
-| API Gateway | 8080 | — | Auth-validating reverse proxy |
-| Auth Service | 8081 | 9081 | JWT, RBAC, user management |
-| Expense Service | 8082 | 9082 | Immutable expense ledger |
-| Finance Service | 8083 | 9083 | Budgets, tags, aggregations |
-| PostgreSQL | 5432 | — | Relational storage |
-| immudb | 3322 | — | Append-only ledger storage |
-| Prometheus | 9090 | — | Metrics collection |
-| Grafana | 3001 | — | Dashboards and visualization |
+See `docker-compose.yml` for the full port mapping. Default local access:
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| App | `http://localhost:3000` | Frontend (SSR + API proxy) |
+| Grafana | `http://localhost:3001` | Dashboards and visualization |
+| Prometheus | `http://localhost:9090` | Metrics collection |
 
 ## Further Reading
 

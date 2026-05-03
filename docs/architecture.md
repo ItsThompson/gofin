@@ -24,7 +24,7 @@ graph LR
 
     subgraph Node3[Node 3: Data]
         direction TB
-        PG[(PostgreSQL 16)]
+        PG[(PostgreSQL)]
         IM[(immudb)]
     end
 
@@ -66,7 +66,7 @@ The shell is the deepest module in the frontend. It is the only app rendered dir
 
 The shell owns:
 
-- **SSR**: React Router 7 server-side rendering for fast initial page loads
+- **SSR**: server-side rendering via React Router for fast initial page loads
 - **API Proxy**: reverse proxies all `/api/*` requests to the API Gateway on Node 2, keeping the gateway off the public internet
 - **Routing**: the complete route tree; remotes export page components, not routed applications
 - **Auth Context**: a Zustand store shared across all remotes via Module Federation's shared scope
@@ -115,7 +115,7 @@ The business logic hub, orchestrating budgets, tags, and dashboard data:
 
 ### Databases (Node 3)
 
-- **PostgreSQL 16**: single instance with two schemas (`auth`, `finance`), each accessed by its owning service via separate credentials. Logical isolation with the option to split later.
+- **PostgreSQL**: single instance with two schemas (`auth`, `finance`), each accessed by its owning service via separate credentials. Logical isolation with the option to split later.
 - **immudb**: append-only storage for expense ledger entries. SQL interface for queries, native Go client for writes.
 
 ### Observability Stack (Node 4)
