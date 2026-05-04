@@ -45,6 +45,9 @@ e2e/blob-report/
 # Module Federation cache/diagnostics
 .mf/
 
+# Cloudflare tunnel credentials
+deployments/cloudflare/*.json
+
 # Stray protobuf generated output
 services/*/github.com/
 

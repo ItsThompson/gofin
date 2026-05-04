@@ -22,7 +22,10 @@ services:
 
   cloudflared-app:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate --url http://mfe:3000
+    command: tunnel --no-autoupdate run gofin-app
+    volumes:
+      - ./deployments/cloudflare/config-app.yml:/etc/cloudflared/config.yml:ro
+      - ./deployments/cloudflare/gofin-app.json:/etc/cloudflared/credentials.json:ro
     networks:
       - edge-net
     depends_on:
@@ -265,7 +268,10 @@ services:
 
   cloudflared-grafana:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate --url http://grafana-auth-proxy:3002
+    command: tunnel --no-autoupdate run gofin-grafana
+    volumes:
+      - ./deployments/cloudflare/config-grafana.yml:/etc/cloudflared/config.yml:ro
+      - ./deployments/cloudflare/gofin-grafana.json:/etc/cloudflared/credentials.json:ro
     networks:
       - monitoring-net
     depends_on:
