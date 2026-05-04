@@ -26,6 +26,7 @@ services:
     volumes:
       - ./deployments/cloudflare/config-app.rendered.yml:/etc/cloudflared/config.yml:ro
       - ./deployments/cloudflare/gofin-app.json:/etc/cloudflared/credentials.json:ro
+      - ./deployments/cloudflare/cert.pem:/etc/cloudflared/cert.pem:ro
     networks:
       - edge-net
     depends_on:
@@ -272,6 +273,7 @@ services:
     volumes:
       - ./deployments/cloudflare/config-grafana.rendered.yml:/etc/cloudflared/config.yml:ro
       - ./deployments/cloudflare/gofin-grafana.json:/etc/cloudflared/credentials.json:ro
+      - ./deployments/cloudflare/cert.pem:/etc/cloudflared/cert.pem:ro
     networks:
       - monitoring-net
     depends_on:
