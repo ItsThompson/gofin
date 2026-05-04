@@ -19,7 +19,6 @@ app.use(
     target: API_GATEWAY_URL,
     pathFilter: "/api",
     changeOrigin: true,
-    cookieDomainRewrite: "",
     on: {
       proxyReq: (proxyReq, req) => {
         // Forward the original host for logging/audit
