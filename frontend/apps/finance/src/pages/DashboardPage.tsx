@@ -423,44 +423,46 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
   const fetchDashboardData = useCallback(async () => {
     setDataLoaded(false);
-    const result = await toastCall(async () => {
-      const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
-        await Promise.all([
+
+    // Fetch each section independently so a single endpoint failure
+    // doesn't prevent the rest of the dashboard from rendering.
+    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
+      await Promise.all([
+        toastCall(() =>
           apiClient<SummaryResponse>(
             `/api/finance/summary?year=${currentPeriod.year}&month=${currentPeriod.month}`,
           ),
+        ),
+        toastCall(() =>
           apiClient<TagSpendingResponse>(
             `/api/finance/spending/by-tag?year=${currentPeriod.year}&month=${currentPeriod.month}`,
           ),
+        ),
+        toastCall(() =>
           apiClient<CumulativeSpendResponse>(
             `/api/finance/spending/cumulative?year=${currentPeriod.year}&month=${currentPeriod.month}`,
           ),
+        ),
+        toastCall(() =>
           apiClient<PaginatedResponse<Expense>>(
             `/api/expenses?year=${currentPeriod.year}&month=${currentPeriod.month}&page=1&pageSize=5`,
           ),
-          apiClient<HistoricalComparisonResponse>(
-            `/api/finance/spending/comparison?year=${currentPeriod.year}&month=${currentPeriod.month}`,
-          ).catch(() => null),
-          apiClient<UpcomingProRataResponse>(
-            `/api/finance/prorata/upcoming`,
-          ).catch(() => ({ schedules: [] })),
-        ]);
+        ),
+        apiClient<HistoricalComparisonResponse>(
+          `/api/finance/spending/comparison?year=${currentPeriod.year}&month=${currentPeriod.month}`,
+        ).catch(() => null),
+        apiClient<UpcomingProRataResponse>(
+          `/api/finance/prorata/upcoming`,
+        ).catch(() => ({ schedules: [] as ProRataSchedule[] })),
+      ]);
 
-      return { summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes };
-    });
+    if (summaryRes) setSummary(summaryRes.summary);
+    if (tagRes) setTagSpending(tagRes.tagSpending);
+    if (cumulativeRes) setCumulativeData(cumulativeRes.points);
+    if (expensesRes) setRecentExpenses(expensesRes.data);
+    if (comparisonRes) setComparison(comparisonRes.comparison);
+    if (upcomingRes) setUpcomingProRata(upcomingRes.schedules);
 
-    if (result) {
-      setSummary(result.summaryRes.summary);
-      setTagSpending(result.tagRes.tagSpending);
-      setCumulativeData(result.cumulativeRes.points);
-      setRecentExpenses(result.expensesRes.data);
-      if (result.comparisonRes) {
-        setComparison(result.comparisonRes.comparison);
-      }
-      if (result.upcomingRes) {
-        setUpcomingProRata(result.upcomingRes.schedules);
-      }
-    }
     setDataLoaded(true);
   }, [currentPeriod.year, currentPeriod.month, toastCall]);
 
