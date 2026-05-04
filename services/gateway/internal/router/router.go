@@ -58,6 +58,7 @@ func New(
 	authGroup := engine.Group("/api/auth")
 	authGroup.Use(middleware.AdminRouteGuard(logger))
 	{
+		authGroup.Any("", ginWrapHandler(authProxy))
 		authGroup.Any("/*path", ginWrapHandler(authProxy))
 	}
 
@@ -65,18 +66,21 @@ func New(
 	adminGroup := engine.Group("/api/admin")
 	adminGroup.Use(middleware.RequireAdmin(logger))
 	{
+		adminGroup.Any("", ginWrapHandler(authProxy))
 		adminGroup.Any("/*path", ginWrapHandler(authProxy))
 	}
 
 	// /api/expenses/* → Expense service (REST)
 	expenseGroup := engine.Group("/api/expenses")
 	{
+		expenseGroup.Any("", ginWrapHandler(expenseProxy))
 		expenseGroup.Any("/*path", ginWrapHandler(expenseProxy))
 	}
 
 	// /api/finance/* → Finance service (REST)
 	financeGroup := engine.Group("/api/finance")
 	{
+		financeGroup.Any("", ginWrapHandler(financeProxy))
 		financeGroup.Any("/*path", ginWrapHandler(financeProxy))
 	}
 
