@@ -22,12 +22,9 @@ services:
 
   cloudflared-app:
     image: cloudflare/cloudflared:latest
-    entrypoint: ["sh", "-c", "envsubst < /etc/cloudflared/config.yml.tmpl > /etc/cloudflared/config.yml && cloudflared tunnel --no-autoupdate run"]
-    environment:
-      - CF_APP_TUNNEL_ID=${CF_APP_TUNNEL_ID}
-      - CF_APP_HOSTNAME=${CF_APP_HOSTNAME}
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
-      - ./deployments/cloudflare/config-app.yml:/etc/cloudflared/config.yml.tmpl:ro
+      - ./deployments/cloudflare/config-app.rendered.yml:/etc/cloudflared/config.yml:ro
       - ./deployments/cloudflare/gofin-app.json:/etc/cloudflared/credentials.json:ro
     networks:
       - edge-net
@@ -271,12 +268,9 @@ services:
 
   cloudflared-grafana:
     image: cloudflare/cloudflared:latest
-    entrypoint: ["sh", "-c", "envsubst < /etc/cloudflared/config.yml.tmpl > /etc/cloudflared/config.yml && cloudflared tunnel --no-autoupdate run"]
-    environment:
-      - CF_GRAFANA_TUNNEL_ID=${CF_GRAFANA_TUNNEL_ID}
-      - CF_GRAFANA_HOSTNAME=${CF_GRAFANA_HOSTNAME}
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
-      - ./deployments/cloudflare/config-grafana.yml:/etc/cloudflared/config.yml.tmpl:ro
+      - ./deployments/cloudflare/config-grafana.rendered.yml:/etc/cloudflared/config.yml:ro
       - ./deployments/cloudflare/gofin-grafana.json:/etc/cloudflared/credentials.json:ro
     networks:
       - monitoring-net
