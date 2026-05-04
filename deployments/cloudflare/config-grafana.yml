@@ -1,7 +1,7 @@
-tunnel: e3ba28ca-a98c-4a63-b250-b911154bc1fc
+tunnel: ${CF_GRAFANA_TUNNEL_ID}
 credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
-  - hostname: grafana.usegofin.com
+  - hostname: ${CF_GRAFANA_HOSTNAME}
     service: http://grafana-auth-proxy:3002
   - service: http_status:404

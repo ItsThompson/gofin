@@ -1,7 +1,7 @@
-tunnel: 2d903f4e-a0ad-474d-9e17-32abaa481a2b
+tunnel: ${CF_APP_TUNNEL_ID}
 credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
-  - hostname: usegofin.com
+  - hostname: ${CF_APP_HOSTNAME}
     service: http://mfe:3000
   - service: http_status:404
