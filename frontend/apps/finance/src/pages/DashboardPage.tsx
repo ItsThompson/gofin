@@ -72,8 +72,8 @@ import {
   ResponsiveContainer,
   ComposedChart,
 } from "recharts";
-import type { DashboardState, FinancePageProps } from "@/types";
-import { getRemainingColor } from "@/lib/budget-utils";
+import type { DashboardState, FinancePageProps } from "../types";
+import { getRemainingColor } from "../lib/budget-utils";
 
 /**
  * Dashboard page: the central finance view.

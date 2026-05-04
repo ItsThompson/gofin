@@ -36,7 +36,7 @@ import {
   X,
   Shield,
 } from "lucide-react";
-import type { SettingsPageProps } from "@/types";
+import type { SettingsPageProps } from "../types";
 
 const CURRENCY_OPTIONS = [
   { code: "USD", label: "USD ($)" },

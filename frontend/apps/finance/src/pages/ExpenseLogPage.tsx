@@ -39,13 +39,13 @@ import {
   Filter,
   X,
 } from "lucide-react";
-import type { FinancePageProps } from "@/types";
+import type { FinancePageProps } from "../types";
 import {
   buildExpenseColumns,
   resolveTagNames,
   type ExpenseRow,
-} from "@/lib/expense-table-columns";
-import { ExpenseDetailModal } from "@/pages/ExpenseDetailModal";
+} from "../lib/expense-table-columns";
+import { ExpenseDetailModal } from "./ExpenseDetailModal";
 import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
 
 const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;

@@ -27,7 +27,7 @@ import {
   FormMessage,
 } from "@gofin/ui/components/form";
 import { PlusCircle } from "lucide-react";
-import type { FinancePageProps } from "@/types";
+import type { FinancePageProps } from "../types";
 
 /** Valid expense types matching the backend enum. */
 const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;

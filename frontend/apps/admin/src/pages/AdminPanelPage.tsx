@@ -9,7 +9,7 @@ import {
 } from "@gofin/ui/components/card";
 import { apiClient, useApiToast } from "@gofin/types";
 import { Shield, UserCheck, Loader2, Activity, ExternalLink } from "lucide-react";
-import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "@/types";
+import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "../types";
 
 type LoadState = "loading" | "error" | "success";
 

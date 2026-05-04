@@ -16,8 +16,8 @@ import {
   CardContent,
 } from "@gofin/ui/components/card";
 import { History, ArrowLeft, Loader2, ArrowRight } from "lucide-react";
-import type { FinancePageProps } from "@/types";
-import { ActiveDashboard } from "@/pages/DashboardPage";
+import type { FinancePageProps } from "../types";
+import { ActiveDashboard } from "./DashboardPage";
 
 interface HistoricalPeriodRow {
   period: BudgetPeriod;
