@@ -65,8 +65,8 @@ services:
 
   auth-service:
     build:
-      context: ./services/auth
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: auth/Dockerfile
     ports:
       - "8081:8081"
       - "9081:9081"
@@ -92,8 +92,8 @@ services:
 
   expense-service:
     build:
-      context: ./services/expense
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: expense/Dockerfile
     ports:
       - "8082:8082"
       - "9082:9082"
@@ -120,8 +120,8 @@ services:
 
   finance-service:
     build:
-      context: ./services/finance
-      dockerfile: Dockerfile
+      context: ./services
+      dockerfile: finance/Dockerfile
     ports:
       - "8083:8083"
       - "9083:9083"

@@ -1,15 +1,26 @@
 # Stage 1: Build
+# Context is ./services (set in docker-compose.yml) so the metrics and
+# expense modules are available for the replace directives in go.mod.
 FROM golang:1.26-alpine AS builder
 WORKDIR /app
-COPY go.mod go.sum* ./
-RUN [ -f go.sum ] && go mod download || true
-COPY . .
-RUN CGO_ENABLED=0 go build -o /service ./cmd/main.go
+
+# Copy module files for dependency caching.
+COPY finance/go.mod finance/go.sum* ./finance/
+COPY metrics/go.mod metrics/go.sum* ./metrics/
+COPY expense/go.mod expense/go.sum* ./expense/
+RUN cd finance && GOWORK=off go mod download
+
+# Copy source.
+COPY finance/ ./finance/
+COPY metrics/ ./metrics/
+COPY expense/ ./expense/
+
+RUN cd finance && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/main.go
 
 # Stage 2: Runtime
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /service /service
-COPY db/migrations /migrations
+COPY finance/db/migrations /migrations
 EXPOSE 8083 9083
 CMD ["/service"]
