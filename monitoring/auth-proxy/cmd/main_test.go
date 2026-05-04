@@ -14,6 +14,8 @@ import (
 
 const testSecret = "test-jwt-secret"
 
+const testAppURL = "http://localhost:3000"
+
 // generateTestToken creates a signed JWT for testing.
 func generateTestToken(t *testing.T, role, username string, expiresAt time.Time) string {
 	t.Helper()
@@ -45,7 +47,7 @@ func newTestProxy(t *testing.T) (http.Handler, *httptest.Server) {
 	t.Cleanup(backend.Close)
 
 	proxy := newReverseProxy(backend.URL)
-	handler := authHandler([]byte(testSecret), proxy)
+	handler := authHandler([]byte(testSecret), proxy, testAppURL)
 	return handler, backend
 }
 
@@ -150,7 +152,7 @@ func TestProxyForwardsRequestPath(t *testing.T) {
 	t.Cleanup(backend.Close)
 
 	proxy := newReverseProxy(backend.URL)
-	handler := authHandler([]byte(testSecret), proxy)
+	handler := authHandler([]byte(testSecret), proxy, testAppURL)
 
 	token := generateTestToken(t, "admin", "alice", time.Now().Add(15*time.Minute))
 	req := httptest.NewRequest(http.MethodGet, "/d/system-overview?orgId=1", nil)
@@ -174,6 +176,7 @@ func TestErrorPageHTML(t *testing.T) {
 	body := rec.Body.String()
 	assert.Contains(t, body, "<!DOCTYPE html>")
 	assert.Contains(t, body, "<html")
-	assert.Contains(t, body, "← Back to gofin")
+	assert.Contains(t, body, testAppURL)
+	assert.Contains(t, body, "Back to gofin")
 }
 

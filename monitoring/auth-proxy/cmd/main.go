@@ -31,9 +31,14 @@ func main() {
 		log.Fatal("GRAFANA_URL environment variable is required")
 	}
 
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "http://localhost:3000"
+	}
+
 	proxy := newReverseProxy(grafanaURL)
 
-	http.HandleFunc("/", authHandler([]byte(jwtSecret), proxy))
+	http.HandleFunc("/", authHandler([]byte(jwtSecret), proxy, appURL))
 
 	addr := ":3002"
 	log.Printf("grafana-auth-proxy listening on %s, forwarding to %s", addr, grafanaURL)
@@ -43,25 +48,25 @@ func main() {
 }
 
 // authHandler returns an HTTP handler that validates the JWT cookie and proxies to Grafana.
-func authHandler(secret []byte, proxy *httputil.ReverseProxy) http.HandlerFunc {
+func authHandler(secret []byte, proxy *httputil.ReverseProxy, appURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("gofin_access")
 		if err != nil {
 			renderError(w, http.StatusUnauthorized, "Authentication Required",
-				"No access token found. Please log in to the gofin application first.")
+				"No access token found. Please log in to the gofin application first.", appURL)
 			return
 		}
 
 		claims, err := validateToken(cookie.Value, secret)
 		if err != nil {
 			renderError(w, http.StatusUnauthorized, "Authentication Failed",
-				"Your session has expired or is invalid. Please log in again.")
+				"Your session has expired or is invalid. Please log in again.", appURL)
 			return
 		}
 
 		if claims.Role != "admin" {
 			renderError(w, http.StatusForbidden, "Access Denied",
-				"Grafana dashboards are restricted to administrators. Contact your admin for access.")
+				"Grafana dashboards are restricted to administrators. Contact your admin for access.", appURL)
 			return
 		}
 
@@ -91,11 +96,12 @@ func validateToken(tokenString string, secret []byte) (*accessTokenClaims, error
 }
 
 // renderError writes a user-friendly HTML error page.
-func renderError(w http.ResponseWriter, status int, title, message string) {
+func renderError(w http.ResponseWriter, status int, title, message, appURL string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	safeTitle := html.EscapeString(title)
 	safeMessage := html.EscapeString(message)
+	safeAppURL := html.EscapeString(appURL)
 	fmt.Fprintf(w, `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -118,10 +124,10 @@ func renderError(w http.ResponseWriter, status int, title, message string) {
     <div class="icon">%s</div>
     <h1>%s</h1>
     <p>%s</p>
-    <a href="/">← Back to gofin</a>
+    <a href="%s">← Back to gofin</a>
   </div>
 </body>
-</html>`, safeTitle, statusIcon(status), safeTitle, safeMessage)
+</html>`, safeTitle, statusIcon(status), safeTitle, safeMessage, safeAppURL)
 }
 
 // newReverseProxy creates a reverse proxy for the given target URL.

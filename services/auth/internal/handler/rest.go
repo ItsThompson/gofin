@@ -173,12 +173,13 @@ func (h *RESTHandler) CompleteOnboarding(c *gin.Context) {
 func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 	c.SetSameSite(http.SameSiteStrictMode)
 
-	// Access token: 15-minute expiry, scoped to /api
+	// Access token: 15-minute expiry, root path so the Grafana auth proxy
+	// (on a separate port) can also receive the cookie.
 	c.SetCookie(
 		"gofin_access",          // name
 		tokens.AccessToken,      // value
 		int(15*time.Minute/time.Second), // maxAge in seconds
-		"/api",                  // path
+		"/",                     // path
 		"",                      // domain (empty = request host)
 		h.cookieSecure,          // secure
 		true,                    // httpOnly
@@ -221,7 +222,7 @@ func (h *RESTHandler) handleError(c *gin.Context, err error) {
 // with the same path and flags as the originals.
 func (h *RESTHandler) clearAuthCookies(c *gin.Context) {
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("gofin_access", "", -1, "/api", "", h.cookieSecure, true)
+	c.SetCookie("gofin_access", "", -1, "/", "", h.cookieSecure, true)
 	c.SetCookie("gofin_refresh", "", -1, "/api/auth", "", h.cookieSecure, true)
 }
 

@@ -256,6 +256,7 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - GRAFANA_URL=http://grafana:3000
+      - APP_URL=http://localhost:3000
     networks:
       - monitoring-net
     depends_on:

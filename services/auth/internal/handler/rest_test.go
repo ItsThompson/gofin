@@ -187,7 +187,7 @@ func TestRegisterHandler_Success(t *testing.T) {
 	accessCookie := findCookie(cookies, "gofin_access")
 	require.NotNil(t, accessCookie, "expected gofin_access cookie")
 	assert.True(t, accessCookie.HttpOnly)
-	assert.Equal(t, "/api", accessCookie.Path)
+	assert.Equal(t, "/", accessCookie.Path)
 	assert.Equal(t, http.SameSiteStrictMode, accessCookie.SameSite)
 	assert.Equal(t, 900, accessCookie.MaxAge) // 15 minutes
 
@@ -351,7 +351,7 @@ func TestLoginHandler_Success(t *testing.T) {
 	accessCookie := findCookie(cookies, "gofin_access")
 	require.NotNil(t, accessCookie, "expected gofin_access cookie")
 	assert.True(t, accessCookie.HttpOnly)
-	assert.Equal(t, "/api", accessCookie.Path)
+	assert.Equal(t, "/", accessCookie.Path)
 	assert.Equal(t, http.SameSiteStrictMode, accessCookie.SameSite)
 	assert.Equal(t, 900, accessCookie.MaxAge)
 
@@ -452,7 +452,7 @@ func TestRefreshHandler_Success(t *testing.T) {
 	accessCookie := findCookie(cookies, "gofin_access")
 	require.NotNil(t, accessCookie)
 	assert.True(t, accessCookie.HttpOnly)
-	assert.Equal(t, "/api", accessCookie.Path)
+	assert.Equal(t, "/", accessCookie.Path)
 
 	newRefreshCookie := findCookie(cookies, "gofin_refresh")
 	require.NotNil(t, newRefreshCookie)
