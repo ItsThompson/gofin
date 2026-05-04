@@ -24,6 +24,10 @@ reset:
 dev-frontend:
     cd frontend && npx turbo dev
 
+# Start the frontend in mock mode (no backend required)
+dev-mock:
+    cd frontend/apps/shell && npm run dev:mock
+
 # Start a specific backend service for development
 dev-service service:
     cd services/{{service}} && go run ./cmd/main.go

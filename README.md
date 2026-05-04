@@ -113,9 +113,26 @@ just seed-admin
 
 The app is available at `http://localhost:3000`. Grafana dashboards are at `http://localhost:3001`.
 
+### Frontend Only (Mock Mode)
+
+To work on the UI without running any backend services or Docker containers:
+
+```bash
+just dev-mock
+```
+
+This starts the shell app with [MSW](https://mswjs.io/) (Mock Service Worker) intercepting all `/api/*` requests in the browser. The mock layer returns realistic seed data: an admin user, budget period, expenses, tags, and dashboard aggregations. No Docker, no Go services, no databases required.
+
+Mock mode is useful for:
+- Iterating on UI components, layouts, and styling
+- Testing frontend state management and error flows
+- Onboarding new frontend contributors who don't need the full stack
+
+Mock handlers live in `frontend/apps/shell/mocks/`. See the [Development Guide](docs/development.md) for details.
+
 ### Service-Focused Development
 
-For iterating on a single service without rebuilding all containers:
+For iterating on a single backend service without rebuilding all containers:
 
 ```bash
 # Start databases and monitoring only
@@ -145,6 +162,7 @@ Run `just --list` for the full set of recipes. Key commands:
 | `just up` | Build and start the full stack |
 | `just down` | Stop all containers |
 | `just reset` | Stop and remove all volumes (full data reset) |
+| `just dev-mock` | Start the frontend with mock API (no backend needed) |
 | `just dev-infra` | Start only databases and monitoring |
 | `just dev-service <name>` | Run a single Go service locally |
 | `just dev-frontend` | Start the Turborepo frontend with hot reload |

@@ -49,6 +49,35 @@ just dev-frontend           # Start the Turborepo frontend with HMR
 just up-dev
 ```
 
+### Frontend Only (Mock Mode)
+
+To work on the UI without running any backend services or Docker containers:
+
+```bash
+just dev-mock
+```
+
+This starts the shell dev server with the `VITE_MOCK_API=true` flag, which activates [MSW](https://mswjs.io/) (Mock Service Worker) in the browser. MSW intercepts all `fetch` calls to `/api/*` before they reach the express proxy, so the backend never needs to be running.
+
+The mock layer provides:
+
+- An authenticated admin user (auto-logged in)
+- A current-month budget period ($3,000, 50/30/20 split)
+- Seven sample expenses across different categories and tags
+- All eleven default tags plus one custom tag
+- Dashboard aggregation data (summary, pacing, tag spending, cumulative chart, historical comparison)
+- An upcoming pro-rata installment
+- A second user in the admin panel for identity assumption testing
+
+Mock data is defined in `frontend/apps/shell/mocks/data.ts`. Request handlers are in `frontend/apps/shell/mocks/handlers.ts`. To change the authenticated user (e.g., test as a non-admin), edit the `currentMockUser` export in `data.ts`.
+
+**How it works:**
+
+1. The shell's `entry.client.tsx` checks `import.meta.env.VITE_MOCK_API`
+2. When `"true"`, it starts the MSW browser service worker before React hydration
+3. The service worker intercepts `fetch` calls matching handler routes and returns mock responses
+4. Unmatched requests (static assets, HMR) pass through normally
+
 ## Code Generation
 
 ### Protobuf / gRPC
