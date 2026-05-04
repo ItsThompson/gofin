@@ -32,6 +32,7 @@ func New(
 	}
 
 	engine := gin.New()
+	engine.RedirectTrailingSlash = false
 	engine.Use(gin.Recovery())
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
