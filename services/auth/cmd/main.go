@@ -115,7 +115,7 @@ func run() error {
 
 	metrics.Register(router)
 
-	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction())
+	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction(), cfg.CookieDomain)
 	restHandler.RegisterRoutes(router)
 
 	httpServer := &http.Server{

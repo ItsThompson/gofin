@@ -17,14 +17,16 @@ type RESTHandler struct {
 	authService  *service.AuthService
 	logger       *slog.Logger
 	cookieSecure bool
+	cookieDomain string
 }
 
 // NewRESTHandler creates a new RESTHandler.
-func NewRESTHandler(authService *service.AuthService, logger *slog.Logger, cookieSecure bool) *RESTHandler {
+func NewRESTHandler(authService *service.AuthService, logger *slog.Logger, cookieSecure bool, cookieDomain string) *RESTHandler {
 	return &RESTHandler{
 		authService:  authService,
 		logger:       logger,
 		cookieSecure: cookieSecure,
+		cookieDomain: cookieDomain,
 	}
 }
 
@@ -180,7 +182,7 @@ func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 		tokens.AccessToken,      // value
 		int(15*time.Minute/time.Second), // maxAge in seconds
 		"/",                     // path
-		"",                      // domain (empty = request host)
+		h.cookieDomain,          // domain
 		h.cookieSecure,          // secure
 		true,                    // httpOnly
 	)
@@ -193,7 +195,7 @@ func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 		tokens.RefreshToken,
 		int(7*24*time.Hour/time.Second),
 		"/api/auth",
-		"",
+		h.cookieDomain,
 		h.cookieSecure,
 		true,
 	)
@@ -222,8 +224,8 @@ func (h *RESTHandler) handleError(c *gin.Context, err error) {
 // with the same path and flags as the originals.
 func (h *RESTHandler) clearAuthCookies(c *gin.Context) {
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("gofin_access", "", -1, "/", "", h.cookieSecure, true)
-	c.SetCookie("gofin_refresh", "", -1, "/api/auth", "", h.cookieSecure, true)
+	c.SetCookie("gofin_access", "", -1, "/", h.cookieDomain, h.cookieSecure, true)
+	c.SetCookie("gofin_refresh", "", -1, "/api/auth", h.cookieDomain, h.cookieSecure, true)
 }
 
 // Refresh handles POST /api/auth/refresh.

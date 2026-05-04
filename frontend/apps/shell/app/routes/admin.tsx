@@ -77,6 +77,11 @@ export default function AdminPage() {
     navigate("/dashboard");
   };
 
+  const grafanaUrl =
+    typeof window !== "undefined" && window.location.hostname !== "localhost"
+      ? `https://grafana.${window.location.hostname}`
+      : "http://localhost:3001";
+
   return (
     <RemoteBoundary
       sectionName="Admin Panel"
@@ -85,6 +90,7 @@ export default function AdminPage() {
       <AdminPanelPage
         currentUser={user}
         onAssumeIdentity={handleAssumeIdentity}
+        grafanaUrl={grafanaUrl}
       />
     </RemoteBoundary>
   );

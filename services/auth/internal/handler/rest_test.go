@@ -132,7 +132,7 @@ func setupTestRouterWithBlacklist(repo *mockUserRepository, blacklistRepo *mockB
 	pwdSvc := service.NewPasswordService(4)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
-	handler := NewRESTHandler(authSvc, logger, false)
+	handler := NewRESTHandler(authSvc, logger, false, "")
 	r := gin.New()
 	handler.RegisterRoutes(r)
 	return r

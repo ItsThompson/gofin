@@ -8,13 +8,14 @@ import (
 
 // Config holds all configuration for the auth service, loaded from environment variables.
 type Config struct {
-	DBUrl       string
-	JWTSecret   string
-	BcryptCost  int
-	LogLevel    string
-	Environment string
-	RESTPort    string
-	GRPCPort    string
+	DBUrl        string
+	JWTSecret    string
+	BcryptCost   int
+	LogLevel     string
+	Environment  string
+	RESTPort     string
+	GRPCPort     string
+	CookieDomain string
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -63,13 +64,14 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		DBUrl:       dbURL,
-		JWTSecret:   jwtSecret,
-		BcryptCost:  bcryptCost,
-		LogLevel:    logLevel,
-		Environment: environment,
-		RESTPort:    restPort,
-		GRPCPort:    grpcPort,
+		DBUrl:        dbURL,
+		JWTSecret:    jwtSecret,
+		BcryptCost:   bcryptCost,
+		LogLevel:     logLevel,
+		Environment:  environment,
+		RESTPort:     restPort,
+		GRPCPort:     grpcPort,
+		CookieDomain: os.Getenv("COOKIE_DOMAIN"),
 	}, nil
 }
 
