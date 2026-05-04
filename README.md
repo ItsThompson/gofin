@@ -179,6 +179,15 @@ See `docker-compose.yml` for the full port mapping. Default local access:
 | Grafana | `http://localhost:3001` | Dashboards and visualization |
 | Prometheus | `http://localhost:9090` | Metrics collection |
 
+## Deployment
+
+gofin is designed to run on a single VPS with Cloudflare Tunnels for ingress. No container registry or orchestrator required.
+
+1. **Tunnel setup** (one-time, interactive): follow the [Tunnel Setup](docs/tunnel-setup.md) runbook to create named Cloudflare tunnels and DNS records
+2. **Deploy** (automated, re-runnable): `scripts/deploy.sh <server-ip>` bootstraps a fresh VPS, copies tunnel credentials, builds and starts the stack. Designed to be run from a CI/CD pipeline on push to main.
+
+See [`.env.example`](.env.example) for the full list of production environment variables.
+
 ## Further Reading
 
 | Document | Description |
@@ -190,3 +199,4 @@ See `docker-compose.yml` for the full port mapping. Default local access:
 | [Development Guide](docs/development.md) | Local workflow, environment variables, code generation |
 | [Testing](docs/testing.md) | Test strategy, patterns, and how to run each layer |
 | [Monitoring](docs/monitoring.md) | Prometheus metrics, Grafana dashboards, alerting rules |
+| [Tunnel Setup](docs/tunnel-setup.md) | One-time Cloudflare tunnel creation and DNS routing |
