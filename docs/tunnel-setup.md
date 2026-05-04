@@ -47,14 +47,33 @@ chmod 644 deployments/cloudflare/*.json deployments/cloudflare/cert.pem
 
 ### 5. Configure .env
 
-Add these to your production `.env` on the server:
+On the server, copy `.env.example` to `.env` and set production values. The critical ones to change from defaults:
 
 ```
+# Generate a strong secret
+JWT_SECRET=<output of: openssl rand -hex 32>
+ENVIRONMENT=production
+
+# Strong admin password
+ADMIN_PASSWORD=<strong password>
+
+# Enable HTTPS cookies (Cloudflare terminates TLS)
+COOKIE_SECURE=true
+
+# Enable subdomain cookie access for Grafana
+COOKIE_DOMAIN=.usegofin.com
+
+# Grafana auth proxy "Back to gofin" link
+APP_URL=https://usegofin.com
+
+# Tunnel IDs from step 2
 CF_APP_TUNNEL_ID=<app-tunnel-id>
 CF_APP_HOSTNAME=usegofin.com
 CF_GRAFANA_TUNNEL_ID=<grafana-tunnel-id>
 CF_GRAFANA_HOSTNAME=grafana.usegofin.com
 ```
+
+All other values (database URLs, service addresses) can stay as defaults since services communicate via Docker networking.
 
 ## Result
 
