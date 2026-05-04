@@ -12,6 +12,17 @@ up-logs:
 up-dev:
     docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
+# Build and start with tunnels (production). Builds sequentially to avoid
+# OOM on memory-constrained VPS instances.
+up-prod:
+    docker compose build grafana-auth-proxy
+    docker compose build auth-service
+    docker compose build expense-service
+    docker compose build finance-service
+    docker compose build api-gateway
+    docker compose build mfe
+    docker compose --profile tunnels up -d
+
 # Stop all containers
 down:
     docker compose down
