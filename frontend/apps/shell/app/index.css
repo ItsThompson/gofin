@@ -1,2 +1,10 @@
 @import "tailwindcss";
 @import "@gofin/ui/styles/globals.css";
+
+/* Tailwind v4 automatic content detection doesn't follow workspace package
+   imports deeply enough. Explicitly register source directories so utility
+   classes used in shared packages and remotes are generated. */
+@source "../../../packages/ui/src";
+@source "../../../packages/types/src";
+@source "../../finance/src";
+@source "../../admin/src";
