@@ -86,6 +86,14 @@ if ! command -v just &>/dev/null; then
 else
   echo "  Just already installed."
 fi
+
+# envsubst (for rendering tunnel config templates)
+if ! command -v envsubst &>/dev/null; then
+  echo "  Installing envsubst (gettext-base)..."
+  apt-get update -qq && apt-get install -y -qq gettext-base
+else
+  echo "  envsubst already installed."
+fi
 REMOTE_INSTALL
 
 # --- Clone or update the repo ------------------------------------------------
@@ -129,7 +137,7 @@ echo "==> Building and starting the stack (this may take a few minutes)..."
 ssh "${SSH_TARGET}" bash <<'REMOTE_START'
 set -euo pipefail
 cd /opt/gofin
-docker compose --profile tunnels up -d --build
+just up-prod
 REMOTE_START
 
 # --- Seed admin --------------------------------------------------------------
@@ -168,5 +176,5 @@ echo "  Grafana: https://${GRAFANA_DOMAIN:-grafana.your-domain}"
 echo ""
 echo "  To redeploy after code changes:"
 echo "    git push"
-echo "    ssh ${SSH_TARGET} 'cd /opt/gofin && git pull && docker compose --profile tunnels up -d --build'"
+echo "    ssh ${SSH_TARGET} 'cd /opt/gofin && git pull && just up-prod'"
 echo "==========================================================================="
