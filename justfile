@@ -18,7 +18,9 @@ up-prod:
     #!/usr/bin/env bash
     set -euo pipefail
     # Render tunnel config templates from .env
+    set -a
     source .env
+    set +a
     envsubst < deployments/cloudflare/config-app.yml > deployments/cloudflare/config-app.rendered.yml
     envsubst < deployments/cloudflare/config-grafana.yml > deployments/cloudflare/config-grafana.rendered.yml
     # Build images sequentially
