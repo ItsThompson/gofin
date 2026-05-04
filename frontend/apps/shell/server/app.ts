@@ -15,9 +15,9 @@ export const app = express();
 // Reverse proxy: /api/* → API Gateway
 // Forwards cookies and sets appropriate headers for downstream services.
 app.use(
-  "/api",
   createProxyMiddleware({
     target: API_GATEWAY_URL,
+    pathFilter: "/api",
     changeOrigin: true,
     cookieDomainRewrite: "",
     on: {
