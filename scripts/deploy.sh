@@ -44,6 +44,12 @@ if [[ ! -f "${CREDENTIALS_DIR}/gofin-grafana.json" ]]; then
   exit 1
 fi
 
+if [[ ! -f "${CREDENTIALS_DIR}/cert.pem" ]]; then
+  echo "ERROR: Origin certificate not found at ${CREDENTIALS_DIR}/cert.pem"
+  echo "Run the tunnel setup runbook first: docs/tunnel-setup.md"
+  exit 1
+fi
+
 echo "    Server:      ${SSH_TARGET}"
 echo "    Credentials: ${CREDENTIALS_DIR}/"
 echo ""
@@ -113,9 +119,11 @@ REMOTE_REPO
 
 # --- Copy tunnel credentials to server ---------------------------------------
 
-echo "==> Copying tunnel credentials to server..."
+echo "==> Copying tunnel credentials and certificate to server..."
 scp "${CREDENTIALS_DIR}/gofin-app.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-app.json"
 scp "${CREDENTIALS_DIR}/gofin-grafana.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-grafana.json"
+scp "${CREDENTIALS_DIR}/cert.pem" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/cert.pem"
+ssh "${SSH_TARGET}" "chmod 644 /opt/gofin/deployments/cloudflare/*.json /opt/gofin/deployments/cloudflare/cert.pem"
 
 # --- Check .env exists on server ---------------------------------------------
 

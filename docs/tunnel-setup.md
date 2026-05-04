@@ -33,14 +33,16 @@ cloudflared tunnel route dns gofin-app usegofin.com
 cloudflared tunnel route dns gofin-grafana grafana.usegofin.com
 ```
 
-### 4. Copy credentials
+### 4. Copy credentials and certificate
 
-The `tunnel create` commands saved credential JSON files to `~/.cloudflared/`. Copy them into the project:
+The `tunnel create` commands saved credential JSON files to `~/.cloudflared/`. The `tunnel login` step saved `cert.pem`. Copy them into the project:
 
 ```bash
 mkdir -p deployments/cloudflare
 cp ~/.cloudflared/<app-tunnel-id>.json deployments/cloudflare/gofin-app.json
 cp ~/.cloudflared/<grafana-tunnel-id>.json deployments/cloudflare/gofin-grafana.json
+cp ~/.cloudflared/cert.pem deployments/cloudflare/cert.pem
+chmod 644 deployments/cloudflare/*.json deployments/cloudflare/cert.pem
 ```
 
 ### 5. Configure .env
@@ -59,4 +61,4 @@ CF_GRAFANA_HOSTNAME=grafana.usegofin.com
 After these steps you have:
 - Two named tunnels registered with Cloudflare
 - DNS CNAME records pointing your domain to the tunnels
-- Credential JSON files ready for the deploy script to copy to the server
+- Credential JSON files and origin certificate ready for the deploy script to copy to the server
