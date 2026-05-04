@@ -7,11 +7,13 @@ WORKDIR /app
 # Copy module files for dependency caching.
 COPY gateway/go.mod gateway/go.sum* ./gateway/
 COPY auth/go.mod auth/go.sum* ./auth/
+COPY metrics/go.mod metrics/go.sum* ./metrics/
 RUN cd gateway && GOWORK=off go mod download
 
-# Copy only what the gateway build needs: gateway source + auth proto.
+# Copy only what the gateway build needs: gateway source + auth proto + metrics.
 COPY gateway/ ./gateway/
 COPY auth/proto/ ./auth/proto/
+COPY metrics/ ./metrics/
 
 RUN cd gateway && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/
 
