@@ -76,6 +76,9 @@ services:
       - BCRYPT_COST=${BCRYPT_COST:-12}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin1234!}
     networks:
       - compute-net
       - data-net

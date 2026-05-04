@@ -25,9 +25,6 @@ services:
     environment:
       - BCRYPT_COST=4
       - ENVIRONMENT=development
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin1234!}
 
   expense-service:
     volumes:
