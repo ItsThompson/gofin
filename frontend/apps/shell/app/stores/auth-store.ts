@@ -65,7 +65,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         isAdmin: user.role === "admin",
         isLoading: false,
       });
-    } catch (error) {
+    } catch (_error) {
       // 401 means not authenticated: expected when no session exists
       set({ ...initialState, isLoading: false });
     }

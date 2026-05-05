@@ -23,10 +23,6 @@ function uuid(): string {
   return crypto.randomUUID();
 }
 
-function todayISO(): string {
-  return now.toISOString().slice(0, 10);
-}
-
 function daysAgoISO(days: number): string {
   const date = new Date(now);
   date.setDate(date.getDate() - days);
