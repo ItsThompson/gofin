@@ -505,8 +505,8 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
                 <Settings2 className="size-4" />
                 <span className="hidden sm:inline ml-1">Budget Settings</span>
               </Button>
-              {/* Mobile-only Log Expense button */}
-              <Button asChild className="md:hidden">
+              {/* Desktop-only Log Expense button (FAB handles mobile) */}
+              <Button asChild className="hidden md:inline-flex">
                 <Link to="/expenses/new">
                   <PlusCircle className="size-4" />
                   Log Expense
