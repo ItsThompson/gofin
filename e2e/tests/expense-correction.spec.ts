@@ -31,7 +31,7 @@ test.describe("Expense Correction", () => {
     ).toBeVisible();
 
     // Verify the expense shows as "Active"
-    await expect(page.getByText("Active")).toBeVisible();
+    await expect(page.getByText("Active").first()).toBeVisible();
 
     // Step 4: Click "Correct This Expense"
     await page.getByRole("button", { name: "Correct This Expense" }).click();

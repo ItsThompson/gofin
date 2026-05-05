@@ -30,9 +30,9 @@ test.describe("Pro-rata Creation", () => {
     const upcomingSection = page.getByTestId("upcoming-prorata");
     await expect(upcomingSection).toBeVisible();
     await expect(
-      upcomingSection.getByText("Annual Subscription"),
+      upcomingSection.getByText("Annual Subscription").first(),
     ).toBeVisible();
-    await expect(upcomingSection.getByText("$100.00")).toBeVisible();
+    await expect(upcomingSection.getByText("$100.00").first()).toBeVisible();
 
     // Verify it shows the installment index (e.g., "Installment 2 of 3")
     await expect(upcomingSection.getByText(/Installment 2 of 3/)).toBeVisible();
