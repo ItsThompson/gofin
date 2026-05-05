@@ -13,24 +13,22 @@ import (
 // target URL. It preserves cookies, request body, query params, and injects
 // X-Forwarded-For. On downstream failure, it returns 502 with a log entry.
 func NewServiceProxy(target *url.URL, logger *slog.Logger) http.Handler {
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(r *httputil.ProxyRequest) {
+			r.SetURL(target)
+			r.Out.Host = target.Host
 
-	// Customize the Director to preserve the original request properties
-	// while targeting the downstream service.
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		originalDirector(req)
-
-		// Inject X-Forwarded-For with the client's IP.
-		clientIP := req.Header.Get("X-Forwarded-For")
-		if remoteIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-			if clientIP == "" {
-				clientIP = remoteIP
-			} else {
-				clientIP = clientIP + ", " + remoteIP
+			// Inject X-Forwarded-For with the client's IP.
+			clientIP := r.In.Header.Get("X-Forwarded-For")
+			if remoteIP, _, err := net.SplitHostPort(r.In.RemoteAddr); err == nil {
+				if clientIP == "" {
+					clientIP = remoteIP
+				} else {
+					clientIP = clientIP + ", " + remoteIP
+				}
 			}
-		}
-		req.Header.Set("X-Forwarded-For", clientIP)
+			r.Out.Header.Set("X-Forwarded-For", clientIP)
+		},
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, req *http.Request, err error) {

@@ -27,7 +27,7 @@ func TestLoad_Success(t *testing.T) {
 
 func TestLoad_RequiresImmudbAddr(t *testing.T) {
 	// Ensure IMMUDB_ADDR is not set
-	os.Unsetenv("IMMUDB_ADDR")
+	_ = os.Unsetenv("IMMUDB_ADDR")
 
 	_, err := Load()
 
@@ -38,8 +38,8 @@ func TestLoad_RequiresImmudbAddr(t *testing.T) {
 func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	// Leave username/password unset to test defaults
-	os.Unsetenv("IMMUDB_USERNAME")
-	os.Unsetenv("IMMUDB_PASSWORD")
+	_ = os.Unsetenv("IMMUDB_USERNAME")
+	_ = os.Unsetenv("IMMUDB_PASSWORD")
 
 	cfg, err := Load()
 

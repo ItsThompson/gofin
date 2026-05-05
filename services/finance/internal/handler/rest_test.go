@@ -1019,9 +1019,10 @@ func TestGetSpendingByTagHandler_Success(t *testing.T) {
 	// Check that both exist and amounts are correct.
 	var foodTag, billsTag model.TagSpending
 	for _, tag := range resp.TagSpending {
-		if tag.TagName == "Food" {
+		switch tag.TagName {
+		case "Food":
 			foodTag = tag
-		} else if tag.TagName == "Bills" {
+		case "Bills":
 			billsTag = tag
 		}
 	}
