@@ -186,6 +186,8 @@ gofin is designed to run on a single VPS with Cloudflare Tunnels for ingress. No
 1. **Tunnel setup** (one-time, interactive): follow the [Tunnel Setup](docs/tunnel-setup.md) runbook to create named Cloudflare tunnels and DNS records
 2. **Deploy** (automated, re-runnable): `scripts/deploy.sh <server-ip>` bootstraps a fresh VPS, copies tunnel credentials, builds and starts the stack. Designed to be run from a CI/CD pipeline on push to main.
 
+**CI/CD:** Pushes to `main` automatically deploy after CI passes. See [CI/CD Pipeline](docs/ci-cd.md) for details on the GitHub Actions setup, required secrets, and manual deployment.
+
 See [`.env.example`](.env.example) for the full list of production environment variables.
 
 ## Further Reading
@@ -194,6 +196,7 @@ See [`.env.example`](.env.example) for the full list of production environment v
 |----------|-------------|
 | [Architecture](docs/architecture.md) | Node topology, service boundaries, data flow, and design decisions |
 | [Auth System](docs/auth.md) | JWT lifecycle, RBAC model, identity assumption, Grafana auth proxy |
+| [CI/CD Pipeline](docs/ci-cd.md) | GitHub Actions workflows, required secrets, manual deployment |
 | [Data Model](docs/data-model.md) | Database schemas, service ownership, cross-service references |
 | [API Reference](docs/api.md) | REST endpoint catalog with request/response shapes |
 | [Development Guide](docs/development.md) | Local workflow, environment variables, code generation |
