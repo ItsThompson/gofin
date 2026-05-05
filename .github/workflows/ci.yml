@@ -62,10 +62,10 @@ jobs:
         working-directory: services
         run: |
           go work sync
-          cd auth && go test ./... && cd ..
-          cd expense && go test ./... && cd ..
-          cd finance && go test ./... && cd ..
-          cd gateway && go test ./...
+          (cd auth && go test ./...)
+          (cd expense && go test ./...)
+          (cd finance && go test ./...)
+          (cd gateway && go test ./...)
 
   test-frontend:
     needs: [lint-backend, lint-frontend]

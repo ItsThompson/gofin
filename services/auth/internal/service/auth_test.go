@@ -785,6 +785,14 @@ func TestSeedAdmin_CreatesNewAdmin(t *testing.T) {
 			Email:    "admin@gofin.local",
 			Role:     "admin",
 		}, nil)
+	repo.On("CompleteOnboarding", ctx, "admin-1", "USD").
+		Return(&model.User{
+			ID:                     "admin-1",
+			Username:               "admin",
+			Email:                  "admin@gofin.local",
+			Role:                   "admin",
+			HasCompletedOnboarding: true,
+		}, nil)
 
 	err := svc.SeedAdmin(ctx, "admin", "admin@gofin.local", "Admin1234!")
 
