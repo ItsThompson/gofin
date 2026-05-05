@@ -43,21 +43,18 @@ All secrets must be configured in the repository settings under **Settings → S
 
 ### Encoding Credentials
 
-For the three Cloudflare secrets, base64-encode the file contents:
+The credential files live on the server at `/opt/gofin/deployments/cloudflare/`. SSH in and base64-encode them:
 
 ```bash
-# macOS
-base64 -i deployments/cloudflare/gofin-app.json | pbcopy
-base64 -i deployments/cloudflare/gofin-grafana.json | pbcopy
-base64 -i deployments/cloudflare/cert.pem | pbcopy
+ssh root@<your-server-ip>
+cd /opt/gofin
 
-# Linux
-base64 -w0 < deployments/cloudflare/gofin-app.json | xclip -selection clipboard
-base64 -w0 < deployments/cloudflare/gofin-grafana.json | xclip -selection clipboard
-base64 -w0 < deployments/cloudflare/cert.pem | xclip -selection clipboard
+base64 -w0 < deployments/cloudflare/gofin-app.json
+base64 -w0 < deployments/cloudflare/gofin-grafana.json
+base64 -w0 < deployments/cloudflare/cert.pem
 ```
 
-Paste each result as the corresponding secret value in the GitHub UI.
+Copy each output and paste it as the corresponding secret value in the GitHub UI (**Settings → Secrets and variables → Actions → New repository secret**).
 
 ### SSH Key Setup
 
