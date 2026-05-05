@@ -108,7 +108,7 @@ func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, 
 	if err != nil {
 		return nil, fmt.Errorf("beginning transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	txRepo := tx.Repo()
 
@@ -367,7 +367,7 @@ func (s *FinanceService) ListTags(ctx context.Context, userID string) ([]*model.
 		if err != nil {
 			return nil, fmt.Errorf("beginning transaction for tag seeding: %w", err)
 		}
-		defer tx.Rollback(ctx)
+		defer func() { _ = tx.Rollback(ctx) }()
 
 		txRepo := tx.Repo()
 		for _, tagName := range DefaultTags {

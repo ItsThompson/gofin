@@ -3,7 +3,6 @@ import {
   apiClient,
   ApiRequestError,
   type User,
-  type DefaultSettings,
   type DefaultsResponse,
   type UpdateDefaultsRequest,
   type UpdateProfileRequest,

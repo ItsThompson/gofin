@@ -82,7 +82,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to expense service at %s: %w", cfg.ExpenseServiceAddr, err)
 	}
-	defer expenseConn.Close()
+	defer func() { _ = expenseConn.Close() }()
 	logger.Info("expense service gRPC client created",
 		slog.String("addr", cfg.ExpenseServiceAddr),
 	)

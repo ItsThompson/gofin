@@ -43,7 +43,7 @@ func NewServiceProxy(target *url.URL, logger *slog.Logger) http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write([]byte(`{"code":"BAD_GATEWAY","message":"Downstream service is unavailable"}`))
+		_, _ = w.Write([]byte(`{"code":"BAD_GATEWAY","message":"Downstream service is unavailable"}`))
 	}
 
 	// Use a transport with reasonable timeouts for inter-service communication.

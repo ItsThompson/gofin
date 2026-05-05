@@ -107,7 +107,7 @@ func setupGateway(t *testing.T, validator middleware.TokenValidator) func(method
 		if err != nil {
 			t.Fatalf("request %s %s failed: %v", method, path, err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(resp.Body)
 		return resp, string(body)
 	}
