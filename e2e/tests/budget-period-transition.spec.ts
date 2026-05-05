@@ -64,7 +64,7 @@ test.describe("Budget Period Transition", () => {
     // Verify the new-month prompt is visible
     const monthName = now.toLocaleString("en-US", { month: "long" });
     await expect(
-      page.getByRole("heading", { name: new RegExp(`Set Up ${monthName}`) }),
+      page.getByText(new RegExp(`Set Up ${monthName}`)),
     ).toBeVisible();
     await expect(
       page.getByText("No budget period exists for this month"),

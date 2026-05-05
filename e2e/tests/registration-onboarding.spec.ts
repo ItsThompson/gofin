@@ -23,8 +23,8 @@ test.describe("Registration → Onboarding → First Expense", () => {
 
     // Verify the dashboard shows the budget
     await expect(page.getByText("Total Budget")).toBeVisible();
-    await expect(page.getByText("$2,000.00")).toBeVisible();
-    await expect(page.getByText("$0.00")).toBeVisible();
+    await expect(page.getByText("$2,000.00").first()).toBeVisible();
+    await expect(page.getByText("$0.00").first()).toBeVisible();
 
     // Step 4: Log an expense
     await logExpense(page, {
@@ -36,7 +36,7 @@ test.describe("Registration → Onboarding → First Expense", () => {
     // Step 5: Verify the dashboard reflects the new expense
     // Recent expenses section should show the expense
     await expect(page.getByText("Grocery Shopping")).toBeVisible();
-    await expect(page.getByText("$42.50")).toBeVisible();
+    await expect(page.getByText("$42.50").first()).toBeVisible();
 
     // Total Spent should update
     await expect(page.getByText("Total Spent")).toBeVisible();

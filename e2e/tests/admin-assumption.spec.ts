@@ -23,7 +23,7 @@ test.describe("Admin Identity Assumption", () => {
 
     // Verify the expense is visible on the regular user's dashboard
     await expect(page.getByText("User Expense")).toBeVisible();
-    await expect(page.getByText("$75.00")).toBeVisible();
+    await expect(page.getByText("$75.00").first()).toBeVisible();
 
     // Log out the regular user
     await page.getByRole("button", { name: "Logout" }).click();
@@ -53,7 +53,7 @@ test.describe("Admin Identity Assumption", () => {
     // Step 5: Verify we're now viewing the regular user's dashboard
     await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByText("User Expense")).toBeVisible();
-    await expect(page.getByText("$75.00")).toBeVisible();
+    await expect(page.getByText("$75.00").first()).toBeVisible();
 
     // The "Return to Admin" floating button should be visible
     const returnButton = page.getByRole("button", {

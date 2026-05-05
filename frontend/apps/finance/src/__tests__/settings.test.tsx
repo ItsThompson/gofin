@@ -436,7 +436,7 @@ describe("SettingsPage", () => {
       mockDefaultsFound();
       renderSettings();
 
-      const user = await switchToTagsTab();
+      await switchToTagsTab();
 
       await waitFor(() => {
         expect(screen.getByText("Bills")).toBeInTheDocument();
@@ -511,7 +511,7 @@ describe("SettingsPage", () => {
       mockDefaultsFound();
       renderSettings();
 
-      const user = await switchToTagsTab();
+      await switchToTagsTab();
 
       await waitFor(() => {
         expect(screen.getByText("Bills")).toBeInTheDocument();
@@ -554,9 +554,7 @@ describe("SettingsPage", () => {
 
       // Click save (check button)
       const saveButtons = screen.getAllByRole("button");
-      const checkButton = saveButtons.find((btn) => btn.querySelector("svg"));
-      // Click the first small button in the edit row (save)
-      const saveButton = screen.getAllByRole("button").find(
+      const saveButton = saveButtons.find(
         (btn) => btn.closest("li") && btn.querySelector("svg"),
       );
       if (saveButton) await user.click(saveButton);

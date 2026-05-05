@@ -89,9 +89,8 @@ export async function registerAndOnboard(
  */
 export async function confirmNewPeriod(page: Page) {
   // Wait for the period creation form to appear
-  await expect(
-    page.getByRole("heading", { name: /Set Up/ }),
-  ).toBeVisible();
+  // CardTitle renders a <div>, not a heading element, so use getByText
+  await expect(page.getByText(/Set Up .+ \d{4}/)).toBeVisible();
 
   // Click the create button (text is "Create [MonthName] Period")
   await page.getByRole("button", { name: /Create .+ Period/ }).click();

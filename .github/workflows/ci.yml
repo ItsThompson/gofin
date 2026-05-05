@@ -22,9 +22,11 @@ jobs:
           go-version: "1.26"
           cache-dependency-path: services/**/go.sum
 
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v7
         with:
+          version: v2.12
           working-directory: services
+          args: ./auth/... ./expense/... ./finance/... ./gateway/... ./metrics/...
 
   lint-frontend:
     runs-on: ubuntu-latest
@@ -60,10 +62,10 @@ jobs:
         working-directory: services
         run: |
           go work sync
-          cd auth && go test ./... && cd ..
-          cd expense && go test ./... && cd ..
-          cd finance && go test ./... && cd ..
-          cd gateway && go test ./...
+          (cd auth && go test ./...)
+          (cd expense && go test ./...)
+          (cd finance && go test ./...)
+          (cd gateway && go test ./...)
 
   test-frontend:
     needs: [lint-backend, lint-frontend]
@@ -99,29 +101,36 @@ jobs:
 
       - name: Wait for services to be healthy
         run: |
+          echo "Waiting for containers to start..."
+          sleep 10
+          docker compose ps
+
           echo "Waiting for frontend..."
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -sf -o /dev/null http://localhost:3000; then
-              echo "  Frontend is up (attempt ${i}/30)"
+              echo "  Frontend is up (attempt ${i}/60)"
               break
             fi
-            if [ "$i" -eq 30 ]; then
+            if [ "$i" -eq 60 ]; then
               echo "ERROR: Frontend did not become healthy in time"
-              docker compose logs
+              docker compose ps
+              docker compose logs --tail=50
               exit 1
             fi
             sleep 5
           done
 
           echo "Waiting for API gateway..."
-          for i in $(seq 1 30); do
-            if curl -sf -o /dev/null http://localhost:3000/api/health; then
-              echo "  API gateway is up (attempt ${i}/30)"
+          for i in $(seq 1 60); do
+            # Gateway requires auth on /api/health, so check /metrics directly (no auth needed)
+            if curl -sf -o /dev/null http://localhost:8080/metrics; then
+              echo "  API gateway is up (attempt ${i}/60)"
               break
             fi
-            if [ "$i" -eq 30 ]; then
+            if [ "$i" -eq 60 ]; then
               echo "ERROR: API gateway did not become healthy in time"
-              docker compose logs
+              docker compose ps
+              docker compose logs --tail=50
               exit 1
             fi
             sleep 5

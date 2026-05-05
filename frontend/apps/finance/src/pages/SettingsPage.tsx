@@ -3,7 +3,6 @@ import {
   apiClient,
   ApiRequestError,
   type User,
-  type DefaultSettings,
   type DefaultsResponse,
   type UpdateDefaultsRequest,
   type UpdateProfileRequest,
@@ -335,7 +334,7 @@ function ProfileSection({ user, onUserUpdated }: { user: User; onUserUpdated?: (
         setLoading(false);
       }
     },
-    [username, email, user.currency],
+    [username, email, user.currency, onUserUpdated],
   );
 
   return (
@@ -433,7 +432,7 @@ function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void }) {
         setLoading(false);
       }
     },
-    [currentPassword, newPassword],
+    [currentPassword, newPassword, onUserUpdated],
   );
 
   return (

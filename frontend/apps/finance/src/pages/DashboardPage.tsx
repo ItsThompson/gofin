@@ -47,7 +47,6 @@ import { SectionErrorBoundary } from "@gofin/ui/components/section-error-boundar
 import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 import {
   LayoutDashboard,
-  Loader2,
   PlusCircle,
   Wallet,
   TrendingDown,
@@ -62,7 +61,6 @@ import {
 import {
   BarChart,
   Bar,
-  LineChart,
   Line,
   Area,
   XAxis,

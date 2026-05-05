@@ -10,8 +10,8 @@ import (
 
 func TestLoad_RequiredVars(t *testing.T) {
 	// Clear all env vars that Load reads
-	os.Unsetenv("FINANCE_DB_URL")
-	os.Unsetenv("EXPENSE_SERVICE_ADDR")
+	_ = os.Unsetenv("FINANCE_DB_URL")
+	_ = os.Unsetenv("EXPENSE_SERVICE_ADDR")
 
 	_, err := Load()
 	require.Error(t, err)
@@ -20,7 +20,7 @@ func TestLoad_RequiredVars(t *testing.T) {
 
 func TestLoad_MissingExpenseAddr(t *testing.T) {
 	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
-	os.Unsetenv("EXPENSE_SERVICE_ADDR")
+	_ = os.Unsetenv("EXPENSE_SERVICE_ADDR")
 
 	_, err := Load()
 	require.Error(t, err)

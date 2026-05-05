@@ -25,13 +25,13 @@ test.describe("Expense Correction", () => {
     await expect(page).toHaveURL(/\/expenses/);
 
     // Step 3: Click the expense to open the detail modal
-    await page.getByText("Coffee Beans").click();
+    await page.getByText("Coffee Beans").first().click();
     await expect(
       page.getByRole("heading", { name: "Expense Detail" }),
     ).toBeVisible();
 
     // Verify the expense shows as "Active"
-    await expect(page.getByText("Active")).toBeVisible();
+    await expect(page.getByText("Active").first()).toBeVisible();
 
     // Step 4: Click "Correct This Expense"
     await page.getByRole("button", { name: "Correct This Expense" }).click();
@@ -71,6 +71,6 @@ test.describe("Expense Correction", () => {
     await expect(page).toHaveURL(/\/dashboard/);
 
     // The corrected amount ($30.00) should appear, not the original ($25.00)
-    await expect(page.getByText("$30.00")).toBeVisible();
+    await expect(page.getByText("$30.00").first()).toBeVisible();
   });
 });

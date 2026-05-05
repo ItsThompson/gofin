@@ -57,7 +57,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to auth service gRPC at %s: %w", cfg.AuthServiceAddr, err)
 	}
-	defer grpcConn.Close()
+	defer func() { _ = grpcConn.Close() }()
 
 	logger.Info("gRPC client configured",
 		slog.String("auth_service_addr", cfg.AuthServiceAddr),

@@ -580,6 +580,12 @@ func (s *AuthService) SeedAdmin(ctx context.Context, username, email, password s
 		return fmt.Errorf("creating admin user: %w", err)
 	}
 
+	// Mark onboarding as complete so the admin can use the app immediately
+	_, err = s.repo.CompleteOnboarding(ctx, user.ID, "USD")
+	if err != nil {
+		return fmt.Errorf("completing admin onboarding: %w", err)
+	}
+
 	s.logger.Info("admin user seeded",
 		slog.String("method", "SeedAdmin"),
 		slog.String("user_id", user.ID),

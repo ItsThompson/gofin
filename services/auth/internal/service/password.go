@@ -35,7 +35,7 @@ func (p *PasswordService) CheckPassword(password, hash string) bool {
 // 8+ chars, at least 1 uppercase, 1 lowercase, 1 digit.
 func ValidatePasswordStrength(password string) error {
 	if len(password) < 8 {
-		return fmt.Errorf("Password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit")
+		return fmt.Errorf("password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit")
 	}
 
 	var hasUpper, hasLower, hasDigit bool
@@ -51,7 +51,7 @@ func ValidatePasswordStrength(password string) error {
 	}
 
 	if !hasUpper || !hasLower || !hasDigit {
-		return fmt.Errorf("Password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit")
+		return fmt.Errorf("password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit")
 	}
 
 	return nil
