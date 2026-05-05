@@ -564,7 +564,7 @@ describe("ExpenseLogPage", () => {
 
     it("reloads data when period is changed", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      userEvent.setup();
       renderExpenseLog();
 
       await waitFor(() => {
@@ -701,7 +701,7 @@ describe("ExpenseLogPage", () => {
 
     it("loads data on period change after initial failure", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
-      const user = userEvent.setup();
+      userEvent.setup();
       renderExpenseLog();
 
       await waitFor(() => {
