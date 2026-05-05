@@ -1,7 +1,11 @@
 {
   "name": "gofin-frontend",
   "private": true,
-  "packageManager": "npm@10.9.4",
+  "packageManager": "npm@11.12.1",
+  "engines": {
+    "node": "^24",
+    "npm": ">=11"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"

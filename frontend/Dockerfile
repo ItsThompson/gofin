@@ -1,5 +1,5 @@
 # Stage 1: Build all Turborepo apps
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json turbo.json ./
 COPY apps/ apps/
@@ -8,7 +8,7 @@ RUN npm ci
 RUN npx turbo build
 
 # Stage 2: Runtime
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 COPY --from=builder /app/apps/shell/build ./build
 COPY --from=builder /app/apps/shell/server.js ./
