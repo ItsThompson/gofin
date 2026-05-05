@@ -8,8 +8,63 @@ on:
   workflow_dispatch:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event.workflow_run.conclusion == 'success')
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        include:
+          - service: mfe
+            context: ./frontend
+            file: ./frontend/Dockerfile
+          - service: api-gateway
+            context: ./services
+            file: ./services/gateway/Dockerfile
+          - service: auth-service
+            context: ./services
+            file: ./services/auth/Dockerfile
+          - service: expense-service
+            context: ./services
+            file: ./services/expense/Dockerfile
+          - service: finance-service
+            context: ./services
+            file: ./services/finance/Dockerfile
+          - service: grafana-auth-proxy
+            context: ./monitoring/auth-proxy
+            file: ./monitoring/auth-proxy/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ghcr.io/itsthompson/gofin/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   deploy:
+    needs: [build-and-push]
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch') ||

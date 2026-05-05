@@ -65,7 +65,7 @@ fi
 
 # --- Install dependencies on server -----------------------------------------
 
-echo "==> Installing Docker, Git, and Just on the server..."
+echo "==> Installing Docker, Git, and envsubst on the server..."
 ssh "${SSH_TARGET}" bash <<'REMOTE_INSTALL'
 set -euo pipefail
 
@@ -83,14 +83,6 @@ if ! command -v git &>/dev/null; then
   apt-get update -qq && apt-get install -y -qq git
 else
   echo "  Git already installed."
-fi
-
-# Just
-if ! command -v just &>/dev/null; then
-  echo "  Installing Just..."
-  curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-else
-  echo "  Just already installed."
 fi
 
 # envsubst (for rendering tunnel config templates)
@@ -139,13 +131,25 @@ fi
 echo "  .env found."
 REMOTE_ENV
 
-# --- Build and start ---------------------------------------------------------
+# --- Pull images and start ---------------------------------------------------
 
-echo "==> Building and starting the stack (this may take a few minutes)..."
+echo "==> Rendering tunnel configs, pulling images, and starting the stack..."
 ssh "${SSH_TARGET}" bash <<'REMOTE_START'
 set -euo pipefail
 cd /opt/gofin
-just up-prod
+
+# Render tunnel config templates from .env
+set -a
+source .env
+set +a
+envsubst < deployments/cloudflare/config-app.yml > deployments/cloudflare/config-app.rendered.yml
+envsubst < deployments/cloudflare/config-grafana.yml > deployments/cloudflare/config-grafana.rendered.yml
+
+# Pull pre-built images from GHCR
+docker compose pull
+
+# Start/recreate containers with pulled images
+docker compose --profile tunnels up -d
 REMOTE_START
 
 # --- Seed admin --------------------------------------------------------------
@@ -183,6 +187,5 @@ echo "  App:     https://${DOMAIN:-your-domain}"
 echo "  Grafana: https://${GRAFANA_DOMAIN:-grafana.your-domain}"
 echo ""
 echo "  To redeploy after code changes:"
-echo "    git push"
-echo "    ssh ${SSH_TARGET} 'cd /opt/gofin && git pull && just up-prod'"
+echo "    Push to main — CD workflow handles build, push, and deploy automatically."
 echo "==========================================================================="
