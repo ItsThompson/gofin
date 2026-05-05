@@ -3,6 +3,7 @@ services:
   # Node 1: Edge (MFE + Cloudflare tunnels)
   # ---------------------------------------------------------------------------
   mfe:
+    image: ghcr.io/itsthompson/gofin/mfe:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -39,6 +40,7 @@ services:
   # Node 2: Compute (API gateway + microservices)
   # ---------------------------------------------------------------------------
   api-gateway:
+    image: ghcr.io/itsthompson/gofin/api-gateway:latest
     build:
       context: ./services
       dockerfile: gateway/Dockerfile
@@ -68,6 +70,7 @@ services:
     restart: unless-stopped
 
   auth-service:
+    image: ghcr.io/itsthompson/gofin/auth-service:latest
     build:
       context: ./services
       dockerfile: auth/Dockerfile
@@ -99,6 +102,7 @@ services:
     restart: unless-stopped
 
   expense-service:
+    image: ghcr.io/itsthompson/gofin/expense-service:latest
     build:
       context: ./services
       dockerfile: expense/Dockerfile
@@ -127,6 +131,7 @@ services:
     restart: unless-stopped
 
   finance-service:
+    image: ghcr.io/itsthompson/gofin/finance-service:latest
     build:
       context: ./services
       dockerfile: finance/Dockerfile
@@ -261,6 +266,7 @@ services:
     restart: unless-stopped
 
   grafana-auth-proxy:
+    image: ghcr.io/itsthompson/gofin/grafana-auth-proxy:latest
     build:
       context: ./monitoring/auth-proxy
       dockerfile: Dockerfile
