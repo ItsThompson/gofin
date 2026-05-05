@@ -49,7 +49,7 @@
       "datasource": { "type": "prometheus", "uid": "gofin-prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket{job=\"expense-service\"}[5m])) by (query_name, le))",
+          "expr": "query:db_query_duration_seconds:p95_expense",
           "legendFormat": "{{ query_name }}"
         }
       ],
@@ -61,6 +61,7 @@
       }
     }
   ],
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": ["gofin", "expense"],
   "templating": { "list": [] },

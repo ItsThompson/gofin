@@ -31,7 +31,7 @@
       "datasource": { "type": "prometheus", "uid": "gofin-prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"finance-service\"}[5m])) by (path, le))",
+          "expr": "job_path:http_request_duration_seconds:p95",
           "legendFormat": "{{ path }}"
         }
       ],
@@ -49,7 +49,7 @@
       "datasource": { "type": "prometheus", "uid": "gofin-prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(grpc_request_duration_seconds_bucket{job=\"finance-service\"}[5m])) by (method, le))",
+          "expr": "job_method:grpc_request_duration_seconds:p95{job=\"finance-service\"}",
           "legendFormat": "{{ method }}"
         }
       ],
@@ -61,6 +61,7 @@
       }
     }
   ],
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": ["gofin", "finance"],
   "templating": { "list": [] },

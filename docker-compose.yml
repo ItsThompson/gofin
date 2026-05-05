@@ -16,8 +16,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 512M
+          cpus: "0.25"
+          memory: 256M
     restart: unless-stopped
 
   cloudflared-app:
@@ -183,7 +183,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
+          cpus: "0.5"
           memory: 512M
     restart: unless-stopped
 
@@ -198,7 +198,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: "0.25"
           memory: 256M
     restart: unless-stopped
 
@@ -207,18 +207,26 @@ services:
   # ---------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=3d'
+      - '--storage.tsdb.retention.size=2GB'
+      - '--query.max-concurrency=5'
+      - '--query.timeout=30s'
     ports:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring/prometheus/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
+      - promdata:/prometheus
     networks:
       - monitoring-net
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "0.3"
+          memory: 512M
     restart: unless-stopped
 
   alertmanager:
@@ -248,7 +256,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: "0.25"
           memory: 256M
     restart: unless-stopped
 
@@ -302,3 +310,4 @@ networks:
 volumes:
   pgdata:
   immudata:
+  promdata:

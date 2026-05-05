@@ -31,7 +31,7 @@
       "datasource": { "type": "prometheus", "uid": "gofin-prometheus" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket{job=~\"auth-service|finance-service\"}[5m])) by (job, query_name, le))",
+          "expr": "job_query:db_query_duration_seconds:p95{job=~\"auth-service|finance-service\"}",
           "legendFormat": "{{ job }} - {{ query_name }}"
         }
       ],
@@ -61,6 +61,7 @@
       }
     }
   ],
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": ["gofin", "database"],
   "templating": { "list": [] },
