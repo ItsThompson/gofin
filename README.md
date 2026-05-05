@@ -104,6 +104,9 @@ graph TB
 # Copy environment config
 cp .env.example .env
 
+# Install dev tooling and activate pre-commit hooks
+just setup
+
 # Start the full stack
 just up
 
@@ -159,6 +162,7 @@ Run `just --list` for the full set of recipes. Key commands:
 
 | Command | Description |
 |---------|-------------|
+| `just setup` | Install dev tooling (lefthook, golangci-lint) and activate pre-commit hooks |
 | `just up` | Build and start the full stack |
 | `just down` | Stop all containers |
 | `just reset` | Stop and remove all volumes (full data reset) |
