@@ -1,6 +1,21 @@
 // This file provides the real immudb client for production/Docker builds.
 // It requires the github.com/codenotary/immudb dependency, which is fetched
 // during `go mod download` in the Docker build stage.
+//
+// Session management strategy:
+// The immudb SDK does not auto-reconnect when a session is invalidated. It
+// provides two mechanisms for the application to handle this:
+//
+//  1. ErrorHandler callback: fires when the heartbeat detects a dead session.
+//     We use this for proactive reconnection (recovers within one heartbeat
+//     cycle, ~1 minute by default).
+//
+//  2. Operation-level detection: if a request arrives before the heartbeat
+//     fires, the operation itself will fail with "session not found". We
+//     detect this and retry once after reconnecting.
+//
+// Together these ensure the service self-heals from session loss without
+// requiring a container restart.
 
 //go:build docker
 
@@ -9,23 +24,53 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	immudb "github.com/codenotary/immudb/pkg/client"
+	"github.com/codenotary/immudb/pkg/api/schema"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
 
-// realImmudbClient wraps the immudb native Go client.
+// realImmudbClient wraps the immudb native Go client with automatic session
+// reconnection on session loss.
+//
+// A generation counter prevents thundering herd reconnections: if the
+// heartbeat handler and multiple request goroutines all detect the error
+// concurrently, only one performs the reconnect and the others simply retry
+// with the fresh session.
 type realImmudbClient struct {
-	client immudb.ImmuClient
+	mu         sync.Mutex
+	client     immudb.ImmuClient
+	generation uint64
+	cfg        *config.Config
+	logger     *slog.Logger
 }
 
 func newImmudbClientImpl(ctx context.Context, cfg *config.Config) (repository.ImmudbClient, error) {
-	// Parse host:port from IMMUDB_ADDR
-	parts := strings.SplitN(cfg.ImmudbAddr, ":", 2)
+	rc := &realImmudbClient{
+		cfg:    cfg,
+		logger: slog.Default(),
+	}
+
+	client, err := rc.openSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rc.client = client
+
+	return rc, nil
+}
+
+// openSession creates a new immudb client with an ErrorHandler that triggers
+// proactive reconnection when the heartbeat detects session loss.
+func (c *realImmudbClient) openSession(ctx context.Context) (immudb.ImmuClient, error) {
+	parts := strings.SplitN(c.cfg.ImmudbAddr, ":", 2)
 	host := parts[0]
 	port := 3322
 	if len(parts) == 2 {
@@ -39,43 +84,149 @@ func newImmudbClientImpl(ctx context.Context, cfg *config.Config) (repository.Im
 	opts := immudb.DefaultOptions().WithAddress(host).WithPort(port)
 	client := immudb.NewClient().WithOptions(opts)
 
-	err := client.OpenSession(ctx, []byte(cfg.ImmudbUsername), []byte(cfg.ImmudbPassword), "defaultdb")
+	// Register the SDK's ErrorHandler hook: called by the heartbeater
+	// goroutine when keep-alive fails. This triggers proactive reconnection
+	// so the session is restored before the next user request arrives.
+	client.WithErrorHandler(func(sessionID string, err error) {
+		if !isSessionError(err) {
+			return
+		}
+		c.logger.Warn("heartbeat detected session loss, reconnecting proactively...",
+			slog.String("session_id", sessionID),
+			slog.String("error", err.Error()),
+		)
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		_ = c.reconnectLocked(context.Background(), c.generation)
+	})
+
+	err := client.OpenSession(ctx, []byte(c.cfg.ImmudbUsername), []byte(c.cfg.ImmudbPassword), "defaultdb")
 	if err != nil {
 		return nil, fmt.Errorf("opening immudb session: %w", err)
 	}
 
-	return &realImmudbClient{client: client}, nil
+	return client, nil
+}
+
+// isSessionError returns true if the error indicates the immudb session
+// has been invalidated and a reconnection is needed.
+func isSessionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "session not found") ||
+		strings.Contains(msg, "no session found") ||
+		strings.Contains(msg, "session does not exist")
+}
+
+// reconnectLocked closes the dead session (best-effort) and opens a fresh one.
+// Only reconnects if the generation hasn't changed since the caller observed
+// the error (prevents thundering herd). Caller must hold c.mu.
+func (c *realImmudbClient) reconnectLocked(ctx context.Context, observedGen uint64) error {
+	// Another goroutine already reconnected: skip.
+	if c.generation != observedGen {
+		return nil
+	}
+
+	c.logger.Warn("immudb session lost, reconnecting...")
+
+	// Best-effort close of the dead session.
+	_ = c.client.CloseSession(ctx)
+
+	// Brief pause before reconnecting to avoid hammering immudb.
+	time.Sleep(500 * time.Millisecond)
+
+	newClient, err := c.openSession(ctx)
+	if err != nil {
+		c.logger.Error("immudb reconnection failed", slog.String("error", err.Error()))
+		return fmt.Errorf("reconnecting to immudb: %w", err)
+	}
+
+	c.client = newClient
+	c.generation++
+	c.logger.Info("immudb session re-established")
+	return nil
 }
 
 func (c *realImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*repository.SQLResult, error) {
-	_, err := c.client.SQLExec(ctx, sql, params)
-	if err != nil {
+	c.mu.Lock()
+	client := c.client
+	gen := c.generation
+	c.mu.Unlock()
+
+	_, err := client.SQLExec(ctx, sql, params)
+	if err == nil {
+		return &repository.SQLResult{}, nil
+	}
+
+	if !isSessionError(err) {
 		return nil, err
+	}
+
+	// Session invalidated: reconnect and retry once.
+	c.mu.Lock()
+	reconnErr := c.reconnectLocked(ctx, gen)
+	client = c.client
+	c.mu.Unlock()
+	if reconnErr != nil {
+		return nil, fmt.Errorf("SQLExec session recovery failed: %w (original: %w)", reconnErr, err)
+	}
+
+	_, retryErr := client.SQLExec(ctx, sql, params)
+	if retryErr != nil {
+		return nil, retryErr
 	}
 	return &repository.SQLResult{}, nil
 }
 
 func (c *realImmudbClient) SQLQuery(ctx context.Context, sql string, params map[string]interface{}) (*repository.SQLResult, error) {
-	result, err := c.client.SQLQuery(ctx, sql, params, true)
-	if err != nil {
+	c.mu.Lock()
+	client := c.client
+	gen := c.generation
+	c.mu.Unlock()
+
+	result, err := client.SQLQuery(ctx, sql, params, true)
+	if err == nil {
+		return toSQLResult(result), nil
+	}
+
+	if !isSessionError(err) {
 		return nil, err
 	}
 
-	rows := make([]repository.SQLRow, len(result.Rows))
+	// Session invalidated: reconnect and retry once.
+	c.mu.Lock()
+	reconnErr := c.reconnectLocked(ctx, gen)
+	client = c.client
+	c.mu.Unlock()
+	if reconnErr != nil {
+		return nil, fmt.Errorf("SQLQuery session recovery failed: %w (original: %w)", reconnErr, err)
+	}
+
+	result, err = client.SQLQuery(ctx, sql, params, true)
+	if err != nil {
+		return nil, err
+	}
+	return toSQLResult(result), nil
+}
+
+// toSQLResult converts the immudb SDK query result into our repository types.
+func toSQLResult(result *schema.SQLQueryResult) *repository.SQLResult {
+	sqlRows := make([]repository.SQLRow, len(result.Rows))
 	for i, row := range result.Rows {
 		values := make([]repository.SQLValue, len(row.Values))
 		for j, val := range row.Values {
 			values[j] = &immudbValue{val: val}
 		}
-		rows[i] = repository.SQLRow{Values: values}
+		sqlRows[i] = repository.SQLRow{Values: values}
 	}
-
-	return &repository.SQLResult{Rows: rows}, nil
+	return &repository.SQLResult{Rows: sqlRows}
 }
 
 // immudbValue wraps an immudb SQL value to satisfy repository.SQLValue.
 type immudbValue struct {
-	val interface{ GetS() string; GetN() int64; GetB() bool }
+	val *schema.SQLValue
 }
 
 func (v *immudbValue) GetString() string { return v.val.GetS() }
