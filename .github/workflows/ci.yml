@@ -24,6 +24,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v6
         with:
+          version: v2.12
           working-directory: services
 
   lint-frontend:
