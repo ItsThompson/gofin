@@ -122,7 +122,8 @@ jobs:
 
           echo "Waiting for API gateway..."
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://localhost:3000/api/health; then
+            # Gateway requires auth on /api/health, so check /metrics directly (no auth needed)
+            if curl -sf -o /dev/null http://localhost:8080/metrics; then
               echo "  API gateway is up (attempt ${i}/60)"
               break
             fi
