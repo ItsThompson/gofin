@@ -71,6 +71,6 @@ test.describe("Expense Correction", () => {
     await expect(page).toHaveURL(/\/dashboard/);
 
     // The corrected amount ($30.00) should appear, not the original ($25.00)
-    await expect(page.getByText("$30.00")).toBeVisible();
+    await expect(page.getByText("$30.00").first()).toBeVisible();
   });
 });

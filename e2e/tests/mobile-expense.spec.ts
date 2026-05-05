@@ -49,7 +49,7 @@ test.describe("Mobile Expense Logging", () => {
 
     // Step 5: Verify the expense is in the mobile list view
     // On mobile, expenses render as a list (not a table)
-    await expect(page.getByText("Mobile Coffee").first()).toBeVisible();
-    await expect(page.getByText("$5.50").first()).toBeVisible();
+    await expect(page.locator("text=Mobile Coffee").locator("visible=true").first()).toBeVisible();
+    await expect(page.locator("text=$5.50").locator("visible=true").first()).toBeVisible();
   });
 });
