@@ -1,5 +1,29 @@
 # Root justfile: orchestrates the full gofin monorepo
 
+# Install dev tooling and git hooks
+setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "Installing dev tools via Homebrew..."
+
+    if ! command -v lefthook &> /dev/null; then
+        brew install lefthook
+    else
+        echo "  lefthook already installed"
+    fi
+
+    if ! command -v golangci-lint &> /dev/null; then
+        brew install golangci-lint
+    else
+        echo "  golangci-lint already installed"
+    fi
+
+    echo "Installing git hooks..."
+    lefthook install
+
+    echo "Done. Pre-commit hooks are active."
+
 # Start the full stack
 up:
     docker compose up -d --build

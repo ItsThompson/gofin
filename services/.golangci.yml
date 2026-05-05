@@ -1,0 +1,8 @@
+version: "2"
+
+linters:
+  # Explicitly pin to the standard defaults so behavior is consistent
+  # regardless of golangci-lint version installed locally.
+  # These match the CI (golangci-lint v2.12) defaults:
+  #   errcheck, govet, ineffassign, staticcheck, unused
+  default: standard

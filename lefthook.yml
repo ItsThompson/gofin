@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint-backend:
+      root: services/
+      glob: "*.go"
+      run: golangci-lint run --new-from-rev=HEAD ./...
+      fail_text: "Backend lint failed. Fix the issues above before committing."
+
+    lint-frontend:
+      root: frontend/
+      glob: "*.{ts,tsx,js,jsx}"
+      run: npx turbo lint
+      fail_text: "Frontend lint failed. Fix the issues above before committing."
