@@ -40,7 +40,7 @@ test.describe("Mobile Expense Logging", () => {
 
     // Step 3: Verify the expense appears on the dashboard
     await expect(page.getByText("Mobile Coffee")).toBeVisible();
-    await expect(page.getByText("$5.50")).toBeVisible();
+    await expect(page.getByText("$5.50").first()).toBeVisible();
 
     // Step 4: Navigate to expense log via mobile menu
     await page.getByRole("button", { name: "Open menu" }).click();

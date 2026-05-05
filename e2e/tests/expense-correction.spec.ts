@@ -25,7 +25,7 @@ test.describe("Expense Correction", () => {
     await expect(page).toHaveURL(/\/expenses/);
 
     // Step 3: Click the expense to open the detail modal
-    await page.getByText("Coffee Beans").click();
+    await page.getByText("Coffee Beans").first().click();
     await expect(
       page.getByRole("heading", { name: "Expense Detail" }),
     ).toBeVisible();

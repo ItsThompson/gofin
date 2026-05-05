@@ -23,7 +23,7 @@ test.describe("Admin Identity Assumption", () => {
 
     // Verify the expense is visible on the regular user's dashboard
     await expect(page.getByText("User Expense")).toBeVisible();
-    await expect(page.getByText("$75.00")).toBeVisible();
+    await expect(page.getByText("$75.00").first()).toBeVisible();
 
     // Log out the regular user
     await page.getByRole("button", { name: "Logout" }).click();
