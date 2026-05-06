@@ -11,6 +11,7 @@ import {
   allUsers,
   computeTagSpending,
   computeCumulativeSpend,
+  computeMockTrends,
 } from "./data";
 
 /** Simulates realistic network latency. */
@@ -267,6 +268,13 @@ export const handlers = [
   http.get("/api/finance/spending/comparison", async () => {
     await simulateLatency();
     return HttpResponse.json({ comparison: mockComparison });
+  }),
+
+  http.get("/api/finance/spending/trends", async ({ request }) => {
+    await simulateLatency();
+    const url = new URL(request.url);
+    const months = Number(url.searchParams.get("months") ?? "6");
+    return HttpResponse.json({ trends: computeMockTrends(months) });
   }),
 
   // ─── Expenses ────────────────────────────────────────────────────────
