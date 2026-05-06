@@ -101,7 +101,7 @@ ssh "${SSH_TARGET}" bash <<REMOTE_REPO
 set -euo pipefail
 if [[ -d /opt/gofin/.git ]]; then
   echo "  Repo exists, pulling latest..."
-  cd /opt/gofin && git pull
+  cd /opt/gofin && git fetch origin && git reset --hard origin/main
 else
   echo "  Cloning repo..."
   git clone ${REPO_URL} /opt/gofin
