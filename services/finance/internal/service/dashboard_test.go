@@ -260,7 +260,7 @@ func TestComputeCumulativeSpend_BasicAccumulation(t *testing.T) {
 		{ExpenseDate: "2025-01-03", Amount: 20000},
 	}
 
-	points := ComputeCumulativeSpend(expenses, 310000, 31)
+	points := ComputeCumulativeSpend(expenses, 310000, 2025, 1, 31)
 
 	assert.Len(t, points, 31)
 	// Day 1: 15000
@@ -276,7 +276,7 @@ func TestComputeCumulativeSpend_BasicAccumulation(t *testing.T) {
 
 func TestComputeCumulativeSpend_IdealLine(t *testing.T) {
 	// 310000 budget, 31 days → 10000/day ideal
-	points := ComputeCumulativeSpend([]ExpenseData{}, 310000, 31)
+	points := ComputeCumulativeSpend([]ExpenseData{}, 310000, 2025, 1, 31)
 
 	assert.Equal(t, int64(10000), points[0].Ideal)   // day 1: 310000/31*1 = 10000
 	assert.Equal(t, int64(150000), points[14].Ideal)  // day 15: 310000/31*15 = 150000
@@ -284,7 +284,7 @@ func TestComputeCumulativeSpend_IdealLine(t *testing.T) {
 }
 
 func TestComputeCumulativeSpend_NoExpenses(t *testing.T) {
-	points := ComputeCumulativeSpend([]ExpenseData{}, 300000, 30)
+	points := ComputeCumulativeSpend([]ExpenseData{}, 300000, 2025, 6, 30)
 
 	assert.Len(t, points, 30)
 	for _, point := range points {
@@ -298,7 +298,7 @@ func TestComputeCumulativeSpend_DayCarryForward(t *testing.T) {
 		{ExpenseDate: "2025-03-10", Amount: 50000},
 	}
 
-	points := ComputeCumulativeSpend(expenses, 300000, 31)
+	points := ComputeCumulativeSpend(expenses, 300000, 2025, 3, 31)
 
 	// Days 1-9: 0
 	for i := 0; i < 9; i++ {
@@ -308,6 +308,26 @@ func TestComputeCumulativeSpend_DayCarryForward(t *testing.T) {
 	for i := 9; i < 31; i++ {
 		assert.Equal(t, int64(50000), points[i].Actual, "day %d should be 50000", i+1)
 	}
+}
+
+func TestComputeCumulativeSpend_CrossMonthClamp(t *testing.T) {
+	// April 29 expense assigned to May period should be clamped to day 1
+	expenses := []ExpenseData{
+		{ExpenseDate: "2025-04-29", Amount: 15000},
+		{ExpenseDate: "2025-05-03", Amount: 20000},
+	}
+
+	points := ComputeCumulativeSpend(expenses, 300000, 2025, 5, 31)
+
+	assert.Len(t, points, 31)
+	// Day 1: April 29 expense clamped here → 15000
+	assert.Equal(t, int64(15000), points[0].Actual)
+	// Day 2: still 15000 (no expenses)
+	assert.Equal(t, int64(15000), points[1].Actual)
+	// Day 3: 15000 + 20000 = 35000
+	assert.Equal(t, int64(35000), points[2].Actual)
+	// Day 29: should NOT have any bump (the Apr 29 expense is at day 1, not day 29)
+	assert.Equal(t, int64(35000), points[28].Actual)
 }
 
 // --- Helper Tests ---
@@ -331,11 +351,19 @@ func TestDaysInMonth(t *testing.T) {
 	}
 }
 
-func TestParseDayFromDate(t *testing.T) {
-	assert.Equal(t, int32(15), parseDayFromDate("2025-01-15"))
-	assert.Equal(t, int32(1), parseDayFromDate("2025-12-01"))
-	assert.Equal(t, int32(0), parseDayFromDate("not-a-date"))
-	assert.Equal(t, int32(0), parseDayFromDate(""))
+func TestParseDayForPeriod(t *testing.T) {
+	// Matching month: returns actual day
+	assert.Equal(t, int32(15), parseDayForPeriod("2025-01-15", 2025, 1))
+
+	// Mismatched month: clamped to day 1
+	assert.Equal(t, int32(1), parseDayForPeriod("2025-04-29", 2025, 5))
+
+	// Mismatched year: clamped to day 1
+	assert.Equal(t, int32(1), parseDayForPeriod("2024-01-15", 2025, 1))
+
+	// Parse failure: returns 0
+	assert.Equal(t, int32(0), parseDayForPeriod("not-a-date", 2025, 1))
+	assert.Equal(t, int32(0), parseDayForPeriod("", 2025, 1))
 }
 
 // --- Current-month pacing test (uses injected now) ---

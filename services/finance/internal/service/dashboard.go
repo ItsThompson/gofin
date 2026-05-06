@@ -66,7 +66,7 @@ func (s *FinanceService) GetCumulativeSpend(ctx context.Context, userID string, 
 	}
 
 	daysInMonth := daysInMonth(year, month)
-	return ComputeCumulativeSpend(expenses, period.BudgetAmount, daysInMonth), nil
+	return ComputeCumulativeSpend(expenses, period.BudgetAmount, year, month, daysInMonth), nil
 }
 
 // GetSpendingTrends computes multi-month trend data for the spending trends charts.
@@ -389,11 +389,13 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 
 // ComputeCumulativeSpend generates daily cumulative spending points.
 // Each day carries forward the previous day's total if no expenses exist on that day.
-func ComputeCumulativeSpend(expenses []ExpenseData, totalBudget int64, daysInPeriod int32) []model.CumulativeSpendPoint {
+// The year and month parameters identify the budget period so that cross-month
+// expenses (e.g., April expenses assigned to a May period) are clamped to day 1.
+func ComputeCumulativeSpend(expenses []ExpenseData, totalBudget int64, year, month, daysInPeriod int32) []model.CumulativeSpendPoint {
 	// Build day-by-day spend map
 	daySpend := make(map[int32]int64)
 	for _, exp := range expenses {
-		day := parseDayFromDate(exp.ExpenseDate)
+		day := parseDayForPeriod(exp.ExpenseDate, year, month)
 		if day > 0 && day <= daysInPeriod {
 			daySpend[day] += exp.Amount
 		}
@@ -491,12 +493,18 @@ func computeDaysElapsed(year, month, daysInPeriod int32, now time.Time) int32 {
 	return daysInPeriod
 }
 
-// parseDayFromDate extracts the day-of-month from a "YYYY-MM-DD" date string.
+// parseDayForPeriod extracts the day-of-month from a "YYYY-MM-DD" date string
+// relative to the given budget period. If the expense's year/month matches the
+// period, the actual day is returned. If it does not match (cross-month expense),
+// the day is clamped to 1 ("already spent before this period started").
 // Returns 0 on parse failure.
-func parseDayFromDate(date string) int32 {
+func parseDayForPeriod(date string, periodYear, periodMonth int32) int32 {
 	t, err := time.Parse("2006-01-02", date)
 	if err != nil {
 		return 0
+	}
+	if int32(t.Year()) != periodYear || int32(t.Month()) != periodMonth {
+		return 1
 	}
 	return int32(t.Day())
 }
