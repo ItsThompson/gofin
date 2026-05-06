@@ -114,3 +114,22 @@ type HistoricalComparison struct {
 type HistoricalComparisonResponse struct {
 	Comparison *HistoricalComparison `json:"comparison"`
 }
+
+// TrendPoint is a single monthly data point in the spending trends chart.
+type TrendPoint struct {
+	Year             int32   `json:"year"`
+	Month            int32   `json:"month"`
+	TotalSpent       int64   `json:"totalSpent"`
+	BudgetAmount     int64   `json:"budgetAmount"`
+	EssentialsSpent  int64   `json:"essentialsSpent"`
+	DesiresSpent     int64   `json:"desiresSpent"`
+	SavingsSpent     int64   `json:"savingsSpent"`
+	EssentialsPercent float64 `json:"essentialsPercent"`
+	DesiresPercent   float64 `json:"desiresPercent"`
+	SavingsPercent   float64 `json:"savingsPercent"`
+}
+
+// TrendResponse is the JSON body returned for GET /api/finance/spending/trends.
+type TrendResponse struct {
+	Trends []TrendPoint `json:"trends"`
+}

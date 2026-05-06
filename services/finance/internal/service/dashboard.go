@@ -69,6 +69,110 @@ func (s *FinanceService) GetCumulativeSpend(ctx context.Context, userID string, 
 	return ComputeCumulativeSpend(expenses, period.BudgetAmount, daysInMonth), nil
 }
 
+// GetSpendingTrends computes multi-month trend data for the spending trends charts.
+// It returns up to `months` data points ending at the specified year/month, ordered chronologically.
+func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, year, month int32, months int32) ([]model.TrendPoint, error) {
+	if months < 1 {
+		months = 6
+	}
+	if months > 12 {
+		months = 12
+	}
+
+	// List all periods (ordered year DESC, month DESC)
+	periods, err := s.repo.ListPeriods(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing periods: %w", err)
+	}
+
+	// Build a map of year-month -> period for quick lookup
+	periodMap := make(map[[2]int32]*model.BudgetPeriod, len(periods))
+	for _, p := range periods {
+		periodMap[[2]int32{p.Year, p.Month}] = p
+	}
+
+	// Generate the list of year-month pairs going backwards from anchor
+	type yearMonth struct {
+		year  int32
+		month int32
+	}
+	window := make([]yearMonth, 0, months)
+	y, m := year, month
+	for i := int32(0); i < months; i++ {
+		window = append(window, yearMonth{y, m})
+		m--
+		if m == 0 {
+			m = 12
+			y--
+		}
+	}
+
+	// Reverse to chronological order
+	for i, j := 0, len(window)-1; i < j; i, j = i+1, j-1 {
+		window[i], window[j] = window[j], window[i]
+	}
+
+	// Fetch expenses for each month and build input arrays for the pure function
+	periodSlice := make([]*model.BudgetPeriod, len(window))
+	expenseSlice := make([][]ExpenseData, len(window))
+	yearSlice := make([]int32, len(window))
+	monthSlice := make([]int32, len(window))
+
+	for i, ym := range window {
+		yearSlice[i] = ym.year
+		monthSlice[i] = ym.month
+		p := periodMap[[2]int32{ym.year, ym.month}]
+		periodSlice[i] = p
+		if p != nil {
+			var err error
+			expenseSlice[i], err = s.expenseClient.GetExpensesForPeriod(ctx, userID, ym.year, ym.month)
+			if err != nil {
+				return nil, fmt.Errorf("fetching expenses for %d-%02d: %w", ym.year, ym.month, err)
+			}
+		}
+	}
+
+	return ComputeSpendingTrends(periodSlice, expenseSlice, yearSlice, monthSlice), nil
+}
+
+// ComputeSpendingTrends is the pure computation for spending trends.
+// Exported for direct testing without service/repo dependencies.
+// Each entry in periods and expenses must correspond by index.
+func ComputeSpendingTrends(periods []*model.BudgetPeriod, expensesByMonth [][]ExpenseData, years []int32, months []int32) []model.TrendPoint {
+	result := make([]model.TrendPoint, len(years))
+	for i := range years {
+		point := model.TrendPoint{
+			Year:  years[i],
+			Month: months[i],
+		}
+
+		p := periods[i]
+		if p != nil {
+			point.BudgetAmount = p.BudgetAmount
+			point.EssentialsPercent = float64(p.EssentialsPercent)
+			point.DesiresPercent = float64(p.DesiresPercent)
+			point.SavingsPercent = float64(p.SavingsPercent)
+		}
+
+		expenses := expensesByMonth[i]
+		for _, exp := range expenses {
+			point.TotalSpent += exp.Amount
+			switch exp.ExpenseType {
+			case "essentials":
+				point.EssentialsSpent += exp.Amount
+			case "desires":
+				point.DesiresSpent += exp.Amount
+			case "savings":
+				point.SavingsSpent += exp.Amount
+			}
+		}
+
+		result[i] = point
+	}
+
+	return result
+}
+
 // GetHistoricalComparison computes the historical spending comparison for a period.
 // Returns current vs previous period spending, rolling 3-period average, and change percent.
 func (s *FinanceService) GetHistoricalComparison(ctx context.Context, userID string, year, month int32) (*model.HistoricalComparison, error) {
