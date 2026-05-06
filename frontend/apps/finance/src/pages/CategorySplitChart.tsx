@@ -16,12 +16,7 @@ import {
   CardTitle,
 } from "@gofin/ui/components/card";
 import { type TrendPoint } from "@gofin/types";
-import { computeCategoryPercentages } from "../lib/trend-utils";
-
-const MONTH_LABELS = [
-  "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
+import { computeCategoryPercentages, MONTH_LABELS } from "../lib/trend-utils";
 
 interface CategorySplitChartProps {
   data: TrendPoint[];

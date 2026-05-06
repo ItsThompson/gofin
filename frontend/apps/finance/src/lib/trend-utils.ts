@@ -5,6 +5,12 @@ export interface CategoryPercentages {
   savings: number;
 }
 
+/** Abbreviated month labels indexed by month number (1-12). Index 0 is empty. */
+export const MONTH_LABELS = [
+  "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+] as const;
+
 /**
  * Compute each category's spending as a percentage of total spent.
  * Returns 0 for all categories when total is zero (no division-by-zero).

@@ -429,7 +429,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
     // Fetch each section independently so a single endpoint failure
     // doesn't prevent the rest of the dashboard from rendering.
-    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes, trendRes] =
+    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
       await Promise.all([
         toastCall(() =>
           apiClient<SummaryResponse>(
@@ -457,9 +457,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         apiClient<UpcomingProRataResponse>(
           `/api/finance/prorata/upcoming`,
         ).catch(() => ({ schedules: [] as ProRataSchedule[] })),
-        apiClient<TrendResponse>(
-          `/api/finance/spending/trends?year=${currentPeriod.year}&month=${currentPeriod.month}&months=${trendMonths}`,
-        ).catch(() => null),
       ]);
 
     if (summaryRes) setSummary(summaryRes.summary);
@@ -468,14 +465,24 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
     if (expensesRes) setRecentExpenses(expensesRes.data);
     if (comparisonRes) setComparison(comparisonRes.comparison);
     if (upcomingRes) setUpcomingProRata(upcomingRes.schedules);
-    setTrendData(trendRes?.trends ?? null);
 
     setDataLoaded(true);
-  }, [currentPeriod.year, currentPeriod.month, trendMonths, toastCall]);
+  }, [currentPeriod.year, currentPeriod.month, toastCall]);
+
+  const fetchTrendData = useCallback(async () => {
+    const trendRes = await apiClient<TrendResponse>(
+      `/api/finance/spending/trends?year=${currentPeriod.year}&month=${currentPeriod.month}&months=${trendMonths}`,
+    ).catch(() => null);
+    setTrendData(trendRes?.trends ?? null);
+  }, [currentPeriod.year, currentPeriod.month, trendMonths]);
 
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  useEffect(() => {
+    fetchTrendData();
+  }, [fetchTrendData]);
 
   function handlePeriodUpdated(updatedPeriod: BudgetPeriod) {
     setCurrentPeriod(updatedPeriod);

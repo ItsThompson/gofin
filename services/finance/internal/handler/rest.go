@@ -473,7 +473,7 @@ func (h *RESTHandler) GetSpendingTrends(c *gin.Context) {
 	if err != nil || months < 1 || months > 12 {
 		c.JSON(http.StatusBadRequest, model.ApiError{
 			Code:    model.ErrValidationError,
-			Message: "months must be 6 or 12",
+			Message: "months must be between 1 and 12",
 		})
 		return
 	}

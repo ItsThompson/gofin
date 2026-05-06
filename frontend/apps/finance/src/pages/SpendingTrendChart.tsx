@@ -14,11 +14,7 @@ import {
   CardTitle,
 } from "@gofin/ui/components/card";
 import { formatCurrency, getCurrencySymbol, type TrendPoint } from "@gofin/types";
-
-const MONTH_LABELS = [
-  "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
+import { MONTH_LABELS } from "../lib/trend-utils";
 
 interface SpendingTrendChartProps {
   data: TrendPoint[];
