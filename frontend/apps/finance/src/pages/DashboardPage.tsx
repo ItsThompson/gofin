@@ -74,6 +74,7 @@ import {
 } from "recharts";
 import type { DashboardState, FinancePageProps } from "../types";
 import { getRemainingColor } from "../lib/budget-utils";
+import { MonthlyTrendsSection } from "./MonthlyTrendsSection";
 
 /**
  * Dashboard page: the central finance view.
@@ -582,6 +583,18 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           {comparison && (
             <HistoricalComparisonWidget
               comparison={comparison}
+              currency={user.currency}
+            />
+          )}
+        </SectionErrorBoundary>
+
+        {/* Monthly Trends Section */}
+        <SectionErrorBoundary sectionName="Monthly Trends">
+          {trendData && trendData.length > 0 && (
+            <MonthlyTrendsSection
+              trendData={trendData}
+              trendMonths={trendMonths}
+              onToggle={setTrendMonths}
               currency={user.currency}
             />
           )}
