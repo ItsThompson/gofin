@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -365,4 +366,177 @@ func TestComputePeriodSummary_CurrentMonthPacing(t *testing.T) {
 	assert.Equal(t, int64(10000), summary.BudgetPace)
 	// daysRemaining = 31 - 10 = 21
 	assert.Equal(t, int32(21), summary.DaysInPeriod-summary.DaysElapsed)
+}
+
+// --- Spending Trends Tests ---
+
+func TestComputeSpendingTrends_NormalSixMonths(t *testing.T) {
+	periods := make([]*model.BudgetPeriod, 6)
+	expensesByMonth := make([][]ExpenseData, 6)
+	years := []int32{2025, 2025, 2025, 2026, 2026, 2026}
+	months := []int32{10, 11, 12, 1, 2, 3}
+
+	for i := range periods {
+		periods[i] = &model.BudgetPeriod{
+			ID:                fmt.Sprintf("period-%d", i),
+			BudgetAmount:      300000 + int64(i)*10000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+		}
+		expensesByMonth[i] = []ExpenseData{
+			{Amount: 100000, ExpenseType: "essentials"},
+			{Amount: 50000, ExpenseType: "desires"},
+			{Amount: 20000, ExpenseType: "savings"},
+		}
+	}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, months)
+
+	assert.Len(t, result, 6)
+	// First point is Oct 2025
+	assert.Equal(t, int32(2025), result[0].Year)
+	assert.Equal(t, int32(10), result[0].Month)
+	// Last point is Mar 2026
+	assert.Equal(t, int32(2026), result[5].Year)
+	assert.Equal(t, int32(3), result[5].Month)
+
+	// Verify aggregation for first month
+	assert.Equal(t, int64(170000), result[0].TotalSpent)
+	assert.Equal(t, int64(100000), result[0].EssentialsSpent)
+	assert.Equal(t, int64(50000), result[0].DesiresSpent)
+	assert.Equal(t, int64(20000), result[0].SavingsSpent)
+	assert.Equal(t, int64(300000), result[0].BudgetAmount)
+
+	// Budget percentages from period
+	assert.Equal(t, float64(50), result[0].EssentialsPercent)
+	assert.Equal(t, float64(30), result[0].DesiresPercent)
+	assert.Equal(t, float64(20), result[0].SavingsPercent)
+}
+
+func TestComputeSpendingTrends_TwelveMonthsWithGaps(t *testing.T) {
+	periods := make([]*model.BudgetPeriod, 12)
+	expensesByMonth := make([][]ExpenseData, 12)
+	years := make([]int32, 12)
+	monthSlice := make([]int32, 12)
+
+	// Only fill months 0, 1, 2, 5, 6 (gaps at 3, 4, 7-11)
+	for i := range years {
+		years[i] = 2025
+		monthSlice[i] = int32(i + 1)
+	}
+
+	filledIndices := []int{0, 1, 2, 5, 6}
+	for _, idx := range filledIndices {
+		periods[idx] = &model.BudgetPeriod{
+			BudgetAmount:      250000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+		}
+		expensesByMonth[idx] = []ExpenseData{
+			{Amount: 80000, ExpenseType: "essentials"},
+		}
+	}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Len(t, result, 12)
+
+	// Filled months have data
+	assert.Equal(t, int64(80000), result[0].TotalSpent)
+	assert.Equal(t, int64(250000), result[0].BudgetAmount)
+
+	// Gap months have zero values
+	assert.Equal(t, int64(0), result[3].TotalSpent)
+	assert.Equal(t, int64(0), result[3].BudgetAmount)
+	assert.Equal(t, int64(0), result[3].EssentialsSpent)
+}
+
+func TestComputeSpendingTrends_ZeroExpenses(t *testing.T) {
+	periods := []*model.BudgetPeriod{
+		{BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20},
+	}
+	expensesByMonth := [][]ExpenseData{{}}
+	years := []int32{2026}
+	monthSlice := []int32{1}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, int64(0), result[0].TotalSpent)
+	assert.Equal(t, int64(0), result[0].EssentialsSpent)
+	assert.Equal(t, int64(0), result[0].DesiresSpent)
+	assert.Equal(t, int64(0), result[0].SavingsSpent)
+	assert.Equal(t, int64(300000), result[0].BudgetAmount)
+	assert.Equal(t, float64(50), result[0].EssentialsPercent)
+}
+
+func TestComputeSpendingTrends_ZeroBudgetAmount(t *testing.T) {
+	periods := []*model.BudgetPeriod{
+		{BudgetAmount: 0, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20},
+	}
+	expensesByMonth := [][]ExpenseData{
+		{{Amount: 5000, ExpenseType: "essentials"}},
+	}
+	years := []int32{2026}
+	monthSlice := []int32{2}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, int64(5000), result[0].TotalSpent)
+	assert.Equal(t, int64(0), result[0].BudgetAmount)
+	// Budget percentages still come from the period
+	assert.Equal(t, float64(50), result[0].EssentialsPercent)
+}
+
+func TestComputeSpendingTrends_SingleMonth(t *testing.T) {
+	periods := []*model.BudgetPeriod{
+		{BudgetAmount: 200000, EssentialsPercent: 60, DesiresPercent: 25, SavingsPercent: 15},
+	}
+	expensesByMonth := [][]ExpenseData{
+		{
+			{Amount: 40000, ExpenseType: "essentials"},
+			{Amount: 30000, ExpenseType: "desires"},
+			{Amount: 10000, ExpenseType: "savings"},
+		},
+	}
+	years := []int32{2026}
+	monthSlice := []int32{5}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, int32(2026), result[0].Year)
+	assert.Equal(t, int32(5), result[0].Month)
+	assert.Equal(t, int64(80000), result[0].TotalSpent)
+	assert.Equal(t, int64(40000), result[0].EssentialsSpent)
+	assert.Equal(t, int64(30000), result[0].DesiresSpent)
+	assert.Equal(t, int64(10000), result[0].SavingsSpent)
+	assert.Equal(t, float64(60), result[0].EssentialsPercent)
+	assert.Equal(t, float64(25), result[0].DesiresPercent)
+	assert.Equal(t, float64(15), result[0].SavingsPercent)
+}
+
+func TestComputeSpendingTrends_NilPeriodReturnsZeros(t *testing.T) {
+	// When a period is nil (no budget created that month), all fields should be zero
+	periods := []*model.BudgetPeriod{nil}
+	expensesByMonth := [][]ExpenseData{nil}
+	years := []int32{2026}
+	monthSlice := []int32{3}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, int32(2026), result[0].Year)
+	assert.Equal(t, int32(3), result[0].Month)
+	assert.Equal(t, int64(0), result[0].TotalSpent)
+	assert.Equal(t, int64(0), result[0].BudgetAmount)
+	assert.Equal(t, int64(0), result[0].EssentialsSpent)
+	assert.Equal(t, int64(0), result[0].DesiresSpent)
+	assert.Equal(t, int64(0), result[0].SavingsSpent)
+	assert.Equal(t, float64(0), result[0].EssentialsPercent)
+	assert.Equal(t, float64(0), result[0].DesiresPercent)
+	assert.Equal(t, float64(0), result[0].SavingsPercent)
 }
