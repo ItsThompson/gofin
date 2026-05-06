@@ -3,9 +3,14 @@ groups:
     rules:
       - alert: ContainerHighCPU
         expr: |
-          sum(rate(container_cpu_usage_seconds_total{name!=""}[5m])) by (name)
-          / (sum(container_spec_cpu_quota{name!=""} / container_spec_cpu_period{name!=""}) by (name))
-          > 0.9
+          (
+            sum(rate(container_cpu_usage_seconds_total{name!=""}[5m])) by (name)
+            / on(name)
+            (sum(container_spec_cpu_quota{name!=""}) by (name) / sum(container_spec_cpu_period{name!=""}) by (name))
+            > 0.9
+          )
+          and on(name)
+          sum(container_spec_cpu_quota{name!=""}) by (name) > 0
         for: 5m
         labels:
           severity: critical
