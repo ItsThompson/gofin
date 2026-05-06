@@ -921,7 +921,7 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             <Area
               type="monotone"
               dataKey="surplusTop"
-              fill="rgba(34, 197, 94, 0.15)"
+              fill="rgba(34, 197, 94, 0.50)"
               stroke="none"
               name="Under Budget"
               connectNulls={false}
@@ -930,7 +930,7 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             <Area
               type="monotone"
               dataKey="deficitTop"
-              fill="rgba(239, 68, 68, 0.15)"
+              fill="rgba(239, 68, 68, 0.50)"
               stroke="none"
               name="Over Budget"
               connectNulls={false}
