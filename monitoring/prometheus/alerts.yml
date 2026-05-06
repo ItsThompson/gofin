@@ -27,15 +27,6 @@ groups:
         annotations:
           summary: "p95 query duration > 1s for {{ $labels.query_name }}"
 
-      - alert: HighMemoryUsage
-        expr: |
-          container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.8
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $labels.name }} memory > 80% of limit"
-
       - alert: AuthFailuresSpike
         expr: rate(http_requests_total{job="auth-service",path="/api/auth/login",status="401"}[1m]) > 10
         for: 0s
