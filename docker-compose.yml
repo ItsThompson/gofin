@@ -273,6 +273,7 @@ services:
     restart: unless-stopped
 
   alertmanager:
+    image: ghcr.io/itsthompson/gofin/alertmanager:latest
     build:
       context: ./monitoring/alertmanager
       dockerfile: Dockerfile
