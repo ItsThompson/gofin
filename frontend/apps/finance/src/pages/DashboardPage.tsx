@@ -862,7 +862,7 @@ function TagSpendingChart({ tagSpending, currency }: TagSpendingChartProps) {
             />
             <Bar
               dataKey="amount"
-              fill="hsl(var(--primary))"
+              fill="var(--primary)"
               radius={[0, 4, 4, 0]}
               cursor="pointer"
               onClick={(_data: unknown, index: number) => handleBarClick(chartData[index])}
@@ -925,7 +925,7 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             <Area
               type="monotone"
               dataKey="surplusTop"
-              fill="rgba(34, 197, 94, 0.15)"
+              fill="rgba(34, 197, 94, 0.50)"
               stroke="none"
               name="Under Budget"
               connectNulls={false}
@@ -934,7 +934,7 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             <Area
               type="monotone"
               dataKey="deficitTop"
-              fill="rgba(239, 68, 68, 0.15)"
+              fill="rgba(239, 68, 68, 0.50)"
               stroke="none"
               name="Over Budget"
               connectNulls={false}
@@ -943,7 +943,7 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             <Line
               type="monotone"
               dataKey="ideal"
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--muted-foreground)"
               strokeDasharray="5 5"
               strokeWidth={2}
               dot={false}
@@ -952,7 +952,7 @@ function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
             <Line
               type="monotone"
               dataKey="actual"
-              stroke="hsl(var(--primary))"
+              stroke="var(--primary)"
               strokeWidth={2}
               dot={false}
               name="Actual"
