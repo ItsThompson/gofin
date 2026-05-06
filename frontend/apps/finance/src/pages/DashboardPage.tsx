@@ -482,6 +482,10 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
     year: "numeric",
   });
 
+  if (!dataLoaded) {
+    return <DashboardSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
