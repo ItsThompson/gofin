@@ -46,6 +46,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 		finance.GET("/spending/by-tag", h.GetSpendingByTag)
 		finance.GET("/spending/cumulative", h.GetCumulativeSpend)
 		finance.GET("/spending/comparison", h.GetHistoricalComparison)
+		finance.GET("/spending/trends", h.GetSpendingTrends)
 
 		// Pro-rata endpoints
 		finance.POST("/prorata", h.CreateProRataExpense)
@@ -457,6 +458,34 @@ func (h *RESTHandler) GetHistoricalComparison(c *gin.Context) {
 
 	c.JSON(http.StatusOK, model.HistoricalComparisonResponse{
 		Comparison: comparison,
+	})
+}
+
+// GetSpendingTrends handles GET /api/finance/spending/trends?year=YYYY&month=MM&months=6|12.
+func (h *RESTHandler) GetSpendingTrends(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	monthsStr := c.DefaultQuery("months", "6")
+	months, err := strconv.ParseInt(monthsStr, 10, 32)
+	if err != nil || months < 1 || months > 12 {
+		c.JSON(http.StatusBadRequest, model.ApiError{
+			Code:    model.ErrValidationError,
+			Message: "months must be between 1 and 12",
+		})
+		return
+	}
+
+	trends, err := h.financeService.GetSpendingTrends(c.Request.Context(), userID, year, month, int32(months))
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.TrendResponse{
+		Trends: trends,
 	})
 }
 

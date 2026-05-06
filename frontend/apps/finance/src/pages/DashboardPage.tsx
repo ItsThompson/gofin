@@ -25,6 +25,8 @@ import {
   type ProRataSchedule,
   type UpcomingProRataResponse,
   type CreatePeriodResponse,
+  type TrendPoint,
+  type TrendResponse,
   type User,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
@@ -72,6 +74,7 @@ import {
 } from "recharts";
 import type { DashboardState, FinancePageProps } from "../types";
 import { getRemainingColor } from "../lib/budget-utils";
+import { MonthlyTrendsSection } from "./MonthlyTrendsSection";
 
 /**
  * Dashboard page: the central finance view.
@@ -414,6 +417,8 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [comparison, setComparison] = useState<HistoricalComparison | null>(null);
   const [upcomingProRata, setUpcomingProRata] = useState<ProRataSchedule[]>([]);
+  const [trendData, setTrendData] = useState<TrendPoint[] | null>(null);
+  const [trendMonths, setTrendMonths] = useState<6 | 12>(6);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState(period);
@@ -464,9 +469,20 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
     setDataLoaded(true);
   }, [currentPeriod.year, currentPeriod.month, toastCall]);
 
+  const fetchTrendData = useCallback(async () => {
+    const trendRes = await apiClient<TrendResponse>(
+      `/api/finance/spending/trends?year=${currentPeriod.year}&month=${currentPeriod.month}&months=${trendMonths}`,
+    ).catch(() => null);
+    setTrendData(trendRes?.trends ?? null);
+  }, [currentPeriod.year, currentPeriod.month, trendMonths]);
+
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  useEffect(() => {
+    fetchTrendData();
+  }, [fetchTrendData]);
 
   function handlePeriodUpdated(updatedPeriod: BudgetPeriod) {
     setCurrentPeriod(updatedPeriod);
@@ -574,6 +590,18 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           {comparison && (
             <HistoricalComparisonWidget
               comparison={comparison}
+              currency={user.currency}
+            />
+          )}
+        </SectionErrorBoundary>
+
+        {/* Monthly Trends Section */}
+        <SectionErrorBoundary sectionName="Monthly Trends">
+          {trendData && trendData.length > 0 && (
+            <MonthlyTrendsSection
+              trendData={trendData}
+              trendMonths={trendMonths}
+              onToggle={setTrendMonths}
               currency={user.currency}
             />
           )}
