@@ -40,6 +40,9 @@ jobs:
           - service: grafana-auth-proxy
             context: ./monitoring/auth-proxy
             file: ./monitoring/auth-proxy/Dockerfile
+          - service: alertmanager
+            context: ./monitoring/alertmanager
+            file: ./monitoring/alertmanager/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

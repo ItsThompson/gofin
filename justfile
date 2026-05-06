@@ -58,7 +58,7 @@ dev-service service:
 
 # Start infrastructure only (databases + monitoring)
 dev-infra:
-    docker compose up -d postgresql immudb prometheus alertmanager grafana
+    docker compose up -d postgresql immudb prometheus alertmanager grafana cadvisor node-exporter
 
 # Run all backend tests
 test-backend:

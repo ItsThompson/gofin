@@ -223,6 +223,7 @@ services:
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring/prometheus/hardware_alerts.yml:/etc/prometheus/hardware_alerts.yml:ro
       - ./monitoring/prometheus/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
       - promdata:/prometheus
     networks:
@@ -234,16 +235,63 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: 128M
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.11.1
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    pid: host
+    networks:
+      - monitoring-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
+    restart: unless-stopped
+
   alertmanager:
-    image: prom/alertmanager:latest
+    image: ghcr.io/itsthompson/gofin/alertmanager:latest
+    build:
+      context: ./monitoring/alertmanager
+      dockerfile: Dockerfile
     ports:
       - "9093:9093"
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
     volumes:
-      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tpl:ro
     networks:
       - monitoring-net
     depends_on:
       - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64M
     restart: unless-stopped
 
   grafana:
