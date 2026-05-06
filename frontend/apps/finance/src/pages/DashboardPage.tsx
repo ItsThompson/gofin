@@ -25,6 +25,8 @@ import {
   type ProRataSchedule,
   type UpcomingProRataResponse,
   type CreatePeriodResponse,
+  type TrendPoint,
+  type TrendResponse,
   type User,
 } from "@gofin/types";
 import { Button } from "@gofin/ui/components/button";
@@ -414,6 +416,8 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [comparison, setComparison] = useState<HistoricalComparison | null>(null);
   const [upcomingProRata, setUpcomingProRata] = useState<ProRataSchedule[]>([]);
+  const [trendData, setTrendData] = useState<TrendPoint[] | null>(null);
+  const [trendMonths, setTrendMonths] = useState<6 | 12>(6);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState(period);
@@ -424,7 +428,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
     // Fetch each section independently so a single endpoint failure
     // doesn't prevent the rest of the dashboard from rendering.
-    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
+    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes, trendRes] =
       await Promise.all([
         toastCall(() =>
           apiClient<SummaryResponse>(
@@ -452,6 +456,9 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         apiClient<UpcomingProRataResponse>(
           `/api/finance/prorata/upcoming`,
         ).catch(() => ({ schedules: [] as ProRataSchedule[] })),
+        apiClient<TrendResponse>(
+          `/api/finance/spending/trends?year=${currentPeriod.year}&month=${currentPeriod.month}&months=${trendMonths}`,
+        ).catch(() => null),
       ]);
 
     if (summaryRes) setSummary(summaryRes.summary);
@@ -460,9 +467,10 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
     if (expensesRes) setRecentExpenses(expensesRes.data);
     if (comparisonRes) setComparison(comparisonRes.comparison);
     if (upcomingRes) setUpcomingProRata(upcomingRes.schedules);
+    setTrendData(trendRes?.trends ?? null);
 
     setDataLoaded(true);
-  }, [currentPeriod.year, currentPeriod.month, toastCall]);
+  }, [currentPeriod.year, currentPeriod.month, trendMonths, toastCall]);
 
   useEffect(() => {
     fetchDashboardData();
