@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { SettingsPage } from "@/pages/SettingsPage";
 import type { User } from "@gofin/types";
+import { buildUser, createMockApi, renderWithRouter } from "@gofin/test-utils";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -185,6 +186,38 @@ describe("SettingsPage", () => {
 
       const savingsInputs = screen.getAllByLabelText("Savings %");
       expect((savingsInputs[0] as HTMLInputElement).value).toBe("20");
+    });
+
+    it("renders with zero/empty defaults when API returns a server error", async () => {
+      // Use createMockApi to verify the SettingsPage handles a 500 gracefully
+      const savedFetch = global.fetch;
+      global.fetch = createMockApi({
+        "/api/finance/defaults": {
+          status: 500,
+          body: { code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" },
+        },
+      }) as unknown as typeof fetch;
+
+      const settingsUser = buildUser({ currency: "USD" });
+      renderWithRouter(<SettingsPage user={settingsUser} />, { route: "/settings" });
+
+      // Page should still render with fallback defaults (0 budget, 50/30/20 split)
+      await waitFor(() => {
+        const budgetInputs = screen.getAllByLabelText("Monthly Budget");
+        expect((budgetInputs[0] as HTMLInputElement).value).toBe("0");
+      });
+
+      const essentialsInputs = screen.getAllByLabelText("Essentials %");
+      expect((essentialsInputs[0] as HTMLInputElement).value).toBe("50");
+
+      const desiresInputs = screen.getAllByLabelText("Desires %");
+      expect((desiresInputs[0] as HTMLInputElement).value).toBe("30");
+
+      const savingsInputs = screen.getAllByLabelText("Savings %");
+      expect((savingsInputs[0] as HTMLInputElement).value).toBe("20");
+
+      // Restore the original mock so subsequent tests aren't affected
+      global.fetch = savedFetch;
     });
   });
 
