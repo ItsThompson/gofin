@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { HistoryPage } from "@/pages/HistoryPage";
+import { HistoryFeature } from "../index";
 import type { User } from "@gofin/core";
 
 const mockFetch = vi.fn();
@@ -79,22 +79,22 @@ function mockSummaryResponse(totalSpent: number) {
   };
 }
 
-function renderHistoryPage() {
+function renderHistory() {
   return render(
     <MemoryRouter>
-      <HistoryPage user={mockUser} />
+      <HistoryFeature user={mockUser} />
     </MemoryRouter>,
   );
 }
 
-describe("HistoryPage", () => {
+describe("HistoryFeature", () => {
   beforeEach(() => {
     mockFetch.mockReset();
   });
 
   it("renders loading state initially", () => {
     mockFetch.mockReturnValueOnce(new Promise(() => {}));
-    renderHistoryPage();
+    renderHistory();
     expect(screen.getByText("Loading history...")).toBeInTheDocument();
   });
 
@@ -104,7 +104,7 @@ describe("HistoryPage", () => {
     mockFetch.mockResolvedValueOnce(mockSummaryResponse(200000)); // March: $2000 spent
     mockFetch.mockResolvedValueOnce(mockSummaryResponse(280000)); // Feb: $2800 spent
 
-    renderHistoryPage();
+    renderHistory();
 
     await waitFor(() => {
       expect(screen.getByText("Budget History")).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("HistoryPage", () => {
       json: () => Promise.resolve({ periods: [] }),
     });
 
-    renderHistoryPage();
+    renderHistory();
 
     await waitFor(() => {
       expect(screen.getByText("No budget periods yet.")).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe("HistoryPage", () => {
     mockFetch.mockResolvedValueOnce(mockSummaryResponse(200000));
     mockFetch.mockResolvedValueOnce(mockSummaryResponse(280000));
 
-    renderHistoryPage();
+    renderHistory();
 
     await waitFor(() => {
       expect(screen.getByText("March 2026")).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe("HistoryPage", () => {
         }),
     });
 
-    renderHistoryPage();
+    renderHistory();
 
     // On error, the page renders with empty data
     await waitFor(() => {

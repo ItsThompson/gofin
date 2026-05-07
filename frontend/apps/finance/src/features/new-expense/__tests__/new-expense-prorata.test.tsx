@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { NewExpensePage } from "@/pages/NewExpensePage";
+import { NewExpenseFeature } from "../index";
 import type { User } from "@gofin/core";
 
 const mockFetch = vi.fn();
@@ -40,16 +40,16 @@ function mockTagsResponse() {
   });
 }
 
-function renderNewExpensePage() {
+function renderNewExpense() {
   mockTagsResponse();
   return render(
     <MemoryRouter>
-      <NewExpensePage user={mockUser} />
+      <NewExpenseFeature user={mockUser} />
     </MemoryRouter>,
   );
 }
 
-describe("NewExpensePage - Pro-rata flow", () => {
+describe("NewExpenseFeature - Pro-rata flow", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockNavigate.mockReset();
@@ -57,7 +57,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("shows pro-rata months field when checkbox is toggled", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -71,7 +71,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("hides pro-rata months field when checkbox is unchecked", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -87,7 +87,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("validates pro-rata months must be at least 2", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -109,7 +109,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("submits pro-rata expense to /api/finance/prorata endpoint", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -161,7 +161,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("shows generic error when non-API error occurs", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -183,7 +183,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("clears pro-rata months when checkbox is unchecked", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -206,7 +206,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("clears field errors when input changes", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -223,7 +223,7 @@ describe("NewExpensePage - Pro-rata flow", () => {
 
   it("validates empty date field", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");

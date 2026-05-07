@@ -1,15 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate } from "react-router";
-import { apiClient, ApiRequestError } from "@gofin/api";
 import { getCurrencySymbol } from "@gofin/core";
-import type {
-  ExpenseResponse,
-  CreateExpenseRequest,
-  CreateProRataRequest,
-  ProRataResponse,
-  Tag,
-  TagListResponse,
-} from "@/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -27,17 +16,7 @@ import {
 } from "@gofin/ui/components/form";
 import { PlusCircle } from "lucide-react";
 import type { FinancePageProps } from "@/types/pages";
-
-const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
-type ExpenseType = (typeof EXPENSE_TYPES)[number];
-
-function todayISO(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
 
 /**
  * New expense form page. Allows users to log a standard expense.
@@ -45,129 +24,11 @@ function todayISO(): string {
  * before submission. On success, redirects to /dashboard.
  */
 export function NewExpenseFeature({ user }: FinancePageProps) {
-  const navigate = useNavigate();
   const currencySymbol = getCurrencySymbol(user.currency);
-
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
-
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [tagsLoading, setTagsLoading] = useState(true);
-  const [name, setName] = useState("");
-  const [amountDollars, setAmountDollars] = useState("");
-  const [expenseType, setExpenseType] = useState<ExpenseType>("essentials");
-  const [tagId, setTagId] = useState("");
-  const [expenseDate, setExpenseDate] = useState(todayISO());
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [isProRata, setIsProRata] = useState(false);
-  const [proRataMonths, setProRataMonths] = useState("");
-
-  useEffect(() => {
-    async function fetchTags() {
-      try {
-        const response = await apiClient<TagListResponse>("/api/finance/tags");
-        setTags(response.tags);
-        if (response.tags.length > 0) {
-          setTagId(response.tags[0].id);
-        }
-      } catch {
-        // Tags fail silently: form will show empty dropdown
-      } finally {
-        setTagsLoading(false);
-      }
-    }
-    fetchTags();
-  }, []);
-
-  function validate(): Record<string, string> {
-    const errors: Record<string, string> = {};
-
-    if (!name.trim()) {
-      errors.name = "Name is required";
-    }
-
-    const parsedAmount = parseFloat(amountDollars);
-    if (!amountDollars || isNaN(parsedAmount) || parsedAmount <= 0) {
-      errors.amount = "Amount must be greater than 0";
-    }
-
-    if (!expenseDate) {
-      errors.expenseDate = "Date is required";
-    }
-
-    if (!tagId) {
-      errors.tagId = "Tag is required";
-    }
-
-    if (isProRata) {
-      const months = parseInt(proRataMonths, 10);
-      if (!proRataMonths || isNaN(months) || months < 2) {
-        errors.proRataMonths = "Must be at least 2 months";
-      }
-    }
-
-    return errors;
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    setFieldErrors({});
-
-    const errors = validate();
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
-
-    const amountCents = Math.round(parseFloat(amountDollars) * 100);
-
-    setSubmitting(true);
-    try {
-      if (isProRata) {
-        const body: CreateProRataRequest = {
-          name: name.trim(),
-          totalAmount: amountCents,
-          currency: user.currency,
-          expenseType,
-          tagId,
-          expenseDate,
-          months: parseInt(proRataMonths, 10),
-        };
-        await apiClient<ProRataResponse>("/api/finance/prorata", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-      } else {
-        const body: CreateExpenseRequest = {
-          name: name.trim(),
-          amount: amountCents,
-          currency: user.currency,
-          expenseType,
-          tagId,
-          expenseDate,
-          periodYear: currentYear,
-          periodMonth: currentMonth,
-        };
-        await apiClient<ExpenseResponse>("/api/expenses", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
-      }
-      navigate("/dashboard");
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const { state, actions } = useNewExpenseForm(user.currency);
 
   return (
     <div className="flex items-start justify-center pt-4 md:pt-8">
@@ -186,7 +47,7 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form onSubmit={handleSubmit}>
+          <Form onSubmit={actions.handleSubmit}>
             {/* Name */}
             <FormField>
               <FormLabel htmlFor="expense-name">Name</FormLabel>
@@ -194,14 +55,14 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                 id="expense-name"
                 type="text"
                 placeholder="e.g. Grocery shopping"
-                value={name}
+                value={state.name}
                 onChange={(event) => {
-                  setName(event.target.value);
-                  setFieldErrors((prev) => ({ ...prev, name: "" }));
+                  actions.setName(event.target.value);
+                  actions.clearFieldError("name");
                 }}
-                aria-invalid={!!fieldErrors.name}
+                aria-invalid={!!state.fieldErrors.name}
               />
-              <FormMessage>{fieldErrors.name}</FormMessage>
+              <FormMessage>{state.fieldErrors.name}</FormMessage>
             </FormField>
 
             {/* Amount */}
@@ -217,16 +78,16 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                   min="0.01"
                   step="0.01"
                   placeholder="0.00"
-                  value={amountDollars}
+                  value={state.amountDollars}
                   onChange={(event) => {
-                    setAmountDollars(event.target.value);
-                    setFieldErrors((prev) => ({ ...prev, amount: "" }));
+                    actions.setAmountDollars(event.target.value);
+                    actions.clearFieldError("amount");
                   }}
                   className="pl-6"
-                  aria-invalid={!!fieldErrors.amount}
+                  aria-invalid={!!state.fieldErrors.amount}
                 />
               </div>
-              <FormMessage>{fieldErrors.amount}</FormMessage>
+              <FormMessage>{state.fieldErrors.amount}</FormMessage>
             </FormField>
 
             {/* Expense Type (Radio) */}
@@ -242,8 +103,8 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                       type="radio"
                       name="expenseType"
                       value={type}
-                      checked={expenseType === type}
-                      onChange={() => setExpenseType(type)}
+                      checked={state.expenseType === type}
+                      onChange={() => actions.setExpenseType(type)}
                       className="size-4 accent-primary"
                     />
                     <span className="text-sm capitalize">{type}</span>
@@ -257,25 +118,25 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <FormLabel htmlFor="expense-tag">Tag</FormLabel>
               <select
                 id="expense-tag"
-                value={tagId}
+                value={state.tagId}
                 onChange={(event) => {
-                  setTagId(event.target.value);
-                  setFieldErrors((prev) => ({ ...prev, tagId: "" }));
+                  actions.setTagId(event.target.value);
+                  actions.clearFieldError("tagId");
                 }}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                aria-invalid={!!fieldErrors.tagId}
+                aria-invalid={!!state.fieldErrors.tagId}
               >
-                {tagsLoading ? (
+                {state.tagsLoading ? (
                   <option value="">Loading tags...</option>
                 ) : (
-                  tags.map((tag) => (
+                  state.tags.map((tag) => (
                     <option key={tag.id} value={tag.id}>
                       {tag.name}
                     </option>
                   ))
                 )}
               </select>
-              <FormMessage>{fieldErrors.tagId}</FormMessage>
+              <FormMessage>{state.fieldErrors.tagId}</FormMessage>
             </FormField>
 
             {/* Date */}
@@ -284,14 +145,14 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <Input
                 id="expense-date"
                 type="date"
-                value={expenseDate}
+                value={state.expenseDate}
                 onChange={(event) => {
-                  setExpenseDate(event.target.value);
-                  setFieldErrors((prev) => ({ ...prev, expenseDate: "" }));
+                  actions.setExpenseDate(event.target.value);
+                  actions.clearFieldError("expenseDate");
                 }}
-                aria-invalid={!!fieldErrors.expenseDate}
+                aria-invalid={!!state.fieldErrors.expenseDate}
               />
-              <FormMessage>{fieldErrors.expenseDate}</FormMessage>
+              <FormMessage>{state.fieldErrors.expenseDate}</FormMessage>
             </FormField>
 
             {/* Pro-rata Toggle */}
@@ -299,14 +160,8 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <label className="flex cursor-pointer items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={isProRata}
-                  onChange={(event) => {
-                    setIsProRata(event.target.checked);
-                    if (!event.target.checked) {
-                      setProRataMonths("");
-                      setFieldErrors((prev) => ({ ...prev, proRataMonths: "" }));
-                    }
-                  }}
+                  checked={state.isProRata}
+                  onChange={(event) => actions.setIsProRata(event.target.checked)}
                   className="size-4 accent-primary"
                 />
                 <span className="text-sm font-medium">Spread across months</span>
@@ -314,7 +169,7 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
             </FormField>
 
             {/* Pro-rata Months */}
-            {isProRata && (
+            {state.isProRata && (
               <FormField>
                 <FormLabel htmlFor="pro-rata-months">Number of months</FormLabel>
                 <Input
@@ -323,23 +178,23 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                   min="2"
                   step="1"
                   placeholder="e.g. 3"
-                  value={proRataMonths}
+                  value={state.proRataMonths}
                   onChange={(event) => {
-                    setProRataMonths(event.target.value);
-                    setFieldErrors((prev) => ({ ...prev, proRataMonths: "" }));
+                    actions.setProRataMonths(event.target.value);
+                    actions.clearFieldError("proRataMonths");
                   }}
-                  aria-invalid={!!fieldErrors.proRataMonths}
+                  aria-invalid={!!state.fieldErrors.proRataMonths}
                 />
-                <FormMessage>{fieldErrors.proRataMonths}</FormMessage>
+                <FormMessage>{state.fieldErrors.proRataMonths}</FormMessage>
               </FormField>
             )}
 
             {/* Error Message */}
-            {error && <FormMessage>{error}</FormMessage>}
+            {state.error && <FormMessage>{state.error}</FormMessage>}
 
             {/* Submit */}
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Saving..." : "Log Expense"}
+            <Button type="submit" className="w-full" disabled={state.submitting}>
+              {state.submitting ? "Saving..." : "Log Expense"}
             </Button>
           </Form>
         </CardContent>

@@ -2,7 +2,7 @@
 export const financeRoutes = {
   dashboard: {
     path: "/dashboard",
-    component: "DashboardPage",
+    component: "DashboardFeature",
   },
   settings: {
     path: "/settings",

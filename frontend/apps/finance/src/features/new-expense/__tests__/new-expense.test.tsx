@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { NewExpensePage } from "@/pages/NewExpensePage";
+import { NewExpenseFeature } from "../index";
 import type { User } from "@gofin/core";
 
 const mockFetch = vi.fn();
@@ -41,24 +41,24 @@ function mockTagsResponse() {
   });
 }
 
-function renderNewExpensePage(user: User = mockUser) {
+function renderNewExpense(user: User = mockUser) {
   // Every render triggers a tags fetch on mount
   mockTagsResponse();
   return render(
     <MemoryRouter>
-      <NewExpensePage user={user} />
+      <NewExpenseFeature user={user} />
     </MemoryRouter>,
   );
 }
 
-describe("NewExpensePage", () => {
+describe("NewExpenseFeature", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockNavigate.mockReset();
   });
 
   it("renders the expense form with all fields", () => {
-    renderNewExpensePage();
+    renderNewExpense();
 
     expect(screen.getByText("New Expense")).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe("NewExpensePage", () => {
   });
 
   it("defaults date to today", () => {
-    renderNewExpensePage();
+    renderNewExpense();
 
     const dateInput = screen.getByLabelText("Date") as HTMLInputElement;
     const today = new Date();
@@ -87,7 +87,7 @@ describe("NewExpensePage", () => {
   });
 
   it("defaults expense type to essentials", () => {
-    renderNewExpensePage();
+    renderNewExpense();
 
     const essentialsRadio = screen.getByLabelText(
       "essentials",
@@ -96,14 +96,14 @@ describe("NewExpensePage", () => {
   });
 
   it("displays currency symbol from user profile", () => {
-    renderNewExpensePage({ ...mockUser, currency: "EUR" });
+    renderNewExpense({ ...mockUser, currency: "EUR" });
 
     expect(screen.getByText("€")).toBeInTheDocument();
   });
 
   it("shows validation errors for empty required fields", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     // Submit without filling any fields
     const submitButton = screen.getByRole("button", { name: "Log Expense" });
@@ -117,7 +117,7 @@ describe("NewExpensePage", () => {
 
   it("shows validation error when amount is not entered", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     const nameInput = screen.getByLabelText("Name");
     await user.type(nameInput, "Coffee");
@@ -133,7 +133,7 @@ describe("NewExpensePage", () => {
 
   it("converts dollar amount to cents and submits", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     // Wait for tags to load
     await waitFor(() => {
@@ -184,7 +184,7 @@ describe("NewExpensePage", () => {
 
   it("redirects to /dashboard on successful submission", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -211,7 +211,7 @@ describe("NewExpensePage", () => {
 
   it("shows API error message on submission failure", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -242,7 +242,7 @@ describe("NewExpensePage", () => {
 
   it("disables submit button while submitting", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     await waitFor(() => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
@@ -262,7 +262,7 @@ describe("NewExpensePage", () => {
 
   it("allows selecting different expense types", async () => {
     const user = userEvent.setup();
-    renderNewExpensePage();
+    renderNewExpense();
 
     const savingsRadio = screen.getByLabelText("savings") as HTMLInputElement;
     await user.click(savingsRadio);

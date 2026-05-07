@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { HistoryPage } from "@/pages/HistoryPage";
+import { HistoryFeature } from "../index";
 import type { User } from "@gofin/core";
 import type { BudgetPeriod } from "@/types";
 
@@ -67,22 +67,22 @@ function mockPeriodsAndSummary() {
   });
 }
 
-function renderHistoryPage() {
+function renderHistory() {
   return render(
     <MemoryRouter>
-      <HistoryPage user={mockUser} />
+      <HistoryFeature user={mockUser} />
     </MemoryRouter>,
   );
 }
 
-describe("HistoryPage - back navigation", () => {
+describe("HistoryFeature - back navigation", () => {
   beforeEach(() => {
     mockFetch.mockReset();
   });
 
   it("returns to period list when Back to History is clicked", async () => {
     mockPeriodsAndSummary();
-    renderHistoryPage();
+    renderHistory();
 
     await waitFor(() => {
       expect(screen.getByText("March 2026")).toBeInTheDocument();

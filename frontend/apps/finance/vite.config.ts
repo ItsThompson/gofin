@@ -12,10 +12,11 @@ export default defineConfig({
       name: "finance",
       filename: "remoteEntry.js",
       exposes: {
-        "./DashboardPage": "./src/pages/DashboardPage.tsx",
+        "./DashboardFeature": "./src/features/dashboard/index.ts",
         "./SettingsPage": "./src/features/settings/index.ts",
-        "./NewExpensePage": "./src/pages/NewExpensePage.tsx",
-        "./ExpenseLogPage": "./src/pages/ExpenseLogPage.tsx",
+        "./NewExpenseFeature": "./src/features/new-expense/index.ts",
+        "./ExpenseLogFeature": "./src/features/expense-log/index.ts",
+        "./HistoryFeature": "./src/features/history/index.ts",
         "./routes": "./src/routes.ts",
       },
       shared: {
