@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@gofin/config": "*",
+    "@gofin/test-utils": "*",
     "@react-router/dev": "^7.14.2",
     "@tailwindcss/vite": "^4",
     "@testing-library/jest-dom": "^6.9.1",

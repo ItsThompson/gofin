@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@gofin/config": "*",
+    "@gofin/test-utils": "*",
     "@module-federation/vite": "^1.15.1",
     "@tailwindcss/vite": "^4",
     "@testing-library/jest-dom": "^6.9.1",
