@@ -11,7 +11,7 @@ import { apiClient } from "@gofin/api";
 import { useApiToast } from "@gofin/api";
 import { toast } from "sonner";
 import { Shield, UserCheck, Loader2, Activity, ExternalLink, Trash2 } from "lucide-react";
-import { DeleteUserDialog } from "@/components/DeleteUserDialog";
+import { DeleteUserDialog } from "@/components/DeleteUserDialog/index";
 import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "../types";
 
 type LoadState = "loading" | "error" | "success";
