@@ -86,6 +86,12 @@ jobs:
       - run: npx turbo test
         working-directory: frontend
 
+      - name: Enforce coverage thresholds
+        working-directory: frontend
+        run: |
+          cd apps/finance && npx vitest run --coverage
+          cd ../shell && npx vitest run --coverage
+
   e2e:
     needs: [lint-backend, lint-frontend]
     runs-on: ubuntu-latest
