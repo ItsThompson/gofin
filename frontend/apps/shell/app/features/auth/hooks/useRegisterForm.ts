@@ -6,7 +6,7 @@ import {
   validateEmail,
   validatePassword,
   validateUsername,
-} from "@/lib/validation";
+} from "@gofin/core";
 
 export interface RegisterFormResult {
   username: string;

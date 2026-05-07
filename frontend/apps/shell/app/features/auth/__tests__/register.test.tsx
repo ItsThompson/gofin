@@ -90,7 +90,7 @@ describe("register page", () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            "Password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit",
+            "Password must be at least 8 characters",
           ),
         ).toBeInTheDocument();
       });

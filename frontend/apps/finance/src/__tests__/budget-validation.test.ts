@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateEDSSplit } from "@/lib/validation";
+import { validateEDSSplit } from "@gofin/core";
 
 /**
  * Budget validation divergence tests.

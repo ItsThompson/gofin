@@ -1,25 +1,7 @@
 import { useState, useCallback, type FormEvent } from "react";
 import { useFormMutation } from "@gofin/api";
+import { validatePassword } from "@gofin/core";
 import { settingsApi } from "../api";
-
-/**
- * Validates password strength: 8+ chars, 1 upper, 1 lower, 1 digit.
- */
-function validatePasswordStrength(password: string): string | null {
-  if (password.length < 8) {
-    return "Password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit";
-  }
-  if (!/[A-Z]/.test(password)) {
-    return "Password must contain at least one uppercase letter";
-  }
-  if (!/[a-z]/.test(password)) {
-    return "Password must contain at least one lowercase letter";
-  }
-  if (!/\d/.test(password)) {
-    return "Password must contain at least one digit";
-  }
-  return null;
-}
 
 export interface PasswordFormState {
   currentPassword: string;
@@ -60,7 +42,7 @@ export function usePasswordForm(
       setSuccess(false);
 
       // Client-side validation
-      const strengthError = validatePasswordStrength(newPassword);
+      const strengthError = validatePassword(newPassword);
       if (strengthError) {
         setValidationError(strengthError);
         return;

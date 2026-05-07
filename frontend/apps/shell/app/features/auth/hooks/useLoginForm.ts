@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { consumeReturnToPath, useFormMutation } from "@gofin/api";
-import { validateEmail } from "@/lib/validation";
+import { validateEmail } from "@gofin/core";
 
 export interface LoginFormResult {
   email: string;
