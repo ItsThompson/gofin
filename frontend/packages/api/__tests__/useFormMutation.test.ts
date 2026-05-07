@@ -293,4 +293,74 @@ describe("useFormMutation", () => {
       expect(firstClear).toBe(secondClear);
     });
   });
+
+  describe("double-submit guard", () => {
+    it("ignores second submit while first is in-flight", async () => {
+      let resolveFirst: () => void;
+      const firstOp = vi.fn(
+        () => new Promise<void>((resolve) => { resolveFirst = resolve; }),
+      );
+      const secondOp = vi.fn(() => Promise.resolve());
+
+      const { result } = renderHook(() => useFormMutation<void>());
+
+      act(() => {
+        result.current.submit(firstOp);
+      });
+
+      expect(result.current.submitting).toBe(true);
+
+      act(() => {
+        result.current.submit(secondOp);
+      });
+
+      expect(secondOp).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveFirst!();
+      });
+
+      expect(result.current.submitting).toBe(false);
+      expect(firstOp).toHaveBeenCalledTimes(1);
+      expect(secondOp).not.toHaveBeenCalled();
+    });
+
+    it("allows submit after previous completes", async () => {
+      const firstOp = vi.fn(() => Promise.resolve());
+      const secondOp = vi.fn(() => Promise.resolve());
+
+      const { result } = renderHook(() => useFormMutation<void>());
+
+      await act(async () => {
+        result.current.submit(firstOp);
+      });
+
+      await act(async () => {
+        result.current.submit(secondOp);
+      });
+
+      expect(firstOp).toHaveBeenCalledTimes(1);
+      expect(secondOp).toHaveBeenCalledTimes(1);
+    });
+
+    it("allows submit after previous fails", async () => {
+      const failOp = vi.fn(() => Promise.reject(new Error("fail")));
+      const successOp = vi.fn(() => Promise.resolve());
+
+      const { result } = renderHook(() => useFormMutation<void>());
+
+      await act(async () => {
+        result.current.submit(failOp);
+      });
+
+      expect(result.current.error).not.toBeNull();
+
+      await act(async () => {
+        result.current.submit(successOp);
+      });
+
+      expect(successOp).toHaveBeenCalledTimes(1);
+      expect(result.current.error).toBeNull();
+    });
+  });
 });

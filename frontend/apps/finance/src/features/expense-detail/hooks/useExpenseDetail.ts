@@ -91,7 +91,8 @@ export function useExpenseDetail(
         expenseDetailApi.submitCorrection(expense.id, form),
       );
     },
-    [expense, correctionMutation],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expense, correctionMutation.submit],
   );
 
   const refresh = useCallback(() => {

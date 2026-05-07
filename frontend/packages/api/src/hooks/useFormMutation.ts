@@ -52,16 +52,21 @@ export function useFormMutation<T>(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
+  const submittingRef = useRef(false);
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
   const submit = useCallback((operation: () => Promise<T>) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
 
     operation()
       .then((result) => {
+        submittingRef.current = false;
         setSubmitting(false);
         optionsRef.current?.onSuccess?.(result);
       })
@@ -77,6 +82,7 @@ export function useFormMutation<T>(
         }
 
         setError(message);
+        submittingRef.current = false;
         setSubmitting(false);
         optionsRef.current?.onError?.(message);
       });

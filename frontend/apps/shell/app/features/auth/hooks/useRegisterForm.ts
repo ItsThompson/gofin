@@ -43,7 +43,6 @@ export function useRegisterForm(): RegisterFormResult {
   }, [isLoading, isAuthenticated, navigate]);
 
   const mutation = useFormMutation<void>({
-    onSuccess: () => navigate("/onboarding"),
     onError: (errorMessage) => setErrors((prev) => ({ ...prev, form: errorMessage })),
   });
 
@@ -74,6 +73,7 @@ export function useRegisterForm(): RegisterFormResult {
     mutation.submit(async () => {
       try {
         await register(username, email, password);
+        navigate("/onboarding");
       } catch (err) {
         if (err instanceof ApiRequestError) {
           if (err.code === "DUPLICATE_EMAIL") {

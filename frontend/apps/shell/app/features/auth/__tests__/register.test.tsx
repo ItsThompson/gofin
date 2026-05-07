@@ -115,6 +115,31 @@ describe("register page", () => {
       await waitFor(() => {
         expect(screen.getByText("Username is already taken")).toBeInTheDocument();
       });
+
+      // Must NOT navigate to onboarding on field-specific errors
+      expect(screen.queryByText("Onboarding page")).not.toBeInTheDocument();
+    });
+
+    it("does not navigate when email is already taken", async () => {
+      setupUnauthenticatedMock({
+        "/api/auth/register": {
+          status: 409,
+          body: { code: "DUPLICATE_EMAIL", message: "Email is already in use" },
+        },
+      });
+      await renderRegisterPage();
+
+      fireEvent.change(screen.getByLabelText("Username"), { target: { value: "newuser" } });
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "taken@example.com" } });
+      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
+      submitForm();
+
+      await waitFor(() => {
+        expect(screen.getByText("Email is already in use")).toBeInTheDocument();
+      });
+
+      // Must NOT navigate to onboarding on field-specific errors
+      expect(screen.queryByText("Onboarding page")).not.toBeInTheDocument();
     });
   });
 

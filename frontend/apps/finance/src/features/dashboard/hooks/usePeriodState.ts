@@ -37,7 +37,8 @@ export function usePeriodState(): PeriodStateResult {
     (body: CreatePeriodRequest) => {
       createMutation.submit(() => dashboardApi.createPeriod(body));
     },
-    [createMutation],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [createMutation.submit],
   );
 
   const now = new Date();
