@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { validateEDSSplit, validatePassword } from "../src/validation";
+import {
+  validateEDSSplit,
+  validatePassword,
+  validateEmail,
+  validateUsername,
+} from "../src/validation";
 
 describe("validateEDSSplit", () => {
   describe("non-negative validation", () => {
@@ -141,6 +146,82 @@ describe("validatePassword", () => {
     it("reports uppercase error before lowercase and digit errors", () => {
       expect(validatePassword("alllowercase1")).toBe(
         "Password must contain at least one uppercase letter",
+      );
+    });
+  });
+});
+
+describe("validateEmail", () => {
+  describe("valid emails", () => {
+    it("returns null for standard email format", () => {
+      expect(validateEmail("test@example.com")).toBeNull();
+    });
+
+    it("returns null for email with subdomain", () => {
+      expect(validateEmail("user@mail.domain.co")).toBeNull();
+    });
+
+    it("returns null for email with plus addressing", () => {
+      expect(validateEmail("user+tag@example.com")).toBeNull();
+    });
+  });
+
+  describe("empty input", () => {
+    it("rejects empty string", () => {
+      expect(validateEmail("")).toBe("Email is required");
+    });
+
+    it("rejects whitespace-only input", () => {
+      expect(validateEmail("   ")).toBe("Email is required");
+    });
+  });
+
+  describe("invalid format", () => {
+    it("rejects string without @", () => {
+      expect(validateEmail("notanemail")).toBe(
+        "Please enter a valid email address",
+      );
+    });
+
+    it("rejects email without TLD", () => {
+      expect(validateEmail("missing@tld")).toBe(
+        "Please enter a valid email address",
+      );
+    });
+
+    it("rejects email without local part", () => {
+      expect(validateEmail("@nouser.com")).toBe(
+        "Please enter a valid email address",
+      );
+    });
+  });
+});
+
+describe("validateUsername", () => {
+  describe("valid usernames", () => {
+    it("returns null for valid username", () => {
+      expect(validateUsername("testuser")).toBeNull();
+    });
+
+    it("returns null for minimum length username (2 chars)", () => {
+      expect(validateUsername("ab")).toBeNull();
+    });
+  });
+
+  describe("empty input", () => {
+    it("rejects empty string", () => {
+      expect(validateUsername("")).toBe("Username is required");
+    });
+
+    it("rejects whitespace-only input", () => {
+      expect(validateUsername("   ")).toBe("Username is required");
+    });
+  });
+
+  describe("length requirement", () => {
+    it("rejects single character username", () => {
+      expect(validateUsername("a")).toBe(
+        "Username must be at least 2 characters",
       );
     });
   });

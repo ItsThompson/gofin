@@ -6,5 +6,10 @@ export {
   type ExpenseType,
   type SupportedCurrency,
 } from "./constants";
-export { validateEDSSplit, validatePassword } from "./validation";
+export {
+  validateEDSSplit,
+  validatePassword,
+  validateEmail,
+  validateUsername,
+} from "./validation";
 export { formatCurrency, getCurrencySymbol, toCents } from "./currency";

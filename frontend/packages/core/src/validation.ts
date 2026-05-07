@@ -50,3 +50,41 @@ export function validatePassword(password: string): string | null {
   }
   return null;
 }
+
+/**
+ * Validates email format.
+ *
+ * Rules:
+ * - Must not be empty/whitespace
+ * - Must match basic email pattern (user@domain.tld)
+ *
+ * Returns an error message string if invalid, or null if valid.
+ */
+export function validateEmail(email: string): string | null {
+  if (!email.trim()) {
+    return "Email is required";
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return "Please enter a valid email address";
+  }
+  return null;
+}
+
+/**
+ * Validates username.
+ *
+ * Rules:
+ * - Must not be empty/whitespace
+ * - Must be at least 2 characters
+ *
+ * Returns an error message string if invalid, or null if valid.
+ */
+export function validateUsername(username: string): string | null {
+  if (!username.trim()) {
+    return "Username is required";
+  }
+  if (username.trim().length < 2) {
+    return "Username must be at least 2 characters";
+  }
+  return null;
+}
