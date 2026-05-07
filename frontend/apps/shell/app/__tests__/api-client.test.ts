@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiClient, ApiRequestError, consumeReturnToPath } from "@gofin/types";
+import { apiClient, ApiRequestError, consumeReturnToPath } from "@gofin/api";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

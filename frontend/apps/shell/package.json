@@ -15,7 +15,8 @@
   "dependencies": {
     "@gofin/admin": "*",
     "@gofin/finance": "*",
-    "@gofin/types": "*",
+    "@gofin/api": "*",
+    "@gofin/core": "*",
     "@gofin/ui": "*",
     "@react-router/express": "^7.14.2",
     "@react-router/node": "^7.14.2",

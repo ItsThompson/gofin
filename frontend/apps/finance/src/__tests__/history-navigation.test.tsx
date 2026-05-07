@@ -3,7 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { HistoryPage } from "@/pages/HistoryPage";
-import type { User, BudgetPeriod } from "@gofin/types";
+import type { User } from "@gofin/core";
+import type { BudgetPeriod } from "@/types";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { SettingsPage } from "@/pages/SettingsPage";
-import type { User } from "@gofin/types";
+import type { User } from "@gofin/core";
 import { buildUser, createMockApi, renderWithRouter } from "@gofin/test-utils";
 
 const mockFetch = vi.fn();

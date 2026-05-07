@@ -3,7 +3,8 @@ import { render, screen, waitFor, within, fireEvent } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { ExpenseLogPage } from "@/pages/ExpenseLogPage";
-import type { User, Expense, Tag, BudgetPeriod } from "@gofin/types";
+import type { User } from "@gofin/core";
+import type { Expense, Tag, BudgetPeriod } from "@/types";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

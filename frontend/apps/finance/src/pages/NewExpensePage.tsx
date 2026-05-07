@@ -3,14 +3,16 @@ import { useNavigate } from "react-router";
 import {
   apiClient,
   ApiRequestError,
-  getCurrencySymbol,
-  type ExpenseResponse,
-  type CreateExpenseRequest,
-  type CreateProRataRequest,
-  type ProRataResponse,
-  type Tag,
-  type TagListResponse,
-} from "@gofin/types";
+} from "@gofin/api";
+import { getCurrencySymbol } from "@gofin/core";
+import type {
+  ExpenseResponse,
+  CreateExpenseRequest,
+  CreateProRataRequest,
+  ProRataResponse,
+  Tag,
+  TagListResponse,
+} from "@/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

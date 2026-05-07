@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@gofin/ui/components/card";
-import { type TrendPoint } from "@gofin/types";
+import type { TrendPoint } from "@/types";
 import { computeCategoryPercentages, MONTH_LABELS } from "../lib/trend-utils";
 
 interface CategorySplitChartProps {

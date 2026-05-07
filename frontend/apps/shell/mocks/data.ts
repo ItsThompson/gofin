@@ -1,16 +1,129 @@
-import type {
-  User,
-  BudgetPeriod,
-  DefaultSettings,
-  Expense,
-  Tag,
-  PeriodSummary,
-  TagSpending,
-  CumulativeSpendPoint,
-  HistoricalComparison,
-  ProRataSchedule,
-  TrendPoint,
-} from "@gofin/types";
+import type { User } from "@gofin/core";
+
+// Finance-specific types for mock data (local definitions to avoid coupling shell to finance app)
+
+interface BudgetPeriod {
+  id: string;
+  userId: string;
+  year: number;
+  month: number;
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DefaultSettings {
+  userId: string;
+  budgetAmount: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+  currency: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface Expense {
+  id: string;
+  userId: string;
+  name: string;
+  amount: number;
+  currency: string;
+  expenseType: "essentials" | "desires" | "savings";
+  tagId: string;
+  expenseDate: string;
+  periodYear: number;
+  periodMonth: number;
+  status: "active" | "corrected";
+  isProRata: boolean;
+  createdAt: string;
+}
+
+interface Tag {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CategorySummary {
+  allocated: number;
+  spent: number;
+  remaining: number;
+  percentUsed: number;
+}
+
+interface PeriodSummary {
+  periodId: string;
+  year: number;
+  month: number;
+  totalBudget: number;
+  totalSpent: number;
+  remaining: number;
+  daysInPeriod: number;
+  daysElapsed: number;
+  dailySpendRate: number;
+  budgetPace: number;
+  isOnTrack: boolean;
+  essentials: CategorySummary;
+  desires: CategorySummary;
+  savings: CategorySummary;
+}
+
+interface TagSpending {
+  tagId: string;
+  tagName: string;
+  amount: number;
+  percentOfTotal: number;
+}
+
+interface CumulativeSpendPoint {
+  day: number;
+  actual: number;
+  ideal: number;
+}
+
+interface HistoricalComparison {
+  currentSpent: number;
+  previousSpent: number;
+  rollingAverage: number | null;
+  changePercent: number;
+}
+
+interface ProRataSchedule {
+  id: string;
+  userId: string;
+  proRataGroup: string;
+  name: string;
+  amount: number;
+  currency: string;
+  expenseType: "essentials" | "desires" | "savings";
+  tagId: string;
+  targetYear: number;
+  targetMonth: number;
+  installmentIndex: number;
+  installmentTotal: number;
+  status: "pending" | "applied";
+  createdAt: string;
+  appliedAt: string | null;
+}
+
+interface TrendPoint {
+  year: number;
+  month: number;
+  totalSpent: number;
+  budgetAmount: number;
+  essentialsSpent: number;
+  desiresSpent: number;
+  savingsSpent: number;
+  essentialsPercent: number;
+  desiresPercent: number;
+  savingsPercent: number;
+}
 
 // --- Helpers ---
 

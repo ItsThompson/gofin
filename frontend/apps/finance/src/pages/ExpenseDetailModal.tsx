@@ -2,15 +2,16 @@ import { useState, useEffect, useCallback, type FormEvent } from "react";
 import {
   apiClient,
   ApiRequestError,
-  formatCurrency,
-  getCurrencySymbol,
-  type Expense,
-  type CorrectionHistoryResponse,
-  type ExpenseResponse,
-  type CorrectExpenseRequest,
-  type Tag,
-  type PaginatedResponse,
-} from "@gofin/types";
+} from "@gofin/api";
+import { formatCurrency, getCurrencySymbol } from "@gofin/core";
+import type { PaginatedResponse } from "@gofin/core";
+import type {
+  Expense,
+  CorrectionHistoryResponse,
+  ExpenseResponse,
+  CorrectExpenseRequest,
+  Tag,
+} from "@/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

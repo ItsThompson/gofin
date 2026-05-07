@@ -2,16 +2,33 @@ import { useState, useCallback, useEffect, type FormEvent } from "react";
 import {
   apiClient,
   ApiRequestError,
-  type User,
-  type DefaultsResponse,
-  type UpdateDefaultsRequest,
-  type UpdateProfileRequest,
-  type ChangePasswordRequest,
-  type AuthResponse,
-  type Tag,
-  type TagListResponse,
-  type TagResponse,
-} from "@gofin/types";
+} from "@gofin/api";
+import type { User } from "@gofin/core";
+import type {
+  DefaultsResponse,
+  UpdateDefaultsRequest,
+  Tag,
+  TagListResponse,
+  TagResponse,
+} from "@/types";
+
+/** Request body for PUT /api/auth/me. */
+interface UpdateProfileRequest {
+  username: string;
+  email: string;
+  currency: string;
+}
+
+/** Request body for POST /api/auth/me/password. */
+interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+/** Auth response wrapping a User (used by profile update, password change). */
+interface AuthResponse {
+  user: User;
+}
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@gofin/ui/components/card";

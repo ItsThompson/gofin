@@ -7,7 +7,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@gofin/ui/components/card";
-import { apiClient, useApiToast } from "@gofin/types";
+import { apiClient } from "@gofin/api";
+import { useApiToast } from "@gofin/api";
 import { Shield, UserCheck, Loader2, Activity, ExternalLink } from "lucide-react";
 import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "../types";
 

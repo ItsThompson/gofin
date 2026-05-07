@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { ApiRequestError, consumeReturnToPath } from "@gofin/types";
+import { ApiRequestError, consumeReturnToPath } from "@gofin/api";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

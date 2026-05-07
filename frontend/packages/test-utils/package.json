@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@gofin/types": "*"
+    "@gofin/core": "*"
   },
   "peerDependencies": {
     "@testing-library/react": ">=14",
