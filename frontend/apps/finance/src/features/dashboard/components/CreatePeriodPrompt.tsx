@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { type FormEvent } from "react";
 import { getCurrencySymbol } from "@gofin/core";
-import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
+import { useBudgetSplitForm } from "@gofin/api";
 import type { User } from "@gofin/core";
-import type { DefaultSettings, BudgetPeriod, CreatePeriodRequest } from "@/types";
+import type { DefaultSettings, CreatePeriodRequest } from "@/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -20,14 +20,15 @@ import {
   FormDescription,
 } from "@gofin/ui/components/form";
 import { AlertTriangle } from "lucide-react";
-import { dashboardApi } from "../api";
 
 interface CreatePeriodPromptProps {
   defaults: DefaultSettings | null;
   user: User;
   year: number;
   month: number;
-  onPeriodCreated: (period: BudgetPeriod) => void;
+  onCreatePeriod: (body: CreatePeriodRequest) => void;
+  creating: boolean;
+  createError: string | null;
 }
 
 export function CreatePeriodPrompt({
@@ -35,7 +36,9 @@ export function CreatePeriodPrompt({
   user,
   year,
   month,
-  onPeriodCreated,
+  onCreatePeriod,
+  creating,
+  createError,
 }: CreatePeriodPromptProps) {
   const isZeroBudget = !defaults || defaults.budgetAmount === 0;
   const currencySymbol = getCurrencySymbol(user.currency);
@@ -51,16 +54,12 @@ export function CreatePeriodPrompt({
       : undefined,
   });
 
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
   const monthName = new Date(year, month - 1).toLocaleString("en-US", {
     month: "long",
   });
 
-  async function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setError(null);
 
     const validationError = form.validate();
     if (validationError) return;
@@ -75,25 +74,7 @@ export function CreatePeriodPrompt({
       savingsPercent: payload.savingsPercent,
     };
 
-    setSubmitting(true);
-    try {
-      const response = await dashboardApi.createPeriod(body);
-
-      if (response.autoCreatedPeriods && response.autoCreatedPeriods > 0 && response.autoCreatedMonths) {
-        const monthsList = response.autoCreatedMonths.join(", ");
-        alert(`${response.autoCreatedPeriods} period(s) were automatically created for ${monthsList} with your default settings.`);
-      }
-
-      onPeriodCreated(response.period);
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    onCreatePeriod(body);
   }
 
   return (
@@ -180,10 +161,10 @@ export function CreatePeriodPrompt({
 
             <FormDescription>Total: {form.splitTotal}%</FormDescription>
             {form.splitError && <FormMessage>{form.splitError}</FormMessage>}
-            {error && <FormMessage>{error}</FormMessage>}
+            {createError && <FormMessage>{createError}</FormMessage>}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Creating..." : `Create ${monthName} Period`}
+            <Button type="submit" className="w-full" disabled={creating}>
+              {creating ? "Creating..." : `Create ${monthName} Period`}
             </Button>
           </Form>
         </CardContent>

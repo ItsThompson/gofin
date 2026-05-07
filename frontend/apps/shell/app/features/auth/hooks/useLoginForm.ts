@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { ApiRequestError, consumeReturnToPath } from "@gofin/api";
+import { consumeReturnToPath, useFormMutation } from "@gofin/api";
 import { validateEmail } from "@/lib/validation";
 
 export interface LoginFormResult {
@@ -22,8 +22,7 @@ export function useLoginForm(): LoginFormResult {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const isSessionExpired = searchParams.get("expired") === "true";
 
@@ -37,24 +36,8 @@ export function useLoginForm(): LoginFormResult {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setError(null);
-
-    const emailError = validateEmail(email);
-    if (emailError) {
-      setError(emailError);
-      return;
-    }
-    if (!password) {
-      setError("Password is required");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const user = await login(email, password);
-
+  const mutation = useFormMutation<Awaited<ReturnType<typeof login>>>({
+    onSuccess: (user) => {
       const returnTo = consumeReturnToPath();
 
       if (!user.hasCompletedOnboarding) {
@@ -64,15 +47,24 @@ export function useLoginForm(): LoginFormResult {
       } else {
         navigate("/dashboard");
       }
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
+    },
+  });
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    setValidationError(null);
+
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setValidationError(emailError);
+      return;
     }
+    if (!password) {
+      setValidationError("Password is required");
+      return;
+    }
+
+    mutation.submit(() => login(email, password));
   };
 
   return {
@@ -80,8 +72,8 @@ export function useLoginForm(): LoginFormResult {
     password,
     setEmail,
     setPassword,
-    error,
-    submitting,
+    error: validationError || mutation.error,
+    submitting: mutation.submitting,
     isSessionExpired,
     handleSubmit,
   };

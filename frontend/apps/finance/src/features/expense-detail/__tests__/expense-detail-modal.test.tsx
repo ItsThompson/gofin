@@ -443,7 +443,7 @@ describe("ExpenseDetailModal", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Cannot correct expenses from a past period/),
+          screen.getByText(/cannot correct expenses from a past period/i),
         ).toBeInTheDocument();
       });
     });

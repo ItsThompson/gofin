@@ -180,7 +180,7 @@ describe("ExpenseDetailModal - Correction form field changes", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("An unexpected error occurred."),
+        screen.getByText("Connection lost. Check your internet and try again."),
       ).toBeInTheDocument();
     });
   });

@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { ApiRequestError } from "@gofin/api";
 import { getCurrencySymbol } from "@gofin/core";
 import type { Expense, Tag, CorrectExpenseRequest } from "@/types";
 import { Button } from "@gofin/ui/components/button";
@@ -19,8 +18,9 @@ interface CorrectionFormProps {
   currency: string;
   tags: Tag[];
   onCancel: () => void;
-  onSubmit: (form: CorrectExpenseRequest) => Promise<void>;
-  onSuccess: () => void;
+  onSubmit: (form: CorrectExpenseRequest) => void;
+  submitting: boolean;
+  submitError: string | null;
 }
 
 export function CorrectionForm({
@@ -29,7 +29,8 @@ export function CorrectionForm({
   tags,
   onCancel,
   onSubmit,
-  onSuccess,
+  submitting,
+  submitError,
 }: CorrectionFormProps) {
   const currencySymbol = getCurrencySymbol(currency);
 
@@ -43,8 +44,6 @@ export function CorrectionForm({
   const [tagId, setTagId] = useState(expense.tagId);
   const [expenseDate, setExpenseDate] = useState(expense.expenseDate);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
 
   function validate(): Record<string, string> {
     const errors: Record<string, string> = {};
@@ -58,9 +57,8 @@ export function CorrectionForm({
     return errors;
   }
 
-  async function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setSubmitError(null);
     setFieldErrors({});
 
     const errors = validate();
@@ -79,29 +77,7 @@ export function CorrectionForm({
       expenseDate,
     };
 
-    setSubmitting(true);
-    try {
-      await onSubmit(body);
-      onSuccess();
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        if (err.code === "ALREADY_CORRECTED") {
-          setSubmitError(
-            "This expense has already been corrected. Please close and refresh.",
-          );
-        } else if (err.code === "PERIOD_LOCKED") {
-          setSubmitError(
-            "Cannot correct expenses from a past period.",
-          );
-        } else {
-          setSubmitError(err.message);
-        }
-      } else {
-        setSubmitError("An unexpected error occurred.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    onSubmit(body);
   }
 
   return (

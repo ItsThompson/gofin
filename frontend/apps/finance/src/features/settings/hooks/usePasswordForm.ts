@@ -1,5 +1,5 @@
 import { useState, useCallback, type FormEvent } from "react";
-import { ApiRequestError } from "@gofin/api";
+import { useFormMutation } from "@gofin/api";
 import { settingsApi } from "../api";
 
 /**
@@ -40,57 +40,50 @@ export function usePasswordForm(
 ): { state: PasswordFormState; actions: PasswordFormActions } {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  const { submit, error: mutationError, submitting } = useFormMutation<void>({
+    onSuccess: () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      onUserUpdated?.();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    },
+  });
 
   const handleSubmit = useCallback(
-    async (event: FormEvent) => {
+    (event: FormEvent) => {
       event.preventDefault();
-      setError(null);
+      setValidationError(null);
       setSuccess(false);
 
       // Client-side validation
       const strengthError = validatePasswordStrength(newPassword);
       if (strengthError) {
-        setError(strengthError);
+        setValidationError(strengthError);
         return;
       }
 
-      setLoading(true);
-
-      try {
-        await settingsApi.changePassword({
+      submit(() =>
+        settingsApi.changePassword({
           currentPassword,
           newPassword,
-        });
-
-        setCurrentPassword("");
-        setNewPassword("");
-        onUserUpdated?.();
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-      } catch (err) {
-        if (err instanceof ApiRequestError) {
-          if (err.code === "INVALID_CREDENTIALS") {
-            setError("Current password is incorrect.");
-          } else if (err.code === "WEAK_PASSWORD") {
-            setError(err.message);
-          } else {
-            setError(err.message);
-          }
-        } else {
-          setError("An unexpected error occurred. Please try again.");
-        }
-      } finally {
-        setLoading(false);
-      }
+        }),
+      );
     },
-    [currentPassword, newPassword, onUserUpdated],
+    [currentPassword, newPassword, submit],
   );
 
   return {
-    state: { currentPassword, newPassword, error, success, loading },
+    state: {
+      currentPassword,
+      newPassword,
+      error: validationError || mutationError,
+      success,
+      loading: submitting,
+    },
     actions: { setCurrentPassword, setNewPassword, handleSubmit },
   };
 }

@@ -1,8 +1,14 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useFormMutation } from "@gofin/api";
 import type { Expense, CorrectExpenseRequest } from "@/types";
 import { expenseDetailApi } from "../api";
 
 export type DetailViewState = "loading" | "detail" | "correct" | "error";
+
+export interface UseExpenseDetailOptions {
+  /** Called after a correction is successfully submitted. */
+  onCorrectionSuccess?: () => void;
+}
 
 export interface ExpenseDetailResult {
   expense: Expense | null;
@@ -11,11 +17,17 @@ export interface ExpenseDetailResult {
   viewState: DetailViewState;
   error: string | null;
   setViewState: (state: DetailViewState) => void;
-  submitCorrection: (form: CorrectExpenseRequest) => Promise<void>;
+  submitCorrection: (form: CorrectExpenseRequest) => void;
+  correctionSubmitting: boolean;
+  correctionError: string | null;
+  clearCorrectionError: () => void;
   refresh: () => void;
 }
 
-export function useExpenseDetail(expenseId: string | null): ExpenseDetailResult {
+export function useExpenseDetail(
+  expenseId: string | null,
+  options?: UseExpenseDetailOptions,
+): ExpenseDetailResult {
   const [expense, setExpense] = useState<Expense | null>(null);
   const [history, setHistory] = useState<Expense[]>([]);
   const [proRataGroup, setProRataGroup] = useState<Expense[]>([]);
@@ -61,12 +73,25 @@ export function useExpenseDetail(expenseId: string | null): ExpenseDetailResult 
     fetchExpenseData();
   }, [fetchExpenseData]);
 
-  const submitCorrection = useCallback(
-    async (form: CorrectExpenseRequest) => {
-      if (!expense) return;
-      await expenseDetailApi.submitCorrection(expense.id, form);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  const correctionMutation = useFormMutation<void>({
+    onSuccess: () => {
+      setViewState("detail");
+      fetchExpenseData();
+      optionsRef.current?.onCorrectionSuccess?.();
     },
-    [expense],
+  });
+
+  const submitCorrection = useCallback(
+    (form: CorrectExpenseRequest) => {
+      if (!expense) return;
+      correctionMutation.submit(() =>
+        expenseDetailApi.submitCorrection(expense.id, form),
+      );
+    },
+    [expense, correctionMutation],
   );
 
   const refresh = useCallback(() => {
@@ -81,6 +106,9 @@ export function useExpenseDetail(expenseId: string | null): ExpenseDetailResult 
     error,
     setViewState,
     submitCorrection,
+    correctionSubmitting: correctionMutation.submitting,
+    correctionError: correctionMutation.error,
+    clearCorrectionError: correctionMutation.clearError,
     refresh,
   };
 }

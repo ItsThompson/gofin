@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { ApiRequestError } from "@gofin/api";
+import { ApiRequestError, useFormMutation } from "@gofin/api";
 import {
   validateEmail,
   validatePassword,
@@ -31,7 +31,6 @@ export function useRegisterForm(): RegisterFormResult {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -43,7 +42,12 @@ export function useRegisterForm(): RegisterFormResult {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  const handleSubmit = async (event: FormEvent) => {
+  const mutation = useFormMutation<void>({
+    onSuccess: () => navigate("/onboarding"),
+    onError: (errorMessage) => setErrors((prev) => ({ ...prev, form: errorMessage })),
+  });
+
+  const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     setErrors({});
 
@@ -67,27 +71,27 @@ export function useRegisterForm(): RegisterFormResult {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await register(username, email, password);
-      navigate("/onboarding");
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        if (err.code === "DUPLICATE_EMAIL") {
-          setErrors({ email: err.message });
-        } else if (err.code === "DUPLICATE_USERNAME") {
-          setErrors({ username: err.message });
-        } else if (err.fields) {
-          setErrors(err.fields);
-        } else {
-          setErrors({ form: err.message });
+    mutation.submit(async () => {
+      try {
+        await register(username, email, password);
+      } catch (err) {
+        if (err instanceof ApiRequestError) {
+          if (err.code === "DUPLICATE_EMAIL") {
+            setErrors({ email: err.message });
+            return;
+          }
+          if (err.code === "DUPLICATE_USERNAME") {
+            setErrors({ username: err.message });
+            return;
+          }
+          if (err.fields) {
+            setErrors(err.fields);
+            return;
+          }
         }
-      } else {
-        setErrors({ form: "An unexpected error occurred. Please try again." });
+        throw err;
       }
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   return {
@@ -100,7 +104,7 @@ export function useRegisterForm(): RegisterFormResult {
     setPassword,
     setConfirmPassword,
     errors,
-    submitting,
+    submitting: mutation.submitting,
     handleSubmit,
   };
 }

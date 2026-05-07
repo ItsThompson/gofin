@@ -53,7 +53,9 @@ export function DashboardFeature({ user }: DashboardFeatureProps) {
         user={user}
         year={currentYear}
         month={currentMonth}
-        onPeriodCreated={periodState.handlePeriodCreated}
+        onCreatePeriod={periodState.createPeriod}
+        creating={periodState.creating}
+        createError={periodState.createError}
       />
     );
   }

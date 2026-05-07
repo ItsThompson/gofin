@@ -1,5 +1,5 @@
 import { useState, useCallback, type FormEvent } from "react";
-import { ApiRequestError } from "@gofin/api";
+import { useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
 import { settingsApi } from "../api";
 
@@ -23,48 +23,34 @@ export function useProfileForm(
 ): { state: ProfileFormState; actions: ProfileFormActions } {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  const { submit, error: mutationError, submitting } = useFormMutation<void>({
+    onSuccess: () => {
+      onUserUpdated?.();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    },
+  });
 
   const handleSubmit = useCallback(
-    async (event: FormEvent) => {
+    (event: FormEvent) => {
       event.preventDefault();
-      setError(null);
       setSuccess(false);
-      setLoading(true);
 
-      try {
-        await settingsApi.updateProfile({
+      submit(() =>
+        settingsApi.updateProfile({
           username: username.trim(),
           email: email.trim(),
           currency: user.currency,
-        });
-
-        onUserUpdated?.();
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-      } catch (err) {
-        if (err instanceof ApiRequestError) {
-          if (err.code === "DUPLICATE_EMAIL") {
-            setError("An account with this email already exists.");
-          } else if (err.code === "DUPLICATE_USERNAME") {
-            setError("This username is already taken.");
-          } else {
-            setError(err.message);
-          }
-        } else {
-          setError("An unexpected error occurred. Please try again.");
-        }
-      } finally {
-        setLoading(false);
-      }
+        }),
+      );
     },
-    [username, email, user.currency, onUserUpdated],
+    [username, email, user.currency, submit],
   );
 
   return {
-    state: { username, email, error, success, loading },
+    state: { username, email, error: mutationError, success, loading: submitting },
     actions: { setUsername, setEmail, handleSubmit },
   };
 }

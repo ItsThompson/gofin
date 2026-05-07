@@ -46,14 +46,9 @@ export function ExpenseDetailModal({
     error,
     setViewState,
     submitCorrection,
-    refresh,
-  } = useExpenseDetail(expenseId);
-
-  function handleCorrectionSuccess() {
-    setViewState("detail");
-    refresh();
-    onCorrected();
-  }
+    correctionSubmitting,
+    correctionError,
+  } = useExpenseDetail(expenseId, { onCorrectionSuccess: onCorrected });
 
   return (
     <Dialog open={expenseId !== null} onOpenChange={() => onClose()}>
@@ -101,7 +96,8 @@ export function ExpenseDetailModal({
             tags={tags}
             onCancel={() => setViewState("detail")}
             onSubmit={submitCorrection}
-            onSuccess={handleCorrectionSuccess}
+            submitting={correctionSubmitting}
+            submitError={correctionError}
           />
         )}
       </DialogContent>

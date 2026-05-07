@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { ApiRequestError, useApiToast } from "@gofin/api";
-import type { BudgetPeriod, DefaultSettings } from "@/types";
+import { ApiRequestError, useApiToast, useFormMutation } from "@gofin/api";
+import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "@/types";
 import { dashboardApi } from "../api";
 
 type PeriodState = "loading" | "no-period" | "active" | "error";
@@ -11,13 +11,34 @@ export interface PeriodStateResult {
   defaults: DefaultSettings | null;
   retry: () => void;
   handlePeriodCreated: (period: BudgetPeriod) => void;
+  createPeriod: (body: CreatePeriodRequest) => void;
+  creating: boolean;
+  createError: string | null;
+  clearCreateError: () => void;
+  lastCreateResponse: CreatePeriodResponse | null;
 }
 
 export function usePeriodState(): PeriodStateResult {
   const [state, setState] = useState<PeriodState>("loading");
   const [period, setPeriod] = useState<BudgetPeriod | null>(null);
   const [defaults, setDefaults] = useState<DefaultSettings | null>(null);
+  const [lastCreateResponse, setLastCreateResponse] = useState<CreatePeriodResponse | null>(null);
   const { call: toastCall } = useApiToast();
+
+  const createMutation = useFormMutation<CreatePeriodResponse>({
+    onSuccess: (response) => {
+      setLastCreateResponse(response);
+      setPeriod(response.period);
+      setState("active");
+    },
+  });
+
+  const createPeriod = useCallback(
+    (body: CreatePeriodRequest) => {
+      createMutation.submit(() => dashboardApi.createPeriod(body));
+    },
+    [createMutation],
+  );
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -66,5 +87,10 @@ export function usePeriodState(): PeriodStateResult {
     defaults,
     retry: fetchPeriod,
     handlePeriodCreated,
+    createPeriod,
+    creating: createMutation.submitting,
+    createError: createMutation.error,
+    clearCreateError: createMutation.clearError,
+    lastCreateResponse,
   };
 }
