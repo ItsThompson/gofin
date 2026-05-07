@@ -20,4 +20,5 @@ type UserRepository interface {
 	UpdatePassword(ctx context.Context, userID, passwordHash string) error
 	RevokeAllUserTokens(ctx context.Context, userID string) error
 	GetTokensRevokedAt(ctx context.Context, userID string) (*time.Time, error)
+	DeleteUser(ctx context.Context, userID string) error
 }

@@ -9,10 +9,18 @@ import {
 } from "@gofin/ui/components/card";
 import { apiClient } from "@gofin/api";
 import { useApiToast } from "@gofin/api";
-import { Shield, UserCheck, Loader2, Activity, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { Shield, UserCheck, Loader2, Activity, ExternalLink, Trash2 } from "lucide-react";
+import { DeleteUserDialog } from "../components/DeleteUserDialog";
 import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "../types";
 
 type LoadState = "loading" | "error" | "success";
+
+const PROTECTED_USERNAMES = ["admin", "thompson"];
+
+function isProtectedUser(username: string): boolean {
+  return PROTECTED_USERNAMES.includes(username);
+}
 
 /**
  * Admin panel page displaying all registered users with identity assumption controls.
@@ -22,6 +30,7 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [assumingUserId, setAssumingUserId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<{ id: string; username: string } | null>(null);
   const { call: toastCall } = useApiToast();
 
   const fetchUsers = useCallback(async () => {
@@ -167,19 +176,31 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
                       </td>
                       <td className="py-3">
                         {!isCurrentAdmin && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAssume(user.id)}
-                            disabled={assumingUserId !== null}
-                          >
-                            {assumingUserId === user.id ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : (
-                              <UserCheck className="size-3" />
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAssume(user.id)}
+                              disabled={assumingUserId !== null}
+                            >
+                              {assumingUserId === user.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <UserCheck className="size-3" />
+                              )}
+                              Assume
+                            </Button>
+                            {!isProtectedUser(user.username) && (
+                              <Button
+                                variant="destructive"
+                                size="icon-sm"
+                                onClick={() => setDeletingUser({ id: user.id, username: user.username })}
+                                aria-label={`Delete ${user.username}`}
+                              >
+                                <Trash2 className="size-3" />
+                              </Button>
                             )}
-                            Assume
-                          </Button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -190,6 +211,21 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
           </div>
         </CardContent>
       </Card>
+
+      <DeleteUserDialog
+        open={deletingUser !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingUser(null);
+        }}
+        user={deletingUser}
+        onSuccess={() => {
+          if (deletingUser) {
+            setUsers((prev) => prev.filter((user) => user.id !== deletingUser.id));
+            toast.success(`User "${deletingUser.username}" has been deleted`);
+          }
+          setDeletingUser(null);
+        }}
+      />
     </div>
   );
 }

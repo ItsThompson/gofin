@@ -104,6 +104,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (AuthUse
 	return i, err
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM auth.users WHERE id = $1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
 const getTokensRevokedAt = `-- name: GetTokensRevokedAt :one
 SELECT tokens_revoked_at FROM auth.users WHERE id = $1
 `

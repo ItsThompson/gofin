@@ -56,6 +56,11 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"newPassword" binding:"required"`
 }
 
+// DeleteUserRequest is the input for DELETE /api/admin/users/:id.
+type DeleteUserRequest struct {
+	Password string `json:"password" binding:"required"`
+}
+
 // AdminUserResponse is the public-facing user representation for admin user lists.
 type AdminUserResponse struct {
 	ID        string `json:"id"`
