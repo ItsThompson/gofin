@@ -23,6 +23,28 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/features/*/components/*"],
+              message:
+                "Import from the feature barrel (features/name) instead.",
+            },
+            {
+              group: ["**/features/*/hooks/*"],
+              message:
+                "Import from the feature barrel (features/name) instead.",
+            },
+            {
+              group: ["**/features/*/api"],
+              message:
+                "Import from the feature barrel (features/name) instead.",
+            },
+          ],
+        },
+      ],
     },
   },
 );
