@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export interface MultiStepDialogContextValue {
   currentStep: number;
   totalSteps: number;
@@ -9,14 +11,14 @@ export interface MultiStepDialogContextValue {
 export interface MultiStepDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export interface MultiStepDialogContentProps {
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export interface MultiStepDialogStepProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
