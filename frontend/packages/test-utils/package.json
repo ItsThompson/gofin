@@ -1,0 +1,35 @@
+{
+  "name": "@gofin/test-utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@gofin/types": "*"
+  },
+  "peerDependencies": {
+    "@testing-library/react": ">=14",
+    "react": ">=18",
+    "react-router": ">=7",
+    "vitest": ">=2"
+  },
+  "devDependencies": {
+    "@gofin/config": "*",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19",
+    "jsdom": "^29.1.1",
+    "react": "^19",
+    "react-dom": "^19",
+    "react-router": "^7.14.2",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
