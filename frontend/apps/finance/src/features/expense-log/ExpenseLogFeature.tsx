@@ -12,7 +12,7 @@ import { FilterPanel } from "./components/FilterPanel";
 import { ExpenseTable } from "./components/ExpenseTable";
 import { ExpenseList } from "./components/ExpenseList";
 import { PaginationControls } from "./components/PaginationControls";
-import { ExpenseDetailModal } from "@/features/expense-detail";
+import { ExpenseDetailModal } from "../expense-detail";
 
 /**
  * Expense log feature orchestrator. Composes filter, data, and table hooks
