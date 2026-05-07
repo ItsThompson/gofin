@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DashboardPage } from "@/pages/DashboardPage";
+import { DashboardFeature } from "../index";
 import {
   buildUser,
   buildPeriod,
@@ -164,12 +164,12 @@ function dashboardDataWithExpensesRoutes() {
 // --- Render helper ---
 
 function renderDashboard(user = testUser) {
-  return renderWithRouter(<DashboardPage user={user} />, { route: "/dashboard" });
+  return renderWithRouter(<DashboardFeature user={user} />, { route: "/dashboard" });
 }
 
 // --- Tests ---
 
-describe("DashboardPage", () => {
+describe("DashboardFeature", () => {
   beforeEach(() => {
     // Reset global.fetch before each test; each test sets its own createMockApi
   });

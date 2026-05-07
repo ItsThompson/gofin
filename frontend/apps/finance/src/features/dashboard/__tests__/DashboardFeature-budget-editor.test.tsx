@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DashboardPage } from "@/pages/DashboardPage";
+import { DashboardFeature } from "../index";
 import {
   buildUser,
   buildPeriod,
@@ -63,10 +63,10 @@ function dashboardDataRoutes() {
 }
 
 function renderDashboard(user = testUser) {
-  return renderWithRouter(<DashboardPage user={user} />, { route: "/dashboard" });
+  return renderWithRouter(<DashboardFeature user={user} />, { route: "/dashboard" });
 }
 
-describe("DashboardPage - Budget Settings Editor Save", () => {
+describe("DashboardFeature - Budget Settings Editor Save", () => {
   beforeEach(() => {
     // Each test sets its own fetch mock
   });

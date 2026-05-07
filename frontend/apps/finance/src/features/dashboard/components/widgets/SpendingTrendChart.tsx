@@ -15,7 +15,7 @@ import {
 } from "@gofin/ui/components/card";
 import { formatCurrency, getCurrencySymbol } from "@gofin/core";
 import type { TrendPoint } from "@/types";
-import { MONTH_LABELS } from "../lib/trend-utils";
+import { MONTH_LABELS } from "../../../../lib/trend-utils";
 
 interface SpendingTrendChartProps {
   data: TrendPoint[];
@@ -48,9 +48,9 @@ export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) 
               tickFormatter={(value: number) => `${currencySymbol}${value}`}
             />
             <Tooltip
-              formatter={(value: number, name: string) => [
-                formatCurrency(value * 100, currency),
-                name === "spending" ? "Spent" : "Budget",
+              formatter={(value, name) => [
+                formatCurrency((value as number) * 100, currency),
+                (name as string) === "spending" ? "Spent" : "Budget",
               ]}
             />
             <Line
