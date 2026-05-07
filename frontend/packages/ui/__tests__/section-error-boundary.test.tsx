@@ -1,0 +1,119 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { SectionErrorBoundary } from "../src/components/section-error-boundary";
+
+/**
+ * A child component that throws on render when `shouldThrow` is true.
+ * Used to trigger error boundaries in tests.
+ */
+function ThrowingChild({ shouldThrow }: { shouldThrow: boolean }) {
+  if (shouldThrow) {
+    throw new Error("Child render error");
+  }
+  return <div>Child rendered successfully</div>;
+}
+
+describe("SectionErrorBoundary", () => {
+  beforeEach(() => {
+    // Suppress React error boundary console.error noise
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  it("renders children normally when no error occurs", () => {
+    render(
+      <SectionErrorBoundary sectionName="Budget">
+        <div>Normal content</div>
+      </SectionErrorBoundary>,
+    );
+
+    expect(screen.getByText("Normal content")).toBeInTheDocument();
+  });
+
+  it("catches render errors thrown by children", () => {
+    render(
+      <SectionErrorBoundary sectionName="Budget">
+        <ThrowingChild shouldThrow={true} />
+      </SectionErrorBoundary>,
+    );
+
+    expect(
+      screen.queryByText("Child rendered successfully"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("renders a fallback UI displaying the error message with section name", () => {
+    render(
+      <SectionErrorBoundary sectionName="Budget">
+        <ThrowingChild shouldThrow={true} />
+      </SectionErrorBoundary>,
+    );
+
+    expect(screen.getByText("Could not load Budget")).toBeInTheDocument();
+    expect(
+      screen.getByText("Something went wrong rendering this section."),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a generic label when sectionName is not provided", () => {
+    render(
+      <SectionErrorBoundary>
+        <ThrowingChild shouldThrow={true} />
+      </SectionErrorBoundary>,
+    );
+
+    expect(
+      screen.getByText("Could not load this section"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders custom fallback when provided", () => {
+    render(
+      <SectionErrorBoundary fallback={<div>Custom error fallback</div>}>
+        <ThrowingChild shouldThrow={true} />
+      </SectionErrorBoundary>,
+    );
+
+    expect(screen.getByText("Custom error fallback")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Could not load this section"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reset/retry mechanism clears the error state and re-renders children", async () => {
+    const user = userEvent.setup();
+
+    // Use a mutable ref to control whether the child throws.
+    // After retry, we need the child to succeed.
+    let shouldThrow = true;
+
+    function ConditionalChild() {
+      if (shouldThrow) {
+        throw new Error("Temporary error");
+      }
+      return <div>Recovered content</div>;
+    }
+
+    render(
+      <SectionErrorBoundary sectionName="Budget">
+        <ConditionalChild />
+      </SectionErrorBoundary>,
+    );
+
+    // Should be in error state
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("Could not load Budget")).toBeInTheDocument();
+
+    // Fix the child before retry
+    shouldThrow = false;
+
+    // Click retry
+    const retryButton = screen.getByRole("button", { name: /try again/i });
+    await user.click(retryButton);
+
+    // Should now render recovered content
+    expect(screen.getByText("Recovered content")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
