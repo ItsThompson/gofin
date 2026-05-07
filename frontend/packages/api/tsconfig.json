@@ -1,0 +1,7 @@
+{
+  "extends": "@gofin/config/tsconfig/base.json",
+  "include": ["src", "__tests__"],
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

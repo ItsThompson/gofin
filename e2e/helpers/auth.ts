@@ -17,7 +17,8 @@ export async function registerUser(page: Page): Promise<TestUser> {
   await page.goto("/register");
   await page.getByLabel("Username").fill(user.username);
   await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Password").fill(user.password);
+  await page.getByLabel("Password", { exact: true }).fill(user.password);
+  await page.getByLabel("Confirm Password").fill(user.password);
   await page.getByRole("button", { name: "Create account" }).click();
 
   await page.waitForURL("**/onboarding");

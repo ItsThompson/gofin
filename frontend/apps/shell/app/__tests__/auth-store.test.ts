@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useAuthStore } from "@/stores/auth-store";
-import type { User } from "@gofin/types";
+import type { User } from "@gofin/core";
 
 const mockUser: User = {
   id: "user-123",

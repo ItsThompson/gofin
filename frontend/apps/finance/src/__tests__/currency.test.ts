@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCurrency, getCurrencySymbol } from "@gofin/types";
+import { formatCurrency, getCurrencySymbol } from "@gofin/core";
 
 describe("getCurrencySymbol", () => {
   it("returns $ for USD", () => {

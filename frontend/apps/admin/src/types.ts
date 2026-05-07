@@ -1,4 +1,4 @@
-import type { User } from "@gofin/types";
+import type { User } from "@gofin/core";
 
 /** Represents a user in the admin user list. */
 export interface AdminUser {

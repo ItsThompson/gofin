@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { User } from "@gofin/types";
-import { apiClient } from "@gofin/types";
+import type { User } from "@gofin/core";
+import { apiClient } from "@gofin/api";
 
 interface AuthResponse {
   user: User;

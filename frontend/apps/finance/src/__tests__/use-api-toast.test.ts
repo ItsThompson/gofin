@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { useApiToast, isNetworkError, NETWORK_ERROR_MESSAGE } from "@gofin/types";
-import { ApiRequestError } from "@gofin/types";
+import { useApiToast, isNetworkError, NETWORK_ERROR_MESSAGE } from "@gofin/api";
+import { ApiRequestError } from "@gofin/api";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({

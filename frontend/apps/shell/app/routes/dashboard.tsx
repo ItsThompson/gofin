@@ -4,13 +4,13 @@ import { RemoteBoundary } from "@/components/remote-boundary";
 import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 
 /**
- * Lazy-load the DashboardPage from the finance remote package.
+ * Lazy-load the DashboardFeature from the finance remote package.
  * The finance remote exports this via Module Federation: the shell
  * loads it as a workspace package import at build time.
  */
-const DashboardPage = lazy(() =>
-  import("@gofin/finance/src/pages/DashboardPage").then((mod) => ({
-    default: mod.DashboardPage,
+const DashboardFeature = lazy(() =>
+  import("@gofin/finance/src/features/dashboard/index").then((mod) => ({
+    default: mod.DashboardFeature,
   })),
 );
 
@@ -24,7 +24,7 @@ export default function DashboardRoute() {
       sectionName="Dashboard"
       loadingFallback={<DashboardSkeleton />}
     >
-      <DashboardPage user={user} />
+      <DashboardFeature user={user} />
     </RemoteBoundary>
   );
 }

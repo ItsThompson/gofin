@@ -6,7 +6,26 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/__tests__/setup.ts"],
-    include: ["src/__tests__/**/*.test.{ts,tsx}"],
+    include: ["src/__tests__/**/*.test.{ts,tsx}", "src/features/**/__tests__/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "istanbul",
+      reporter: ["text", "lcov"],
+      exclude: [
+        "**/__tests__/**",
+        "**/types.ts",
+        "**/types/**",
+        "**/vite-env.d.ts",
+        "**/main.tsx",
+        "**/index.ts",
+        "**/setup.*",
+      ],
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 87,
+        lines: 90,
+      },
+    },
   },
   resolve: {
     alias: {

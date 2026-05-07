@@ -4,11 +4,11 @@ import { RemoteBoundary } from "@/components/remote-boundary";
 import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
 
 /**
- * Lazy-load the ExpenseLogPage from the finance remote package.
+ * Lazy-load the ExpenseLogFeature from the finance remote package.
  */
-const ExpenseLogPage = lazy(() =>
-  import("@gofin/finance/src/pages/ExpenseLogPage").then((mod) => ({
-    default: mod.ExpenseLogPage,
+const ExpenseLogFeature = lazy(() =>
+  import("@gofin/finance/src/features/expense-log").then((mod) => ({
+    default: mod.ExpenseLogFeature,
   })),
 );
 
@@ -22,7 +22,7 @@ export default function ExpensesRoute() {
       sectionName="Expense Log"
       loadingFallback={<ExpenseLogSkeleton />}
     >
-      <ExpenseLogPage user={user} />
+      <ExpenseLogFeature user={user} />
     </RemoteBoundary>
   );
 }

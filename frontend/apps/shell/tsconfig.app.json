@@ -3,6 +3,7 @@
   "include": ["app", "server", ".react-router/types/**/*"],
   "compilerOptions": {
     "noEmit": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "rootDirs": [".", "./.react-router/types"],
     "paths": {

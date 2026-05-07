@@ -5,11 +5,11 @@ import { Skeleton } from "@gofin/ui/components/skeleton";
 import { Card, CardContent, CardHeader } from "@gofin/ui/components/card";
 
 /**
- * Lazy-load the NewExpensePage from the finance remote package.
+ * Lazy-load the NewExpenseFeature from the finance remote package.
  */
-const NewExpensePage = lazy(() =>
-  import("@gofin/finance/src/pages/NewExpensePage").then((mod) => ({
-    default: mod.NewExpensePage,
+const NewExpenseFeature = lazy(() =>
+  import("@gofin/finance/src/features/new-expense").then((mod) => ({
+    default: mod.NewExpenseFeature,
   })),
 );
 
@@ -48,7 +48,7 @@ export default function NewExpenseRoute() {
       sectionName="Expense Form"
       loadingFallback={<ExpenseFormSkeleton />}
     >
-      <NewExpensePage user={user} />
+      <NewExpenseFeature user={user} />
     </RemoteBoundary>
   );
 }

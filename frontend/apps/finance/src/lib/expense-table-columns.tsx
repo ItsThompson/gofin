@@ -1,6 +1,6 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { formatCurrency } from "@gofin/types";
-import type { Expense, Tag } from "@gofin/types";
+import { formatCurrency } from "@gofin/core";
+import type { Expense, Tag } from "@/types";
 
 /** Enriched expense with resolved tag name for display. */
 export interface ExpenseRow extends Expense {
