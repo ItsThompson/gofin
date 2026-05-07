@@ -7,7 +7,7 @@ import {
   Card,
   CardContent,
 } from "@gofin/ui/components/card";
-import { SectionErrorBoundary } from "@gofin/ui/components/section-error-boundary";
+import { SectionErrorBoundary } from "@gofin/ui/components/SectionErrorBoundary";
 import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 import {
   LayoutDashboard,
