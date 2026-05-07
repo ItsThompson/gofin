@@ -143,19 +143,8 @@ describe("DeleteUserDialog", () => {
   });
 
   it("shows inline error on wrong password (401)", async () => {
-    // First call: DELETE returns 401 (wrong password)
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-      json: () => Promise.resolve({ code: "INVALID_CREDENTIALS", message: "Invalid password" }),
-    });
-    // Second call: apiClient attempts token refresh (succeeds)
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({}),
-    });
-    // Third call: retry of the DELETE also returns 401
+    // With /api/admin/users in AUTH_ENDPOINT_PREFIXES, 401 throws directly
+    // without attempting token refresh
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
