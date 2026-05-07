@@ -94,6 +94,11 @@ func (m *mockUserRepository) GetTokensRevokedAt(ctx context.Context, userID stri
 	return args.Get(0).(*time.Time), args.Error(1)
 }
 
+func (m *mockUserRepository) DeleteUser(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 func newTestAuthService(repo *mockUserRepository) *AuthService {
 	blacklistRepo := new(mockBlacklistRepository)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

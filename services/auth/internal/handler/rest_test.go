@@ -120,6 +120,11 @@ func (m *mockUserRepository) GetTokensRevokedAt(ctx context.Context, userID stri
 	return args.Get(0).(*time.Time), args.Error(1)
 }
 
+func (m *mockUserRepository) DeleteUser(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 func setupTestRouter(repo *mockUserRepository) *gin.Engine {
 	return setupTestRouterWithBlacklist(repo, new(mockBlacklistRepository))
 }

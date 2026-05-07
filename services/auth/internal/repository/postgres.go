@@ -214,3 +214,12 @@ func (r *PostgresUserRepository) GetTokensRevokedAt(ctx context.Context, userID 
 	t := ts.Time
 	return &t, nil
 }
+
+func (r *PostgresUserRepository) DeleteUser(ctx context.Context, userID string) error {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return err
+	}
+
+	return r.queries.DeleteUser(ctx, uid)
+}
