@@ -13,7 +13,7 @@ export default defineConfig({
       filename: "remoteEntry.js",
       exposes: {
         "./DashboardPage": "./src/pages/DashboardPage.tsx",
-        "./SettingsPage": "./src/pages/SettingsPage.tsx",
+        "./SettingsPage": "./src/features/settings/index.ts",
         "./NewExpensePage": "./src/pages/NewExpensePage.tsx",
         "./ExpenseLogPage": "./src/pages/ExpenseLogPage.tsx",
         "./routes": "./src/routes.ts",

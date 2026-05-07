@@ -4,11 +4,11 @@ import { RemoteBoundary } from "@/components/remote-boundary";
 import { SettingsSkeleton } from "@gofin/ui/components/skeletons";
 
 /**
- * Lazy-load the SettingsPage from the finance remote package.
+ * Lazy-load the SettingsFeature from the finance remote package.
  */
 const SettingsPage = lazy(() =>
-  import("@gofin/finance/src/pages/SettingsPage").then((mod) => ({
-    default: mod.SettingsPage,
+  import("@gofin/finance/src/features/settings").then((mod) => ({
+    default: mod.SettingsFeature,
   })),
 );
 

@@ -10,14 +10,14 @@ export const financeRoutes = {
   },
   newExpense: {
     path: "/expenses/new",
-    component: "NewExpensePage",
+    component: "NewExpenseFeature",
   },
   expenseLog: {
     path: "/expenses",
-    component: "ExpenseLogPage",
+    component: "ExpenseLogFeature",
   },
   history: {
     path: "/history",
-    component: "HistoryPage",
+    component: "HistoryFeature",
   },
 } as const;
