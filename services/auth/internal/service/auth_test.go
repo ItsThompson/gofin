@@ -1032,3 +1032,151 @@ func TestChangePassword_TokenRevocation(t *testing.T) {
 	// Any token with iat before that timestamp will be rejected by ValidateToken.
 	repo.AssertCalled(t, "RevokeAllUserTokens", ctx, "user-123")
 }
+
+// --- DeleteUser Tests ---
+
+func TestDeleteUser_Success(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("AdminPass1")
+	repo.On("GetUserByID", ctx, "admin-1").Return(&model.User{
+		ID:           "admin-1",
+		Username:     "admin",
+		Email:        "admin@gofin.local",
+		PasswordHash: hash,
+		Role:         "admin",
+	}, nil)
+	repo.On("GetUserByID", ctx, "user-1").Return(&model.User{
+		ID:       "user-1",
+		Username: "alice",
+		Email:    "alice@example.com",
+		Role:     "user",
+	}, nil)
+	repo.On("DeleteUser", ctx, "user-1").Return(nil)
+
+	err := svc.DeleteUser(ctx, "admin-1", "user-1", "AdminPass1")
+
+	require.NoError(t, err)
+	repo.AssertCalled(t, "DeleteUser", ctx, "user-1")
+}
+
+func TestDeleteUser_RejectSelfDeletion(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	err := svc.DeleteUser(ctx, "admin-1", "admin-1", "AdminPass1")
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrValidationError, authErr.Code)
+	assert.Equal(t, 400, authErr.Status)
+}
+
+func TestDeleteUser_RejectProtectedUser_Admin(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("AdminPass1")
+	repo.On("GetUserByID", ctx, "admin-1").Return(&model.User{
+		ID:           "admin-1",
+		Username:     "thompson",
+		Email:        "thompson@gofin.local",
+		PasswordHash: hash,
+		Role:         "admin",
+	}, nil)
+	repo.On("GetUserByID", ctx, "admin-2").Return(&model.User{
+		ID:       "admin-2",
+		Username: "admin",
+		Email:    "admin@gofin.local",
+		Role:     "admin",
+	}, nil)
+
+	err := svc.DeleteUser(ctx, "admin-1", "admin-2", "AdminPass1")
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrProtectedUser, authErr.Code)
+	assert.Equal(t, 403, authErr.Status)
+}
+
+func TestDeleteUser_RejectProtectedUser_Thompson(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("AdminPass1")
+	repo.On("GetUserByID", ctx, "other-admin").Return(&model.User{
+		ID:           "other-admin",
+		Username:     "otheradmin",
+		Email:        "other@gofin.local",
+		PasswordHash: hash,
+		Role:         "admin",
+	}, nil)
+	repo.On("GetUserByID", ctx, "thompson-id").Return(&model.User{
+		ID:       "thompson-id",
+		Username: "thompson",
+		Email:    "thompson@gofin.local",
+		Role:     "admin",
+	}, nil)
+
+	err := svc.DeleteUser(ctx, "other-admin", "thompson-id", "AdminPass1")
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrProtectedUser, authErr.Code)
+	assert.Equal(t, 403, authErr.Status)
+}
+
+func TestDeleteUser_WrongPassword(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("CorrectPass1")
+	repo.On("GetUserByID", ctx, "admin-1").Return(&model.User{
+		ID:           "admin-1",
+		Username:     "admin",
+		Email:        "admin@gofin.local",
+		PasswordHash: hash,
+		Role:         "admin",
+	}, nil)
+
+	err := svc.DeleteUser(ctx, "admin-1", "user-1", "WrongPass1")
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrInvalidCredentials, authErr.Code)
+	assert.Equal(t, 401, authErr.Status)
+}
+
+func TestDeleteUser_TargetNotFound(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("AdminPass1")
+	repo.On("GetUserByID", ctx, "admin-1").Return(&model.User{
+		ID:           "admin-1",
+		Username:     "admin",
+		Email:        "admin@gofin.local",
+		PasswordHash: hash,
+		Role:         "admin",
+	}, nil)
+	repo.On("GetUserByID", ctx, "nonexistent").Return(nil, nil)
+
+	err := svc.DeleteUser(ctx, "admin-1", "nonexistent", "AdminPass1")
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrNotFound, authErr.Code)
+	assert.Equal(t, 404, authErr.Status)
+}
