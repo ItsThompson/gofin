@@ -3,7 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { buildUser, createMockApi, renderWithRouter } from "@gofin/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
 
-// Lazy-import to avoid side effects at module load time
+// Import through the route (thin wrapper) to test the full integration
 async function importRegisterPage() {
   const mod = await import("@/routes/register");
   return mod.default;

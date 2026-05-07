@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 
-// Mock fetch globally to prevent real network calls
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
@@ -18,16 +17,6 @@ function resetStore(overrides: Record<string, unknown> = {}) {
     ...overrides,
   });
 }
-
-const onboardedUser = {
-  id: "1",
-  username: "test",
-  email: "test@test.com",
-  role: "user" as const,
-  currency: "USD",
-  hasCompletedOnboarding: true,
-  createdAt: "2026-01-01",
-};
 
 const newUser = {
   id: "2",
@@ -52,7 +41,6 @@ async function importAuthLayout() {
 describe("onboarding page", () => {
   beforeEach(() => {
     mockFetch.mockReset();
-    // Default: prevent checkAuth from firing real requests
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
@@ -101,16 +89,13 @@ describe("onboarding page", () => {
     );
     render(<RouterProvider router={router} />);
 
-    // Welcome → Currency
     fireEvent.click(screen.getByText("Get started"));
     expect(screen.getByText("Default Currency")).toBeInTheDocument();
 
-    // Currency → Budget
     fireEvent.click(screen.getByText("Continue"));
     expect(screen.getByText("Monthly Budget")).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
 
-    // Budget → Split
     fireEvent.click(screen.getByText("Continue"));
     expect(screen.getByText("E/D/S Split")).toBeInTheDocument();
     expect(screen.getByText("Step 4 of 4")).toBeInTheDocument();
@@ -126,16 +111,13 @@ describe("onboarding page", () => {
     );
     render(<RouterProvider router={router} />);
 
-    // Navigate to split step
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
 
-    // Change essentials to 40 (40+30+20=90, not 100)
     const essentialsInput = screen.getByLabelText("Essentials %");
     fireEvent.change(essentialsInput, { target: { value: "40" } });
 
-    // Submit
     fireEvent.click(screen.getByText("Complete Setup"));
 
     expect(screen.getByText(/must sum to 100%/)).toBeInTheDocument();
@@ -145,7 +127,6 @@ describe("onboarding page", () => {
     resetStore({ isLoading: false, isAuthenticated: true, user: newUser });
     const OnboardingPage = await importOnboardingPage();
 
-    // Mock both API calls as successful
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -158,7 +139,6 @@ describe("onboarding page", () => {
         json: () => Promise.resolve({ user: { ...newUser, hasCompletedOnboarding: true } }),
       })
       .mockResolvedValueOnce({
-        // checkAuth refresh call
         ok: true,
         status: 200,
         json: () => Promise.resolve({ user: { ...newUser, hasCompletedOnboarding: true } }),
@@ -173,12 +153,10 @@ describe("onboarding page", () => {
     );
     render(<RouterProvider router={router} />);
 
-    // Navigate to split step
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
 
-    // Default is 50/30/20 = 100%, submit should succeed
     fireEvent.click(screen.getByText("Complete Setup"));
 
     await waitFor(() => {
@@ -196,10 +174,8 @@ describe("onboarding page", () => {
     );
     render(<RouterProvider router={router} />);
 
-    // Go to currency step
     fireEvent.click(screen.getByText("Get started"));
 
-    // Skip should be available
     expect(screen.getByText("Skip (use USD)")).toBeInTheDocument();
   });
 
@@ -207,7 +183,6 @@ describe("onboarding page", () => {
     resetStore({ isLoading: false, isAuthenticated: true, user: newUser });
     const OnboardingPage = await importOnboardingPage();
 
-    // Finance onboarding call fails
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -223,7 +198,6 @@ describe("onboarding page", () => {
     );
     render(<RouterProvider router={router} />);
 
-    // Navigate to split step and submit
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
@@ -233,7 +207,6 @@ describe("onboarding page", () => {
       expect(screen.getByText("Database error")).toBeInTheDocument();
     });
 
-    // The "Complete Setup" button should still be available for retry
     expect(screen.getByText("Complete Setup")).toBeInTheDocument();
   });
 });
@@ -278,6 +251,16 @@ describe("onboarding redirect guards", () => {
   });
 
   it("redirects to /dashboard when completed user visits /onboarding", async () => {
+    const onboardedUser = {
+      id: "1",
+      username: "test",
+      email: "test@test.com",
+      role: "user" as const,
+      currency: "USD",
+      hasCompletedOnboarding: true,
+      createdAt: "2026-01-01",
+    };
+
     resetStore({
       isLoading: false,
       isAuthenticated: true,
@@ -330,9 +313,7 @@ describe("onboarding redirect guards", () => {
     );
     render(<RouterProvider router={router} />);
 
-    // Onboarding content should be visible
     expect(screen.getByText("Welcome to GoFin 🎉")).toBeInTheDocument();
-    // Navbar should NOT be visible (onboarding renders without nav chrome)
     expect(screen.queryByText("Expenses")).not.toBeInTheDocument();
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
   });

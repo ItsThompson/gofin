@@ -3,7 +3,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { buildUser, createMockApi, renderWithRouter } from "@gofin/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
 
-// Lazy-import to avoid side effects at module load time
+// Import through the route (thin wrapper) to test the full integration
 async function importLoginPage() {
   const mod = await import("@/routes/login");
   return mod.default;
@@ -57,7 +57,6 @@ describe("login page", () => {
       setupUnauthenticatedMock();
       await renderLoginPage();
 
-      // Submit form directly to bypass HTML5 required validation in jsdom
       const form = screen.getByRole("button", { name: "Sign in" }).closest("form")!;
       fireEvent.submit(form);
 

@@ -59,11 +59,9 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Welcome → Currency
     fireEvent.click(screen.getByText("Get started"));
     expect(screen.getByText("Default Currency")).toBeInTheDocument();
 
-    // Skip currency step
     fireEvent.click(screen.getByText("Skip (use USD)"));
     expect(screen.getByText("Monthly Budget")).toBeInTheDocument();
   });
@@ -73,12 +71,10 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Welcome → Currency → Budget
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     expect(screen.getByText("Monthly Budget")).toBeInTheDocument();
 
-    // Skip budget step
     fireEvent.click(screen.getByText("Skip ($0 budget)"));
     expect(screen.getByText("E/D/S Split")).toBeInTheDocument();
   });
@@ -87,7 +83,6 @@ describe("OnboardingPage - skip and navigation flows", () => {
     resetStore({ isLoading: false, isAuthenticated: true, user: newUser });
     const OnboardingPage = await importOnboardingPage();
 
-    // Mock both API calls as successful
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -107,13 +102,11 @@ describe("OnboardingPage - skip and navigation flows", () => {
 
     renderOnboarding(OnboardingPage);
 
-    // Navigate to split step
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
     expect(screen.getByText("E/D/S Split")).toBeInTheDocument();
 
-    // Skip split: should submit with defaults (50/30/20)
     fireEvent.click(screen.getByText("Skip (50/30/20)"));
 
     await waitFor(() => {
@@ -126,11 +119,9 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Welcome → Currency
     fireEvent.click(screen.getByText("Get started"));
     expect(screen.getByText("Default Currency")).toBeInTheDocument();
 
-    // Back to Welcome
     fireEvent.click(screen.getByText("Back"));
     expect(screen.getByText("Welcome to GoFin 🎉")).toBeInTheDocument();
   });
@@ -140,12 +131,10 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Welcome → Currency → Budget
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     expect(screen.getByText("Monthly Budget")).toBeInTheDocument();
 
-    // Back to Currency
     fireEvent.click(screen.getByText("Back"));
     expect(screen.getByText("Default Currency")).toBeInTheDocument();
   });
@@ -155,13 +144,11 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Welcome → Currency → Budget → Split
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
     expect(screen.getByText("E/D/S Split")).toBeInTheDocument();
 
-    // Back to Budget
     fireEvent.click(screen.getByText("Back"));
     expect(screen.getByText("Monthly Budget")).toBeInTheDocument();
   });
@@ -183,7 +170,6 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Navigate to budget step
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
 
@@ -197,15 +183,12 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Navigate to split step
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
 
-    // Default is 50+30+20=100
     expect(screen.getByText("Total: 100%")).toBeInTheDocument();
 
-    // Change essentials
     const essentialsInput = screen.getByLabelText("Essentials %");
     fireEvent.change(essentialsInput, { target: { value: "60" } });
     expect(screen.getByText("Total: 110%")).toBeInTheDocument();
@@ -215,12 +198,10 @@ describe("OnboardingPage - skip and navigation flows", () => {
     resetStore({ isLoading: false, isAuthenticated: true, user: newUser });
     const OnboardingPage = await importOnboardingPage();
 
-    // Network error (non-ApiRequestError)
     mockFetch.mockRejectedValueOnce(new TypeError("Network error"));
 
     renderOnboarding(OnboardingPage);
 
-    // Navigate to split step and submit
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
@@ -238,18 +219,15 @@ describe("OnboardingPage - skip and navigation flows", () => {
     const OnboardingPage = await importOnboardingPage();
     renderOnboarding(OnboardingPage);
 
-    // Navigate to split step
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
 
-    // Make split invalid and submit
     const essentialsInput = screen.getByLabelText("Essentials %");
     fireEvent.change(essentialsInput, { target: { value: "40" } });
     fireEvent.click(screen.getByText("Complete Setup"));
     expect(screen.getByText(/must sum to 100%/)).toBeInTheDocument();
 
-    // Changing input should clear the error
     fireEvent.change(essentialsInput, { target: { value: "50" } });
     expect(screen.queryByText(/must sum to 100%/)).not.toBeInTheDocument();
   });
