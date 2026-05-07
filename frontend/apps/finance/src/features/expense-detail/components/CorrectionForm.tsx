@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { getCurrencySymbol } from "@gofin/core";
+import { getCurrencySymbol, EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
 import type { Expense, Tag, CorrectExpenseRequest } from "@/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
@@ -9,9 +9,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@gofin/ui/components/form";
-
-const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
-type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
 interface CorrectionFormProps {
   expense: Expense;

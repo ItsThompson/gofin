@@ -1,9 +1,8 @@
 import type { Tag } from "@/types";
 import type { ExpenseFilters } from "../hooks/useExpenseFilters";
+import { EXPENSE_TYPES } from "@gofin/core";
 import { Input } from "@gofin/ui/components/input";
 import { Card, CardContent } from "@gofin/ui/components/card";
-
-const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
 
 interface FilterPanelProps {
   filters: ExpenseFilters;

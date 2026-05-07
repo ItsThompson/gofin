@@ -1,3 +1,4 @@
+import { SUPPORTED_CURRENCIES } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import {
   CardContent,
@@ -7,19 +8,11 @@ import {
 } from "@gofin/ui/components/card";
 import { FormField, FormLabel } from "@gofin/ui/components/form";
 
-/** Supported currencies for the dropdown. */
-const CURRENCIES = [
-  { code: "USD", label: "US Dollar (USD)" },
-  { code: "EUR", label: "Euro (EUR)" },
-  { code: "GBP", label: "British Pound (GBP)" },
-  { code: "JPY", label: "Japanese Yen (JPY)" },
-  { code: "CAD", label: "Canadian Dollar (CAD)" },
-  { code: "AUD", label: "Australian Dollar (AUD)" },
-  { code: "CHF", label: "Swiss Franc (CHF)" },
-  { code: "CNY", label: "Chinese Yuan (CNY)" },
-  { code: "SGD", label: "Singapore Dollar (SGD)" },
-  { code: "HKD", label: "Hong Kong Dollar (HKD)" },
-];
+/** Currency options derived from SUPPORTED_CURRENCIES with display name format. */
+const CURRENCIES = SUPPORTED_CURRENCIES.map((currency) => ({
+  code: currency.code,
+  label: `${currency.name} (${currency.code})`,
+}));
 
 export interface CurrencyStepProps {
   currency: string;

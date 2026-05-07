@@ -1,4 +1,5 @@
 import type { User } from "@gofin/core";
+import { SUPPORTED_CURRENCIES } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -10,18 +11,12 @@ import {
 import { Check, Loader2 } from "lucide-react";
 import { useDefaultBudget } from "../hooks/useDefaultBudget";
 
-const CURRENCY_OPTIONS = [
-  { code: "USD", label: "USD ($)" },
-  { code: "EUR", label: "EUR (€)" },
-  { code: "GBP", label: "GBP (£)" },
-  { code: "JPY", label: "JPY (¥)" },
-  { code: "CAD", label: "CAD (C$)" },
-  { code: "AUD", label: "AUD (A$)" },
-  { code: "CHF", label: "CHF" },
-  { code: "CNY", label: "CNY (¥)" },
-  { code: "SGD", label: "SGD (S$)" },
-  { code: "HKD", label: "HKD (HK$)" },
-];
+const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES.map((currency) => ({
+  code: currency.code,
+  label: currency.symbol === currency.code
+    ? currency.code
+    : `${currency.code} (${currency.symbol})`,
+}));
 
 export function DefaultBudgetSection({ user }: { user: User }) {
   const { state, actions } = useDefaultBudget(user);

@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { apiClient, ApiRequestError } from "@gofin/api";
+import { EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
 import type {
   ExpenseResponse,
   CreateExpenseRequest,
@@ -9,9 +10,6 @@ import type {
   Tag,
   TagListResponse,
 } from "@/types";
-
-const EXPENSE_TYPES = ["essentials", "desires", "savings"] as const;
-type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
 function todayISO(): string {
   const now = new Date();
