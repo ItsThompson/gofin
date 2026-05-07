@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./components/dialog": "./src/components/dialog/index.ts",
+    "./components/multi-step-dialog": "./src/components/multi-step-dialog/index.ts",
+    "./components/skeletons": "./src/components/skeletons/index.ts",
     "./components/*": "./src/components/*.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./hooks/*": "./src/hooks/*.ts",

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { RemoteLoadError } from "@gofin/ui/components/remote-load-error";
+import { RemoteLoadError } from "@gofin/ui/components/RemoteLoadError";
 
 interface RemoteBoundaryProps {
   /** Section name for the fallback UI. */

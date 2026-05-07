@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { RemoteLoadError } from "../src/components/remote-load-error";
+import { RemoteLoadError } from "../src/components/RemoteLoadError";
 
 describe("RemoteLoadError", () => {
   const reloadMock = vi.fn();
