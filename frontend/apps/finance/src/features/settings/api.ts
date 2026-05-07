@@ -4,7 +4,7 @@ import type {
   UpdateDefaultsRequest,
   TagListResponse,
   TagResponse,
-} from "@/types";
+} from "../../types";
 
 /** Request body for PUT /api/auth/me. */
 export interface UpdateProfileRequest {

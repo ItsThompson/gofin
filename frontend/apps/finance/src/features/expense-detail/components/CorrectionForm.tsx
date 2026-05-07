@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { getCurrencySymbol, EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
-import type { Expense, Tag, CorrectExpenseRequest } from "@/types";
+import type { Expense, Tag, CorrectExpenseRequest } from "../../../types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

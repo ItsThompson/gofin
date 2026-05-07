@@ -4,7 +4,7 @@ import type {
   Expense,
   TagListResponse,
   PeriodListResponse,
-} from "@/types";
+} from "../../types";
 
 export const expenseLogApi = {
   getExpenses: (year: number, month: number) =>

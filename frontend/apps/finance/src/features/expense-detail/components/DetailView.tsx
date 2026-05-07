@@ -1,5 +1,5 @@
 import { formatCurrency } from "@gofin/core";
-import type { Expense, Tag } from "@/types";
+import type { Expense, Tag } from "../../../types";
 import { History, Pencil } from "lucide-react";
 import { Button } from "@gofin/ui/components/button";
 import { CorrectionTimeline } from "./CorrectionTimeline";

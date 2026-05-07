@@ -6,7 +6,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import type { ExpenseRow } from "@/lib/expense-table-columns";
+import type { ExpenseRow } from "../../../lib/expense-table-columns";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 

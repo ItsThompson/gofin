@@ -1,4 +1,4 @@
-import type { Tag } from "@/types";
+import type { Tag } from "../../../types";
 import type { ExpenseFilters } from "../hooks/useExpenseFilters";
 import { EXPENSE_TYPES } from "@gofin/core";
 import { Input } from "@gofin/ui/components/input";

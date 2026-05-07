@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFormMutation } from "@gofin/api";
-import type { Expense, CorrectExpenseRequest } from "@/types";
+import type { Expense, CorrectExpenseRequest } from "../../../types";
 import { expenseDetailApi } from "../api";
 
 export type DetailViewState = "loading" | "detail" | "correct" | "error";

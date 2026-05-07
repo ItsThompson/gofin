@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, type FormEvent } from "react";
 import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
 import type { User } from "@gofin/core";
-import type { UpdateDefaultsRequest } from "@/types";
+import type { UpdateDefaultsRequest } from "../../../types";
 import { settingsApi } from "../api";
 
 export interface DefaultBudgetState {

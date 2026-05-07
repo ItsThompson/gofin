@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import { getCurrencySymbol, formatCurrency } from "@gofin/core";
-import type { TagSpending } from "@/types";
+import type { TagSpending } from "../../../../types";
 import {
   Card,
   CardContent,

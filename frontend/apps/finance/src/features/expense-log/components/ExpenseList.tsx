@@ -1,7 +1,7 @@
 import type { Table } from "@tanstack/react-table";
 import { formatCurrency } from "@gofin/core";
 import { Card, CardContent } from "@gofin/ui/components/card";
-import type { ExpenseRow } from "@/lib/expense-table-columns";
+import type { ExpenseRow } from "../../../lib/expense-table-columns";
 
 interface ExpenseListProps {
   table: Table<ExpenseRow>;

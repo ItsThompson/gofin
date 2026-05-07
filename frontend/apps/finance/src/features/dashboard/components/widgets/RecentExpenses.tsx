@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { formatCurrency } from "@gofin/core";
-import type { Expense } from "@/types";
+import type { Expense } from "../../../../types";
 import {
   Card,
   CardContent,

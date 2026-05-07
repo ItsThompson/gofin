@@ -1,5 +1,5 @@
 import { formatCurrency } from "@gofin/core";
-import type { ProRataSchedule } from "@/types";
+import type { ProRataSchedule } from "../../../../types";
 import {
   Card,
   CardContent,

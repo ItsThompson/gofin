@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useApiToast } from "@gofin/api";
-import type { BudgetPeriod, Expense, Tag } from "@/types";
+import type { BudgetPeriod, Expense, Tag } from "../../../types";
 import { expenseLogApi } from "../api";
-import { resolveTagNames, type ExpenseRow } from "@/lib/expense-table-columns";
+import { resolveTagNames, type ExpenseRow } from "../../../lib/expense-table-columns";
 import type { ExpenseFilters } from "./useExpenseFilters";
 
 export interface ExpenseLogData {

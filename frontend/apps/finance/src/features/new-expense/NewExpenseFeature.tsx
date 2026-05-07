@@ -15,7 +15,7 @@ import {
   FormMessage,
 } from "@gofin/ui/components/form";
 import { PlusCircle } from "lucide-react";
-import type { FinancePageProps } from "@/types/pages";
+import type { FinancePageProps } from "../../types/pages";
 import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
 
 /**

@@ -13,7 +13,7 @@ import type {
   CreatePeriodRequest,
   CreatePeriodResponse,
   UpdatePeriodRequest,
-} from "@/types";
+} from "../../types";
 
 export const dashboardApi = {
   getCurrentPeriod: (year: number, month: number) =>

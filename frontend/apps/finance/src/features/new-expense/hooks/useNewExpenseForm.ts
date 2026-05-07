@@ -9,7 +9,7 @@ import type {
   ProRataResponse,
   Tag,
   TagListResponse,
-} from "@/types";
+} from "../../../types";
 
 function todayISO(): string {
   const now = new Date();

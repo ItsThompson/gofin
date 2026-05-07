@@ -9,7 +9,7 @@ import {
   type ColumnFiltersState,
   type Table,
 } from "@tanstack/react-table";
-import { buildExpenseColumns, type ExpenseRow } from "@/lib/expense-table-columns";
+import { buildExpenseColumns, type ExpenseRow } from "../../../lib/expense-table-columns";
 
 export interface ExpenseTableState {
   table: Table<ExpenseRow>;

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { getCurrencySymbol } from "@gofin/core";
 import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
-import type { BudgetPeriod, UpdatePeriodRequest } from "@/types";
+import type { BudgetPeriod, UpdatePeriodRequest } from "../../../types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

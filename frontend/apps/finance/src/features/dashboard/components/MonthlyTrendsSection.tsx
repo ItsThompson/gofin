@@ -1,4 +1,4 @@
-import type { TrendPoint } from "@/types";
+import type { TrendPoint } from "../../../types";
 import { ToggleGroup, ToggleGroupItem } from "@gofin/ui/components/toggle-group";
 import { SpendingTrendChart } from "./widgets/SpendingTrendChart";
 import { CategorySplitChart } from "./widgets/CategorySplitChart";

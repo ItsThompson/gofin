@@ -11,7 +11,7 @@ import type {
   HistoricalComparison,
   ProRataSchedule,
   TrendPoint,
-} from "@/types";
+} from "../../../types";
 import type { PaginatedResponse } from "@gofin/core";
 import { dashboardApi } from "../api";
 

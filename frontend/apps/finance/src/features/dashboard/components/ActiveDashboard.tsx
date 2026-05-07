@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { User } from "@gofin/core";
-import type { BudgetPeriod } from "@/types";
+import type { BudgetPeriod } from "../../../types";
 import { Button } from "@gofin/ui/components/button";
 import {
   Card,

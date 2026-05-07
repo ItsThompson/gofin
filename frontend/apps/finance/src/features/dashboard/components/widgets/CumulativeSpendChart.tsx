@@ -1,5 +1,5 @@
 import { formatCurrency, getCurrencySymbol } from "@gofin/core";
-import type { CumulativeSpendPoint } from "@/types";
+import type { CumulativeSpendPoint } from "../../../../types";
 import {
   Card,
   CardContent,

@@ -5,7 +5,7 @@ import type {
   ExpenseResponse,
   CorrectionHistoryResponse,
   CorrectExpenseRequest,
-} from "@/types";
+} from "../../types";
 
 export const expenseDetailApi = {
   getExpense: (expenseId: string) =>

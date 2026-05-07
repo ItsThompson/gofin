@@ -4,7 +4,7 @@ import {
 } from "@tanstack/react-table";
 import { Card, CardContent } from "@gofin/ui/components/card";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
-import type { ExpenseRow } from "@/lib/expense-table-columns";
+import type { ExpenseRow } from "../../../lib/expense-table-columns";
 
 interface ExpenseTableProps {
   table: Table<ExpenseRow>;
