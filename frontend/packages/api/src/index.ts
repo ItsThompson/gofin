@@ -11,3 +11,8 @@ export {
   type BudgetSplitFields,
   type BudgetSplitForm,
 } from "./hooks/useBudgetSplitForm";
+export {
+  useFormMutation,
+  type UseFormMutationOptions,
+  type FormMutation,
+} from "./hooks/useFormMutation";
