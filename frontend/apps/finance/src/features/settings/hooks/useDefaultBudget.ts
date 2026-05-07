@@ -1,20 +1,8 @@
 import { useState, useCallback, useEffect, type FormEvent } from "react";
-import { ApiRequestError } from "@gofin/api";
+import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
 import type { User } from "@gofin/core";
 import type { UpdateDefaultsRequest } from "@/types";
 import { settingsApi } from "../api";
-
-/**
- * Validates that E/D/S percentages sum to exactly 100.
- * Returns an error message or null if valid.
- */
-function validateEDSSplit(essentials: number, desires: number, savings: number): string | null {
-  const total = essentials + desires + savings;
-  if (total !== 100) {
-    return `Percentages must sum to 100% (currently ${total}%)`;
-  }
-  return null;
-}
 
 export interface DefaultBudgetState {
   budgetDollars: string;
@@ -38,10 +26,7 @@ export interface DefaultBudgetActions {
 }
 
 export function useDefaultBudget(user: User): { state: DefaultBudgetState; actions: DefaultBudgetActions } {
-  const [budgetDollars, setBudgetDollars] = useState("");
-  const [essentials, setEssentials] = useState("");
-  const [desires, setDesires] = useState("");
-  const [savings, setSavings] = useState("");
+  const form = useBudgetSplitForm();
   const [currency, setCurrency] = useState(user.currency);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -53,22 +38,24 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
       try {
         const response = await settingsApi.getDefaults();
         const defaults = response.defaults;
-        setBudgetDollars(String(defaults.budgetAmount / 100));
-        setEssentials(String(defaults.essentialsPercent));
-        setDesires(String(defaults.desiresPercent));
-        setSavings(String(defaults.savingsPercent));
+        form.reset({
+          initialBudgetCents: defaults.budgetAmount,
+          initialSplit: {
+            essentials: defaults.essentialsPercent,
+            desires: defaults.desiresPercent,
+            savings: defaults.savingsPercent,
+          },
+        });
         setCurrency(defaults.currency);
       } catch {
-        // Use fallback defaults
-        setBudgetDollars("0");
-        setEssentials("50");
-        setDesires("30");
-        setSavings("20");
+        // Use fallback defaults (hook already uses DEFAULT_BUDGET_SPLIT)
+        form.reset({ initialBudgetCents: 0 });
       } finally {
         setFetching(false);
       }
     }
     fetchDefaults();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = useCallback(
@@ -77,26 +64,22 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
       setError(null);
       setSuccess(false);
 
-      const essentialsNum = parseInt(essentials, 10) || 0;
-      const desiresNum = parseInt(desires, 10) || 0;
-      const savingsNum = parseInt(savings, 10) || 0;
-
-      const splitError = validateEDSSplit(essentialsNum, desiresNum, savingsNum);
-      if (splitError) {
-        setError(splitError);
+      const validationError = form.validate();
+      if (validationError) {
+        setError(validationError);
         return;
       }
 
-      const budgetCents = Math.round((parseFloat(budgetDollars) || 0) * 100);
+      const payload = form.toPayload();
 
       setLoading(true);
 
       try {
         const body: UpdateDefaultsRequest = {
-          budgetAmount: budgetCents,
-          essentialsPercent: essentialsNum,
-          desiresPercent: desiresNum,
-          savingsPercent: savingsNum,
+          budgetAmount: payload.budgetAmountCents,
+          essentialsPercent: payload.essentialsPercent,
+          desiresPercent: payload.desiresPercent,
+          savingsPercent: payload.savingsPercent,
           currency,
         };
 
@@ -124,11 +107,28 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         setLoading(false);
       }
     },
-    [budgetDollars, essentials, desires, savings, currency],
+    [form, currency],
   );
 
   return {
-    state: { budgetDollars, essentials, desires, savings, currency, error, success, loading, fetching },
-    actions: { setBudgetDollars, setEssentials, setDesires, setSavings, setCurrency, handleSubmit },
+    state: {
+      budgetDollars: form.fields.budgetDollars,
+      essentials: form.fields.essentials,
+      desires: form.fields.desires,
+      savings: form.fields.savings,
+      currency,
+      error,
+      success,
+      loading,
+      fetching,
+    },
+    actions: {
+      setBudgetDollars: (value: string) => form.setField("budgetDollars", value),
+      setEssentials: (value: string) => form.setField("essentials", value),
+      setDesires: (value: string) => form.setField("desires", value),
+      setSavings: (value: string) => form.setField("savings", value),
+      setCurrency,
+      handleSubmit,
+    },
   };
 }

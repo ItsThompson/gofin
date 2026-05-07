@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { getCurrencySymbol } from "@gofin/core";
-import { ApiRequestError } from "@gofin/api";
+import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
 import type { User } from "@gofin/core";
 import type { DefaultSettings, BudgetPeriod, CreatePeriodRequest } from "@/types";
 import { Button } from "@gofin/ui/components/button";
@@ -30,13 +30,6 @@ interface CreatePeriodPromptProps {
   onPeriodCreated: (period: BudgetPeriod) => void;
 }
 
-const FALLBACK_DEFAULTS = {
-  budgetAmount: 0,
-  essentialsPercent: 50,
-  desiresPercent: 30,
-  savingsPercent: 20,
-};
-
 export function CreatePeriodPrompt({
   defaults,
   user,
@@ -44,25 +37,20 @@ export function CreatePeriodPrompt({
   month,
   onPeriodCreated,
 }: CreatePeriodPromptProps) {
-  const effectiveDefaults = defaults ?? FALLBACK_DEFAULTS;
-  const isZeroBudget = effectiveDefaults.budgetAmount === 0;
+  const isZeroBudget = !defaults || defaults.budgetAmount === 0;
   const currencySymbol = getCurrencySymbol(user.currency);
 
-  const [budgetDollars, setBudgetDollars] = useState<string>(
-    effectiveDefaults.budgetAmount > 0
-      ? (effectiveDefaults.budgetAmount / 100).toString()
-      : "",
-  );
-  const [essentials, setEssentials] = useState<string>(
-    String(effectiveDefaults.essentialsPercent),
-  );
-  const [desires, setDesires] = useState<string>(
-    String(effectiveDefaults.desiresPercent),
-  );
-  const [savings, setSavings] = useState<string>(
-    String(effectiveDefaults.savingsPercent),
-  );
-  const [splitError, setSplitError] = useState<string | null>(null);
+  const form = useBudgetSplitForm({
+    initialBudgetCents: defaults?.budgetAmount || undefined,
+    initialSplit: defaults
+      ? {
+          essentials: defaults.essentialsPercent,
+          desires: defaults.desiresPercent,
+          savings: defaults.savingsPercent,
+        }
+      : undefined,
+  });
+
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,41 +58,21 @@ export function CreatePeriodPrompt({
     month: "long",
   });
 
-  function validateSplit(): string | null {
-    const essentialsVal = parseInt(essentials, 10) || 0;
-    const desiresVal = parseInt(desires, 10) || 0;
-    const savingsVal = parseInt(savings, 10) || 0;
-    const total = essentialsVal + desiresVal + savingsVal;
-    if (total !== 100) {
-      return `Percentages must sum to 100%. Currently: ${total}%`;
-    }
-    if (essentialsVal < 0 || desiresVal < 0 || savingsVal < 0) {
-      return "Percentages must be non-negative";
-    }
-    return null;
-  }
-
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
 
-    const splitValidation = validateSplit();
-    if (splitValidation) {
-      setSplitError(splitValidation);
-      return;
-    }
+    const validationError = form.validate();
+    if (validationError) return;
 
-    const budgetAmountCents = Math.round(
-      (parseFloat(budgetDollars) || 0) * 100,
-    );
-
+    const payload = form.toPayload();
     const body: CreatePeriodRequest = {
       year,
       month,
-      budgetAmount: budgetAmountCents,
-      essentialsPercent: parseInt(essentials, 10) || 0,
-      desiresPercent: parseInt(desires, 10) || 0,
-      savingsPercent: parseInt(savings, 10) || 0,
+      budgetAmount: payload.budgetAmountCents,
+      essentialsPercent: payload.essentialsPercent,
+      desiresPercent: payload.desiresPercent,
+      savingsPercent: payload.savingsPercent,
     };
 
     setSubmitting(true);
@@ -127,11 +95,6 @@ export function CreatePeriodPrompt({
       setSubmitting(false);
     }
   }
-
-  const splitTotal =
-    (parseInt(essentials, 10) || 0) +
-    (parseInt(desires, 10) || 0) +
-    (parseInt(savings, 10) || 0);
 
   return (
     <div className="flex items-start justify-center pt-8">
@@ -169,8 +132,8 @@ export function CreatePeriodPrompt({
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  value={budgetDollars}
-                  onChange={(event) => setBudgetDollars(event.target.value)}
+                  value={form.fields.budgetDollars}
+                  onChange={(event) => form.setField("budgetDollars", event.target.value)}
                   className="pl-6"
                 />
               </div>
@@ -183,12 +146,9 @@ export function CreatePeriodPrompt({
                 type="number"
                 min="0"
                 max="100"
-                value={essentials}
-                onChange={(event) => {
-                  setEssentials(event.target.value);
-                  setSplitError(null);
-                }}
-                aria-invalid={!!splitError}
+                value={form.fields.essentials}
+                onChange={(event) => form.setField("essentials", event.target.value)}
+                aria-invalid={!!form.splitError}
               />
             </FormField>
 
@@ -199,12 +159,9 @@ export function CreatePeriodPrompt({
                 type="number"
                 min="0"
                 max="100"
-                value={desires}
-                onChange={(event) => {
-                  setDesires(event.target.value);
-                  setSplitError(null);
-                }}
-                aria-invalid={!!splitError}
+                value={form.fields.desires}
+                onChange={(event) => form.setField("desires", event.target.value)}
+                aria-invalid={!!form.splitError}
               />
             </FormField>
 
@@ -215,17 +172,14 @@ export function CreatePeriodPrompt({
                 type="number"
                 min="0"
                 max="100"
-                value={savings}
-                onChange={(event) => {
-                  setSavings(event.target.value);
-                  setSplitError(null);
-                }}
-                aria-invalid={!!splitError}
+                value={form.fields.savings}
+                onChange={(event) => form.setField("savings", event.target.value)}
+                aria-invalid={!!form.splitError}
               />
             </FormField>
 
-            <FormDescription>Total: {splitTotal}%</FormDescription>
-            {splitError && <FormMessage>{splitError}</FormMessage>}
+            <FormDescription>Total: {form.splitTotal}%</FormDescription>
+            {form.splitError && <FormMessage>{form.splitError}</FormMessage>}
             {error && <FormMessage>{error}</FormMessage>}
 
             <Button type="submit" className="w-full" disabled={submitting}>

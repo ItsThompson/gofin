@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { getCurrencySymbol } from "@gofin/core";
-import { ApiRequestError } from "@gofin/api";
+import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
 import type { BudgetPeriod, UpdatePeriodRequest } from "@/types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
@@ -34,42 +34,32 @@ export function BudgetSettingsEditor({
   onCancel,
 }: BudgetSettingsEditorProps) {
   const currencySymbol = getCurrencySymbol(currency);
-  const [budgetDollars, setBudgetDollars] = useState(
-    (period.budgetAmount / 100).toString(),
-  );
-  const [essentials, setEssentials] = useState(String(period.essentialsPercent));
-  const [desires, setDesires] = useState(String(period.desiresPercent));
-  const [savings, setSavings] = useState(String(period.savingsPercent));
-  const [splitError, setSplitError] = useState<string | null>(null);
+
+  const form = useBudgetSplitForm({
+    initialBudgetCents: period.budgetAmount,
+    initialSplit: {
+      essentials: period.essentialsPercent,
+      desires: period.desiresPercent,
+      savings: period.savingsPercent,
+    },
+  });
+
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const splitTotal =
-    (parseInt(essentials, 10) || 0) +
-    (parseInt(desires, 10) || 0) +
-    (parseInt(savings, 10) || 0);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
 
-    const essentialsVal = parseInt(essentials, 10) || 0;
-    const desiresVal = parseInt(desires, 10) || 0;
-    const savingsVal = parseInt(savings, 10) || 0;
-    const total = essentialsVal + desiresVal + savingsVal;
+    const validationError = form.validate();
+    if (validationError) return;
 
-    if (total !== 100) {
-      setSplitError(`Percentages must sum to 100%. Currently: ${total}%`);
-      return;
-    }
-
-    const budgetAmountCents = Math.round((parseFloat(budgetDollars) || 0) * 100);
-
+    const payload = form.toPayload();
     const body: UpdatePeriodRequest = {
-      budgetAmount: budgetAmountCents,
-      essentialsPercent: essentialsVal,
-      desiresPercent: desiresVal,
-      savingsPercent: savingsVal,
+      budgetAmount: payload.budgetAmountCents,
+      essentialsPercent: payload.essentialsPercent,
+      desiresPercent: payload.desiresPercent,
+      savingsPercent: payload.savingsPercent,
     };
 
     setSubmitting(true);
@@ -114,8 +104,8 @@ export function BudgetSettingsEditor({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={budgetDollars}
-                  onChange={(event) => setBudgetDollars(event.target.value)}
+                  value={form.fields.budgetDollars}
+                  onChange={(event) => form.setField("budgetDollars", event.target.value)}
                   className="pl-6"
                 />
               </div>
@@ -127,11 +117,8 @@ export function BudgetSettingsEditor({
                 type="number"
                 min="0"
                 max="100"
-                value={essentials}
-                onChange={(event) => {
-                  setEssentials(event.target.value);
-                  setSplitError(null);
-                }}
+                value={form.fields.essentials}
+                onChange={(event) => form.setField("essentials", event.target.value)}
               />
             </FormField>
             <FormField>
@@ -141,11 +128,8 @@ export function BudgetSettingsEditor({
                 type="number"
                 min="0"
                 max="100"
-                value={desires}
-                onChange={(event) => {
-                  setDesires(event.target.value);
-                  setSplitError(null);
-                }}
+                value={form.fields.desires}
+                onChange={(event) => form.setField("desires", event.target.value)}
               />
             </FormField>
             <FormField>
@@ -155,21 +139,18 @@ export function BudgetSettingsEditor({
                 type="number"
                 min="0"
                 max="100"
-                value={savings}
-                onChange={(event) => {
-                  setSavings(event.target.value);
-                  setSplitError(null);
-                }}
+                value={form.fields.savings}
+                onChange={(event) => form.setField("savings", event.target.value)}
               />
             </FormField>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <FormDescription>Total: {splitTotal}%</FormDescription>
+            <FormDescription>Total: {form.splitTotal}%</FormDescription>
             <Button type="submit" size="sm" disabled={submitting}>
               {submitting ? "Saving..." : "Save Changes"}
             </Button>
           </div>
-          {splitError && <FormMessage>{splitError}</FormMessage>}
+          {form.splitError && <FormMessage>{form.splitError}</FormMessage>}
           {error && <FormMessage>{error}</FormMessage>}
         </Form>
       </CardContent>

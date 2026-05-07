@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiClient, ApiRequestError } from "@gofin/api";
+import { apiClient, ApiRequestError, useBudgetSplitForm } from "@gofin/api";
+import { DEFAULT_BUDGET_SPLIT } from "@gofin/core";
 
 export type OnboardingStep = "welcome" | "currency" | "budget" | "split";
 
@@ -11,9 +12,6 @@ const STEP_ORDER: OnboardingStep[] = ["welcome", "currency", "budget", "split"];
 const DEFAULTS = {
   currency: "USD",
   budgetDollars: 0,
-  essentials: 50,
-  desires: 30,
-  savings: 20,
 };
 
 export interface SplitForm {
@@ -44,21 +42,6 @@ export interface OnboardingResult {
   error: string | null;
 }
 
-/** Validates E/D/S split sums to 100%. Returns error string or null. */
-function validateSplit(essentials: string, desires: string, savings: string): string | null {
-  const e = parseInt(essentials, 10) || 0;
-  const d = parseInt(desires, 10) || 0;
-  const s = parseInt(savings, 10) || 0;
-  const total = e + d + s;
-  if (total !== 100) {
-    return `Percentages must sum to 100%. Currently: ${total}%`;
-  }
-  if (e < 0 || d < 0 || s < 0) {
-    return "Percentages must be non-negative";
-  }
-  return null;
-}
-
 export function useOnboarding(): OnboardingResult {
   const navigate = useNavigate();
   const { checkAuth } = useAuthStore();
@@ -66,11 +49,8 @@ export function useOnboarding(): OnboardingResult {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
   const [currency, setCurrency] = useState(DEFAULTS.currency);
   const [budgetDollars, setBudgetDollars] = useState<string>("");
-  const [essentials, setEssentials] = useState<string>(String(DEFAULTS.essentials));
-  const [desires, setDesires] = useState<string>(String(DEFAULTS.desires));
-  const [savings, setSavings] = useState<string>(String(DEFAULTS.savings));
+  const form = useBudgetSplitForm();
   const [error, setError] = useState<string | null>(null);
-  const [splitError, setSplitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const stepIndex = STEP_ORDER.indexOf(currentStep);
@@ -95,9 +75,7 @@ export function useOnboarding(): OnboardingResult {
     } else if (currentStep === "budget") {
       setBudgetDollars("");
     } else if (currentStep === "split") {
-      setEssentials(String(DEFAULTS.essentials));
-      setDesires(String(DEFAULTS.desires));
-      setSavings(String(DEFAULTS.savings));
+      form.reset();
     }
     goNext();
     if (isLastStep) {
@@ -109,18 +87,15 @@ export function useOnboarding(): OnboardingResult {
     if (event) event.preventDefault();
     setError(null);
 
-    const finalEssentials = useDefaults ? DEFAULTS.essentials : (parseInt(essentials, 10) || 0);
-    const finalDesires = useDefaults ? DEFAULTS.desires : (parseInt(desires, 10) || 0);
-    const finalSavings = useDefaults ? DEFAULTS.savings : (parseInt(savings, 10) || 0);
+    const finalEssentials = useDefaults ? DEFAULT_BUDGET_SPLIT.essentials : (parseInt(form.fields.essentials, 10) || 0);
+    const finalDesires = useDefaults ? DEFAULT_BUDGET_SPLIT.desires : (parseInt(form.fields.desires, 10) || 0);
+    const finalSavings = useDefaults ? DEFAULT_BUDGET_SPLIT.savings : (parseInt(form.fields.savings, 10) || 0);
     const finalCurrency = useDefaults ? DEFAULTS.currency : currency;
     const finalBudgetDollars = useDefaults ? DEFAULTS.budgetDollars : (parseFloat(budgetDollars) || 0);
 
     if (!useDefaults) {
-      const splitValidation = validateSplit(essentials, desires, savings);
-      if (splitValidation) {
-        setSplitError(splitValidation);
-        return;
-      }
+      const validationError = form.validate();
+      if (validationError) return;
     }
 
     const budgetAmountCents = Math.round(finalBudgetDollars * 100);
@@ -159,14 +134,14 @@ export function useOnboarding(): OnboardingResult {
   }
 
   const splitForm: SplitForm = {
-    essentials,
-    desires,
-    savings,
-    setEssentials,
-    setDesires,
-    setSavings,
-    splitError,
-    clearSplitError: () => setSplitError(null),
+    essentials: form.fields.essentials,
+    desires: form.fields.desires,
+    savings: form.fields.savings,
+    setEssentials: (value: string) => form.setField("essentials", value),
+    setDesires: (value: string) => form.setField("desires", value),
+    setSavings: (value: string) => form.setField("savings", value),
+    splitError: form.splitError,
+    clearSplitError: () => {},  // No-op: splitError is now derived (auto-clears when fields become valid)
   };
 
   return {
