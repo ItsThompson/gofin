@@ -151,11 +151,95 @@ describe("auth guard redirect logic", () => {
       expect(screen.getByText("GoFin")).toBeInTheDocument();
       expect(screen.getByText("Dashboard")).toBeInTheDocument();
       expect(screen.getByText("Expenses")).toBeInTheDocument();
+      expect(screen.getByText("History")).toBeInTheDocument();
       expect(screen.getByText("Settings")).toBeInTheDocument();
       expect(screen.getByText("test")).toBeInTheDocument(); // username
       expect(screen.getByText("Logout")).toBeInTheDocument();
       // Child route content rendered via Outlet
       expect(screen.getByText("Dashboard content")).toBeInTheDocument();
+    });
+
+    it("renders History nav link between Expenses and Settings", async () => {
+      resetStore({
+        isLoading: false,
+        isAuthenticated: true,
+        user: authenticatedUser,
+      });
+      const AuthLayout = await importAuthLayout();
+
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/dashboard",
+            element: <AuthLayout />,
+            children: [
+              { index: true, element: <div>Dashboard content</div> },
+            ],
+          },
+          { path: "/login", element: <div>Login redirect target</div> },
+        ],
+        { initialEntries: ["/dashboard"] },
+      );
+      render(<RouterProvider router={router} />);
+
+      // Verify History link exists and points to /history
+      const historyLinks = screen.getAllByText("History");
+      expect(historyLinks.length).toBeGreaterThan(0);
+
+      const historyLink = historyLinks[0].closest("a");
+      expect(historyLink).toHaveAttribute("href", "/history");
+    });
+
+    it("shows active state on History nav link when on /history", async () => {
+      resetStore({
+        isLoading: false,
+        isAuthenticated: true,
+        user: authenticatedUser,
+      });
+      const AuthLayout = await importAuthLayout();
+
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/history",
+            element: <AuthLayout />,
+            children: [
+              { index: true, element: <div>History content</div> },
+            ],
+          },
+          { path: "/login", element: <div>Login redirect target</div> },
+        ],
+        { initialEntries: ["/history"] },
+      );
+      render(<RouterProvider router={router} />);
+
+      // The active nav link gets the "bg-muted text-foreground" class
+      const historyLinks = screen.getAllByText("History");
+      const desktopLink = historyLinks[0].closest("a");
+      expect(desktopLink).toHaveClass("bg-muted");
+      expect(desktopLink).toHaveClass("text-foreground");
+    });
+
+    it("redirects to /login when accessing /history unauthenticated", async () => {
+      resetStore({ isLoading: false, isAuthenticated: false });
+      const AuthLayout = await importAuthLayout();
+
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/history",
+            element: <AuthLayout />,
+            children: [
+              { index: true, element: <div>History content</div> },
+            ],
+          },
+          { path: "/login", element: <div>Login redirect target</div> },
+        ],
+        { initialEntries: ["/history"] },
+      );
+      render(<RouterProvider router={router} />);
+
+      expect(screen.getByText("Login redirect target")).toBeInTheDocument();
     });
   });
 });
