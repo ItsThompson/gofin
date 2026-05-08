@@ -17,6 +17,7 @@ export default [
     route("onboarding", "routes/onboarding.tsx"),
     route("expenses", "routes/expenses.tsx"),
     route("expenses/new", "routes/expenses-new.tsx"),
+    route("history", "routes/history.tsx"),
     route("settings", "routes/settings.tsx"),
     route("admin", "routes/admin.tsx"),
     route("admin/users", "routes/admin-users.tsx"),

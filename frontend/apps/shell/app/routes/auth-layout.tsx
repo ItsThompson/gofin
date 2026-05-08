@@ -5,6 +5,7 @@ import { Button } from "@gofin/ui/components/button";
 import {
   LayoutDashboard,
   Receipt,
+  History,
   Settings,
   LogOut,
   Menu,
@@ -88,6 +89,7 @@ export default function AuthLayout() {
   const navLinks = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/expenses", label: "Expenses", icon: Receipt },
+    { to: "/history", label: "History", icon: History },
     { to: "/settings", label: "Settings", icon: Settings },
   ];
 
