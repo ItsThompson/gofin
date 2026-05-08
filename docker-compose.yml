@@ -17,8 +17,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 256M
+          cpus: "0.50"
+          memory: 512M
     restart: unless-stopped
 
   cloudflared-app:
@@ -34,6 +34,11 @@ services:
       - mfe
     profiles:
       - tunnels
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -65,8 +70,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 128M
+          cpus: "0.50"
+          memory: 256M
     restart: unless-stopped
 
   auth-service:
@@ -97,8 +102,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 128M
+          cpus: "0.50"
+          memory: 256M
     restart: unless-stopped
 
   expense-service:
@@ -126,8 +131,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 128M
+          cpus: "0.50"
+          memory: 256M
     restart: unless-stopped
 
   finance-service:
@@ -154,8 +159,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "0.75"
+          memory: 512M
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -188,8 +193,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.5"
-          memory: 512M
+          cpus: "1.00"
+          memory: 1024M
     restart: unless-stopped
 
   immudb:
@@ -203,8 +208,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 256M
+          cpus: "0.50"
+          memory: 512M
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
@@ -231,8 +236,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.3"
-          memory: 512M
+          cpus: "0.50"
+          memory: 1024M
     restart: unless-stopped
 
   cadvisor:
@@ -247,8 +252,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.15"
-          memory: 128M
+          cpus: "0.25"
+          memory: 256M
     restart: unless-stopped
 
   node-exporter:
@@ -268,7 +273,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.1"
+          cpus: "0.15"
           memory: 64M
     restart: unless-stopped
 
@@ -290,8 +295,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.1"
-          memory: 64M
+          cpus: "0.15"
+          memory: 128M
     restart: unless-stopped
 
   grafana:
@@ -309,8 +314,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 256M
+          cpus: "0.50"
+          memory: 512M
     restart: unless-stopped
 
   grafana-auth-proxy:
@@ -328,6 +333,11 @@ services:
       - monitoring-net
     depends_on:
       - grafana
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
     restart: unless-stopped
 
   cloudflared-grafana:
@@ -343,6 +353,11 @@ services:
       - grafana-auth-proxy
     profiles:
       - tunnels
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
     restart: unless-stopped
 
 # -----------------------------------------------------------------------------

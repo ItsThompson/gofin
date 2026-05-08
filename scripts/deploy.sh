@@ -94,6 +94,36 @@ else
 fi
 REMOTE_INSTALL
 
+# --- Configure Docker daemon (log rotation) ----------------------------------
+
+echo "==> Configuring Docker daemon..."
+scp "${REPO_ROOT}/deployments/docker/daemon.json" "${SSH_TARGET}:/tmp/daemon.json.new"
+ssh "${SSH_TARGET}" bash <<'REMOTE_DAEMON'
+set -euo pipefail
+if ! cmp -s /tmp/daemon.json.new /etc/docker/daemon.json 2>/dev/null; then
+  mv /tmp/daemon.json.new /etc/docker/daemon.json
+  systemctl restart docker
+  echo "  Docker daemon config updated and restarted."
+else
+  rm /tmp/daemon.json.new
+  echo "  Docker daemon config unchanged, skipping restart."
+fi
+REMOTE_DAEMON
+
+# --- Set up weekly Docker image prune ----------------------------------------
+
+echo "==> Setting up weekly image prune cron..."
+ssh "${SSH_TARGET}" bash <<'REMOTE_CRON'
+set -euo pipefail
+cat > /etc/cron.weekly/docker-prune <<'EOF'
+#!/bin/sh
+# Remove unused images older than 72 hours (keeps images used by running containers)
+docker image prune -af --filter "until=72h" >> /var/log/docker-prune.log 2>&1
+EOF
+chmod +x /etc/cron.weekly/docker-prune
+echo "  Weekly prune cron installed."
+REMOTE_CRON
+
 # --- Clone or update the repo ------------------------------------------------
 
 echo "==> Setting up repository on server..."
