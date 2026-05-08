@@ -1,22 +1,45 @@
-# gofin
+<div align="center">
+<pre>
+               __ _          
+              / _(_)         
+   __ _  ___ | |_ _ _ __    
+  / _` |/ _ \|  _| | '_ \   
+ | (_| | (_) | | | | | | |  
+  \__, |\___/|_| |_|_| |_|  
+   __/ |                    
+  |___/                     
 
-An intentionally overengineered personal finance tracker built as a distributed monorepo with microservice architecture, micro-frontend composition, and an immutable expense ledger.
+-----------------------------------------------------------------------------------------
+An overengineered personal finance tracker built with microservices, 
+micro-frontends, and an immutable expense ledger.
 
-## What It Does
+</pre>
 
-gofin lets users set monthly budgets with an essentials/desires/savings split, log expenses against those budgets, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns.
+![GitHub top language](https://img.shields.io/github/languages/top/ItsThompson/gofin)
+![GitHub last commit (branch)](https://img.shields.io/github/last-commit/ItsThompson/gofin/main)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/ItsThompson/gofin)
 
-**Key capabilities:**
+</div>
 
-- Monthly budget periods with configurable E/D/S (essentials/desires/savings) split
-- Immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends)
-- Pro-rata expense spreading across multiple months
-- Real-time dashboard with budget pacing, category gauges, and spending charts
-- RBAC with admin identity assumption for support and debugging
-- Full observability stack: Prometheus, Grafana, Alertmanager
-- Micro-frontend architecture: independently built apps composed at runtime via Module Federation 2.0
+## Showcase
 
-## High-Level Architecture
+https://github.com/user-attachments/assets/44ed82d6-a7b6-499c-90ba-3655cedaf110
+
+## Introduction
+
+gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, RBAC with admin identity assumption, and a full observability stack with Prometheus and Grafana.
+
+## Technology Stack
+
+- **Frontend:** React micro-frontends composed at runtime via Module Federation 2.0, with a Node.js SSR shell app
+- **Backend:** Go microservices (Gin framework) communicating over REST and gRPC
+- **Databases:** PostgreSQL (relational data), immudb (immutable expense ledger)
+- **Auth:** JWT with RBAC, Google OAuth, admin identity assumption
+- **Observability:** Prometheus, Grafana, Alertmanager
+- **Infrastructure:** Docker Compose, Cloudflare Tunnels, single-VPS deployment
+- **CI/CD:** GitHub Actions with automated deployment on push to main
+
+## Architecture
 
 ```mermaid
 graph TB
@@ -77,8 +100,6 @@ graph TB
     Grafana --> Prom
 ```
 
-**Communication patterns:**
-
 | Path | Protocol | Purpose |
 |------|----------|---------|
 | Browser → Shell | HTTPS (via Cloudflare) | SSR pages, static assets |
@@ -89,7 +110,7 @@ graph TB
 | Services → Databases | SQL / native client | Data persistence |
 | Prometheus → Services | HTTP `/metrics` | Metrics collection |
 
-## Quick Start
+## Usage
 
 ### Prerequisites
 
@@ -98,7 +119,7 @@ graph TB
 - [Go](https://go.dev/dl/) (see `services/*/go.mod` for version)
 - [Node.js](https://nodejs.org/) (see `frontend/package.json` for version)
 
-### One-Command Start
+### Getting Started
 
 ```bash
 # Copy environment config
@@ -124,14 +145,7 @@ To work on the UI without running any backend services or Docker containers:
 just dev-mock
 ```
 
-This starts the shell app with [MSW](https://mswjs.io/) (Mock Service Worker) intercepting all `/api/*` requests in the browser. The mock layer returns realistic seed data: an admin user, budget period, expenses, tags, and dashboard aggregations. No Docker, no Go services, no databases required.
-
-Mock mode is useful for:
-- Iterating on UI components, layouts, and styling
-- Testing frontend state management and error flows
-- Onboarding new frontend contributors who don't need the full stack
-
-Mock handlers live in `frontend/apps/shell/mocks/`. See the [Development Guide](docs/development.md) for details.
+This starts the shell app with [MSW](https://mswjs.io/) intercepting all `/api/*` requests in the browser. Mock handlers live in `frontend/apps/shell/mocks/`.
 
 ### Service-Focused Development
 
@@ -148,21 +162,13 @@ just dev-service auth
 just dev-frontend
 ```
 
-### With Cloudflare Tunnels
-
-To expose the app via a temporary public URL:
-
-```bash
-docker compose --profile tunnels up -d --build
-```
-
-## Available Commands
+### Available Commands
 
 Run `just --list` for the full set of recipes. Key commands:
 
 | Command | Description |
 |---------|-------------|
-| `just setup` | Install dev tooling (lefthook, golangci-lint) and activate pre-commit hooks |
+| `just setup` | Install dev tooling and activate pre-commit hooks |
 | `just up` | Build and start the full stack |
 | `just down` | Stop all containers |
 | `just reset` | Stop and remove all volumes (full data reset) |
@@ -173,37 +179,26 @@ Run `just --list` for the full set of recipes. Key commands:
 | `just test` | Run all backend and frontend tests |
 | `just seed-admin` | Create the initial admin user |
 
-## Service Ports
-
-See `docker-compose.yml` for the full port mapping. Default local access:
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| App | `http://localhost:3000` | Frontend (SSR + API proxy) |
-| Grafana | `http://localhost:3001` | Dashboards and visualization |
-| Prometheus | `http://localhost:9090` | Metrics collection |
-
 ## Deployment
 
-gofin is designed to run on a single VPS with Cloudflare Tunnels for ingress. No container registry or orchestrator required.
+gofin runs on a single VPS with Cloudflare Tunnels for ingress. No container registry or orchestrator required.
 
-1. **Tunnel setup** (one-time, interactive): follow the [Tunnel Setup](docs/tunnel-setup.md) runbook to create named Cloudflare tunnels and DNS records
-2. **Deploy** (automated, re-runnable): `scripts/deploy.sh <server-ip>` bootstraps a fresh VPS, copies tunnel credentials, builds and starts the stack. Designed to be run from a CI/CD pipeline on push to main.
+```bash
+scripts/deploy.sh <server-ip>
+```
 
-**CI/CD:** Pushes to `main` automatically deploy after CI passes. See [CI/CD Pipeline](docs/ci-cd.md) for details on the GitHub Actions setup, required secrets, and manual deployment.
-
-See [`.env.example`](.env.example) for the full list of production environment variables.
+Pushes to `main` automatically deploy after CI passes. See [CI/CD Pipeline](docs/ci-cd.md) for details.
 
 ## Further Reading
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](docs/architecture.md) | Node topology, service boundaries, data flow, and design decisions |
-| [Auth System](docs/auth.md) | JWT lifecycle, RBAC model, identity assumption, Grafana auth proxy |
-| [CI/CD Pipeline](docs/ci-cd.md) | GitHub Actions workflows, required secrets, manual deployment |
-| [Data Model](docs/data-model.md) | Database schemas, service ownership, cross-service references |
-| [API Reference](docs/api.md) | REST endpoint catalog with request/response shapes |
-| [Development Guide](docs/development.md) | Local workflow, environment variables, code generation |
-| [Testing](docs/testing.md) | Test strategy, patterns, and how to run each layer |
-| [Monitoring](docs/monitoring.md) | Prometheus metrics, Grafana dashboards, alerting rules |
-| [Tunnel Setup](docs/tunnel-setup.md) | One-time Cloudflare tunnel creation and DNS routing |
+| [Architecture](docs/architecture.md) | Node topology, service boundaries, data flow |
+| [Auth System](docs/auth.md) | JWT lifecycle, RBAC model, identity assumption |
+| [CI/CD Pipeline](docs/ci-cd.md) | GitHub Actions workflows, required secrets |
+| [Data Model](docs/data-model.md) | Database schemas, service ownership |
+| [API Reference](docs/api.md) | REST endpoint catalog |
+| [Development Guide](docs/development.md) | Local workflow, environment variables |
+| [Testing](docs/testing.md) | Test strategy, patterns, coverage |
+| [Monitoring](docs/monitoring.md) | Prometheus metrics, Grafana dashboards |
+| [Tunnel Setup](docs/tunnel-setup.md) | Cloudflare tunnel creation and DNS routing |
