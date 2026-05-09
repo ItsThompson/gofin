@@ -114,6 +114,9 @@ func NewResendSender(apiKey, from string, tokens BrandTokens, logger *slog.Logge
 
 // SendExportEmail sends a branded export email with the ZIP file attached.
 func (s *ResendSender) SendExportEmail(ctx context.Context, toEmail string, zipBytes []byte) error {
+	if toEmail == "" {
+		return fmt.Errorf("recipient email address is empty")
+	}
 	now := time.Now()
 	exportDate := now.Format("2006-01-02")
 	fileName := fmt.Sprintf("gofin-export-%s.zip", exportDate)
@@ -164,7 +167,10 @@ func (s *ResendSender) SendExportEmail(ctx context.Context, toEmail string, zipB
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return fmt.Errorf("reading Resend response body: %w", readErr)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Resend API error (status %d): %s", resp.StatusCode, string(body))

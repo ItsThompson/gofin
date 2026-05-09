@@ -2,7 +2,6 @@ package email
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -41,10 +40,6 @@ func testTokens() BrandTokens {
 			Xl: "32px",
 		},
 	}
-}
-
-func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func TestResendSender_HTMLTemplateRendering(t *testing.T) {
