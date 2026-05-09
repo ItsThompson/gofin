@@ -3,15 +3,20 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
 // Config holds all configuration for the datarights service.
 type Config struct {
-	DBUrl       string
-	LogLevel    string
-	Environment string
-	RESTPort    string
-	GRPCPort    string
+	DBUrl           string
+	LogLevel        string
+	Environment     string
+	RESTPort        string
+	GRPCPort        string
+	AuthServiceAddr string
+	MaxConcurrent   int
+	ExportTimeout   time.Duration
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -41,12 +46,34 @@ func Load() (*Config, error) {
 		grpcPort = "9084"
 	}
 
+	authServiceAddr := os.Getenv("AUTH_SERVICE_ADDR")
+	if authServiceAddr == "" {
+		authServiceAddr = "auth-service:9081"
+	}
+
+	maxConcurrent := 5
+	if v := os.Getenv("EXPORT_MAX_CONCURRENT"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			maxConcurrent = parsed
+		}
+	}
+
+	exportTimeout := 5 * time.Minute
+	if v := os.Getenv("EXPORT_TIMEOUT_SECONDS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			exportTimeout = time.Duration(parsed) * time.Second
+		}
+	}
+
 	return &Config{
-		DBUrl:       dbURL,
-		LogLevel:    logLevel,
-		Environment: environment,
-		RESTPort:    restPort,
-		GRPCPort:    grpcPort,
+		DBUrl:           dbURL,
+		LogLevel:        logLevel,
+		Environment:     environment,
+		RESTPort:        restPort,
+		GRPCPort:        grpcPort,
+		AuthServiceAddr: authServiceAddr,
+		MaxConcurrent:   maxConcurrent,
+		ExportTimeout:   exportTimeout,
 	}, nil
 }
 
