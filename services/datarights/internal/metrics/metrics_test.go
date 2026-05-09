@@ -93,42 +93,128 @@ func TestExportDataCollectionDurationSeconds_RecordsProviderLabel(t *testing.T) 
 	ExportDataCollectionDurationSeconds.WithLabelValues("profile").Observe(0.5)
 	ExportDataCollectionDurationSeconds.WithLabelValues("expenses").Observe(1.2)
 
-	// Verify the metric contains the provider labels
-	expected := `
-		# HELP export_data_collection_duration_seconds Time to collect data from each provider in seconds
-		# TYPE export_data_collection_duration_seconds histogram
-	`
-	err := testutil.CollectAndCompare(ExportDataCollectionDurationSeconds, strings.NewReader(expected), "export_data_collection_duration_seconds")
-	// CollectAndCompare will fail because we're not providing the full histogram output.
-	// Instead, just verify the metric is registered and can observe values with labels.
-	_ = err
+	// Verify that observations for different providers are recorded separately
+	// by checking the metric count per label value.
+	profileCount := testutil.CollectAndCount(ExportDataCollectionDurationSeconds, "export_data_collection_duration_seconds")
+	// CollectAndCount returns the total number of metric samples (buckets + sum + count per label).
+	// With default buckets (11) + _sum + _count = 13 per label, 2 labels = 26 minimum.
+	assert.GreaterOrEqual(t, profileCount, 2, "expected metric samples for both providers")
 
-	// Verify observations went through by checking count
-	profileCount := testutil.ToFloat64(ExportDataCollectionDurationSeconds.WithLabelValues("profile"))
-	expenseCount := testutil.ToFloat64(ExportDataCollectionDurationSeconds.WithLabelValues("expenses"))
-	// Histogram.WithLabelValues returns Observer which doesn't expose count directly,
-	// but we can verify no panic occurred and metric is operational
-	_ = profileCount
-	_ = expenseCount
+	// Verify the histogram is populated by gathering and inspecting the family
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	var found bool
+	for _, family := range families {
+		if family.GetName() != "export_data_collection_duration_seconds" {
+			continue
+		}
+		found = true
+		// Should have metrics for both "profile" and "expenses" labels
+		providers := make(map[string]bool)
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "provider" {
+					providers[label.GetValue()] = true
+				}
+			}
+		}
+		assert.True(t, providers["profile"], "expected provider=profile label")
+		assert.True(t, providers["expenses"], "expected provider=expenses label")
+	}
+	assert.True(t, found, "expected export_data_collection_duration_seconds metric family")
 }
 
 func TestExportJobDurationSeconds_ObservesValues(t *testing.T) {
 	ExportJobDurationSeconds.Observe(5.5)
 	ExportJobDurationSeconds.Observe(10.2)
-	// If this doesn't panic, the histogram is correctly configured
+
+	// Verify observations land in correct buckets by gathering the histogram
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "export_job_duration_seconds" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			h := metric.GetHistogram()
+			require.NotNil(t, h)
+			// We observed 2 values, sample count must reflect that
+			assert.GreaterOrEqual(t, h.GetSampleCount(), uint64(2))
+			// Sum should be at least 5.5 + 10.2 = 15.7
+			assert.GreaterOrEqual(t, h.GetSampleSum(), 15.7)
+			// Custom buckets should include 10 (from our bucket definition)
+			var hasBucket10 bool
+			for _, b := range h.GetBucket() {
+				if b.GetUpperBound() == 10 {
+					hasBucket10 = true
+					// 5.5 falls in the <=10 bucket
+					assert.GreaterOrEqual(t, b.GetCumulativeCount(), uint64(1))
+				}
+			}
+			assert.True(t, hasBucket10, "expected custom bucket boundary at 10s")
+		}
+	}
 }
 
 func TestExportZipSizeBytes_CustomBuckets(t *testing.T) {
-	ExportZipSizeBytes.Observe(1024)
-	ExportZipSizeBytes.Observe(102400)
-	ExportZipSizeBytes.Observe(1048576)
-	// If this doesn't panic, the histogram is correctly configured with custom buckets
+	ExportZipSizeBytes.Observe(512)     // below first bucket (1024)
+	ExportZipSizeBytes.Observe(5000)    // between 1024 and 10240
+	ExportZipSizeBytes.Observe(1048576) // exactly at 1MB bucket
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "export_zip_size_bytes" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			h := metric.GetHistogram()
+			require.NotNil(t, h)
+			assert.GreaterOrEqual(t, h.GetSampleCount(), uint64(3))
+
+			// Verify custom bucket boundaries exist
+			bucketBounds := make([]float64, 0, len(h.GetBucket()))
+			for _, b := range h.GetBucket() {
+				bucketBounds = append(bucketBounds, b.GetUpperBound())
+			}
+			// Should contain our custom boundaries
+			assert.Contains(t, bucketBounds, float64(1024))
+			assert.Contains(t, bucketBounds, float64(10240))
+			assert.Contains(t, bucketBounds, float64(1048576))
+			assert.Contains(t, bucketBounds, float64(26214400))
+
+			// Verify 512 landed in the <=1024 bucket
+			for _, b := range h.GetBucket() {
+				if b.GetUpperBound() == 1024 {
+					// Only 512 is <= 1024 (5000 > 1024)
+					assert.GreaterOrEqual(t, b.GetCumulativeCount(), uint64(1))
+				}
+			}
+		}
+	}
 }
 
 func TestExportEmailSendDurationSeconds_ObservesValues(t *testing.T) {
 	ExportEmailSendDurationSeconds.Observe(0.8)
 	ExportEmailSendDurationSeconds.Observe(2.1)
-	// If this doesn't panic, the histogram is correctly configured
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "export_email_send_duration_seconds" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			h := metric.GetHistogram()
+			require.NotNil(t, h)
+			assert.GreaterOrEqual(t, h.GetSampleCount(), uint64(2))
+			assert.GreaterOrEqual(t, h.GetSampleSum(), 2.9) // 0.8 + 2.1
+		}
+	}
 }
 
 func TestNoSensitiveDataInLabels(t *testing.T) {
