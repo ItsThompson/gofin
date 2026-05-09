@@ -137,9 +137,10 @@ func run() error {
 	exportEngine := engine.NewEngine(registry, repo, emailSender, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
 
 	// Startup recovery: re-submit non-terminal jobs
-	recoverJobs(ctx, repo, exportEngine, logger)
+	emailResolver := service.NewAuthUserEmailResolver(authClient)
+	recoverJobs(ctx, repo, exportEngine, emailResolver, logger)
 
-	exportSvc := service.NewExportService(repo, logger, service.WithEngine(exportEngine))
+	exportSvc := service.NewExportService(repo, logger, service.WithEngine(exportEngine), service.WithEmailResolver(emailResolver))
 
 	// Start REST server
 	if cfg.IsProduction() {
@@ -201,7 +202,7 @@ func run() error {
 }
 
 // recoverJobs re-submits any non-terminal jobs found in the database on startup.
-func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine.Engine, logger *slog.Logger) {
+func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine.Engine, resolver service.UserEmailResolver, logger *slog.Logger) {
 	jobs, err := repo.GetNonTerminalJobs(ctx)
 	if err != nil {
 		logger.Error("failed to query recoverable jobs", slog.String("error", err.Error()))
@@ -215,11 +216,21 @@ func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine
 	logger.Info("recovering non-terminal jobs", slog.Int("count", len(jobs)))
 
 	for _, job := range jobs {
+		userEmail, err := resolver.ResolveEmail(ctx, job.UserID)
+		if err != nil {
+			logger.Error("failed to resolve email for recovered job",
+				slog.String("job_id", job.ID),
+				slog.String("user_id", job.UserID),
+				slog.String("error", err.Error()),
+			)
+			// Submit anyway: will fail at email step with descriptive error
+		}
+
 		logger.Info("re-submitting job",
 			slog.String("job_id", job.ID),
 			slog.String("user_id", job.UserID),
 		)
-		eng.Submit(job.ID, job.UserID, "")
+		eng.Submit(job.ID, job.UserID, userEmail)
 	}
 }
 

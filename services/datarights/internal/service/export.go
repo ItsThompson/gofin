@@ -43,9 +43,10 @@ type CreateJobResult struct {
 
 // ExportService handles export job lifecycle.
 type ExportService struct {
-	repo   repository.JobRepository
-	engine *engine.Engine
-	logger *slog.Logger
+	repo          repository.JobRepository
+	engine        *engine.Engine
+	emailResolver UserEmailResolver
+	logger        *slog.Logger
 }
 
 // NewExportService creates a new ExportService.
@@ -68,6 +69,13 @@ type ExportServiceOption func(*ExportService)
 func WithEngine(eng *engine.Engine) ExportServiceOption {
 	return func(s *ExportService) {
 		s.engine = eng
+	}
+}
+
+// WithEmailResolver attaches a user email resolver to the service.
+func WithEmailResolver(resolver UserEmailResolver) ExportServiceOption {
+	return func(s *ExportService) {
+		s.emailResolver = resolver
 	}
 }
 
@@ -123,7 +131,16 @@ func (s *ExportService) CreateJob(ctx context.Context, userID string) (*CreateJo
 
 	// Submit to engine for async processing
 	if s.engine != nil {
-		s.engine.Submit(job.ID, userID, "")
+		userEmail, err := s.resolveUserEmail(ctx, userID)
+		if err != nil {
+			// Log but don't fail job creation: the engine will fail at the email step
+			s.logger.Error("failed to resolve user email for export",
+				slog.String("job_id", job.ID),
+				slog.String("user_id", userID),
+				slog.String("error", err.Error()),
+			)
+		}
+		s.engine.Submit(job.ID, userID, userEmail)
 	}
 
 	return &CreateJobResult{Job: job, IsExisting: false}, nil
@@ -178,4 +195,13 @@ func (s *ExportService) ListJobs(ctx context.Context, userID string, page, pageS
 		PageSize: pageSize,
 		HasMore:  hasMore,
 	}, nil
+}
+
+// resolveUserEmail fetches the user's email address via the configured resolver.
+// Returns empty string if no resolver is configured or if resolution fails.
+func (s *ExportService) resolveUserEmail(ctx context.Context, userID string) (string, error) {
+	if s.emailResolver == nil {
+		return "", fmt.Errorf("no email resolver configured")
+	}
+	return s.emailResolver.ResolveEmail(ctx, userID)
 }
