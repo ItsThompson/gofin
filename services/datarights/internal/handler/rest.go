@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
 )
@@ -50,6 +51,12 @@ func (h *RESTHandler) CreateExport(c *gin.Context) {
 	result, err := h.exportService.CreateJob(c.Request.Context(), userID)
 	if err != nil {
 		if rateLimitErr, ok := err.(*service.RateLimitError); ok {
+			exportmetrics.ExportRateLimitRejectionsTotal.Inc()
+			h.logger.Warn("export rate limit rejected",
+				slog.String("user_id", userID),
+				slog.Time("next_allowed_at", rateLimitErr.RetryAfter),
+				slog.String("method", "handler.CreateExport"),
+			)
 			c.JSON(http.StatusTooManyRequests, model.RateLimitedResponse{
 				Code:       model.ErrRateLimited,
 				Message:    "Export limit reached. You can request another export after " + rateLimitErr.RetryAfter.Format("2006-01-02") + ".",
@@ -66,6 +73,12 @@ func (h *RESTHandler) CreateExport(c *gin.Context) {
 		return
 	}
 
+	exportmetrics.ExportJobsCreatedTotal.Inc()
+	h.logger.Info("export job created",
+		slog.String("job_id", result.Job.ID),
+		slog.String("user_id", userID),
+		slog.String("method", "handler.CreateExport"),
+	)
 	c.JSON(http.StatusAccepted, model.JobResponse{Job: result.Job})
 }
 
