@@ -805,6 +805,66 @@ func (x *GetProRataGroupRequest) GetGroupId() string {
 	return ""
 }
 
+type GetAllUserExpensesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllUserExpensesRequest) Reset() {
+	*x = GetAllUserExpensesRequest{}
+	mi := &file_proto_expense_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllUserExpensesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllUserExpensesRequest) ProtoMessage() {}
+
+func (x *GetAllUserExpensesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_expense_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllUserExpensesRequest.ProtoReflect.Descriptor instead.
+func (*GetAllUserExpensesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_expense_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetAllUserExpensesRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GetAllUserExpensesRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetAllUserExpensesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
 type CountExpensesByTagRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TagId         string                 `protobuf:"bytes,1,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
@@ -815,7 +875,7 @@ type CountExpensesByTagRequest struct {
 
 func (x *CountExpensesByTagRequest) Reset() {
 	*x = CountExpensesByTagRequest{}
-	mi := &file_proto_expense_proto_msgTypes[10]
+	mi := &file_proto_expense_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -827,7 +887,7 @@ func (x *CountExpensesByTagRequest) String() string {
 func (*CountExpensesByTagRequest) ProtoMessage() {}
 
 func (x *CountExpensesByTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[10]
+	mi := &file_proto_expense_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -840,7 +900,7 @@ func (x *CountExpensesByTagRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountExpensesByTagRequest.ProtoReflect.Descriptor instead.
 func (*CountExpensesByTagRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{10}
+	return file_proto_expense_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CountExpensesByTagRequest) GetTagId() string {
@@ -866,7 +926,7 @@ type CountExpensesByTagResponse struct {
 
 func (x *CountExpensesByTagResponse) Reset() {
 	*x = CountExpensesByTagResponse{}
-	mi := &file_proto_expense_proto_msgTypes[11]
+	mi := &file_proto_expense_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +938,7 @@ func (x *CountExpensesByTagResponse) String() string {
 func (*CountExpensesByTagResponse) ProtoMessage() {}
 
 func (x *CountExpensesByTagResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[11]
+	mi := &file_proto_expense_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +951,7 @@ func (x *CountExpensesByTagResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountExpensesByTagResponse.ProtoReflect.Descriptor instead.
 func (*CountExpensesByTagResponse) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{11}
+	return file_proto_expense_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *CountExpensesByTagResponse) GetCount() int64 {
@@ -976,18 +1036,23 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x19CorrectionHistoryResponse\x12.\n" +
 	"\aentries\x18\x01 \x03(\v2\x14.expense.ExpenseDataR\aentries\"3\n" +
 	"\x16GetProRataGroupRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"K\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"e\n" +
+	"\x19GetAllUserExpensesRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"K\n" +
 	"\x19CountExpensesByTagRequest\x12\x15\n" +
 	"\x06tag_id\x18\x01 \x01(\tR\x05tagId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"2\n" +
 	"\x1aCountExpensesByTagResponse\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x03R\x05count2\xd9\x04\n" +
+	"\x05count\x18\x01 \x01(\x03R\x05count2\xb1\x05\n" +
 	"\x0eExpenseService\x12H\n" +
 	"\rCreateExpense\x12\x1d.expense.CreateExpenseRequest\x1a\x18.expense.ExpenseResponse\x12Z\n" +
 	"\x14GetExpensesForPeriod\x12$.expense.GetExpensesForPeriodRequest\x1a\x1c.expense.ExpenseListResponse\x12B\n" +
 	"\n" +
 	"GetExpense\x12\x1a.expense.GetExpenseRequest\x1a\x18.expense.ExpenseResponse\x12]\n" +
-	"\x12CountExpensesByTag\x12\".expense.CountExpensesByTagRequest\x1a#.expense.CountExpensesByTagResponse\x12J\n" +
+	"\x12CountExpensesByTag\x12\".expense.CountExpensesByTagRequest\x1a#.expense.CountExpensesByTagResponse\x12V\n" +
+	"\x12GetAllUserExpenses\x12\".expense.GetAllUserExpensesRequest\x1a\x1c.expense.ExpenseListResponse\x12J\n" +
 	"\x0eCorrectExpense\x12\x1e.expense.CorrectExpenseRequest\x1a\x18.expense.ExpenseResponse\x12`\n" +
 	"\x14GetCorrectionHistory\x12$.expense.GetCorrectionHistoryRequest\x1a\".expense.CorrectionHistoryResponse\x12P\n" +
 	"\x0fGetProRataGroup\x12\x1f.expense.GetProRataGroupRequest\x1a\x1c.expense.ExpenseListResponseB?Z=github.com/ItsThompson/gofin/services/expense/proto/expensepbb\x06proto3"
@@ -1004,7 +1069,7 @@ func file_proto_expense_proto_rawDescGZIP() []byte {
 	return file_proto_expense_proto_rawDescData
 }
 
-var file_proto_expense_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_expense_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_proto_expense_proto_goTypes = []any{
 	(*ExpenseData)(nil),                 // 0: expense.ExpenseData
 	(*CreateExpenseRequest)(nil),        // 1: expense.CreateExpenseRequest
@@ -1016,8 +1081,9 @@ var file_proto_expense_proto_goTypes = []any{
 	(*GetCorrectionHistoryRequest)(nil), // 7: expense.GetCorrectionHistoryRequest
 	(*CorrectionHistoryResponse)(nil),   // 8: expense.CorrectionHistoryResponse
 	(*GetProRataGroupRequest)(nil),      // 9: expense.GetProRataGroupRequest
-	(*CountExpensesByTagRequest)(nil),   // 10: expense.CountExpensesByTagRequest
-	(*CountExpensesByTagResponse)(nil),  // 11: expense.CountExpensesByTagResponse
+	(*GetAllUserExpensesRequest)(nil),   // 10: expense.GetAllUserExpensesRequest
+	(*CountExpensesByTagRequest)(nil),   // 11: expense.CountExpensesByTagRequest
+	(*CountExpensesByTagResponse)(nil),  // 12: expense.CountExpensesByTagResponse
 }
 var file_proto_expense_proto_depIdxs = []int32{
 	0,  // 0: expense.ExpenseResponse.expense:type_name -> expense.ExpenseData
@@ -1026,19 +1092,21 @@ var file_proto_expense_proto_depIdxs = []int32{
 	1,  // 3: expense.ExpenseService.CreateExpense:input_type -> expense.CreateExpenseRequest
 	3,  // 4: expense.ExpenseService.GetExpensesForPeriod:input_type -> expense.GetExpensesForPeriodRequest
 	5,  // 5: expense.ExpenseService.GetExpense:input_type -> expense.GetExpenseRequest
-	10, // 6: expense.ExpenseService.CountExpensesByTag:input_type -> expense.CountExpensesByTagRequest
-	6,  // 7: expense.ExpenseService.CorrectExpense:input_type -> expense.CorrectExpenseRequest
-	7,  // 8: expense.ExpenseService.GetCorrectionHistory:input_type -> expense.GetCorrectionHistoryRequest
-	9,  // 9: expense.ExpenseService.GetProRataGroup:input_type -> expense.GetProRataGroupRequest
-	2,  // 10: expense.ExpenseService.CreateExpense:output_type -> expense.ExpenseResponse
-	4,  // 11: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
-	2,  // 12: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
-	11, // 13: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
-	2,  // 14: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
-	8,  // 15: expense.ExpenseService.GetCorrectionHistory:output_type -> expense.CorrectionHistoryResponse
-	4,  // 16: expense.ExpenseService.GetProRataGroup:output_type -> expense.ExpenseListResponse
-	10, // [10:17] is the sub-list for method output_type
-	3,  // [3:10] is the sub-list for method input_type
+	11, // 6: expense.ExpenseService.CountExpensesByTag:input_type -> expense.CountExpensesByTagRequest
+	10, // 7: expense.ExpenseService.GetAllUserExpenses:input_type -> expense.GetAllUserExpensesRequest
+	6,  // 8: expense.ExpenseService.CorrectExpense:input_type -> expense.CorrectExpenseRequest
+	7,  // 9: expense.ExpenseService.GetCorrectionHistory:input_type -> expense.GetCorrectionHistoryRequest
+	9,  // 10: expense.ExpenseService.GetProRataGroup:input_type -> expense.GetProRataGroupRequest
+	2,  // 11: expense.ExpenseService.CreateExpense:output_type -> expense.ExpenseResponse
+	4,  // 12: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
+	2,  // 13: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
+	12, // 14: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
+	4,  // 15: expense.ExpenseService.GetAllUserExpenses:output_type -> expense.ExpenseListResponse
+	2,  // 16: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
+	8,  // 17: expense.ExpenseService.GetCorrectionHistory:output_type -> expense.CorrectionHistoryResponse
+	4,  // 18: expense.ExpenseService.GetProRataGroup:output_type -> expense.ExpenseListResponse
+	11, // [11:19] is the sub-list for method output_type
+	3,  // [3:11] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1055,7 +1123,7 @@ func file_proto_expense_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_expense_proto_rawDesc), len(file_proto_expense_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

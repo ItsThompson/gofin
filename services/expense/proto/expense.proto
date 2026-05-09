@@ -13,6 +13,9 @@ service ExpenseService {
   // Tag usage check (called by finance service during tag deletion)
   rpc CountExpensesByTag(CountExpensesByTagRequest) returns (CountExpensesByTagResponse);
 
+  // Data export: returns all expenses (active + corrected) for a user, paginated
+  rpc GetAllUserExpenses(GetAllUserExpensesRequest) returns (ExpenseListResponse);
+
   // Stubs: implemented in later tickets
   rpc CorrectExpense(CorrectExpenseRequest) returns (ExpenseResponse);
   rpc GetCorrectionHistory(GetCorrectionHistoryRequest) returns (CorrectionHistoryResponse);
@@ -120,6 +123,16 @@ message CorrectionHistoryResponse {
 
 message GetProRataGroupRequest {
   string group_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// GetAllUserExpenses (data export)
+// ---------------------------------------------------------------------------
+
+message GetAllUserExpensesRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
 }
 
 // ---------------------------------------------------------------------------
