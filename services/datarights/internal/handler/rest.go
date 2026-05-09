@@ -1,0 +1,135 @@
+package handler
+
+import (
+	"log/slog"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/ItsThompson/gofin/services/datarights/internal/model"
+	"github.com/ItsThompson/gofin/services/datarights/internal/service"
+)
+
+// RESTHandler handles HTTP requests for the datarights service.
+type RESTHandler struct {
+	exportService *service.ExportService
+	logger        *slog.Logger
+}
+
+// NewRESTHandler creates a new RESTHandler.
+func NewRESTHandler(exportService *service.ExportService, logger *slog.Logger) *RESTHandler {
+	return &RESTHandler{
+		exportService: exportService,
+		logger:        logger,
+	}
+}
+
+// RegisterRoutes sets up the Gin routes for datarights endpoints.
+func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
+	exports := r.Group("/api/datarights/exports")
+	{
+		exports.POST("", h.CreateExport)
+		exports.GET("", h.ListExports)
+		exports.GET("/:id", h.GetExport)
+	}
+}
+
+// CreateExport handles POST /api/datarights/exports.
+// Creates a new export job and returns 202 Accepted with the job resource.
+func (h *RESTHandler) CreateExport(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	job, err := h.exportService.CreateJob(c.Request.Context(), userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusAccepted, model.JobResponse{Job: job})
+}
+
+// ListExports handles GET /api/datarights/exports.
+// Returns a paginated list of the user's export jobs.
+func (h *RESTHandler) ListExports(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	page := 1
+	pageSize := 10
+
+	if p := c.Query("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+
+	if ps := c.Query("pageSize"); ps != "" {
+		if parsed, err := strconv.Atoi(ps); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+
+	result, err := h.exportService.ListJobs(c.Request.Context(), userID, page, pageSize)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// GetExport handles GET /api/datarights/exports/:id.
+// Returns a single export job if owned by the authenticated user.
+func (h *RESTHandler) GetExport(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	jobID := c.Param("id")
+
+	job, err := h.exportService.GetJob(c.Request.Context(), jobID, userID)
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.JobResponse{Job: job})
+}
+
+// handleError maps service errors to HTTP responses.
+func (h *RESTHandler) handleError(c *gin.Context, err error) {
+	if svcErr, ok := err.(*service.ServiceError); ok {
+		c.JSON(svcErr.Status, model.ApiError{
+			Code:    svcErr.Code,
+			Message: svcErr.Message,
+		})
+		return
+	}
+
+	h.logger.Error("unexpected error",
+		slog.String("error", err.Error()),
+	)
+	c.JSON(http.StatusInternalServerError, model.ApiError{
+		Code:    model.ErrInternalServerError,
+		Message: "An unexpected error occurred",
+	})
+}
