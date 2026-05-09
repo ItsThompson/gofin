@@ -17,11 +17,15 @@ import (
 
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
+	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/handler"
+	_ "github.com/ItsThompson/gofin/services/datarights/internal/metrics" // register Prometheus metrics
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
+	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
 
@@ -84,14 +88,53 @@ func run() error {
 
 	authClient := authpb.NewAuthServiceClient(authConn)
 
+	// Connect to expense service gRPC
+	expenseConn, err := grpc.NewClient(
+		cfg.ExpenseServiceAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("connecting to expense service gRPC at %s: %w", cfg.ExpenseServiceAddr, err)
+	}
+	defer func() { _ = expenseConn.Close() }()
+
+	expenseClient := expensepb.NewExpenseServiceClient(expenseConn)
+
+	// Connect to finance service gRPC
+	financeConn, err := grpc.NewClient(
+		cfg.FinanceServiceAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("connecting to finance service gRPC at %s: %w", cfg.FinanceServiceAddr, err)
+	}
+	defer func() { _ = financeConn.Close() }()
+
+	financeClient := financepb.NewFinanceServiceClient(financeConn)
+
+	logger.Info("gRPC clients configured",
+		slog.String("expense_service_addr", cfg.ExpenseServiceAddr),
+		slog.String("finance_service_addr", cfg.FinanceServiceAddr),
+	)
+
 	// Build dependency graph
 	repo := repository.NewPostgresJobRepository(pool)
 
 	// Set up export engine with provider registry
 	registry := engine.NewProviderRegistry()
 	registry.Register(providers.NewProfileProvider(authClient))
+	registry.Register(providers.NewExpensesProvider(expenseClient, financeClient))
+	registry.Register(providers.NewTagsProvider(financeClient))
+	registry.Register(providers.NewBudgetPeriodsProvider(financeClient))
+	registry.Register(providers.NewDefaultSettingsProvider(financeClient))
 
-	exportEngine := engine.NewEngine(registry, repo, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
+	// Set up email sender
+	emailSender, err := buildEmailSender(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("setting up email sender: %w", err)
+	}
+
+	exportEngine := engine.NewEngine(registry, repo, emailSender, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
 
 	// Startup recovery: re-submit non-terminal jobs
 	recoverJobs(ctx, repo, exportEngine, logger)
@@ -108,7 +151,13 @@ func run() error {
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"pool": gin.H{
+				"active": exportEngine.ActiveJobs(),
+				"max":    exportEngine.MaxConcurrent(),
+			},
+		})
 	})
 
 	metrics.Register(router)
@@ -172,4 +221,40 @@ func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine
 		)
 		eng.Submit(job.ID, job.UserID, "")
 	}
+}
+
+// buildEmailSender creates the appropriate email sender based on configuration.
+// When EMAIL_ENABLED=false, returns a LogSender that logs email content for dev/test.
+func buildEmailSender(cfg *config.Config, logger *slog.Logger) (email.Sender, error) {
+	if !cfg.EmailEnabled {
+		logger.Info("email disabled: using log sender",
+			slog.String("mode", "dev_log_only"),
+		)
+		return email.NewLogSender(logger), nil
+	}
+
+	if cfg.ResendAPIKey == "" {
+		return nil, fmt.Errorf("RESEND_API_KEY is required when EMAIL_ENABLED=true")
+	}
+
+	tokensData, err := os.ReadFile(cfg.BrandTokensPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading brand tokens from %s: %w", cfg.BrandTokensPath, err)
+	}
+
+	tokens, err := email.LoadBrandTokens(tokensData)
+	if err != nil {
+		return nil, fmt.Errorf("parsing brand tokens: %w", err)
+	}
+
+	sender, err := email.NewResendSender(cfg.ResendAPIKey, cfg.EmailFrom, tokens, logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating Resend sender: %w", err)
+	}
+
+	logger.Info("email enabled: using Resend sender",
+		slog.String("from", cfg.EmailFrom),
+	)
+
+	return sender, nil
 }
