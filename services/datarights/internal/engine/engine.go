@@ -104,7 +104,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	for _, provider := range e.registry.All() {
 		// Check context before each provider
 		if err := ctx.Err(); err != nil {
-			e.failJob(ctx, jobID, userID, "Export timed out", jobStart)
+			e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
 			return
 		}
 
@@ -123,10 +123,10 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 
 		if err != nil {
 			if ctx.Err() != nil {
-				e.failJob(ctx, jobID, userID, "Export timed out", jobStart)
+				e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
 				return
 			}
-			e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", provider.Name()), jobStart)
+			e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", provider.Name()), "collection", jobStart)
 			return
 		}
 
@@ -149,7 +149,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	// Build ZIP
 	zipBytes, err := BuildZIP(csvFiles)
 	if err != nil {
-		e.failJob(ctx, jobID, userID, "Failed to build export archive", jobStart)
+		e.failJob(ctx, jobID, userID, "Failed to build export archive", "zip_assembly", jobStart)
 		return
 	}
 
@@ -166,7 +166,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	// Send email with ZIP attachment
 	emailStart := time.Now()
 	if err := e.sender.SendExportEmail(ctx, userEmail, zipBytes); err != nil {
-		e.failJob(ctx, jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), jobStart)
+		e.failJob(ctx, jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), "email_delivery", jobStart)
 		return
 	}
 	exportmetrics.ExportEmailSendDurationSeconds.Observe(time.Since(emailStart).Seconds())
@@ -205,7 +205,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 }
 
 // failJob marks a job as failed with a human-readable error message.
-func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg string, jobStart time.Time) {
+func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg, stage string, jobStart time.Time) {
 	exportmetrics.ExportJobsCompletedTotal.WithLabelValues("failed").Inc()
 	exportmetrics.ExportJobDurationSeconds.Observe(time.Since(jobStart).Seconds())
 
@@ -213,6 +213,7 @@ func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg string, jobSta
 		slog.String("job_id", jobID),
 		slog.String("user_id", userID),
 		slog.String("error", errMsg),
+		slog.String("stage", stage),
 		slog.String("method", "engine.failJob"),
 	)
 
