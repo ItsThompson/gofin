@@ -1,0 +1,29 @@
+{
+  "colors": {
+    "background": "#ffffff",
+    "foreground": "#0f172a",
+    "primary": "#1a1a1a",
+    "primaryForeground": "#fafafa",
+    "muted": "#f1f5f9",
+    "mutedForeground": "#64748b",
+    "border": "#e2e8f0",
+    "essentials": "#3b82f6",
+    "desires": "#f59e0b",
+    "savings": "#10b981"
+  },
+  "typography": {
+    "fontFamily": "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
+    "fontSize": {
+      "sm": "14px",
+      "base": "16px",
+      "lg": "18px",
+      "xl": "24px"
+    }
+  },
+  "spacing": {
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px"
+  }
+}
