@@ -35,6 +35,11 @@ type ExpenseRepository interface {
 	// GetProRataGroup returns all expenses belonging to a pro-rata group,
 	// scoped to a user.
 	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
+
+	// GetAllExpensesByUser returns all expenses (active + corrected) for a user,
+	// ordered by created_at ASC, with LIMIT/OFFSET pagination.
+	// Used by the datarights service for data export (GDPR compliance).
+	GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error)
 }
 
 // SchemaInitializer creates the required tables and indexes on startup.
