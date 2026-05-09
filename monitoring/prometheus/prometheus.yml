@@ -30,6 +30,10 @@ scrape_configs:
     static_configs:
       - targets: ["finance-service:8083"]
 
+  - job_name: datarights-service
+    static_configs:
+      - targets: ["datarights-service:8084"]
+
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
