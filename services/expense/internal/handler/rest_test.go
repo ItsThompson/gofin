@@ -78,6 +78,14 @@ func (m *mockExpenseRepository) GetProRataGroup(ctx context.Context, groupID str
 	return args.Get(0).([]*model.Expense), args.Error(1)
 }
 
+func (m *mockExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error) {
+	args := m.Called(ctx, userID, page, pageSize)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
+}
+
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

@@ -383,7 +383,7 @@ func (r *ImmudbExpenseRepository) GetAllExpensesByUser(ctx context.Context, user
 	offset := (page - 1) * pageSize
 	dataQuery := fmt.Sprintf(`SELECT %s FROM expenses
 		WHERE user_id = @user_id
-		ORDER BY created_at
+		ORDER BY created_at ASC
 		LIMIT @limit OFFSET @offset;`, expenseSelectColumns)
 
 	result, err := r.client.SQLQuery(ctx, dataQuery, map[string]interface{}{
