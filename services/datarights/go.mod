@@ -4,14 +4,21 @@ go 1.26
 
 require (
 	github.com/ItsThompson/gofin/services/auth v0.0.0
+	github.com/ItsThompson/gofin/services/expense v0.0.0
+	github.com/ItsThompson/gofin/services/finance v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
 )
 
 replace github.com/ItsThompson/gofin/services/auth => ../auth
+
+replace github.com/ItsThompson/gofin/services/expense => ../expense
+
+replace github.com/ItsThompson/gofin/services/finance => ../finance
 
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
@@ -42,7 +49,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
