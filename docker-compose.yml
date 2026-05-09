@@ -177,6 +177,12 @@ services:
       - DATARIGHTS_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=datarights
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-gofin <noreply@usegofin.com>}
+      - BRAND_TOKENS_PATH=/app/tokens/brand.json
+    volumes:
+      - ./tokens/brand.json:/app/tokens/brand.json:ro
     networks:
       - compute-net
       - data-net

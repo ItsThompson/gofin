@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 )
 
@@ -139,6 +140,39 @@ func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+// mockSender implements email.Sender for engine tests.
+type mockSender struct {
+	mu       sync.Mutex
+	calls    []mockSendCall
+	err      error
+}
+
+type mockSendCall struct {
+	ToEmail  string
+	ZipSize  int
+}
+
+var _ email.Sender = (*mockSender)(nil)
+
+func (m *mockSender) SendExportEmail(_ context.Context, toEmail string, zipBytes []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, mockSendCall{ToEmail: toEmail, ZipSize: len(zipBytes)})
+	return m.err
+}
+
+func (m *mockSender) getCalls() []mockSendCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	result := make([]mockSendCall, len(m.calls))
+	copy(result, m.calls)
+	return result
+}
+
+func newMockSender() *mockSender {
+	return &mockSender{}
+}
+
 func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 	repo := &mockRepo{}
 	registry := NewProviderRegistry()
@@ -148,7 +182,7 @@ func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 		rows:    [][]string{{"alex", "alex@example.com"}},
 	})
 
-	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-1", "user-1", "alex@example.com")
 
 	// Wait for async completion
@@ -176,7 +210,7 @@ func TestEngine_ProviderError_FailsJob(t *testing.T) {
 		err:  fmt.Errorf("gRPC unavailable"),
 	})
 
-	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-2", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -201,7 +235,7 @@ func TestEngine_Timeout_FailsJob(t *testing.T) {
 	})
 
 	// Very short timeout to trigger
-	eng := NewEngine(registry, repo, 5, 50*time.Millisecond, newTestLogger())
+	eng := NewEngine(registry, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
 	eng.Submit("job-3", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -228,7 +262,7 @@ func TestEngine_ConcurrencyBounded(t *testing.T) {
 	})
 
 	maxConcurrent := 3
-	eng := NewEngine(registry, repo, maxConcurrent, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, newMockSender(), maxConcurrent, 5*time.Minute, newTestLogger())
 
 	// Override the execute tracking with a custom provider that monitors concurrency
 	trackingRegistry := NewProviderRegistry()
@@ -305,7 +339,7 @@ func TestEngine_MultipleProviders_AllCollected(t *testing.T) {
 		},
 	})
 
-	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-multi", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -330,7 +364,7 @@ func TestEngine_SecondProviderError_FailsJob(t *testing.T) {
 		err:  fmt.Errorf("upstream timeout"),
 	})
 
-	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-fail", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -339,4 +373,51 @@ func TestEngine_SecondProviderError_FailsJob(t *testing.T) {
 
 	failed := repo.getFailedJobs()
 	assert.Contains(t, failed[0].ErrMsg, "Failed to collect expenses data")
+}
+
+func TestEngine_EmailSenderCalled_OnSuccess(t *testing.T) {
+	repo := &mockRepo{}
+	registry := NewProviderRegistry()
+	registry.Register(&stubProvider{
+		name:    "profile",
+		headers: []string{"username", "email"},
+		rows:    [][]string{{"alex", "alex@example.com"}},
+	})
+
+	sender := newMockSender()
+	eng := NewEngine(registry, repo, sender, 5, 5*time.Minute, newTestLogger())
+	eng.Submit("job-email", "user-1", "alex@example.com")
+
+	require.Eventually(t, func() bool {
+		return len(repo.getCompletedJobs()) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	// Verify email was sent
+	calls := sender.getCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "alex@example.com", calls[0].ToEmail)
+	assert.Greater(t, calls[0].ZipSize, 0)
+}
+
+func TestEngine_EmailFailure_FailsJob(t *testing.T) {
+	repo := &mockRepo{}
+	registry := NewProviderRegistry()
+	registry.Register(&stubProvider{
+		name:    "profile",
+		headers: []string{"username"},
+		rows:    [][]string{{"alex"}},
+	})
+
+	sender := &mockSender{err: fmt.Errorf("Resend API error (status 429): rate limited")}
+	eng := NewEngine(registry, repo, sender, 5, 5*time.Minute, newTestLogger())
+	eng.Submit("job-email-fail", "user-1", "alex@example.com")
+
+	require.Eventually(t, func() bool {
+		return len(repo.getFailedJobs()) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	failed := repo.getFailedJobs()
+	assert.Contains(t, failed[0].ErrMsg, "Email delivery failed")
+	// Job should not be completed when email fails
+	assert.Len(t, repo.getCompletedJobs(), 0)
 }
