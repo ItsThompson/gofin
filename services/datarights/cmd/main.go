@@ -12,8 +12,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
+	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
+	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/handler"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
@@ -63,9 +68,35 @@ func run() error {
 	}
 	logger.Info("connected to PostgreSQL")
 
+	// Connect to auth service gRPC
+	authConn, err := grpc.NewClient(
+		cfg.AuthServiceAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("connecting to auth service gRPC at %s: %w", cfg.AuthServiceAddr, err)
+	}
+	defer func() { _ = authConn.Close() }()
+
+	logger.Info("gRPC client configured",
+		slog.String("auth_service_addr", cfg.AuthServiceAddr),
+	)
+
+	authClient := authpb.NewAuthServiceClient(authConn)
+
 	// Build dependency graph
 	repo := repository.NewPostgresJobRepository(pool)
-	exportSvc := service.NewExportService(repo, logger)
+
+	// Set up export engine with provider registry
+	registry := engine.NewProviderRegistry()
+	registry.Register(providers.NewProfileProvider(authClient))
+
+	exportEngine := engine.NewEngine(registry, repo, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
+
+	// Startup recovery: re-submit non-terminal jobs
+	recoverJobs(ctx, repo, exportEngine, logger)
+
+	exportSvc := service.NewExportService(repo, logger, service.WithEngine(exportEngine))
 
 	// Start REST server
 	if cfg.IsProduction() {
@@ -101,6 +132,8 @@ func run() error {
 
 	logger.Info("datarights service ready",
 		slog.String("rest_port", cfg.RESTPort),
+		slog.Int("max_concurrent_exports", cfg.MaxConcurrent),
+		slog.Duration("export_timeout", cfg.ExportTimeout),
 	)
 
 	// Wait for shutdown signal
@@ -116,4 +149,27 @@ func run() error {
 	}
 
 	return nil
+}
+
+// recoverJobs re-submits any non-terminal jobs found in the database on startup.
+func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine.Engine, logger *slog.Logger) {
+	jobs, err := repo.GetNonTerminalJobs(ctx)
+	if err != nil {
+		logger.Error("failed to query recoverable jobs", slog.String("error", err.Error()))
+		return
+	}
+
+	if len(jobs) == 0 {
+		return
+	}
+
+	logger.Info("recovering non-terminal jobs", slog.Int("count", len(jobs)))
+
+	for _, job := range jobs {
+		logger.Info("re-submitting job",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+		)
+		eng.Submit(job.ID, job.UserID, "")
+	}
 }
