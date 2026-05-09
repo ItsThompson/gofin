@@ -361,6 +361,110 @@ func (x *DefaultsResponse) GetDefaults() *DefaultsData {
 	return nil
 }
 
+type GetAllUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAllUserDataRequest) Reset() {
+	*x = GetAllUserDataRequest{}
+	mi := &file_finance_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAllUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAllUserDataRequest) ProtoMessage() {}
+
+func (x *GetAllUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAllUserDataRequest.ProtoReflect.Descriptor instead.
+func (*GetAllUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_finance_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetAllUserDataRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type AllUserDataResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tags          []*TagData             `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
+	Periods       []*PeriodData          `protobuf:"bytes,2,rep,name=periods,proto3" json:"periods,omitempty"`
+	Defaults      *DefaultsData          `protobuf:"bytes,3,opt,name=defaults,proto3" json:"defaults,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AllUserDataResponse) Reset() {
+	*x = AllUserDataResponse{}
+	mi := &file_finance_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AllUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllUserDataResponse) ProtoMessage() {}
+
+func (x *AllUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_finance_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllUserDataResponse.ProtoReflect.Descriptor instead.
+func (*AllUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_finance_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AllUserDataResponse) GetTags() []*TagData {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *AllUserDataResponse) GetPeriods() []*PeriodData {
+	if x != nil {
+		return x.Periods
+	}
+	return nil
+}
+
+func (x *AllUserDataResponse) GetDefaults() *DefaultsData {
+	if x != nil {
+		return x.Defaults
+	}
+	return nil
+}
+
 type PeriodData struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -371,13 +475,14 @@ type PeriodData struct {
 	EssentialsPercent int32                  `protobuf:"varint,6,opt,name=essentials_percent,json=essentialsPercent,proto3" json:"essentials_percent,omitempty"`
 	DesiresPercent    int32                  `protobuf:"varint,7,opt,name=desires_percent,json=desiresPercent,proto3" json:"desires_percent,omitempty"`
 	SavingsPercent    int32                  `protobuf:"varint,8,opt,name=savings_percent,json=savingsPercent,proto3" json:"savings_percent,omitempty"`
+	CreatedAt         string                 `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PeriodData) Reset() {
 	*x = PeriodData{}
-	mi := &file_finance_proto_msgTypes[5]
+	mi := &file_finance_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -389,7 +494,7 @@ func (x *PeriodData) String() string {
 func (*PeriodData) ProtoMessage() {}
 
 func (x *PeriodData) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[5]
+	mi := &file_finance_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -402,7 +507,7 @@ func (x *PeriodData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeriodData.ProtoReflect.Descriptor instead.
 func (*PeriodData) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{5}
+	return file_finance_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PeriodData) GetId() string {
@@ -461,6 +566,13 @@ func (x *PeriodData) GetSavingsPercent() int32 {
 	return 0
 }
 
+func (x *PeriodData) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
 type GetCurrentPeriodRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -472,7 +584,7 @@ type GetCurrentPeriodRequest struct {
 
 func (x *GetCurrentPeriodRequest) Reset() {
 	*x = GetCurrentPeriodRequest{}
-	mi := &file_finance_proto_msgTypes[6]
+	mi := &file_finance_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -484,7 +596,7 @@ func (x *GetCurrentPeriodRequest) String() string {
 func (*GetCurrentPeriodRequest) ProtoMessage() {}
 
 func (x *GetCurrentPeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[6]
+	mi := &file_finance_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -497,7 +609,7 @@ func (x *GetCurrentPeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCurrentPeriodRequest.ProtoReflect.Descriptor instead.
 func (*GetCurrentPeriodRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{6}
+	return file_finance_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetCurrentPeriodRequest) GetUserId() string {
@@ -536,7 +648,7 @@ type CreatePeriodRequest struct {
 
 func (x *CreatePeriodRequest) Reset() {
 	*x = CreatePeriodRequest{}
-	mi := &file_finance_proto_msgTypes[7]
+	mi := &file_finance_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -548,7 +660,7 @@ func (x *CreatePeriodRequest) String() string {
 func (*CreatePeriodRequest) ProtoMessage() {}
 
 func (x *CreatePeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[7]
+	mi := &file_finance_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -561,7 +673,7 @@ func (x *CreatePeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreatePeriodRequest.ProtoReflect.Descriptor instead.
 func (*CreatePeriodRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{7}
+	return file_finance_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CreatePeriodRequest) GetUserId() string {
@@ -627,7 +739,7 @@ type UpdatePeriodRequest struct {
 
 func (x *UpdatePeriodRequest) Reset() {
 	*x = UpdatePeriodRequest{}
-	mi := &file_finance_proto_msgTypes[8]
+	mi := &file_finance_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -639,7 +751,7 @@ func (x *UpdatePeriodRequest) String() string {
 func (*UpdatePeriodRequest) ProtoMessage() {}
 
 func (x *UpdatePeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[8]
+	mi := &file_finance_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +764,7 @@ func (x *UpdatePeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePeriodRequest.ProtoReflect.Descriptor instead.
 func (*UpdatePeriodRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{8}
+	return file_finance_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UpdatePeriodRequest) GetPeriodId() string {
@@ -708,7 +820,7 @@ type ListPeriodsRequest struct {
 
 func (x *ListPeriodsRequest) Reset() {
 	*x = ListPeriodsRequest{}
-	mi := &file_finance_proto_msgTypes[9]
+	mi := &file_finance_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -720,7 +832,7 @@ func (x *ListPeriodsRequest) String() string {
 func (*ListPeriodsRequest) ProtoMessage() {}
 
 func (x *ListPeriodsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[9]
+	mi := &file_finance_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -733,7 +845,7 @@ func (x *ListPeriodsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPeriodsRequest.ProtoReflect.Descriptor instead.
 func (*ListPeriodsRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{9}
+	return file_finance_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListPeriodsRequest) GetUserId() string {
@@ -766,7 +878,7 @@ type PeriodResponse struct {
 
 func (x *PeriodResponse) Reset() {
 	*x = PeriodResponse{}
-	mi := &file_finance_proto_msgTypes[10]
+	mi := &file_finance_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -778,7 +890,7 @@ func (x *PeriodResponse) String() string {
 func (*PeriodResponse) ProtoMessage() {}
 
 func (x *PeriodResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[10]
+	mi := &file_finance_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -791,7 +903,7 @@ func (x *PeriodResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeriodResponse.ProtoReflect.Descriptor instead.
 func (*PeriodResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{10}
+	return file_finance_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PeriodResponse) GetPeriod() *PeriodData {
@@ -811,7 +923,7 @@ type PeriodListResponse struct {
 
 func (x *PeriodListResponse) Reset() {
 	*x = PeriodListResponse{}
-	mi := &file_finance_proto_msgTypes[11]
+	mi := &file_finance_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -823,7 +935,7 @@ func (x *PeriodListResponse) String() string {
 func (*PeriodListResponse) ProtoMessage() {}
 
 func (x *PeriodListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[11]
+	mi := &file_finance_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -836,7 +948,7 @@ func (x *PeriodListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeriodListResponse.ProtoReflect.Descriptor instead.
 func (*PeriodListResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{11}
+	return file_finance_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *PeriodListResponse) GetPeriods() []*PeriodData {
@@ -859,13 +971,14 @@ type TagData struct {
 	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	IsDefault     bool                   `protobuf:"varint,4,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TagData) Reset() {
 	*x = TagData{}
-	mi := &file_finance_proto_msgTypes[12]
+	mi := &file_finance_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -877,7 +990,7 @@ func (x *TagData) String() string {
 func (*TagData) ProtoMessage() {}
 
 func (x *TagData) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[12]
+	mi := &file_finance_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -890,7 +1003,7 @@ func (x *TagData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagData.ProtoReflect.Descriptor instead.
 func (*TagData) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{12}
+	return file_finance_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *TagData) GetId() string {
@@ -921,6 +1034,13 @@ func (x *TagData) GetIsDefault() bool {
 	return false
 }
 
+func (x *TagData) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
 type ListTagsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -930,7 +1050,7 @@ type ListTagsRequest struct {
 
 func (x *ListTagsRequest) Reset() {
 	*x = ListTagsRequest{}
-	mi := &file_finance_proto_msgTypes[13]
+	mi := &file_finance_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -942,7 +1062,7 @@ func (x *ListTagsRequest) String() string {
 func (*ListTagsRequest) ProtoMessage() {}
 
 func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[13]
+	mi := &file_finance_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -955,7 +1075,7 @@ func (x *ListTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTagsRequest.ProtoReflect.Descriptor instead.
 func (*ListTagsRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{13}
+	return file_finance_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListTagsRequest) GetUserId() string {
@@ -975,7 +1095,7 @@ type CreateTagRequest struct {
 
 func (x *CreateTagRequest) Reset() {
 	*x = CreateTagRequest{}
-	mi := &file_finance_proto_msgTypes[14]
+	mi := &file_finance_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -987,7 +1107,7 @@ func (x *CreateTagRequest) String() string {
 func (*CreateTagRequest) ProtoMessage() {}
 
 func (x *CreateTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[14]
+	mi := &file_finance_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1000,7 +1120,7 @@ func (x *CreateTagRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTagRequest.ProtoReflect.Descriptor instead.
 func (*CreateTagRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{14}
+	return file_finance_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateTagRequest) GetUserId() string {
@@ -1028,7 +1148,7 @@ type UpdateTagRequest struct {
 
 func (x *UpdateTagRequest) Reset() {
 	*x = UpdateTagRequest{}
-	mi := &file_finance_proto_msgTypes[15]
+	mi := &file_finance_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1040,7 +1160,7 @@ func (x *UpdateTagRequest) String() string {
 func (*UpdateTagRequest) ProtoMessage() {}
 
 func (x *UpdateTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[15]
+	mi := &file_finance_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +1173,7 @@ func (x *UpdateTagRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateTagRequest.ProtoReflect.Descriptor instead.
 func (*UpdateTagRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{15}
+	return file_finance_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UpdateTagRequest) GetTagId() string {
@@ -1087,7 +1207,7 @@ type DeleteTagRequest struct {
 
 func (x *DeleteTagRequest) Reset() {
 	*x = DeleteTagRequest{}
-	mi := &file_finance_proto_msgTypes[16]
+	mi := &file_finance_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1099,7 +1219,7 @@ func (x *DeleteTagRequest) String() string {
 func (*DeleteTagRequest) ProtoMessage() {}
 
 func (x *DeleteTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[16]
+	mi := &file_finance_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1112,7 +1232,7 @@ func (x *DeleteTagRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteTagRequest.ProtoReflect.Descriptor instead.
 func (*DeleteTagRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{16}
+	return file_finance_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteTagRequest) GetTagId() string {
@@ -1137,7 +1257,7 @@ type DeleteTagResponse struct {
 
 func (x *DeleteTagResponse) Reset() {
 	*x = DeleteTagResponse{}
-	mi := &file_finance_proto_msgTypes[17]
+	mi := &file_finance_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1149,7 +1269,7 @@ func (x *DeleteTagResponse) String() string {
 func (*DeleteTagResponse) ProtoMessage() {}
 
 func (x *DeleteTagResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[17]
+	mi := &file_finance_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1162,7 +1282,7 @@ func (x *DeleteTagResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteTagResponse.ProtoReflect.Descriptor instead.
 func (*DeleteTagResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{17}
+	return file_finance_proto_rawDescGZIP(), []int{19}
 }
 
 type CheckTagUsageRequest struct {
@@ -1174,7 +1294,7 @@ type CheckTagUsageRequest struct {
 
 func (x *CheckTagUsageRequest) Reset() {
 	*x = CheckTagUsageRequest{}
-	mi := &file_finance_proto_msgTypes[18]
+	mi := &file_finance_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1186,7 +1306,7 @@ func (x *CheckTagUsageRequest) String() string {
 func (*CheckTagUsageRequest) ProtoMessage() {}
 
 func (x *CheckTagUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[18]
+	mi := &file_finance_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1199,7 +1319,7 @@ func (x *CheckTagUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckTagUsageRequest.ProtoReflect.Descriptor instead.
 func (*CheckTagUsageRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{18}
+	return file_finance_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *CheckTagUsageRequest) GetTagId() string {
@@ -1218,7 +1338,7 @@ type TagUsageResponse struct {
 
 func (x *TagUsageResponse) Reset() {
 	*x = TagUsageResponse{}
-	mi := &file_finance_proto_msgTypes[19]
+	mi := &file_finance_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1230,7 +1350,7 @@ func (x *TagUsageResponse) String() string {
 func (*TagUsageResponse) ProtoMessage() {}
 
 func (x *TagUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[19]
+	mi := &file_finance_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1243,7 +1363,7 @@ func (x *TagUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagUsageResponse.ProtoReflect.Descriptor instead.
 func (*TagUsageResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{19}
+	return file_finance_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *TagUsageResponse) GetInUse() bool {
@@ -1262,7 +1382,7 @@ type TagResponse struct {
 
 func (x *TagResponse) Reset() {
 	*x = TagResponse{}
-	mi := &file_finance_proto_msgTypes[20]
+	mi := &file_finance_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1274,7 +1394,7 @@ func (x *TagResponse) String() string {
 func (*TagResponse) ProtoMessage() {}
 
 func (x *TagResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[20]
+	mi := &file_finance_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1287,7 +1407,7 @@ func (x *TagResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagResponse.ProtoReflect.Descriptor instead.
 func (*TagResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{20}
+	return file_finance_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *TagResponse) GetTag() *TagData {
@@ -1306,7 +1426,7 @@ type TagListResponse struct {
 
 func (x *TagListResponse) Reset() {
 	*x = TagListResponse{}
-	mi := &file_finance_proto_msgTypes[21]
+	mi := &file_finance_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1318,7 +1438,7 @@ func (x *TagListResponse) String() string {
 func (*TagListResponse) ProtoMessage() {}
 
 func (x *TagListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[21]
+	mi := &file_finance_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1331,7 +1451,7 @@ func (x *TagListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagListResponse.ProtoReflect.Descriptor instead.
 func (*TagListResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{21}
+	return file_finance_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *TagListResponse) GetTags() []*TagData {
@@ -1357,7 +1477,7 @@ type CreateProRataExpenseRequest struct {
 
 func (x *CreateProRataExpenseRequest) Reset() {
 	*x = CreateProRataExpenseRequest{}
-	mi := &file_finance_proto_msgTypes[22]
+	mi := &file_finance_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1369,7 +1489,7 @@ func (x *CreateProRataExpenseRequest) String() string {
 func (*CreateProRataExpenseRequest) ProtoMessage() {}
 
 func (x *CreateProRataExpenseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[22]
+	mi := &file_finance_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1382,7 +1502,7 @@ func (x *CreateProRataExpenseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateProRataExpenseRequest.ProtoReflect.Descriptor instead.
 func (*CreateProRataExpenseRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{22}
+	return file_finance_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CreateProRataExpenseRequest) GetUserId() string {
@@ -1450,7 +1570,7 @@ type ProRataResponse struct {
 
 func (x *ProRataResponse) Reset() {
 	*x = ProRataResponse{}
-	mi := &file_finance_proto_msgTypes[23]
+	mi := &file_finance_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1462,7 +1582,7 @@ func (x *ProRataResponse) String() string {
 func (*ProRataResponse) ProtoMessage() {}
 
 func (x *ProRataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[23]
+	mi := &file_finance_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1475,7 +1595,7 @@ func (x *ProRataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProRataResponse.ProtoReflect.Descriptor instead.
 func (*ProRataResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{23}
+	return file_finance_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ProRataResponse) GetMessage() string {
@@ -1494,7 +1614,7 @@ type GetUpcomingProRataRequest struct {
 
 func (x *GetUpcomingProRataRequest) Reset() {
 	*x = GetUpcomingProRataRequest{}
-	mi := &file_finance_proto_msgTypes[24]
+	mi := &file_finance_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1506,7 +1626,7 @@ func (x *GetUpcomingProRataRequest) String() string {
 func (*GetUpcomingProRataRequest) ProtoMessage() {}
 
 func (x *GetUpcomingProRataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[24]
+	mi := &file_finance_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1519,7 +1639,7 @@ func (x *GetUpcomingProRataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUpcomingProRataRequest.ProtoReflect.Descriptor instead.
 func (*GetUpcomingProRataRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{24}
+	return file_finance_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetUpcomingProRataRequest) GetUserId() string {
@@ -1538,7 +1658,7 @@ type UpcomingProRataListResponse struct {
 
 func (x *UpcomingProRataListResponse) Reset() {
 	*x = UpcomingProRataListResponse{}
-	mi := &file_finance_proto_msgTypes[25]
+	mi := &file_finance_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1550,7 +1670,7 @@ func (x *UpcomingProRataListResponse) String() string {
 func (*UpcomingProRataListResponse) ProtoMessage() {}
 
 func (x *UpcomingProRataListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[25]
+	mi := &file_finance_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1563,7 +1683,7 @@ func (x *UpcomingProRataListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpcomingProRataListResponse.ProtoReflect.Descriptor instead.
 func (*UpcomingProRataListResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{25}
+	return file_finance_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *UpcomingProRataListResponse) GetMessage() string {
@@ -1584,7 +1704,7 @@ type GetPeriodSummaryRequest struct {
 
 func (x *GetPeriodSummaryRequest) Reset() {
 	*x = GetPeriodSummaryRequest{}
-	mi := &file_finance_proto_msgTypes[26]
+	mi := &file_finance_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1596,7 +1716,7 @@ func (x *GetPeriodSummaryRequest) String() string {
 func (*GetPeriodSummaryRequest) ProtoMessage() {}
 
 func (x *GetPeriodSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[26]
+	mi := &file_finance_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1609,7 +1729,7 @@ func (x *GetPeriodSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPeriodSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetPeriodSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{26}
+	return file_finance_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GetPeriodSummaryRequest) GetUserId() string {
@@ -1642,7 +1762,7 @@ type PeriodSummaryResponse struct {
 
 func (x *PeriodSummaryResponse) Reset() {
 	*x = PeriodSummaryResponse{}
-	mi := &file_finance_proto_msgTypes[27]
+	mi := &file_finance_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1654,7 +1774,7 @@ func (x *PeriodSummaryResponse) String() string {
 func (*PeriodSummaryResponse) ProtoMessage() {}
 
 func (x *PeriodSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[27]
+	mi := &file_finance_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1667,7 +1787,7 @@ func (x *PeriodSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeriodSummaryResponse.ProtoReflect.Descriptor instead.
 func (*PeriodSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{27}
+	return file_finance_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PeriodSummaryResponse) GetMessage() string {
@@ -1688,7 +1808,7 @@ type GetSpendingByTagRequest struct {
 
 func (x *GetSpendingByTagRequest) Reset() {
 	*x = GetSpendingByTagRequest{}
-	mi := &file_finance_proto_msgTypes[28]
+	mi := &file_finance_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1700,7 +1820,7 @@ func (x *GetSpendingByTagRequest) String() string {
 func (*GetSpendingByTagRequest) ProtoMessage() {}
 
 func (x *GetSpendingByTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[28]
+	mi := &file_finance_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1713,7 +1833,7 @@ func (x *GetSpendingByTagRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSpendingByTagRequest.ProtoReflect.Descriptor instead.
 func (*GetSpendingByTagRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{28}
+	return file_finance_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetSpendingByTagRequest) GetUserId() string {
@@ -1746,7 +1866,7 @@ type TagSpendingListResponse struct {
 
 func (x *TagSpendingListResponse) Reset() {
 	*x = TagSpendingListResponse{}
-	mi := &file_finance_proto_msgTypes[29]
+	mi := &file_finance_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1758,7 +1878,7 @@ func (x *TagSpendingListResponse) String() string {
 func (*TagSpendingListResponse) ProtoMessage() {}
 
 func (x *TagSpendingListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[29]
+	mi := &file_finance_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1771,7 +1891,7 @@ func (x *TagSpendingListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TagSpendingListResponse.ProtoReflect.Descriptor instead.
 func (*TagSpendingListResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{29}
+	return file_finance_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *TagSpendingListResponse) GetMessage() string {
@@ -1792,7 +1912,7 @@ type GetCumulativeSpendRequest struct {
 
 func (x *GetCumulativeSpendRequest) Reset() {
 	*x = GetCumulativeSpendRequest{}
-	mi := &file_finance_proto_msgTypes[30]
+	mi := &file_finance_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1804,7 +1924,7 @@ func (x *GetCumulativeSpendRequest) String() string {
 func (*GetCumulativeSpendRequest) ProtoMessage() {}
 
 func (x *GetCumulativeSpendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[30]
+	mi := &file_finance_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1817,7 +1937,7 @@ func (x *GetCumulativeSpendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCumulativeSpendRequest.ProtoReflect.Descriptor instead.
 func (*GetCumulativeSpendRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{30}
+	return file_finance_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *GetCumulativeSpendRequest) GetUserId() string {
@@ -1850,7 +1970,7 @@ type CumulativeSpendResponse struct {
 
 func (x *CumulativeSpendResponse) Reset() {
 	*x = CumulativeSpendResponse{}
-	mi := &file_finance_proto_msgTypes[31]
+	mi := &file_finance_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1862,7 +1982,7 @@ func (x *CumulativeSpendResponse) String() string {
 func (*CumulativeSpendResponse) ProtoMessage() {}
 
 func (x *CumulativeSpendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[31]
+	mi := &file_finance_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1875,7 +1995,7 @@ func (x *CumulativeSpendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CumulativeSpendResponse.ProtoReflect.Descriptor instead.
 func (*CumulativeSpendResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{31}
+	return file_finance_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CumulativeSpendResponse) GetMessage() string {
@@ -1896,7 +2016,7 @@ type GetHistoricalComparisonRequest struct {
 
 func (x *GetHistoricalComparisonRequest) Reset() {
 	*x = GetHistoricalComparisonRequest{}
-	mi := &file_finance_proto_msgTypes[32]
+	mi := &file_finance_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1908,7 +2028,7 @@ func (x *GetHistoricalComparisonRequest) String() string {
 func (*GetHistoricalComparisonRequest) ProtoMessage() {}
 
 func (x *GetHistoricalComparisonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[32]
+	mi := &file_finance_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1921,7 +2041,7 @@ func (x *GetHistoricalComparisonRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHistoricalComparisonRequest.ProtoReflect.Descriptor instead.
 func (*GetHistoricalComparisonRequest) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{32}
+	return file_finance_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetHistoricalComparisonRequest) GetUserId() string {
@@ -1954,7 +2074,7 @@ type HistoricalComparisonResponse struct {
 
 func (x *HistoricalComparisonResponse) Reset() {
 	*x = HistoricalComparisonResponse{}
-	mi := &file_finance_proto_msgTypes[33]
+	mi := &file_finance_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1966,7 +2086,7 @@ func (x *HistoricalComparisonResponse) String() string {
 func (*HistoricalComparisonResponse) ProtoMessage() {}
 
 func (x *HistoricalComparisonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_finance_proto_msgTypes[33]
+	mi := &file_finance_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1979,7 +2099,7 @@ func (x *HistoricalComparisonResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoricalComparisonResponse.ProtoReflect.Descriptor instead.
 func (*HistoricalComparisonResponse) Descriptor() ([]byte, []int) {
-	return file_finance_proto_rawDescGZIP(), []int{33}
+	return file_finance_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *HistoricalComparisonResponse) GetMessage() string {
@@ -2018,7 +2138,13 @@ const file_finance_proto_rawDesc = "" +
 	"\x0fsavings_percent\x18\x05 \x01(\x05R\x0esavingsPercent\x12\x1a\n" +
 	"\bcurrency\x18\x06 \x01(\tR\bcurrency\"E\n" +
 	"\x10DefaultsResponse\x121\n" +
-	"\bdefaults\x18\x01 \x01(\v2\x15.finance.DefaultsDataR\bdefaults\"\x85\x02\n" +
+	"\bdefaults\x18\x01 \x01(\v2\x15.finance.DefaultsDataR\bdefaults\"0\n" +
+	"\x15GetAllUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x9d\x01\n" +
+	"\x13AllUserDataResponse\x12$\n" +
+	"\x04tags\x18\x01 \x03(\v2\x10.finance.TagDataR\x04tags\x12-\n" +
+	"\aperiods\x18\x02 \x03(\v2\x13.finance.PeriodDataR\aperiods\x121\n" +
+	"\bdefaults\x18\x03 \x01(\v2\x15.finance.DefaultsDataR\bdefaults\"\xa4\x02\n" +
 	"\n" +
 	"PeriodData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
@@ -2028,7 +2154,9 @@ const file_finance_proto_rawDesc = "" +
 	"\rbudget_amount\x18\x05 \x01(\x03R\fbudgetAmount\x12-\n" +
 	"\x12essentials_percent\x18\x06 \x01(\x05R\x11essentialsPercent\x12'\n" +
 	"\x0fdesires_percent\x18\a \x01(\x05R\x0edesiresPercent\x12'\n" +
-	"\x0fsavings_percent\x18\b \x01(\x05R\x0esavingsPercent\"\\\n" +
+	"\x0fsavings_percent\x18\b \x01(\x05R\x0esavingsPercent\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\t \x01(\tR\tcreatedAt\"\\\n" +
 	"\x17GetCurrentPeriodRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
@@ -2056,13 +2184,15 @@ const file_finance_proto_rawDesc = "" +
 	"\x06period\x18\x01 \x01(\v2\x13.finance.PeriodDataR\x06period\"Y\n" +
 	"\x12PeriodListResponse\x12-\n" +
 	"\aperiods\x18\x01 \x03(\v2\x13.finance.PeriodDataR\aperiods\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"e\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\x84\x01\n" +
 	"\aTagData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1d\n" +
 	"\n" +
-	"is_default\x18\x04 \x01(\bR\tisDefault\"*\n" +
+	"is_default\x18\x04 \x01(\bR\tisDefault\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\tR\tcreatedAt\"*\n" +
 	"\x0fListTagsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"?\n" +
 	"\x10CreateTagRequest\x12\x17\n" +
@@ -2122,11 +2252,12 @@ const file_finance_proto_rawDesc = "" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
 	"\x05month\x18\x03 \x01(\x05R\x05month\"8\n" +
 	"\x1cHistoricalComparisonResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2\x97\v\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage2\xe7\v\n" +
 	"\x0eFinanceService\x12E\n" +
 	"\vGetDefaults\x12\x1b.finance.GetDefaultsRequest\x1a\x19.finance.DefaultsResponse\x12K\n" +
 	"\x0eUpdateDefaults\x12\x1e.finance.UpdateDefaultsRequest\x1a\x19.finance.DefaultsResponse\x12S\n" +
-	"\x12CompleteOnboarding\x12\".finance.CompleteOnboardingRequest\x1a\x19.finance.DefaultsResponse\x12M\n" +
+	"\x12CompleteOnboarding\x12\".finance.CompleteOnboardingRequest\x1a\x19.finance.DefaultsResponse\x12N\n" +
+	"\x0eGetAllUserData\x12\x1e.finance.GetAllUserDataRequest\x1a\x1c.finance.AllUserDataResponse\x12M\n" +
 	"\x10GetCurrentPeriod\x12 .finance.GetCurrentPeriodRequest\x1a\x17.finance.PeriodResponse\x12E\n" +
 	"\fCreatePeriod\x12\x1c.finance.CreatePeriodRequest\x1a\x17.finance.PeriodResponse\x12E\n" +
 	"\fUpdatePeriod\x12\x1c.finance.UpdatePeriodRequest\x1a\x17.finance.PeriodResponse\x12G\n" +
@@ -2155,90 +2286,97 @@ func file_finance_proto_rawDescGZIP() []byte {
 	return file_finance_proto_rawDescData
 }
 
-var file_finance_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_finance_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
 var file_finance_proto_goTypes = []any{
 	(*DefaultsData)(nil),                   // 0: finance.DefaultsData
 	(*GetDefaultsRequest)(nil),             // 1: finance.GetDefaultsRequest
 	(*UpdateDefaultsRequest)(nil),          // 2: finance.UpdateDefaultsRequest
 	(*CompleteOnboardingRequest)(nil),      // 3: finance.CompleteOnboardingRequest
 	(*DefaultsResponse)(nil),               // 4: finance.DefaultsResponse
-	(*PeriodData)(nil),                     // 5: finance.PeriodData
-	(*GetCurrentPeriodRequest)(nil),        // 6: finance.GetCurrentPeriodRequest
-	(*CreatePeriodRequest)(nil),            // 7: finance.CreatePeriodRequest
-	(*UpdatePeriodRequest)(nil),            // 8: finance.UpdatePeriodRequest
-	(*ListPeriodsRequest)(nil),             // 9: finance.ListPeriodsRequest
-	(*PeriodResponse)(nil),                 // 10: finance.PeriodResponse
-	(*PeriodListResponse)(nil),             // 11: finance.PeriodListResponse
-	(*TagData)(nil),                        // 12: finance.TagData
-	(*ListTagsRequest)(nil),                // 13: finance.ListTagsRequest
-	(*CreateTagRequest)(nil),               // 14: finance.CreateTagRequest
-	(*UpdateTagRequest)(nil),               // 15: finance.UpdateTagRequest
-	(*DeleteTagRequest)(nil),               // 16: finance.DeleteTagRequest
-	(*DeleteTagResponse)(nil),              // 17: finance.DeleteTagResponse
-	(*CheckTagUsageRequest)(nil),           // 18: finance.CheckTagUsageRequest
-	(*TagUsageResponse)(nil),               // 19: finance.TagUsageResponse
-	(*TagResponse)(nil),                    // 20: finance.TagResponse
-	(*TagListResponse)(nil),                // 21: finance.TagListResponse
-	(*CreateProRataExpenseRequest)(nil),    // 22: finance.CreateProRataExpenseRequest
-	(*ProRataResponse)(nil),                // 23: finance.ProRataResponse
-	(*GetUpcomingProRataRequest)(nil),      // 24: finance.GetUpcomingProRataRequest
-	(*UpcomingProRataListResponse)(nil),    // 25: finance.UpcomingProRataListResponse
-	(*GetPeriodSummaryRequest)(nil),        // 26: finance.GetPeriodSummaryRequest
-	(*PeriodSummaryResponse)(nil),          // 27: finance.PeriodSummaryResponse
-	(*GetSpendingByTagRequest)(nil),        // 28: finance.GetSpendingByTagRequest
-	(*TagSpendingListResponse)(nil),        // 29: finance.TagSpendingListResponse
-	(*GetCumulativeSpendRequest)(nil),      // 30: finance.GetCumulativeSpendRequest
-	(*CumulativeSpendResponse)(nil),        // 31: finance.CumulativeSpendResponse
-	(*GetHistoricalComparisonRequest)(nil), // 32: finance.GetHistoricalComparisonRequest
-	(*HistoricalComparisonResponse)(nil),   // 33: finance.HistoricalComparisonResponse
+	(*GetAllUserDataRequest)(nil),          // 5: finance.GetAllUserDataRequest
+	(*AllUserDataResponse)(nil),            // 6: finance.AllUserDataResponse
+	(*PeriodData)(nil),                     // 7: finance.PeriodData
+	(*GetCurrentPeriodRequest)(nil),        // 8: finance.GetCurrentPeriodRequest
+	(*CreatePeriodRequest)(nil),            // 9: finance.CreatePeriodRequest
+	(*UpdatePeriodRequest)(nil),            // 10: finance.UpdatePeriodRequest
+	(*ListPeriodsRequest)(nil),             // 11: finance.ListPeriodsRequest
+	(*PeriodResponse)(nil),                 // 12: finance.PeriodResponse
+	(*PeriodListResponse)(nil),             // 13: finance.PeriodListResponse
+	(*TagData)(nil),                        // 14: finance.TagData
+	(*ListTagsRequest)(nil),                // 15: finance.ListTagsRequest
+	(*CreateTagRequest)(nil),               // 16: finance.CreateTagRequest
+	(*UpdateTagRequest)(nil),               // 17: finance.UpdateTagRequest
+	(*DeleteTagRequest)(nil),               // 18: finance.DeleteTagRequest
+	(*DeleteTagResponse)(nil),              // 19: finance.DeleteTagResponse
+	(*CheckTagUsageRequest)(nil),           // 20: finance.CheckTagUsageRequest
+	(*TagUsageResponse)(nil),               // 21: finance.TagUsageResponse
+	(*TagResponse)(nil),                    // 22: finance.TagResponse
+	(*TagListResponse)(nil),                // 23: finance.TagListResponse
+	(*CreateProRataExpenseRequest)(nil),    // 24: finance.CreateProRataExpenseRequest
+	(*ProRataResponse)(nil),                // 25: finance.ProRataResponse
+	(*GetUpcomingProRataRequest)(nil),      // 26: finance.GetUpcomingProRataRequest
+	(*UpcomingProRataListResponse)(nil),    // 27: finance.UpcomingProRataListResponse
+	(*GetPeriodSummaryRequest)(nil),        // 28: finance.GetPeriodSummaryRequest
+	(*PeriodSummaryResponse)(nil),          // 29: finance.PeriodSummaryResponse
+	(*GetSpendingByTagRequest)(nil),        // 30: finance.GetSpendingByTagRequest
+	(*TagSpendingListResponse)(nil),        // 31: finance.TagSpendingListResponse
+	(*GetCumulativeSpendRequest)(nil),      // 32: finance.GetCumulativeSpendRequest
+	(*CumulativeSpendResponse)(nil),        // 33: finance.CumulativeSpendResponse
+	(*GetHistoricalComparisonRequest)(nil), // 34: finance.GetHistoricalComparisonRequest
+	(*HistoricalComparisonResponse)(nil),   // 35: finance.HistoricalComparisonResponse
 }
 var file_finance_proto_depIdxs = []int32{
 	0,  // 0: finance.DefaultsResponse.defaults:type_name -> finance.DefaultsData
-	5,  // 1: finance.PeriodResponse.period:type_name -> finance.PeriodData
-	5,  // 2: finance.PeriodListResponse.periods:type_name -> finance.PeriodData
-	12, // 3: finance.TagResponse.tag:type_name -> finance.TagData
-	12, // 4: finance.TagListResponse.tags:type_name -> finance.TagData
-	1,  // 5: finance.FinanceService.GetDefaults:input_type -> finance.GetDefaultsRequest
-	2,  // 6: finance.FinanceService.UpdateDefaults:input_type -> finance.UpdateDefaultsRequest
-	3,  // 7: finance.FinanceService.CompleteOnboarding:input_type -> finance.CompleteOnboardingRequest
-	6,  // 8: finance.FinanceService.GetCurrentPeriod:input_type -> finance.GetCurrentPeriodRequest
-	7,  // 9: finance.FinanceService.CreatePeriod:input_type -> finance.CreatePeriodRequest
-	8,  // 10: finance.FinanceService.UpdatePeriod:input_type -> finance.UpdatePeriodRequest
-	9,  // 11: finance.FinanceService.ListPeriods:input_type -> finance.ListPeriodsRequest
-	13, // 12: finance.FinanceService.ListTags:input_type -> finance.ListTagsRequest
-	14, // 13: finance.FinanceService.CreateTag:input_type -> finance.CreateTagRequest
-	15, // 14: finance.FinanceService.UpdateTag:input_type -> finance.UpdateTagRequest
-	16, // 15: finance.FinanceService.DeleteTag:input_type -> finance.DeleteTagRequest
-	18, // 16: finance.FinanceService.CheckTagUsage:input_type -> finance.CheckTagUsageRequest
-	22, // 17: finance.FinanceService.CreateProRataExpense:input_type -> finance.CreateProRataExpenseRequest
-	24, // 18: finance.FinanceService.GetUpcomingProRata:input_type -> finance.GetUpcomingProRataRequest
-	26, // 19: finance.FinanceService.GetPeriodSummary:input_type -> finance.GetPeriodSummaryRequest
-	28, // 20: finance.FinanceService.GetSpendingByTag:input_type -> finance.GetSpendingByTagRequest
-	30, // 21: finance.FinanceService.GetCumulativeSpend:input_type -> finance.GetCumulativeSpendRequest
-	32, // 22: finance.FinanceService.GetHistoricalComparison:input_type -> finance.GetHistoricalComparisonRequest
-	4,  // 23: finance.FinanceService.GetDefaults:output_type -> finance.DefaultsResponse
-	4,  // 24: finance.FinanceService.UpdateDefaults:output_type -> finance.DefaultsResponse
-	4,  // 25: finance.FinanceService.CompleteOnboarding:output_type -> finance.DefaultsResponse
-	10, // 26: finance.FinanceService.GetCurrentPeriod:output_type -> finance.PeriodResponse
-	10, // 27: finance.FinanceService.CreatePeriod:output_type -> finance.PeriodResponse
-	10, // 28: finance.FinanceService.UpdatePeriod:output_type -> finance.PeriodResponse
-	11, // 29: finance.FinanceService.ListPeriods:output_type -> finance.PeriodListResponse
-	21, // 30: finance.FinanceService.ListTags:output_type -> finance.TagListResponse
-	20, // 31: finance.FinanceService.CreateTag:output_type -> finance.TagResponse
-	20, // 32: finance.FinanceService.UpdateTag:output_type -> finance.TagResponse
-	17, // 33: finance.FinanceService.DeleteTag:output_type -> finance.DeleteTagResponse
-	19, // 34: finance.FinanceService.CheckTagUsage:output_type -> finance.TagUsageResponse
-	23, // 35: finance.FinanceService.CreateProRataExpense:output_type -> finance.ProRataResponse
-	25, // 36: finance.FinanceService.GetUpcomingProRata:output_type -> finance.UpcomingProRataListResponse
-	27, // 37: finance.FinanceService.GetPeriodSummary:output_type -> finance.PeriodSummaryResponse
-	29, // 38: finance.FinanceService.GetSpendingByTag:output_type -> finance.TagSpendingListResponse
-	31, // 39: finance.FinanceService.GetCumulativeSpend:output_type -> finance.CumulativeSpendResponse
-	33, // 40: finance.FinanceService.GetHistoricalComparison:output_type -> finance.HistoricalComparisonResponse
-	23, // [23:41] is the sub-list for method output_type
-	5,  // [5:23] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	14, // 1: finance.AllUserDataResponse.tags:type_name -> finance.TagData
+	7,  // 2: finance.AllUserDataResponse.periods:type_name -> finance.PeriodData
+	0,  // 3: finance.AllUserDataResponse.defaults:type_name -> finance.DefaultsData
+	7,  // 4: finance.PeriodResponse.period:type_name -> finance.PeriodData
+	7,  // 5: finance.PeriodListResponse.periods:type_name -> finance.PeriodData
+	14, // 6: finance.TagResponse.tag:type_name -> finance.TagData
+	14, // 7: finance.TagListResponse.tags:type_name -> finance.TagData
+	1,  // 8: finance.FinanceService.GetDefaults:input_type -> finance.GetDefaultsRequest
+	2,  // 9: finance.FinanceService.UpdateDefaults:input_type -> finance.UpdateDefaultsRequest
+	3,  // 10: finance.FinanceService.CompleteOnboarding:input_type -> finance.CompleteOnboardingRequest
+	5,  // 11: finance.FinanceService.GetAllUserData:input_type -> finance.GetAllUserDataRequest
+	8,  // 12: finance.FinanceService.GetCurrentPeriod:input_type -> finance.GetCurrentPeriodRequest
+	9,  // 13: finance.FinanceService.CreatePeriod:input_type -> finance.CreatePeriodRequest
+	10, // 14: finance.FinanceService.UpdatePeriod:input_type -> finance.UpdatePeriodRequest
+	11, // 15: finance.FinanceService.ListPeriods:input_type -> finance.ListPeriodsRequest
+	15, // 16: finance.FinanceService.ListTags:input_type -> finance.ListTagsRequest
+	16, // 17: finance.FinanceService.CreateTag:input_type -> finance.CreateTagRequest
+	17, // 18: finance.FinanceService.UpdateTag:input_type -> finance.UpdateTagRequest
+	18, // 19: finance.FinanceService.DeleteTag:input_type -> finance.DeleteTagRequest
+	20, // 20: finance.FinanceService.CheckTagUsage:input_type -> finance.CheckTagUsageRequest
+	24, // 21: finance.FinanceService.CreateProRataExpense:input_type -> finance.CreateProRataExpenseRequest
+	26, // 22: finance.FinanceService.GetUpcomingProRata:input_type -> finance.GetUpcomingProRataRequest
+	28, // 23: finance.FinanceService.GetPeriodSummary:input_type -> finance.GetPeriodSummaryRequest
+	30, // 24: finance.FinanceService.GetSpendingByTag:input_type -> finance.GetSpendingByTagRequest
+	32, // 25: finance.FinanceService.GetCumulativeSpend:input_type -> finance.GetCumulativeSpendRequest
+	34, // 26: finance.FinanceService.GetHistoricalComparison:input_type -> finance.GetHistoricalComparisonRequest
+	4,  // 27: finance.FinanceService.GetDefaults:output_type -> finance.DefaultsResponse
+	4,  // 28: finance.FinanceService.UpdateDefaults:output_type -> finance.DefaultsResponse
+	4,  // 29: finance.FinanceService.CompleteOnboarding:output_type -> finance.DefaultsResponse
+	6,  // 30: finance.FinanceService.GetAllUserData:output_type -> finance.AllUserDataResponse
+	12, // 31: finance.FinanceService.GetCurrentPeriod:output_type -> finance.PeriodResponse
+	12, // 32: finance.FinanceService.CreatePeriod:output_type -> finance.PeriodResponse
+	12, // 33: finance.FinanceService.UpdatePeriod:output_type -> finance.PeriodResponse
+	13, // 34: finance.FinanceService.ListPeriods:output_type -> finance.PeriodListResponse
+	23, // 35: finance.FinanceService.ListTags:output_type -> finance.TagListResponse
+	22, // 36: finance.FinanceService.CreateTag:output_type -> finance.TagResponse
+	22, // 37: finance.FinanceService.UpdateTag:output_type -> finance.TagResponse
+	19, // 38: finance.FinanceService.DeleteTag:output_type -> finance.DeleteTagResponse
+	21, // 39: finance.FinanceService.CheckTagUsage:output_type -> finance.TagUsageResponse
+	25, // 40: finance.FinanceService.CreateProRataExpense:output_type -> finance.ProRataResponse
+	27, // 41: finance.FinanceService.GetUpcomingProRata:output_type -> finance.UpcomingProRataListResponse
+	29, // 42: finance.FinanceService.GetPeriodSummary:output_type -> finance.PeriodSummaryResponse
+	31, // 43: finance.FinanceService.GetSpendingByTag:output_type -> finance.TagSpendingListResponse
+	33, // 44: finance.FinanceService.GetCumulativeSpend:output_type -> finance.CumulativeSpendResponse
+	35, // 45: finance.FinanceService.GetHistoricalComparison:output_type -> finance.HistoricalComparisonResponse
+	27, // [27:46] is the sub-list for method output_type
+	8,  // [8:27] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_finance_proto_init() }
@@ -2252,7 +2390,7 @@ func file_finance_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_finance_proto_rawDesc), len(file_finance_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   34,
+			NumMessages:   36,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -202,3 +202,63 @@ func (h *GRPCHandler) GetCumulativeSpend(ctx context.Context, req *pb.GetCumulat
 func (h *GRPCHandler) GetHistoricalComparison(ctx context.Context, req *pb.GetHistoricalComparisonRequest) (*pb.HistoricalComparisonResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "GetHistoricalComparison not yet implemented")
 }
+
+func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserDataRequest) (*pb.AllUserDataResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	data, err := h.financeService.GetAllUserData(ctx, userID)
+	if err != nil {
+		h.logger.Error("GetAllUserData failed",
+			"user_id", userID,
+			"error", err.Error(),
+		)
+		return nil, status.Error(codes.Internal, "failed to get all user data")
+	}
+
+	pbTags := make([]*pb.TagData, len(data.Tags))
+	for i, tag := range data.Tags {
+		pbTags[i] = &pb.TagData{
+			Id:        tag.ID,
+			UserId:    tag.UserID,
+			Name:      tag.Name,
+			IsDefault: tag.IsDefault,
+			CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+
+	pbPeriods := make([]*pb.PeriodData, len(data.Periods))
+	for i, period := range data.Periods {
+		pbPeriods[i] = &pb.PeriodData{
+			Id:                period.ID,
+			UserId:            period.UserID,
+			Year:              period.Year,
+			Month:             period.Month,
+			BudgetAmount:      period.BudgetAmount,
+			EssentialsPercent: period.EssentialsPercent,
+			DesiresPercent:    period.DesiresPercent,
+			SavingsPercent:    period.SavingsPercent,
+			CreatedAt:         period.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+	}
+
+	var pbDefaults *pb.DefaultsData
+	if data.Defaults != nil {
+		pbDefaults = &pb.DefaultsData{
+			UserId:            data.Defaults.UserID,
+			BudgetAmount:      data.Defaults.BudgetAmount,
+			EssentialsPercent: data.Defaults.EssentialsPercent,
+			DesiresPercent:    data.Defaults.DesiresPercent,
+			SavingsPercent:    data.Defaults.SavingsPercent,
+			Currency:          data.Defaults.Currency,
+		}
+	}
+
+	return &pb.AllUserDataResponse{
+		Tags:     pbTags,
+		Periods:  pbPeriods,
+		Defaults: pbDefaults,
+	}, nil
+}
