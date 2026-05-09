@@ -34,3 +34,25 @@ groups:
           severity: warning
         annotations:
           summary: "> 10 failed logins in 1 minute"
+
+  - name: datarights
+    rules:
+      - alert: ExportJobFailureRate
+        expr: |
+          rate(export_jobs_completed_total{status="failed"}[1h])
+          / rate(export_jobs_completed_total[1h]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High export job failure rate"
+          description: "More than 50% of export jobs failed in the last hour."
+
+      - alert: ExportJobStuck
+        expr: export_pool_active_jobs > 0 and changes(export_jobs_completed_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Export job appears stuck"
+          description: "Active jobs exist but no completions in 10 minutes."
