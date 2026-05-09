@@ -36,7 +36,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 }
 
 // CreateExport handles POST /api/datarights/exports.
-// Creates a new export job and returns 202 Accepted with the job resource.
+// Returns 202 for new jobs, 200 for deduplicated in-progress jobs, or 429 for rate limited.
 func (h *RESTHandler) CreateExport(c *gin.Context) {
 	userID := c.GetHeader("X-User-ID")
 	if userID == "" {
@@ -47,13 +47,26 @@ func (h *RESTHandler) CreateExport(c *gin.Context) {
 		return
 	}
 
-	job, err := h.exportService.CreateJob(c.Request.Context(), userID)
+	result, err := h.exportService.CreateJob(c.Request.Context(), userID)
 	if err != nil {
+		if rateLimitErr, ok := err.(*service.RateLimitError); ok {
+			c.JSON(http.StatusTooManyRequests, model.RateLimitedResponse{
+				Code:       model.ErrRateLimited,
+				Message:    "Export limit reached. You can request another export after " + rateLimitErr.RetryAfter.Format("2006-01-02") + ".",
+				RetryAfter: rateLimitErr.RetryAfter,
+			})
+			return
+		}
 		h.handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusAccepted, model.JobResponse{Job: job})
+	if result.IsExisting {
+		c.JSON(http.StatusOK, model.JobResponse{Job: result.Job})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, model.JobResponse{Job: result.Job})
 }
 
 // ListExports handles GET /api/datarights/exports.

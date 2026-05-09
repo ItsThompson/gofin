@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
+	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 )
+
+// RateLimitWindow is the minimum duration between successful exports for a user.
+const RateLimitWindow = 30 * 24 * time.Hour
 
 // ServiceError is a typed error that carries an HTTP status code and error code.
 type ServiceError struct {
@@ -20,23 +25,83 @@ func (e *ServiceError) Error() string {
 	return e.Message
 }
 
+// RateLimitError is returned when the user has exceeded the export rate limit.
+type RateLimitError struct {
+	RetryAfter time.Time
+}
+
+func (e *RateLimitError) Error() string {
+	return fmt.Sprintf("rate limited until %s", e.RetryAfter.Format(time.RFC3339))
+}
+
+// CreateJobResult wraps the result of CreateJob, indicating whether
+// an existing in-progress job was returned (dedup) or a new one was created.
+type CreateJobResult struct {
+	Job        *model.ExportJob
+	IsExisting bool
+}
+
 // ExportService handles export job lifecycle.
 type ExportService struct {
 	repo   repository.JobRepository
+	engine *engine.Engine
 	logger *slog.Logger
 }
 
 // NewExportService creates a new ExportService.
-func NewExportService(repo repository.JobRepository, logger *slog.Logger) *ExportService {
-	return &ExportService{
+// The engine parameter may be nil (e.g., in tests that don't need engine submission).
+func NewExportService(repo repository.JobRepository, logger *slog.Logger, opts ...ExportServiceOption) *ExportService {
+	svc := &ExportService{
 		repo:   repo,
 		logger: logger,
+	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
+}
+
+// ExportServiceOption configures optional ExportService dependencies.
+type ExportServiceOption func(*ExportService)
+
+// WithEngine attaches an export engine to the service.
+func WithEngine(eng *engine.Engine) ExportServiceOption {
+	return func(s *ExportService) {
+		s.engine = eng
 	}
 }
 
 // CreateJob creates a new pending export job for the user.
-// In this walking skeleton, no engine submission occurs: the job stays in pending state.
-func (s *ExportService) CreateJob(ctx context.Context, userID string) (*model.ExportJob, error) {
+// Returns an existing in-progress job if one exists (dedup).
+// Returns a RateLimitError if the user exported within the rate limit window.
+// Submits the new job to the engine for async processing.
+func (s *ExportService) CreateJob(ctx context.Context, userID string) (*CreateJobResult, error) {
+	// Dedup: check for an existing in-progress job
+	existing, err := s.repo.GetInProgressJob(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("checking in-progress job: %w", err)
+	}
+	if existing != nil {
+		s.logger.Info("returning existing in-progress job",
+			slog.String("job_id", existing.ID),
+			slog.String("user_id", userID),
+		)
+		return &CreateJobResult{Job: existing, IsExisting: true}, nil
+	}
+
+	// Rate limit: check for a recent non-failed job within the window
+	latest, err := s.repo.GetLatestNonFailedJob(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("checking rate limit: %w", err)
+	}
+	if latest != nil {
+		retryAfter := latest.CreatedAt.Add(RateLimitWindow)
+		if time.Now().UTC().Before(retryAfter) {
+			return nil, &RateLimitError{RetryAfter: retryAfter}
+		}
+	}
+
+	// Create the new job
 	s.logger.Info("creating export job",
 		slog.String("user_id", userID),
 	)
@@ -56,7 +121,12 @@ func (s *ExportService) CreateJob(ctx context.Context, userID string) (*model.Ex
 		slog.String("status", job.Status),
 	)
 
-	return job, nil
+	// Submit to engine for async processing
+	if s.engine != nil {
+		s.engine.Submit(job.ID, userID, "")
+	}
+
+	return &CreateJobResult{Job: job, IsExisting: false}, nil
 }
 
 // GetJob retrieves a job by ID, scoped to the given user.
