@@ -56,6 +56,7 @@ services:
       - AUTH_SERVICE_REST=http://auth-service:8081
       - EXPENSE_SERVICE_REST=http://expense-service:8082
       - FINANCE_SERVICE_REST=http://finance-service:8083
+      - DATARIGHTS_SERVICE_REST=http://datarights-service:8084
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
@@ -67,6 +68,7 @@ services:
       - auth-service
       - expense-service
       - finance-service
+      - datarights-service
     deploy:
       resources:
         limits:
@@ -163,6 +165,32 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  datarights-service:
+    image: ghcr.io/itsthompson/gofin/datarights-service:latest
+    build:
+      context: ./services
+      dockerfile: datarights/Dockerfile
+    ports:
+      - "8084:8084"
+      - "9084:9084"
+    environment:
+      - DATARIGHTS_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=datarights
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    networks:
+      - compute-net
+      - data-net
+      - monitoring-net
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+    restart: unless-stopped
+
   # ---------------------------------------------------------------------------
   # Node 3: Data (PostgreSQL + immudb)
   # ---------------------------------------------------------------------------
@@ -183,6 +211,7 @@ services:
       - ./services/finance/db/migrations/000002_create_default_settings.up.sql:/docker-entrypoint-initdb.d/05-finance-002.sql:ro
       - ./services/finance/db/migrations/000003_create_tags.up.sql:/docker-entrypoint-initdb.d/06-finance-003.sql:ro
       - ./services/finance/db/migrations/000004_create_pro_rata_schedules.up.sql:/docker-entrypoint-initdb.d/07-finance-004.sql:ro
+      - ./services/datarights/db/migrations/000001_create_export_jobs.up.sql:/docker-entrypoint-initdb.d/08-datarights-001.sql:ro
     networks:
       - data-net
     healthcheck:
