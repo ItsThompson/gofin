@@ -21,3 +21,9 @@ type ExportJob struct {
 	CompletedAt   *time.Time `json:"completedAt"`
 	UpdatedAt     time.Time  `json:"-"`
 }
+
+// RecoverableJob holds the minimal fields needed to re-submit a job on startup.
+type RecoverableJob struct {
+	ID     string
+	UserID string
+}
