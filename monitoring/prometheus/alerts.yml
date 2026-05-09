@@ -39,8 +39,8 @@ groups:
     rules:
       - alert: ExportJobFailureRate
         expr: |
-          rate(export_jobs_completed_total{status="failed"}[1h])
-          / rate(export_jobs_completed_total[1h]) > 0.5
+          sum(rate(export_jobs_completed_total{status="failed"}[1h]))
+          / sum(rate(export_jobs_completed_total[1h])) > 0.5
         for: 5m
         labels:
           severity: warning

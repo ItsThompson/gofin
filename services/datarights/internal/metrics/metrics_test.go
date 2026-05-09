@@ -11,8 +11,11 @@ import (
 )
 
 func TestAllMetricsRegistered(t *testing.T) {
-	// Verify all 9 metrics are registered in the default Prometheus registry
-	// by collecting metric families and checking their names.
+	// Initialize Vec metrics so they appear in Gather output.
+	// Vec types are only visible after at least one label set is used.
+	ExportJobsCompletedTotal.WithLabelValues("completed")
+	ExportDataCollectionDurationSeconds.WithLabelValues("_init")
+
 	families, err := prometheus.DefaultGatherer.Gather()
 	require.NoError(t, err)
 
