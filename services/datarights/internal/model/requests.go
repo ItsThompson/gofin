@@ -37,10 +37,14 @@ type ApiError struct {
 // Common error codes.
 const (
 	ErrUnauthorized        = "UNAUTHORIZED"
+	ErrInvalidCredentials  = "INVALID_CREDENTIALS"
 	ErrNotFound            = "NOT_FOUND"
 	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
 	ErrRateLimited         = "RATE_LIMITED"
 	ErrValidationError     = "VALIDATION_ERROR"
+	ErrProtectedUser       = "PROTECTED_USER"
+	ErrExportConflict      = "EXPORT_CONFLICT"
+	ErrServiceUnavailable  = "SERVICE_UNAVAILABLE"
 )
 
 // CreateDeletionRequest is the parsed request body for creating a deletion job.
