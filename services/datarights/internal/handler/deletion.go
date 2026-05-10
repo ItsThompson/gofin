@@ -34,7 +34,7 @@ func (h *DeletionHandler) RegisterRoutes(r *gin.Engine) {
 }
 
 // CreateDeletion handles POST /api/datarights/deletions.
-// Creates a new deletion job and returns 202 Accepted.
+// Returns 202 Accepted for a new job, or 200 OK for an existing in-progress job.
 func (h *DeletionHandler) CreateDeletion(c *gin.Context) {
 	adminUserID := c.GetHeader("X-User-ID")
 	if adminUserID == "" {
@@ -54,26 +54,32 @@ func (h *DeletionHandler) CreateDeletion(c *gin.Context) {
 		return
 	}
 
-	job, err := h.deletionService.CreateJob(c.Request.Context(), req.UserID, adminUserID)
+	result, err := h.deletionService.CreateJob(c.Request.Context(), req.UserID, adminUserID, req.Password)
 	if err != nil {
 		h.handleError(c, err)
 		return
 	}
 
-	h.logger.Info("deletion job created via API",
-		slog.String("job_id", job.ID),
-		slog.String("user_id", job.UserID),
-		slog.String("admin_user_id", adminUserID),
-	)
-
-	c.JSON(http.StatusAccepted, model.DeletionJobResponse{
+	job := result.Job
+	resp := model.DeletionJobResponse{
 		ID:          job.ID,
 		UserID:      job.UserID,
 		Status:      job.Status,
 		Error:       job.Error,
 		CreatedAt:   job.CreatedAt,
 		CompletedAt: job.CompletedAt,
-	})
+	}
+
+	if result.IsExisting {
+		c.JSON(http.StatusOK, resp)
+	} else {
+		h.logger.Info("deletion job created via API",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+			slog.String("admin_user_id", adminUserID),
+		)
+		c.JSON(http.StatusAccepted, resp)
+	}
 }
 
 // GetDeletion handles GET /api/datarights/deletions/:id.
