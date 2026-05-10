@@ -72,8 +72,9 @@ func RequireAdmin(logger *slog.Logger) gin.HandlerFunc {
 }
 
 // AdminRouteGuard returns Gin middleware that enforces admin role on specific
-// routes that live outside the /api/admin/* prefix (e.g., POST /api/auth/assume).
-// It checks the request method+path against the adminOnlyRoutes list.
+// routes that live outside the /api/admin/* prefix. It checks the request
+// against both the exact adminOnlyRoutes list (e.g., POST /api/auth/assume)
+// and the adminOnlyPrefixes list (e.g., /api/datarights/deletions*).
 func AdminRouteGuard(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if isAdminOnlyRoute(c.Request.Method, c.Request.URL.Path) {
