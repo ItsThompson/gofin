@@ -71,6 +71,13 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       setJobs(response.data);
       setError(null);
 
+      // Start polling immediately if active jobs are detected.
+      // Setting this in the same batch as setJobs avoids an extra render
+      // cycle that would delay interval creation.
+      if (hasActiveJobs(response.data)) {
+        setPolling(true);
+      }
+
       const computed = computeNextExportDate(response.data);
       setNextExportDate((prev) => prev ?? computed);
     } catch (err) {
@@ -164,13 +171,6 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       mountedRef.current = false;
     };
   }, [fetchJobs]);
-
-  // Start polling when active jobs exist (e.g., on initial load)
-  useEffect(() => {
-    if (hasActiveJobs(jobs)) {
-      setPolling(true);
-    }
-  }, [jobs]);
 
   const canExport = computeCanExport(jobs, nextExportDate);
 
