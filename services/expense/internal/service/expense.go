@@ -317,6 +317,40 @@ func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, gro
 	return expenses, nil
 }
 
+// GetAllUserExpenses returns all expenses (active + corrected) for a user,
+// with pagination. Used by the datarights service for GDPR data export.
+func (s *ExpenseService) GetAllUserExpenses(ctx context.Context, userID string, page, pageSize int32) (*model.ExpenseListResponse, error) {
+	if userID == "" {
+		return nil, &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "user_id is required",
+			Status:  400,
+		}
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 50
+	}
+
+	expenses, total, err := s.repo.GetAllExpensesByUser(ctx, userID, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("getting all user expenses: %w", err)
+	}
+
+	hasMore := int64(page)*int64(pageSize) < total
+
+	return &model.ExpenseListResponse{
+		Data:     expenses,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+		HasMore:  hasMore,
+	}, nil
+}
+
 // validateCorrectExpenseRequest checks all required fields for a correction.
 func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *ServiceError {
 	fields := make(map[string]string)

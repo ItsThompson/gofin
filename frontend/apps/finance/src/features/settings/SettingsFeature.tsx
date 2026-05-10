@@ -12,6 +12,7 @@ import { DefaultBudgetSection } from "./components/DefaultBudgetSection";
 import { ProfileSection } from "./components/ProfileSection";
 import { PasswordSection } from "./components/PasswordSection";
 import { TagsSection } from "./components/TagsSection";
+import { ExportDataSection } from "./components/ExportDataSection";
 
 type SettingsTab = "budget" | "profile" | "password" | "tags";
 
@@ -42,7 +43,13 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
         case "budget":
           return <DefaultBudgetSection user={user} />;
         case "profile":
-          return <ProfileSection user={user} onUserUpdated={onUserUpdated} />;
+          return (
+            <>
+              <ProfileSection user={user} onUserUpdated={onUserUpdated} />
+              <hr className="my-6 border-border" />
+              <ExportDataSection />
+            </>
+          );
         case "password":
           return <PasswordSection onUserUpdated={onUserUpdated} />;
         case "tags":

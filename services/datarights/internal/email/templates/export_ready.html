@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0; padding:0; background-color:{{.Colors.Muted}}; font-family:{{.Typography.FontFamily}};">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:{{.Spacing.Xl}} 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:{{.Colors.Background}}; border:1px solid {{.Colors.Border}}; border-radius:8px;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:{{.Spacing.Lg}}; border-bottom:1px solid {{.Colors.Border}};">
+              <h1 style="margin:0; font-size:{{.Typography.FontSize.xl}}; color:{{.Colors.Foreground}};">
+                gofin
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:{{.Spacing.Lg}};">
+              <h2 style="margin:0 0 {{.Spacing.Md}}; font-size:{{.Typography.FontSize.lg}}; color:{{.Colors.Foreground}};">
+                Your data export is ready
+              </h2>
+              <p style="margin:0 0 {{.Spacing.Md}}; font-size:{{.Typography.FontSize.base}}; color:{{.Colors.MutedForeground}};">
+                Your personal data export has been attached to this email as a ZIP file.
+                The archive contains CSV files with all your gofin data.
+              </p>
+              <p style="margin:0 0 {{.Spacing.Md}}; font-size:{{.Typography.FontSize.sm}}; color:{{.Colors.MutedForeground}};">
+                <strong>Export date:</strong> {{.ExportDate}}<br>
+                <strong>File:</strong> {{.FileName}}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:{{.Spacing.Md}} {{.Spacing.Lg}}; border-top:1px solid {{.Colors.Border}};">
+              <p style="margin:0; font-size:{{.Typography.FontSize.sm}}; color:{{.Colors.MutedForeground}};">
+                This email was sent because a data export was requested from your gofin account.
+                If you did not request this, please change your password immediately.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

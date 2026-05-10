@@ -22,6 +22,7 @@ const (
 	FinanceService_GetDefaults_FullMethodName             = "/finance.FinanceService/GetDefaults"
 	FinanceService_UpdateDefaults_FullMethodName          = "/finance.FinanceService/UpdateDefaults"
 	FinanceService_CompleteOnboarding_FullMethodName      = "/finance.FinanceService/CompleteOnboarding"
+	FinanceService_GetAllUserData_FullMethodName          = "/finance.FinanceService/GetAllUserData"
 	FinanceService_GetCurrentPeriod_FullMethodName        = "/finance.FinanceService/GetCurrentPeriod"
 	FinanceService_CreatePeriod_FullMethodName            = "/finance.FinanceService/CreatePeriod"
 	FinanceService_UpdatePeriod_FullMethodName            = "/finance.FinanceService/UpdatePeriod"
@@ -47,6 +48,8 @@ type FinanceServiceClient interface {
 	GetDefaults(ctx context.Context, in *GetDefaultsRequest, opts ...grpc.CallOption) (*DefaultsResponse, error)
 	UpdateDefaults(ctx context.Context, in *UpdateDefaultsRequest, opts ...grpc.CallOption) (*DefaultsResponse, error)
 	CompleteOnboarding(ctx context.Context, in *CompleteOnboardingRequest, opts ...grpc.CallOption) (*DefaultsResponse, error)
+	// Data export (datarights support)
+	GetAllUserData(ctx context.Context, in *GetAllUserDataRequest, opts ...grpc.CallOption) (*AllUserDataResponse, error)
 	// Budget period operations (stubs for later tickets)
 	GetCurrentPeriod(ctx context.Context, in *GetCurrentPeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
 	CreatePeriod(ctx context.Context, in *CreatePeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
@@ -100,6 +103,16 @@ func (c *financeServiceClient) CompleteOnboarding(ctx context.Context, in *Compl
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DefaultsResponse)
 	err := c.cc.Invoke(ctx, FinanceService_CompleteOnboarding_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *financeServiceClient) GetAllUserData(ctx context.Context, in *GetAllUserDataRequest, opts ...grpc.CallOption) (*AllUserDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AllUserDataResponse)
+	err := c.cc.Invoke(ctx, FinanceService_GetAllUserData_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +277,8 @@ type FinanceServiceServer interface {
 	GetDefaults(context.Context, *GetDefaultsRequest) (*DefaultsResponse, error)
 	UpdateDefaults(context.Context, *UpdateDefaultsRequest) (*DefaultsResponse, error)
 	CompleteOnboarding(context.Context, *CompleteOnboardingRequest) (*DefaultsResponse, error)
+	// Data export (datarights support)
+	GetAllUserData(context.Context, *GetAllUserDataRequest) (*AllUserDataResponse, error)
 	// Budget period operations (stubs for later tickets)
 	GetCurrentPeriod(context.Context, *GetCurrentPeriodRequest) (*PeriodResponse, error)
 	CreatePeriod(context.Context, *CreatePeriodRequest) (*PeriodResponse, error)
@@ -301,6 +316,9 @@ func (UnimplementedFinanceServiceServer) UpdateDefaults(context.Context, *Update
 }
 func (UnimplementedFinanceServiceServer) CompleteOnboarding(context.Context, *CompleteOnboardingRequest) (*DefaultsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteOnboarding not implemented")
+}
+func (UnimplementedFinanceServiceServer) GetAllUserData(context.Context, *GetAllUserDataRequest) (*AllUserDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAllUserData not implemented")
 }
 func (UnimplementedFinanceServiceServer) GetCurrentPeriod(context.Context, *GetCurrentPeriodRequest) (*PeriodResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCurrentPeriod not implemented")
@@ -418,6 +436,24 @@ func _FinanceService_CompleteOnboarding_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(FinanceServiceServer).CompleteOnboarding(ctx, req.(*CompleteOnboardingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FinanceService_GetAllUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAllUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FinanceServiceServer).GetAllUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FinanceService_GetAllUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FinanceServiceServer).GetAllUserData(ctx, req.(*GetAllUserDataRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -710,6 +746,10 @@ var FinanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteOnboarding",
 			Handler:    _FinanceService_CompleteOnboarding_Handler,
+		},
+		{
+			MethodName: "GetAllUserData",
+			Handler:    _FinanceService_GetAllUserData_Handler,
 		},
 		{
 			MethodName: "GetCurrentPeriod",

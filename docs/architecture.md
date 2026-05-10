@@ -20,6 +20,7 @@ graph LR
         AS[Auth Service]
         ES[Expense Service]
         FS[Finance Service]
+        DR[Datarights Service]
     end
 
     subgraph Node3[Node 3: Data]
@@ -43,16 +44,22 @@ graph LR
     GW <-->|compute-net| AS
     GW <-->|compute-net| ES
     GW <-->|compute-net| FS
+    GW <-->|compute-net| DR
     FS -->|gRPC| ES
+    DR -->|gRPC| AS
+    DR -->|gRPC| ES
+    DR -->|gRPC| FS
 
     AS -->|data-net| PG
     FS -->|data-net| PG
+    DR -->|data-net| PG
     ES -->|data-net| IM
 
     PR -->|monitoring-net| GW
     PR -->|monitoring-net| AS
     PR -->|monitoring-net| ES
     PR -->|monitoring-net| FS
+    PR -->|monitoring-net| DR
     PR --> AL
     GR --> PR
     CF2 --> AP --> GR
@@ -113,9 +120,24 @@ The business logic hub, orchestrating budgets, tags, and dashboard data:
 - Tag CRUD with lazy-seeded defaults
 - Dashboard aggregation: period summary, pacing, category breakdowns, cumulative spend, historical comparison
 
+### Datarights Service (Node 2)
+
+Owns GDPR data export and user data portability (Article 20 compliance):
+
+- Async export job lifecycle (pending → running → completed/failed)
+- Data collection from upstream services via gRPC (Auth, Expense, Finance)
+- CSV generation per data category with a provider-based extension model
+- ZIP assembly and email delivery via Resend
+- 30-day rate limiting between successful exports
+- In-progress job deduplication (idempotent POST)
+- Startup recovery: re-submits non-terminal jobs found in the database
+- Bounded concurrency pool with configurable max concurrent exports
+
+The service coordinates data collection from all other compute services but owns no user data itself: it only stores job metadata (status, timestamps, file size) in its own PostgreSQL schema.
+
 ### Databases (Node 3)
 
-- **PostgreSQL**: single instance with two schemas (`auth`, `finance`), each accessed by its owning service via separate credentials. Logical isolation with the option to split later.
+- **PostgreSQL**: single instance with three schemas (`auth`, `finance`, `datarights`), each accessed by its owning service via separate credentials. Logical isolation with the option to split later.
 - **immudb**: append-only storage for expense ledger entries. SQL interface for queries, native Go client for writes.
 
 ### Observability Stack (Node 4)
@@ -132,7 +154,7 @@ Four Docker bridge networks enforce traffic boundaries:
 | Network | Connects | Traffic |
 |---------|----------|---------|
 | `edge-net` | MFE, cloudflared-app, API Gateway | Public-facing traffic only |
-| `compute-net` | API Gateway, all microservices | Internal service communication |
+| `compute-net` | API Gateway, all microservices (Auth, Expense, Finance, Datarights) | Internal service communication |
 | `data-net` | Microservices, PostgreSQL, immudb | Database access only |
 | `monitoring-net` | Prometheus, Grafana, Alertmanager, auth proxy, all microservices (for /metrics) | Observability plane |
 
@@ -218,4 +240,39 @@ sequenceDiagram
         E-->>F: expense
         F->>P: UPDATE schedule status=applied
     end
+```
+
+## Data Flow: Data Export
+
+When a user requests a data export, the datarights service collects data from all upstream services asynchronously and delivers the result via email:
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant G as API Gateway
+    participant DR as Datarights Service
+    participant P as PostgreSQL
+    participant A as Auth Service
+    participant E as Expense Service
+    participant F as Finance Service
+    participant R as Resend (Email)
+
+    B->>G: POST /api/datarights/exports
+    G->>DR: route to Datarights
+    DR->>P: INSERT export_job (status=pending)
+    DR-->>G: 202 Accepted (job metadata)
+    G-->>B: job response
+
+    Note over DR: Async goroutine starts
+    DR->>P: UPDATE status=running
+    DR->>A: gRPC: GetUser (profile + email)
+    A-->>DR: user profile
+    DR->>E: gRPC: GetAllUserExpenses (paginated)
+    E-->>DR: expense data
+    DR->>F: gRPC: GetAllUserData (tags, periods, defaults)
+    F-->>DR: finance data
+    DR->>DR: Generate CSVs + ZIP
+    DR->>R: Send email with ZIP attachment
+    R-->>DR: delivery confirmed
+    DR->>P: UPDATE status=completed
 ```

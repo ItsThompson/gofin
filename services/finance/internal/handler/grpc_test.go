@@ -1,0 +1,127 @@
+package handler
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/finance/internal/service"
+	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
+)
+
+func setupGRPCHandler(repo *mockFinanceRepository) *GRPCHandler {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, new(mockTxBeginner), logger)
+	return NewGRPCHandler(financeSvc, logger)
+}
+
+func TestGetAllUserData_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	createdAt := time.Date(2026, 3, 15, 10, 30, 0, 0, time.UTC)
+	tags := []*model.Tag{
+		{ID: "tag-1", UserID: "user-1", Name: "Bills", IsDefault: true, CreatedAt: createdAt},
+		{ID: "tag-2", UserID: "user-1", Name: "Food", IsDefault: true, CreatedAt: createdAt},
+	}
+	periods := []*model.BudgetPeriod{
+		{
+			ID: "period-1", UserID: "user-1", Year: 2026, Month: 3,
+			BudgetAmount: 500000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+			CreatedAt: createdAt,
+		},
+	}
+	defaults := &model.DefaultSettings{
+		UserID:            "user-1",
+		BudgetAmount:      500000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		Currency:          "GBP",
+		CreatedAt:         createdAt,
+		UpdatedAt:         createdAt,
+	}
+
+	repo.On("ListTags", mock.Anything, "user-1").Return(tags, nil)
+	repo.On("ListPeriods", mock.Anything, "user-1").Return(periods, nil)
+	repo.On("GetDefaults", mock.Anything, "user-1").Return(defaults, nil)
+
+	resp, err := handler.GetAllUserData(context.Background(), &pb.GetAllUserDataRequest{UserId: "user-1"})
+	require.NoError(t, err)
+
+	// Tags
+	require.Len(t, resp.Tags, 2)
+	assert.Equal(t, "tag-1", resp.Tags[0].Id)
+	assert.Equal(t, "Bills", resp.Tags[0].Name)
+	assert.True(t, resp.Tags[0].IsDefault)
+	assert.Equal(t, "2026-03-15T10:30:00Z", resp.Tags[0].CreatedAt)
+
+	// Periods
+	require.Len(t, resp.Periods, 1)
+	assert.Equal(t, "period-1", resp.Periods[0].Id)
+	assert.Equal(t, int32(2026), resp.Periods[0].Year)
+	assert.Equal(t, int32(3), resp.Periods[0].Month)
+	assert.Equal(t, int64(500000), resp.Periods[0].BudgetAmount)
+	assert.Equal(t, "2026-03-15T10:30:00Z", resp.Periods[0].CreatedAt)
+
+	// Defaults
+	require.NotNil(t, resp.Defaults)
+	assert.Equal(t, "user-1", resp.Defaults.UserId)
+	assert.Equal(t, int64(500000), resp.Defaults.BudgetAmount)
+	assert.Equal(t, "GBP", resp.Defaults.Currency)
+}
+
+func TestGetAllUserData_EmptyUser(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	repo.On("ListTags", mock.Anything, "user-empty").Return([]*model.Tag{}, nil)
+	repo.On("ListPeriods", mock.Anything, "user-empty").Return([]*model.BudgetPeriod{}, nil)
+	repo.On("GetDefaults", mock.Anything, "user-empty").Return((*model.DefaultSettings)(nil), nil)
+
+	resp, err := handler.GetAllUserData(context.Background(), &pb.GetAllUserDataRequest{UserId: "user-empty"})
+	require.NoError(t, err)
+
+	assert.Empty(t, resp.Tags)
+	assert.Empty(t, resp.Periods)
+	assert.Nil(t, resp.Defaults)
+}
+
+func TestGetAllUserData_MissingUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	resp, err := handler.GetAllUserData(context.Background(), &pb.GetAllUserDataRequest{UserId: ""})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "user_id is required")
+}
+
+func TestGetAllUserData_InternalError(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	repo.On("ListTags", mock.Anything, "user-1").Return(nil, fmt.Errorf("connection refused"))
+
+	resp, err := handler.GetAllUserData(context.Background(), &pb.GetAllUserDataRequest{UserId: "user-1"})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+}

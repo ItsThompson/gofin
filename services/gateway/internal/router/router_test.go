@@ -77,14 +77,22 @@ func setupGateway(t *testing.T, validator middleware.TokenValidator) func(method
 	}))
 	t.Cleanup(financeServer.Close)
 
+	datarightsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Downstream", "datarights")
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(datarightsServer.Close)
+
 	authURL, _ := url.Parse(authServer.URL)
 	expenseURL, _ := url.Parse(expenseServer.URL)
 	financeURL, _ := url.Parse(financeServer.URL)
+	datarightsURL, _ := url.Parse(datarightsServer.URL)
 
 	engine := router.New(validator, &router.ServiceURLs{
-		AuthREST:    authURL,
-		ExpenseREST: expenseURL,
-		FinanceREST: financeURL,
+		AuthREST:       authURL,
+		ExpenseREST:    expenseURL,
+		FinanceREST:    financeURL,
+		DatarightsREST: datarightsURL,
 	}, newSilentLogger(), false)
 
 	// Use a real HTTP test server so the response writer supports CloseNotifier
@@ -177,6 +185,27 @@ func TestRouter_FinanceRoutes_RouteToFinanceService(t *testing.T) {
 			resp, _ := doRequest(tt.method, tt.path, validCookie())
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.Equal(t, "finance", resp.Header.Get("X-Downstream"))
+		})
+	}
+}
+
+func TestRouter_DatarightsRoutes_RouteToDatarightsService(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/datarights/exports"},
+		{http.MethodGet, "/api/datarights/exports"},
+		{http.MethodGet, "/api/datarights/exports/job-123"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, _ := doRequest(tt.method, tt.path, validCookie())
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "datarights", resp.Header.Get("X-Downstream"))
 		})
 	}
 }

@@ -154,7 +154,8 @@ Key variable groups:
 - **Auth Service**: PostgreSQL connection, bcrypt cost, admin seed credentials
 - **Finance Service**: PostgreSQL connection, expense service gRPC address
 - **Expense Service**: immudb connection credentials
-- **API Gateway**: service addresses (gRPC and REST) for auth, expense, and finance
+- **Datarights Service**: PostgreSQL connection, Resend API key, email sender config
+- **API Gateway**: service addresses (gRPC and REST) for auth, expense, finance, and datarights
 - **MFE (Shell)**: API gateway URL, cookie security flag
 - **Grafana Auth Proxy**: JWT secret, Grafana URL
 
@@ -171,3 +172,37 @@ just seed-admin
 This runs the auth service's `seed-admin` CLI subcommand, which reads `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from environment variables. The command is idempotent: if an admin already exists, it exits successfully.
 
 The admin then logs in through the normal UI and completes onboarding like any other user.
+
+## Datarights Service
+
+The datarights service runs on port **8084** (REST) and **9084** (gRPC, reserved). It handles GDPR data export: collecting user data from upstream services, assembling CSVs into a ZIP, and emailing the result.
+
+### Local Development
+
+```bash
+just dev-service datarights
+```
+
+By default, `EMAIL_ENABLED=false` in `.env.example`. In this mode, the service logs email content to stdout instead of sending via Resend:
+
+```
+{"level":"INFO","msg":"email delivery disabled: logging email content","to":"user@example.com","zip_size_bytes":24576}
+```
+
+To test real email delivery locally, set `EMAIL_ENABLED=true` and provide a valid `RESEND_API_KEY` in your `.env`.
+
+### Brand Tokens
+
+The service reads `tokens/brand.json` for email template styling (colors, logo URL). In Docker, this is volume-mounted from the repo root `tokens/` directory. When running locally via `just dev-service datarights`, set `BRAND_TOKENS_PATH=./tokens/brand.json` (relative to repo root).
+
+### Key Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|-------|
+| `DATARIGHTS_DB_URL` | (required) | PostgreSQL connection with `search_path=datarights` |
+| `EMAIL_ENABLED` | `false` | When false, emails log to stdout |
+| `RESEND_API_KEY` | (empty) | Required when `EMAIL_ENABLED=true` |
+| `EMAIL_FROM` | `gofin <noreply@usegofin.com>` | Sender address |
+| `BRAND_TOKENS_PATH` | `/app/tokens/brand.json` | Path to brand token JSON file |
+| `EXPORT_MAX_CONCURRENT` | `5` | Max parallel export goroutines |
+| `EXPORT_TIMEOUT_SECONDS` | `300` | Per-job timeout (5 minutes) |

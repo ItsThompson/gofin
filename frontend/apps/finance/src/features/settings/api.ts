@@ -5,6 +5,7 @@ import type {
   TagListResponse,
   TagResponse,
 } from "../../types";
+import type { ExportJobResponse, ExportListResponse } from "./types";
 
 /** Request body for PUT /api/auth/me. */
 export interface UpdateProfileRequest {
@@ -66,4 +67,18 @@ export const settingsApi = {
 
   deleteTag: (tagId: string) =>
     apiClient(`/api/finance/tags/${tagId}`, { method: "DELETE" }),
+
+  // Datarights
+  createExport: () =>
+    apiClient<ExportJobResponse>("/api/datarights/exports", {
+      method: "POST",
+    }),
+
+  listExports: (page = 1, pageSize = 10) =>
+    apiClient<ExportListResponse>(
+      `/api/datarights/exports?page=${page}&pageSize=${pageSize}`,
+    ),
+
+  getExport: (id: string) =>
+    apiClient<ExportJobResponse>(`/api/datarights/exports/${id}`),
 };

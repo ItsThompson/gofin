@@ -72,6 +72,14 @@ func (m *mockExpenseRepository) GetProRataGroup(ctx context.Context, groupID str
 	return args.Get(0).([]*model.Expense), args.Error(1)
 }
 
+func (m *mockExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error) {
+	args := m.Called(ctx, userID, page, pageSize)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
+}
+
 func newTestService(repo *mockExpenseRepository) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	return NewExpenseService(repo, logger)
@@ -672,4 +680,133 @@ func TestGetProRataGroup_EmptyGroupID(t *testing.T) {
 	svcErr, ok := err.(*ServiceError)
 	require.True(t, ok)
 	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+}
+
+// --- GetAllUserExpenses tests ---
+
+func TestGetAllUserExpenses_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	expenses := []*model.Expense{
+		{ID: "exp-1", UserID: "user-1", Name: "Groceries", Amount: 5000, Status: "active", CreatedAt: "2026-01-01T10:00:00Z"},
+		{ID: "exp-2", UserID: "user-1", Name: "Coffee", Amount: 500, Status: "corrected", CreatedAt: "2026-01-02T10:00:00Z"},
+		{ID: "exp-3", UserID: "user-1", Name: "Coffee (corrected)", Amount: 600, Status: "active", CorrectsID: "exp-2", CreatedAt: "2026-01-02T11:00:00Z"},
+	}
+
+	repo.On("GetAllExpensesByUser", mock.Anything, "user-1", int32(1), int32(50)).
+		Return(expenses, int64(3), nil)
+
+	result, err := svc.GetAllUserExpenses(context.Background(), "user-1", 1, 50)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), result.Total)
+	assert.Len(t, result.Data, 3)
+	assert.Equal(t, int32(1), result.Page)
+	assert.Equal(t, int32(50), result.PageSize)
+	assert.False(t, result.HasMore)
+	// Verify both active and corrected statuses are included
+	assert.Equal(t, "active", result.Data[0].Status)
+	assert.Equal(t, "corrected", result.Data[1].Status)
+	assert.Equal(t, "active", result.Data[2].Status)
+}
+
+func TestGetAllUserExpenses_Pagination(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	// Page 1 of 3 (page_size=2, total=5)
+	page1 := []*model.Expense{
+		{ID: "exp-1", UserID: "user-1", Status: "active"},
+		{ID: "exp-2", UserID: "user-1", Status: "corrected"},
+	}
+
+	repo.On("GetAllExpensesByUser", mock.Anything, "user-1", int32(1), int32(2)).
+		Return(page1, int64(5), nil)
+
+	result, err := svc.GetAllUserExpenses(context.Background(), "user-1", 1, 2)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), result.Total)
+	assert.Len(t, result.Data, 2)
+	assert.Equal(t, int32(1), result.Page)
+	assert.Equal(t, int32(2), result.PageSize)
+	assert.True(t, result.HasMore)
+}
+
+func TestGetAllUserExpenses_MultiPageTraversal(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	// Last page: page 3 with page_size=2, total=5
+	page3 := []*model.Expense{
+		{ID: "exp-5", UserID: "user-1", Status: "active"},
+	}
+
+	repo.On("GetAllExpensesByUser", mock.Anything, "user-1", int32(3), int32(2)).
+		Return(page3, int64(5), nil)
+
+	result, err := svc.GetAllUserExpenses(context.Background(), "user-1", 3, 2)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), result.Total)
+	assert.Len(t, result.Data, 1)
+	assert.Equal(t, int32(3), result.Page)
+	assert.False(t, result.HasMore) // 3*2=6 >= 5
+}
+
+func TestGetAllUserExpenses_EmptyResults(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("GetAllExpensesByUser", mock.Anything, "user-1", int32(1), int32(50)).
+		Return([]*model.Expense{}, int64(0), nil)
+
+	result, err := svc.GetAllUserExpenses(context.Background(), "user-1", 1, 50)
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), result.Total)
+	assert.Empty(t, result.Data)
+	assert.False(t, result.HasMore)
+}
+
+func TestGetAllUserExpenses_EmptyUserID(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	_, err := svc.GetAllUserExpenses(context.Background(), "", 1, 50)
+
+	require.Error(t, err)
+	svcErr, ok := err.(*ServiceError)
+	require.True(t, ok)
+	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+}
+
+func TestGetAllUserExpenses_DefaultsPagination(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("GetAllExpensesByUser", mock.Anything, "user-1", int32(1), int32(50)).
+		Return([]*model.Expense{}, int64(0), nil)
+
+	// page=0 and pageSize=0 should be defaulted to 1 and 50
+	result, err := svc.GetAllUserExpenses(context.Background(), "user-1", 0, 0)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), result.Page)
+	assert.Equal(t, int32(50), result.PageSize)
+}
+
+func TestGetAllUserExpenses_PageSizeCapped(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("GetAllExpensesByUser", mock.Anything, "user-1", int32(1), int32(50)).
+		Return([]*model.Expense{}, int64(0), nil)
+
+	// pageSize > 100 should be capped to 50
+	result, err := svc.GetAllUserExpenses(context.Background(), "user-1", 1, 200)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(50), result.PageSize)
 }

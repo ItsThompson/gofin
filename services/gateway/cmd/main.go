@@ -79,12 +79,17 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("parsing FINANCE_SERVICE_REST: %w", err)
 	}
+	datarightsURL, err := url.Parse(cfg.DatarightsServiceREST)
+	if err != nil {
+		return fmt.Errorf("parsing DATARIGHTS_SERVICE_REST: %w", err)
+	}
 
 	// Build the Gin router with all routes and middleware.
 	engine := router.New(validator, &router.ServiceURLs{
-		AuthREST:    authURL,
-		ExpenseREST: expenseURL,
-		FinanceREST: financeURL,
+		AuthREST:       authURL,
+		ExpenseREST:    expenseURL,
+		FinanceREST:    financeURL,
+		DatarightsREST: datarightsURL,
 	}, logger, cfg.IsProduction())
 
 	// Start the HTTP server.
@@ -99,6 +104,7 @@ func run() error {
 			slog.String("auth_rest", cfg.AuthServiceREST),
 			slog.String("expense_rest", cfg.ExpenseServiceREST),
 			slog.String("finance_rest", cfg.FinanceServiceREST),
+			slog.String("datarights_rest", cfg.DatarightsServiceREST),
 		)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("server failed", slog.String("error", err.Error()))

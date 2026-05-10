@@ -7,13 +7,14 @@ import (
 
 // Config holds all configuration for the API gateway, loaded from environment variables.
 type Config struct {
-	AuthServiceAddr    string // gRPC address for auth service (e.g., "auth-service:9081")
-	AuthServiceREST    string // REST base URL for auth service (e.g., "http://auth-service:8081")
-	ExpenseServiceREST string // REST base URL for expense service
-	FinanceServiceREST string // REST base URL for finance service
-	LogLevel           string
-	Environment        string
-	Port               string
+	AuthServiceAddr       string // gRPC address for auth service (e.g., "auth-service:9081")
+	AuthServiceREST       string // REST base URL for auth service (e.g., "http://auth-service:8081")
+	ExpenseServiceREST    string // REST base URL for expense service
+	FinanceServiceREST    string // REST base URL for finance service
+	DatarightsServiceREST string // REST base URL for datarights service
+	LogLevel              string
+	Environment           string
+	Port                  string
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -39,6 +40,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("FINANCE_SERVICE_REST is required")
 	}
 
+	datarightsREST := os.Getenv("DATARIGHTS_SERVICE_REST")
+	if datarightsREST == "" {
+		return nil, fmt.Errorf("DATARIGHTS_SERVICE_REST is required")
+	}
+
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
@@ -55,13 +61,14 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		AuthServiceAddr:    authAddr,
-		AuthServiceREST:    authREST,
-		ExpenseServiceREST: expenseREST,
-		FinanceServiceREST: financeREST,
-		LogLevel:           logLevel,
-		Environment:        environment,
-		Port:               port,
+		AuthServiceAddr:       authAddr,
+		AuthServiceREST:       authREST,
+		ExpenseServiceREST:    expenseREST,
+		FinanceServiceREST:    financeREST,
+		DatarightsServiceREST: datarightsREST,
+		LogLevel:              logLevel,
+		Environment:           environment,
+		Port:                  port,
 	}, nil
 }
 

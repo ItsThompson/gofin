@@ -10,6 +10,7 @@ Canonical sources for endpoint definitions:
 - Auth handlers: `services/auth/internal/handler/`
 - Expense handlers: `services/expense/internal/handler/`
 - Finance handlers: `services/finance/internal/handler/`
+- Datarights handlers: `services/datarights/internal/handler/`
 - gRPC definitions: `services/*/proto/*.proto`
 
 ## Gateway Routing
@@ -19,6 +20,7 @@ Canonical sources for endpoint definitions:
 | `/api/auth/*` | Auth Service | Varies (registration, login, and refresh are public) |
 | `/api/expenses/*` | Expense Service | Yes |
 | `/api/finance/*` | Finance Service | Yes |
+| `/api/datarights/*` | Datarights Service | Yes |
 | `/api/admin/*` | Auth Service | Yes (admin only) |
 
 ### Auth Middleware Behavior
@@ -50,6 +52,10 @@ List endpoints support pagination, sorting, and filtering via query parameters.
 ### Finance (`/api/finance/*`)
 
 Budget period lifecycle (get current, create, update, list history), default settings management, onboarding setup, tag CRUD, pro-rata expense creation and scheduling, and all dashboard aggregation endpoints (period summary, spending by tag, cumulative spend, historical comparison).
+
+### Datarights (`/api/datarights/*`)
+
+GDPR data export: creating async export jobs (POST returns 202, runs in background), listing export history with pagination, and retrieving individual job status. The POST endpoint is idempotent (returns existing in-progress job) and rate-limited to one successful export per 30 days (429 with `retryAfter` timestamp). Completed exports are delivered via email as a ZIP of CSV files.
 
 ## Response Contracts
 
@@ -94,5 +100,6 @@ All API errors follow a consistent shape:
 | 403 | Authorization failure | Non-admin accessing admin routes, correcting an expense outside the current period |
 | 404 | Resource not found | No budget period for the requested month |
 | 409 | Conflict | Duplicate email/username, expense already corrected, tag in use |
+| 429 | Rate limited | Data export requested within 30-day cooldown |
 
 Error codes are defined in each service's handler layer. See the handler source files for the complete set.

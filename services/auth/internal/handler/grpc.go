@@ -77,7 +77,33 @@ func (h *GRPCHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 }
 
 func (h *GRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetUser not yet implemented")
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	user, err := h.authService.GetUserByID(ctx, userID)
+	if err != nil {
+		if authErr, ok := err.(*service.AuthError); ok && authErr.Status == 401 {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
+		h.logger.Error("failed to get user",
+			slog.String("method", "GetUser"),
+			slog.String("user_id", userID),
+			slog.String("error", err.Error()),
+		)
+		return nil, status.Error(codes.Internal, "failed to retrieve user")
+	}
+
+	return &pb.UserResponse{
+		Id:                     user.ID,
+		Username:               user.Username,
+		Email:                  user.Email,
+		Role:                   user.Role,
+		Currency:               user.Currency,
+		HasCompletedOnboarding: user.HasCompletedOnboarding,
+		CreatedAt:              user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}, nil
 }
 
 func (h *GRPCHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UserResponse, error) {

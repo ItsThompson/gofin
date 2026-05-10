@@ -158,6 +158,26 @@ func (h *GRPCHandler) CountExpensesByTag(ctx context.Context, req *pb.CountExpen
 	}, nil
 }
 
+func (h *GRPCHandler) GetAllUserExpenses(ctx context.Context, req *pb.GetAllUserExpensesRequest) (*pb.ExpenseListResponse, error) {
+	result, err := h.expenseService.GetAllUserExpenses(ctx, req.GetUserId(), req.GetPage(), req.GetPageSize())
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	protoExpenses := make([]*pb.ExpenseData, len(result.Data))
+	for i, expense := range result.Data {
+		protoExpenses[i] = expenseToProto(expense)
+	}
+
+	return &pb.ExpenseListResponse{
+		Data:     protoExpenses,
+		Total:    result.Total,
+		Page:     result.Page,
+		PageSize: result.PageSize,
+		HasMore:  result.HasMore,
+	}, nil
+}
+
 // expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{

@@ -18,9 +18,25 @@ Each Go service exposes standard HTTP/gRPC metrics and service-specific counters
 - **gRPC request metrics**: total count, latency histograms (by method, status)
 - **Database query metrics**: latency histograms (by query name)
 - **Connection pool metrics**: active database connections
-- **Business metrics**: expense creation counts, correction counts, token refresh counts
+- **Business metrics**: expense creation counts, correction counts, token refresh counts, export job lifecycle
 
-Exact metric names and labels are defined in the `services/metrics/` package.
+Exact metric names and labels are defined in the `services/metrics/` package (shared) and `services/datarights/internal/metrics/` (datarights-specific).
+
+#### Datarights Service Metrics
+
+Custom business metrics for data export monitoring:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `export_jobs_created_total` | Counter | — | Export jobs submitted via the API |
+| `export_jobs_completed_total` | Counter | `status` (completed/failed) | Jobs reaching terminal state |
+| `export_rate_limit_rejections_total` | Counter | — | Requests rejected by 30-day cooldown |
+| `export_job_duration_seconds` | Histogram | — | End-to-end job duration (pending to terminal) |
+| `export_data_collection_duration_seconds` | Histogram | `provider` | Per-provider data collection latency |
+| `export_email_send_duration_seconds` | Histogram | — | Email delivery latency via Resend |
+| `export_zip_size_bytes` | Histogram | — | Size of generated ZIP files |
+| `export_pool_active_jobs` | Gauge | — | Currently running export goroutines |
+| `export_pool_queued_jobs` | Gauge | — | Jobs waiting for a pool slot |
 
 ### Access
 
@@ -33,8 +49,16 @@ Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 - **High error rate**: elevated 5xx response ratio over a sliding window
 - **Service down**: no metrics received from a scrape target
 - **Slow queries**: p95 query duration exceeding a threshold
-- **High memory usage**: container memory approaching its limit
 - **Auth failures spike**: unusual volume of failed login attempts
+- **Export job failure rate**: more than 50% of export jobs failed in the last hour
+- **Export job stuck**: active jobs exist but no completions in 10 minutes
+
+### Datarights Alert Rules
+
+| Alert | Condition | Severity | Description |
+|-------|-----------|----------|-------------|
+| `ExportJobFailureRate` | >50% of jobs failed in 1h window | warning | Indicates systemic issue with upstream services or email delivery |
+| `ExportJobStuck` | Active jobs with no completions for 10m | warning | Likely a hung goroutine or upstream service timeout |
 
 Alertmanager configuration (notification channels and routing) is at `monitoring/alertmanager/alertmanager.yml`.
 
@@ -47,7 +71,7 @@ Alertmanager configuration (notification channels and routing) is at `monitoring
 
 ### Pre-Provisioned Dashboards
 
-Dashboards are provisioned automatically from `monitoring/grafana/dashboards/` and cover system-wide request/error/latency metrics, per-service breakdowns, and database health. Datasource provisioning is at `monitoring/grafana/provisioning/`.
+Dashboards are provisioned automatically from `monitoring/grafana/dashboards/` and cover system-wide request/error/latency metrics, per-service breakdowns (including datarights export job metrics), and database health. Datasource provisioning is at `monitoring/grafana/provisioning/`.
 
 ### Auth Proxy
 

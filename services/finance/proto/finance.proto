@@ -10,6 +10,9 @@ service FinanceService {
   rpc UpdateDefaults(UpdateDefaultsRequest) returns (DefaultsResponse);
   rpc CompleteOnboarding(CompleteOnboardingRequest) returns (DefaultsResponse);
 
+  // Data export (datarights support)
+  rpc GetAllUserData(GetAllUserDataRequest) returns (AllUserDataResponse);
+
   // Budget period operations (stubs for later tickets)
   rpc GetCurrentPeriod(GetCurrentPeriodRequest) returns (PeriodResponse);
   rpc CreatePeriod(CreatePeriodRequest) returns (PeriodResponse);
@@ -74,6 +77,20 @@ message DefaultsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Data export (datarights support)
+// ---------------------------------------------------------------------------
+
+message GetAllUserDataRequest {
+  string user_id = 1;
+}
+
+message AllUserDataResponse {
+  repeated TagData tags = 1;
+  repeated PeriodData periods = 2;
+  DefaultsData defaults = 3;
+}
+
+// ---------------------------------------------------------------------------
 // Budget periods (stubs)
 // ---------------------------------------------------------------------------
 
@@ -86,6 +103,7 @@ message PeriodData {
   int32 essentials_percent = 6;
   int32 desires_percent = 7;
   int32 savings_percent = 8;
+  string created_at = 9;
 }
 
 message GetCurrentPeriodRequest {
@@ -137,6 +155,7 @@ message TagData {
   string user_id = 2;
   string name = 3;
   bool is_default = 4;
+  string created_at = 5;
 }
 
 message ListTagsRequest {

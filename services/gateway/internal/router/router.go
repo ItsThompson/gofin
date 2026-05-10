@@ -14,9 +14,10 @@ import (
 
 // ServiceURLs holds the parsed downstream service URLs.
 type ServiceURLs struct {
-	AuthREST    *url.URL
-	ExpenseREST *url.URL
-	FinanceREST *url.URL
+	AuthREST       *url.URL
+	ExpenseREST    *url.URL
+	FinanceREST    *url.URL
+	DatarightsREST *url.URL
 }
 
 // New creates a configured Gin engine with all gateway routes, middleware,
@@ -50,6 +51,7 @@ func New(
 	authProxy := proxy.NewServiceProxy(serviceURLs.AuthREST, logger)
 	expenseProxy := proxy.NewServiceProxy(serviceURLs.ExpenseREST, logger)
 	financeProxy := proxy.NewServiceProxy(serviceURLs.FinanceREST, logger)
+	datarightsProxy := proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger)
 
 	// /api/auth/* → Auth service (REST)
 	// Some auth routes are unauthenticated (register, login, refresh) and
@@ -82,6 +84,13 @@ func New(
 	{
 		financeGroup.Any("", ginWrapHandler(financeProxy))
 		financeGroup.Any("/*path", ginWrapHandler(financeProxy))
+	}
+
+	// /api/datarights/* → Datarights service (REST)
+	datarightsGroup := engine.Group("/api/datarights")
+	{
+		datarightsGroup.Any("", ginWrapHandler(datarightsProxy))
+		datarightsGroup.Any("/*path", ginWrapHandler(datarightsProxy))
 	}
 
 	return engine
