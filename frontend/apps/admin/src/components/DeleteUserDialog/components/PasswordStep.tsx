@@ -5,7 +5,7 @@ import { Label } from "@gofin/ui/components/label";
 import { useMultiStepDialog } from "@gofin/ui/components/multi-step-dialog";
 import { apiClient, ApiRequestError } from "@gofin/api";
 import { Loader2 } from "lucide-react";
-import type { PasswordStepProps } from "../types";
+import type { PasswordStepProps, DeletionJobResponse } from "../types";
 
 export function PasswordStep({ userId, username, onSuccess, onOpenChange }: PasswordStepProps) {
   const { back } = useMultiStepDialog();
@@ -18,12 +18,12 @@ export function PasswordStep({ userId, username, onSuccess, onOpenChange }: Pass
     setIsSubmitting(true);
 
     try {
-      await apiClient(`/api/admin/users/${userId}`, {
-        method: "DELETE",
-        body: JSON.stringify({ password }),
+      const job = await apiClient<DeletionJobResponse>("/api/datarights/deletions", {
+        method: "POST",
+        body: JSON.stringify({ userId, password }),
       });
       onOpenChange(false);
-      onSuccess();
+      onSuccess(job);
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(err.message);

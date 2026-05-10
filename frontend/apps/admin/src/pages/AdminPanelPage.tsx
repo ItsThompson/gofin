@@ -12,7 +12,13 @@ import { useApiToast } from "@gofin/api";
 import { toast } from "sonner";
 import { Shield, UserCheck, Loader2, Activity, ExternalLink, Trash2 } from "lucide-react";
 import { DeleteUserDialog } from "../components/DeleteUserDialog";
+import { useDeletionPolling } from "../hooks/useDeletionPolling";
 import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "../types";
+import type {
+  DeletionJobResponse,
+  DeletionStateMap,
+  DeletionStatus,
+} from "../components/DeleteUserDialog/types";
 
 type LoadState = "loading" | "error" | "success";
 
@@ -31,6 +37,8 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [assumingUserId, setAssumingUserId] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<{ id: string; username: string } | null>(null);
+  const [deletionStates, setDeletionStates] = useState<DeletionStateMap>({});
+  const [activePolling, setActivePolling] = useState<{ jobId: string; userId: string; username: string } | null>(null);
   const { call: toastCall } = useApiToast();
 
   const fetchUsers = useCallback(async () => {
@@ -60,6 +68,52 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
       setAssumingUserId(null);
     }
   };
+
+  const handleDeletionSuccess = useCallback((job: DeletionJobResponse) => {
+    const username = deletingUser?.username ?? "";
+    setDeletionStates((prev) => ({
+      ...prev,
+      [job.userId]: { jobId: job.id, status: "pending" },
+    }));
+    setActivePolling({ jobId: job.id, userId: job.userId, username });
+    setDeletingUser(null);
+  }, [deletingUser]);
+
+  const handleStatusChange = useCallback((status: DeletionStatus, error?: string) => {
+    if (!activePolling) return;
+    setDeletionStates((prev) => ({
+      ...prev,
+      [activePolling.userId]: { jobId: activePolling.jobId, status, error },
+    }));
+  }, [activePolling]);
+
+  const handlePollingCompleted = useCallback(() => {
+    if (!activePolling) return;
+    const { userId, username } = activePolling;
+    setUsers((prev) => prev.filter((user) => user.id !== userId));
+    setDeletionStates((prev) => {
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+    setActivePolling(null);
+    toast.success(`User "${username}" has been deleted`);
+  }, [activePolling]);
+
+  const handlePollingFailed = useCallback((error: string) => {
+    if (!activePolling) return;
+    const { username } = activePolling;
+    setActivePolling(null);
+    toast.error(`Deletion of "${username}" failed: ${error}`);
+  }, [activePolling]);
+
+  useDeletionPolling({
+    jobId: activePolling?.jobId ?? "",
+    enabled: activePolling !== null,
+    onStatusChange: handleStatusChange,
+    onCompleted: handlePollingCompleted,
+    onFailed: handlePollingFailed,
+  });
 
   if (loadState === "loading") {
     return (
@@ -144,6 +198,8 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
               <tbody>
                 {users.map((user) => {
                   const isCurrentAdmin = user.id === currentUser?.id;
+                  const deletionState = deletionStates[user.id];
+
                   return (
                     <tr
                       key={user.id}
@@ -176,31 +232,13 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
                       </td>
                       <td className="py-3">
                         {!isCurrentAdmin && (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleAssume(user.id)}
-                              disabled={assumingUserId !== null}
-                            >
-                              {assumingUserId === user.id ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <UserCheck className="size-3" />
-                              )}
-                              Assume
-                            </Button>
-                            {!isProtectedUser(user.username) && (
-                              <Button
-                                variant="destructive"
-                                size="icon-sm"
-                                onClick={() => setDeletingUser({ id: user.id, username: user.username })}
-                                aria-label={`Delete ${user.username}`}
-                              >
-                                <Trash2 className="size-3" />
-                              </Button>
-                            )}
-                          </div>
+                          <UserActionsCell
+                            user={user}
+                            deletionState={deletionState}
+                            assumingUserId={assumingUserId}
+                            onAssume={handleAssume}
+                            onDelete={(user) => setDeletingUser({ id: user.id, username: user.username })}
+                          />
                         )}
                       </td>
                     </tr>
@@ -218,14 +256,84 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
           if (!open) setDeletingUser(null);
         }}
         user={deletingUser}
-        onSuccess={() => {
-          if (deletingUser) {
-            setUsers((prev) => prev.filter((user) => user.id !== deletingUser.id));
-            toast.success(`User "${deletingUser.username}" has been deleted`);
-          }
-          setDeletingUser(null);
-        }}
+        onSuccess={handleDeletionSuccess}
       />
+    </div>
+  );
+}
+
+interface UserActionsCellProps {
+  user: AdminUser;
+  deletionState: { jobId: string; status: DeletionStatus; error?: string } | undefined;
+  assumingUserId: string | null;
+  onAssume: (userId: string) => void;
+  onDelete: (user: AdminUser) => void;
+}
+
+function UserActionsCell({
+  user,
+  deletionState,
+  assumingUserId,
+  onAssume,
+  onDelete,
+}: UserActionsCellProps) {
+  const status = deletionState?.status;
+
+  if (status === "pending" || status === "running") {
+    return (
+      <div className="flex items-center gap-2">
+        <Loader2 className="size-3 animate-spin" />
+        <span className="text-sm text-muted-foreground">Deleting...</span>
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+          Failed
+        </span>
+        {!isProtectedUser(user.username) && (
+          <Button
+            variant="destructive"
+            size="icon-sm"
+            onClick={() => onDelete(user)}
+            aria-label={`Delete ${user.username}`}
+          >
+            <Trash2 className="size-3" />
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  // idle or no deletion state
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onAssume(user.id)}
+        disabled={assumingUserId !== null}
+      >
+        {assumingUserId === user.id ? (
+          <Loader2 className="size-3 animate-spin" />
+        ) : (
+          <UserCheck className="size-3" />
+        )}
+        Assume
+      </Button>
+      {!isProtectedUser(user.username) && (
+        <Button
+          variant="destructive"
+          size="icon-sm"
+          onClick={() => onDelete(user)}
+          aria-label={`Delete ${user.username}`}
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      )}
     </div>
   );
 }
