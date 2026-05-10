@@ -10,6 +10,9 @@
     "apps/*",
     "packages/*"
   ],
+  "scripts": {
+    "generate:tokens": "node scripts/generate-brand-tokens.mjs"
+  },
   "devDependencies": {
     "turbo": "^2"
   }

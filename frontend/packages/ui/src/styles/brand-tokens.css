@@ -1,0 +1,28 @@
+/* Auto-generated from tokens/brand.json — do not edit manually. */
+/* Regenerate with: npm run generate:tokens (from frontend/) */
+
+:root {
+    --brand-background: #ffffff;
+    --brand-foreground: #0f172a;
+    --brand-primary: #1a1a1a;
+    --brand-primary-foreground: #fafafa;
+    --brand-muted: #f1f5f9;
+    --brand-muted-foreground: #64748b;
+    --brand-border: #e2e8f0;
+    --brand-essentials: #3b82f6;
+    --brand-desires: #f59e0b;
+    --brand-savings: #10b981;
+}
+
+.dark {
+    --brand-background: #171717;
+    --brand-foreground: #fafafa;
+    --brand-primary: #e5e5e5;
+    --brand-primary-foreground: #1a1a1a;
+    --brand-muted: #3b3b3b;
+    --brand-muted-foreground: #a3a3a3;
+    --brand-border: #2e2e2e;
+    --brand-essentials: #60a5fa;
+    --brand-desires: #fbbf24;
+    --brand-savings: #34d399;
+}

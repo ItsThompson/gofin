@@ -11,6 +11,18 @@
     "desires": "#f59e0b",
     "savings": "#10b981"
   },
+  "colorsDark": {
+    "background": "#171717",
+    "foreground": "#fafafa",
+    "primary": "#e5e5e5",
+    "primaryForeground": "#1a1a1a",
+    "muted": "#3b3b3b",
+    "mutedForeground": "#a3a3a3",
+    "border": "#2e2e2e",
+    "essentials": "#60a5fa",
+    "desires": "#fbbf24",
+    "savings": "#34d399"
+  },
   "typography": {
     "fontFamily": "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",
     "fontSize": {
