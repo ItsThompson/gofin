@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/44ed82d6-a7b6-499c-90ba-3655cedaf110
 
 ## Introduction
 
-gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, RBAC with admin identity assumption, and a full observability stack with Prometheus and Grafana.
+gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, GDPR-compliant data export with email delivery, RBAC with admin identity assumption, and a full observability stack with Prometheus and Grafana.
 
 ## Technology Stack
 
@@ -60,6 +60,7 @@ graph TB
         Auth[Auth Service<br/><i>JWT, RBAC, Users</i>]
         Expense[Expense Service<br/><i>Immutable Ledger</i>]
         Finance[Finance Service<br/><i>Budgets, Tags, Pro-rata</i>]
+        DR[Datarights Service<br/><i>Data Export, GDPR</i>]
     end
 
     subgraph Node3[Node 3: Data]
@@ -85,10 +86,15 @@ graph TB
     GW -->|REST| Auth
     GW -->|REST| Expense
     GW -->|REST| Finance
+    GW -->|REST| DR
     Finance -->|gRPC| Expense
+    DR -->|gRPC| Auth
+    DR -->|gRPC| Expense
+    DR -->|gRPC| Finance
 
     Auth --> PG
     Finance --> PG
+    DR --> PG
     Expense --> Immudb
 
     AuthProxy -->|JWT check + proxy| Grafana
@@ -96,6 +102,7 @@ graph TB
     Prom -->|scrape /metrics| Auth
     Prom -->|scrape /metrics| Expense
     Prom -->|scrape /metrics| Finance
+    Prom -->|scrape /metrics| DR
     Prom --> Alert
     Grafana --> Prom
 ```
@@ -201,4 +208,5 @@ Pushes to `main` automatically deploy after CI passes. See [CI/CD Pipeline](docs
 | [Development Guide](docs/development.md) | Local workflow, environment variables |
 | [Testing](docs/testing.md) | Test strategy, patterns, coverage |
 | [Monitoring](docs/monitoring.md) | Prometheus metrics, Grafana dashboards |
+| [Data Export](docs/data-export.md) | GDPR export, CSV formats, email delivery |
 | [Tunnel Setup](docs/tunnel-setup.md) | Cloudflare tunnel creation and DNS routing |
