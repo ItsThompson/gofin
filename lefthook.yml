@@ -4,7 +4,7 @@ pre-commit:
     lint-backend:
       root: services/
       glob: "*.go"
-      run: golangci-lint run --new-from-rev=HEAD ./...
+      run: golangci-lint run --new-from-rev=HEAD $(go work edit -json | jq -r '[.Use[].DiskPath + "/..."] | join(" ")')
       fail_text: "Backend lint failed. Fix the issues above before committing."
 
     lint-frontend:
