@@ -22,7 +22,7 @@ Email delivery uses [Resend](https://resend.com) with the verified domain `usego
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `EMAIL_ENABLED` | No | `false` | When false, emails log to stdout (dev mode) |
+| `EMAIL_ENABLED` | No | `false` (via .env.example) | When false, emails log to stdout (dev mode). Note: if unset, code defaults to `true` |
 | `RESEND_API_KEY` | When `EMAIL_ENABLED=true` | — | Resend API key with sending access |
 | `EMAIL_FROM` | No | `gofin <noreply@usegofin.com>` | Sender address |
 | `BRAND_TOKENS_PATH` | No | `/app/tokens/brand.json` | Path to brand styling tokens |

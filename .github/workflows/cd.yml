@@ -13,7 +13,30 @@ permissions:
   packages: write
 
 jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Discover buildable services from docker-compose.yml
+        id: set-matrix
+        run: |
+          # Use 'docker compose config' (official parser) to extract buildable services.
+          # Filters to ghcr.io/itsthompson/gofin/* images and converts absolute paths to relative.
+          matrix=$(docker compose config --format json | jq -c --arg pwd "$PWD" '
+            [.services | to_entries[] | select(.value.image | test("^ghcr\\.io/itsthompson/gofin/")) | {
+              "service": (.value.image | sub("ghcr\\.io/itsthompson/gofin/"; "") | sub(":.*"; "")),
+              "context": ("." + (.value.build.context | ltrimstr($pwd))),
+              "file": ("." + ((.value.build.context + "/" + .value.build.dockerfile) | ltrimstr($pwd)))
+            }]')
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+          echo "Discovered services:"
+          echo "$matrix" | jq -r '.[].service'
+
   build-and-push:
+    needs: [discover]
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch') ||
@@ -21,28 +44,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        include:
-          - service: mfe
-            context: ./frontend
-            file: ./frontend/Dockerfile
-          - service: api-gateway
-            context: ./services
-            file: ./services/gateway/Dockerfile
-          - service: auth-service
-            context: ./services
-            file: ./services/auth/Dockerfile
-          - service: expense-service
-            context: ./services
-            file: ./services/expense/Dockerfile
-          - service: finance-service
-            context: ./services
-            file: ./services/finance/Dockerfile
-          - service: grafana-auth-proxy
-            context: ./monitoring/auth-proxy
-            file: ./monitoring/auth-proxy/Dockerfile
-          - service: alertmanager
-            context: ./monitoring/alertmanager
-            file: ./monitoring/alertmanager/Dockerfile
+        include: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
 

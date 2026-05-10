@@ -200,7 +200,7 @@ The service reads `tokens/brand.json` for email template styling (colors, logo U
 | Variable | Default | Purpose |
 |----------|---------|-------|
 | `DATARIGHTS_DB_URL` | (required) | PostgreSQL connection with `search_path=datarights` |
-| `EMAIL_ENABLED` | `false` | When false, emails log to stdout |
+| `EMAIL_ENABLED` | `false` (via .env.example) | When false, emails log to stdout. If unset, defaults to `true` |
 | `RESEND_API_KEY` | (empty) | Required when `EMAIL_ENABLED=true` |
 | `EMAIL_FROM` | `gofin <noreply@usegofin.com>` | Sender address |
 | `BRAND_TOKENS_PATH` | `/app/tokens/brand.json` | Path to brand token JSON file |
