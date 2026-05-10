@@ -747,3 +747,40 @@ func (s *AuthService) DeleteUser(ctx context.Context, adminUserID, targetUserID,
 
 	return nil
 }
+
+// CheckPassword compares a plaintext password against a bcrypt hash.
+// Exposed for gRPC handlers that need password verification without the full
+// Login/DeleteUser business logic.
+func (s *AuthService) CheckPassword(password, hash string) bool {
+	return s.password.CheckPassword(password, hash)
+}
+
+// DeleteRefreshTokenBlacklist removes all blacklisted refresh tokens for a user.
+// Returns nil if no tokens exist (idempotent).
+func (s *AuthService) DeleteRefreshTokenBlacklist(ctx context.Context, userID string) error {
+	if err := s.blacklistRepo.DeleteByUserID(ctx, userID); err != nil {
+		return fmt.Errorf("deleting refresh token blacklist: %w", err)
+	}
+
+	s.logger.Info("refresh token blacklist deleted",
+		slog.String("method", "DeleteRefreshTokenBlacklist"),
+		slog.String("user_id", userID),
+	)
+
+	return nil
+}
+
+// DeleteUserRow deletes the user record. Wraps the existing repo.DeleteUser.
+// Returns nil if the user does not exist (idempotent).
+func (s *AuthService) DeleteUserRow(ctx context.Context, userID string) error {
+	if err := s.repo.DeleteUser(ctx, userID); err != nil {
+		return fmt.Errorf("deleting user row: %w", err)
+	}
+
+	s.logger.Info("user row deleted",
+		slog.String("method", "DeleteUserRow"),
+		slog.String("user_id", userID),
+	)
+
+	return nil
+}
