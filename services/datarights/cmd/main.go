@@ -18,6 +18,7 @@ import (
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
+	deletionproviders "github.com/ItsThompson/gofin/services/datarights/internal/deletion/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
@@ -146,7 +147,9 @@ func run() error {
 	// Set up deletion engine with provider registry
 	deletionRepo := repository.NewPostgresDeletionJobRepository(pool)
 	deletionRegistry := deletion.NewDeletionProviderRegistry()
-	// Providers will be registered in later tickets (Ticket 6)
+	deletionRegistry.Register(deletionproviders.NewFinanceDeletionProvider(financeClient))
+	deletionRegistry.Register(deletionproviders.NewExpenseDeletionProvider(expenseClient))
+	deletionRegistry.Register(deletionproviders.NewAuthDeletionProvider(authClient))
 
 	deletionEngine := deletion.NewDeletionEngine(
 		deletionRegistry,
@@ -159,7 +162,11 @@ func run() error {
 	// Startup recovery: re-submit non-terminal deletion jobs
 	recoverDeletionJobs(ctx, deletionRepo, deletionEngine, logger)
 
-	deletionSvc := service.NewDeletionService(deletionRepo, logger)
+	deletionSvc := service.NewDeletionService(deletionRepo, logger,
+		service.WithDeletionEngine(deletionEngine),
+		service.WithAuthClient(authClient),
+		service.WithExportRepo(repo),
+	)
 
 	// Start REST server
 	if cfg.IsProduction() {
