@@ -97,3 +97,15 @@ WHERE id = $1;
 SELECT * FROM finance.pro_rata_schedules
 WHERE user_id = $1 AND status = 'pending'
 ORDER BY target_year ASC, target_month ASC, installment_index ASC;
+
+-- name: DeleteAllUserProRataSchedules :exec
+DELETE FROM finance.pro_rata_schedules WHERE user_id = $1;
+
+-- name: DeleteAllUserTags :exec
+DELETE FROM finance.tags WHERE user_id = $1;
+
+-- name: DeleteAllUserBudgetPeriods :exec
+DELETE FROM finance.budget_periods WHERE user_id = $1;
+
+-- name: DeleteAllUserDefaultSettings :exec
+DELETE FROM finance.default_settings WHERE user_id = $1;

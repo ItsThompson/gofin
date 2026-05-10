@@ -402,3 +402,33 @@ func (r *ImmudbExpenseRepository) GetAllExpensesByUser(ctx context.Context, user
 
 	return expenses, total, nil
 }
+
+// AnonymizeAllUserExpenses redacts PII fields on all expense rows for a user.
+// The UPDATE overwrites the current head in immudb's append-only model.
+// Idempotent: re-calling for already-redacted data produces the same result.
+// Returns nil when zero rows match (user has no expenses).
+func (r *ImmudbExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
+	query := `UPDATE expenses SET
+		user_id = 'DELETED',
+		name = 'REDACTED',
+		amount = 0,
+		currency = '',
+		expense_type = '',
+		tag_id = '',
+		expense_date = '',
+		status = 'redacted'
+		WHERE user_id = @user_id;`
+
+	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{
+		"user_id": userID,
+	})
+	if err != nil {
+		return fmt.Errorf("anonymizing user expenses: %w", err)
+	}
+
+	r.logger.Info("user expenses anonymized",
+		slog.String("user_id", userID),
+	)
+
+	return nil
+}

@@ -13,6 +13,9 @@ service FinanceService {
   // Data export (datarights support)
   rpc GetAllUserData(GetAllUserDataRequest) returns (AllUserDataResponse);
 
+  // Data deletion (datarights support)
+  rpc DeleteAllUserData(DeleteAllUserDataRequest) returns (DeleteAllUserDataResponse);
+
   // Budget period operations (stubs for later tickets)
   rpc GetCurrentPeriod(GetCurrentPeriodRequest) returns (PeriodResponse);
   rpc CreatePeriod(CreatePeriodRequest) returns (PeriodResponse);
@@ -89,6 +92,16 @@ message AllUserDataResponse {
   repeated PeriodData periods = 2;
   DefaultsData defaults = 3;
 }
+
+// ---------------------------------------------------------------------------
+// Data deletion (datarights support)
+// ---------------------------------------------------------------------------
+
+message DeleteAllUserDataRequest {
+  string user_id = 1;
+}
+
+message DeleteAllUserDataResponse {}
 
 // ---------------------------------------------------------------------------
 // Budget periods (stubs)

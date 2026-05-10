@@ -40,6 +40,12 @@ type ExpenseRepository interface {
 	// ordered by created_at ASC, with LIMIT/OFFSET pagination.
 	// Used by the datarights service for data export (GDPR compliance).
 	GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error)
+
+	// AnonymizeAllUserExpenses redacts PII fields on all expense rows for a user.
+	// immudb is append-only: the UPDATE overwrites the current head while history
+	// retains old values. Idempotent: re-calling for an already-redacted user
+	// produces the same result. Returns nil when zero rows match.
+	AnonymizeAllUserExpenses(ctx context.Context, userID string) error
 }
 
 // SchemaInitializer creates the required tables and indexes on startup.

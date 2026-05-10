@@ -165,6 +165,42 @@ func (q *Queries) CreateTag(ctx context.Context, arg CreateTagParams) (FinanceTa
 	return i, err
 }
 
+const deleteAllUserBudgetPeriods = `-- name: DeleteAllUserBudgetPeriods :exec
+DELETE FROM finance.budget_periods WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAllUserBudgetPeriods(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAllUserBudgetPeriods, userID)
+	return err
+}
+
+const deleteAllUserDefaultSettings = `-- name: DeleteAllUserDefaultSettings :exec
+DELETE FROM finance.default_settings WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAllUserDefaultSettings(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAllUserDefaultSettings, userID)
+	return err
+}
+
+const deleteAllUserProRataSchedules = `-- name: DeleteAllUserProRataSchedules :exec
+DELETE FROM finance.pro_rata_schedules WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAllUserProRataSchedules(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAllUserProRataSchedules, userID)
+	return err
+}
+
+const deleteAllUserTags = `-- name: DeleteAllUserTags :exec
+DELETE FROM finance.tags WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAllUserTags(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAllUserTags, userID)
+	return err
+}
+
 const deleteTag = `-- name: DeleteTag :exec
 DELETE FROM finance.tags WHERE id = $1 AND user_id = $2 AND is_default = false
 `
