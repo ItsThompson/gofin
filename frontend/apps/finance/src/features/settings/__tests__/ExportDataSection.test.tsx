@@ -427,5 +427,208 @@ describe("ExportDataSection", () => {
 
       vi.useRealTimers();
     });
+
+    it("continues polling on transient network error (resilient)", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      const pendingJob = buildExportJob({
+        status: "pending",
+        completedAt: null,
+        fileSizeBytes: null,
+      });
+      const completedJob = buildExportJob({
+        status: "completed",
+        fileSizeBytes: 24576,
+      });
+
+      global.fetch = createMockApi({
+        "/api/datarights/exports": mockSequence([
+          // Initial GET: pending job
+          { status: 200, body: { data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          // Poll 1: network error (500)
+          { status: 500, body: { code: "INTERNAL_ERROR", message: "Transient failure" } },
+          // Poll 2: recovered, completed
+          { status: 200, body: { data: [completedJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+        ]),
+      }) as unknown as typeof fetch;
+
+      render(<ExportDataSection />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1);
+      });
+
+      // Poll 1: fails transiently
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+
+      // Poll 2: recovers
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+      });
+
+      vi.useRealTimers();
+    });
+
+    it("stops polling and does not leak intervals on unmount", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      const pendingJob = buildExportJob({
+        status: "pending",
+        completedAt: null,
+        fileSizeBytes: null,
+      });
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+      global.fetch = fetchMock;
+
+      const { unmount } = render(<ExportDataSection />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1);
+      });
+
+      // Record call count after initial fetch
+      const callsBeforeUnmount = fetchMock.mock.calls.length;
+
+      // Unmount while polling is active
+      unmount();
+
+      // Advance timers: no further fetches should happen
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15000);
+      });
+
+      expect(fetchMock.mock.calls.length).toBe(callsBeforeUnmount);
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe("error handling", () => {
+    it("resolves loading when initial fetch throws non-ApiRequestError", async () => {
+      // Simulates a raw network failure (not an HTTP error response)
+      global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+
+      render(<ExportDataSection />);
+
+      // Loading resolves: component renders its main content (empty state)
+      await waitFor(() => {
+        expect(screen.getByText("No exports yet")).toBeInTheDocument();
+      });
+
+      // Export button should be enabled (no active jobs, no cooldown)
+      expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+    });
+
+    it("re-enables button when export creation throws non-ApiRequestError", async () => {
+      const user = userEvent.setup();
+
+      global.fetch = createMockApi({
+        "/api/datarights/exports": mockSequence([
+          // Initial GET: empty list
+          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+        ]),
+      }) as unknown as typeof fetch;
+
+      render(<ExportDataSection />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+      });
+
+      // Replace fetch with one that throws a raw TypeError on POST
+      global.fetch = vi.fn().mockRejectedValue(new TypeError("Network disconnected"));
+
+      await user.click(screen.getByRole("button", { name: /export my data/i }));
+
+      // Button should re-enable after the error (creating goes back to false)
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+      });
+
+      // No pending job should appear (creation failed)
+      expect(screen.queryAllByText("Pending")).toHaveLength(0);
+    });
+
+    it("handles 429 with full ISO datetime in message (includes time component)", async () => {
+      const user = userEvent.setup();
+
+      global.fetch = createMockApi({
+        "/api/datarights/exports": mockSequence([
+          // Initial GET: empty list
+          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          // POST: rate limited with full ISO datetime in message
+          {
+            status: 429,
+            body: {
+              code: "RATE_LIMITED",
+              message: "Export limit reached. Next available: 2026-06-08T14:30:00Z",
+              retryAfter: "2026-06-08T14:30:00Z",
+            },
+          },
+        ]),
+      }) as unknown as typeof fetch;
+
+      render(<ExportDataSection />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+      });
+
+      await user.click(screen.getByRole("button", { name: /export my data/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/next export available/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByRole("button", { name: /export my data/i })).toBeDisabled();
+    });
+
+    it("handles 429 with no date in message (no match for regex)", async () => {
+      const user = userEvent.setup();
+
+      global.fetch = createMockApi({
+        "/api/datarights/exports": mockSequence([
+          // Initial GET: empty list
+          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          // POST: rate limited with no date in message
+          {
+            status: 429,
+            body: {
+              code: "RATE_LIMITED",
+              message: "Rate limit exceeded. Please try again later.",
+            },
+          },
+        ]),
+      }) as unknown as typeof fetch;
+
+      render(<ExportDataSection />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+      });
+
+      await user.click(screen.getByRole("button", { name: /export my data/i }));
+
+      // Should NOT show cooldown (no date to extract)
+      // Button should re-enable since no cooldown date was set
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+      });
+
+      // No "next export available" text should appear
+      expect(screen.queryByText(/next export available/i)).not.toBeInTheDocument();
+    });
   });
 });
