@@ -41,6 +41,11 @@ func (m *mockBlacklistRepository) CleanupExpired(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *mockBlacklistRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 // mockUserRepository implements repository.UserRepository for handler tests.
 type mockUserRepository struct {
 	mock.Mock

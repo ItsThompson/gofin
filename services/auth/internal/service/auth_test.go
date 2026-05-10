@@ -134,6 +134,11 @@ func (m *mockBlacklistRepository) CleanupExpired(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *mockBlacklistRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 // --- Registration Tests ---
 
 func TestRegister_Success(t *testing.T) {
