@@ -3,7 +3,6 @@
 ## Identity
 
 - **Go module path**: `github.com/ItsThompson/gofin` (capital I, capital T, case-sensitive)
-- **Git identity**: thompson / hi.thompson@hotmail.com
 - **Remote**: `https://github.com/ItsThompson/gofin.git`
 
 ## Repository Structure

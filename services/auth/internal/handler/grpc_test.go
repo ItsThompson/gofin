@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
@@ -78,9 +80,6 @@ func TestGRPCStubs_ReturnUnimplemented(t *testing.T) {
 	_, err = handler.ListUsers(ctx, &pb.ListUsersRequest{})
 	assertUnimplemented(t, err)
 
-	_, err = handler.GetUser(ctx, &pb.GetUserRequest{})
-	assertUnimplemented(t, err)
-
 	_, err = handler.UpdateUser(ctx, &pb.UpdateUserRequest{})
 	assertUnimplemented(t, err)
 
@@ -94,4 +93,58 @@ func assertUnimplemented(t *testing.T, err error) {
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	assert.Equal(t, codes.Unimplemented, st.Code())
+}
+
+func TestGRPCGetUser_Success(t *testing.T) {
+	handler, _, repo := newTestGRPCHandler()
+
+	createdAt := time.Date(2026, 1, 15, 10, 0, 0, 0, time.UTC)
+	repo.On("GetUserByID", mock.Anything, "user-123").Return(&model.User{
+		ID:                     "user-123",
+		Username:               "johndoe",
+		Email:                  "john@example.com",
+		Role:                   "user",
+		Currency:               "USD",
+		HasCompletedOnboarding: true,
+		CreatedAt:              createdAt,
+	}, nil)
+
+	resp, err := handler.GetUser(context.Background(), &pb.GetUserRequest{
+		UserId: "user-123",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "user-123", resp.Id)
+	assert.Equal(t, "johndoe", resp.Username)
+	assert.Equal(t, "john@example.com", resp.Email)
+	assert.Equal(t, "user", resp.Role)
+	assert.Equal(t, "USD", resp.Currency)
+	assert.True(t, resp.HasCompletedOnboarding)
+	assert.Equal(t, "2026-01-15T10:00:00Z", resp.CreatedAt)
+}
+
+func TestGRPCGetUser_NotFound(t *testing.T) {
+	handler, _, repo := newTestGRPCHandler()
+
+	repo.On("GetUserByID", mock.Anything, "nonexistent").Return(nil, nil)
+
+	_, err := handler.GetUser(context.Background(), &pb.GetUserRequest{
+		UserId: "nonexistent",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
+}
+
+func TestGRPCGetUser_EmptyUserID(t *testing.T) {
+	handler, _, _ := newTestGRPCHandler()
+
+	_, err := handler.GetUser(context.Background(), &pb.GetUserRequest{})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
 }
