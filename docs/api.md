@@ -19,6 +19,7 @@ Canonical sources for endpoint definitions:
 | `/api/auth/*` | Auth Service | Varies (registration, login, and refresh are public) |
 | `/api/expenses/*` | Expense Service | Yes |
 | `/api/finance/*` | Finance Service | Yes |
+| `/api/datarights/*` | Datarights Service | Yes |
 | `/api/admin/*` | Auth Service | Yes (admin only) |
 
 ### Auth Middleware Behavior
@@ -50,6 +51,104 @@ List endpoints support pagination, sorting, and filtering via query parameters.
 ### Finance (`/api/finance/*`)
 
 Budget period lifecycle (get current, create, update, list history), default settings management, onboarding setup, tag CRUD, pro-rata expense creation and scheduling, and all dashboard aggregation endpoints (period summary, spending by tag, cumulative spend, historical comparison).
+
+### Datarights (`/api/datarights/*`)
+
+GDPR data export endpoints. All endpoints require authentication.
+
+#### POST /api/datarights/exports
+
+Creates a new data export job. Returns immediately with job metadata (LRO pattern). The export runs asynchronously: data is collected from upstream services, packaged as a ZIP of CSVs, and emailed to the user.
+
+**Request:** No body required. User ID extracted from `X-User-ID` header (injected by gateway).
+
+**Success (202 Accepted):** New job created.
+```json
+{
+  "job": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "userId": "user-uuid",
+    "status": "pending",
+    "createdAt": "2026-05-09T14:30:00Z",
+    "completedAt": null,
+    "fileSizeBytes": null,
+    "error": null
+  }
+}
+```
+
+**Already In-Progress (200 OK):** Returns the existing pending/running job (idempotent).
+```json
+{
+  "job": { "...existing job..." }
+}
+```
+
+**Rate Limited (429 Too Many Requests):** One successful export allowed per 30 days.
+```json
+{
+  "code": "RATE_LIMITED",
+  "message": "Export limit reached. You can request another export after 2026-06-08.",
+  "retryAfter": "2026-06-08T14:30:00Z"
+}
+```
+
+#### GET /api/datarights/exports
+
+Lists the user's export job history (paginated).
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| page | int | 1 | Page number |
+| pageSize | int | 10 | Results per page |
+
+**Response (200 OK):**
+```json
+{
+  "data": [
+    {
+      "id": "550e8400-...",
+      "userId": "user-uuid",
+      "status": "completed",
+      "createdAt": "2026-05-09T14:30:00Z",
+      "completedAt": "2026-05-09T14:31:15Z",
+      "fileSizeBytes": 24576,
+      "error": null
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pageSize": 10,
+  "hasMore": false
+}
+```
+
+#### GET /api/datarights/exports/:id
+
+Gets a single export job by ID. Returns 404 if the job doesn't exist or belongs to another user.
+
+**Response (200 OK):**
+```json
+{
+  "job": {
+    "id": "550e8400-...",
+    "userId": "user-uuid",
+    "status": "completed",
+    "createdAt": "2026-05-09T14:30:00Z",
+    "completedAt": "2026-05-09T14:31:15Z",
+    "fileSizeBytes": 24576,
+    "error": null
+  }
+}
+```
+
+**Error (404 Not Found):**
+```json
+{
+  "code": "NOT_FOUND",
+  "message": "Export job not found"
+}
+```
 
 ## Response Contracts
 
