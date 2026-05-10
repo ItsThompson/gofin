@@ -125,3 +125,113 @@ func TestGetAllUserData_InternalError(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, codes.Internal, st.Code())
 }
+
+// --- DeleteAllUserData Handler Tests ---
+
+func TestDeleteAllUserData_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	txRepo := new(mockFinanceRepository)
+	tx := &mockTx{repo: txRepo}
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	handler := NewGRPCHandler(financeSvc, logger)
+
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+	tx.On("Commit", mock.Anything).Return(nil)
+	txRepo.On("DeleteAllUserData", mock.Anything, "user-1").Return(nil)
+
+	resp, err := handler.DeleteAllUserData(context.Background(), &pb.DeleteAllUserDataRequest{UserId: "user-1"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	tx.AssertCalled(t, "Commit", mock.Anything)
+	txRepo.AssertCalled(t, "DeleteAllUserData", mock.Anything, "user-1")
+}
+
+func TestDeleteAllUserData_Idempotent(t *testing.T) {
+	// Calling for a user with no data should still return success
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	txRepo := new(mockFinanceRepository)
+	tx := &mockTx{repo: txRepo}
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	handler := NewGRPCHandler(financeSvc, logger)
+
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+	tx.On("Commit", mock.Anything).Return(nil)
+	// 0 rows deleted is still nil error (idempotent)
+	txRepo.On("DeleteAllUserData", mock.Anything, "user-no-data").Return(nil)
+
+	resp, err := handler.DeleteAllUserData(context.Background(), &pb.DeleteAllUserDataRequest{UserId: "user-no-data"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	tx.AssertCalled(t, "Commit", mock.Anything)
+}
+
+func TestDeleteAllUserData_EmptyUserID(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	resp, err := handler.DeleteAllUserData(context.Background(), &pb.DeleteAllUserDataRequest{UserId: ""})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "user_id is required")
+}
+
+func TestDeleteAllUserData_DatabaseError(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	txRepo := new(mockFinanceRepository)
+	tx := &mockTx{repo: txRepo}
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	handler := NewGRPCHandler(financeSvc, logger)
+
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+	txRepo.On("DeleteAllUserData", mock.Anything, "user-1").Return(fmt.Errorf("connection refused"))
+
+	resp, err := handler.DeleteAllUserData(context.Background(), &pb.DeleteAllUserDataRequest{UserId: "user-1"})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Contains(t, st.Message(), "failed to delete user data")
+
+	// Verify rollback was called (commit should NOT have been called)
+	tx.AssertCalled(t, "Rollback", mock.Anything)
+	tx.AssertNotCalled(t, "Commit", mock.Anything)
+}
+
+func TestDeleteAllUserData_TransactionBeginError(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	handler := NewGRPCHandler(financeSvc, logger)
+
+	txBeginner.On("BeginTx", mock.Anything).Return(nil, fmt.Errorf("pool exhausted"))
+
+	resp, err := handler.DeleteAllUserData(context.Background(), &pb.DeleteAllUserDataRequest{UserId: "user-1"})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+}
