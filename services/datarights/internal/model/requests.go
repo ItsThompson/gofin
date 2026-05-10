@@ -42,3 +42,19 @@ const (
 	ErrRateLimited         = "RATE_LIMITED"
 	ErrValidationError     = "VALIDATION_ERROR"
 )
+
+// CreateDeletionRequest is the parsed request body for creating a deletion job.
+type CreateDeletionRequest struct {
+	UserID   string `json:"userId" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// DeletionJobResponse wraps a single deletion job in the response envelope.
+type DeletionJobResponse struct {
+	ID          string     `json:"id"`
+	UserID      string     `json:"userId"`
+	Status      string     `json:"status"`
+	Error       *string    `json:"error"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	CompletedAt *time.Time `json:"completedAt"`
+}
