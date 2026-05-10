@@ -86,6 +86,11 @@ func (m *mockExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
 }
 
+func (m *mockExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

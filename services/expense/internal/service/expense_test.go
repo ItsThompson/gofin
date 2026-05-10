@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -78,6 +79,11 @@ func (m *mockExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID
 		return nil, args.Get(1).(int64), args.Error(2)
 	}
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *mockExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
 }
 
 func newTestService(repo *mockExpenseRepository) *ExpenseService {
@@ -809,4 +815,73 @@ func TestGetAllUserExpenses_PageSizeCapped(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int32(50), result.PageSize)
+}
+
+// --- AnonymizeAllUserExpenses tests ---
+
+func TestAnonymizeAllUserExpenses_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("AnonymizeAllUserExpenses", mock.Anything, "user-1").Return(nil)
+
+	err := svc.AnonymizeAllUserExpenses(context.Background(), "user-1")
+
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func TestAnonymizeAllUserExpenses_Idempotent(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	// Calling twice should succeed both times (repo returns nil both times)
+	repo.On("AnonymizeAllUserExpenses", mock.Anything, "user-1").Return(nil)
+
+	err := svc.AnonymizeAllUserExpenses(context.Background(), "user-1")
+	require.NoError(t, err)
+
+	err = svc.AnonymizeAllUserExpenses(context.Background(), "user-1")
+	require.NoError(t, err)
+
+	repo.AssertNumberOfCalls(t, "AnonymizeAllUserExpenses", 2)
+}
+
+func TestAnonymizeAllUserExpenses_EmptyUserID(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	err := svc.AnonymizeAllUserExpenses(context.Background(), "")
+
+	require.Error(t, err)
+	svcErr, ok := err.(*ServiceError)
+	require.True(t, ok)
+	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	assert.Equal(t, 400, svcErr.Status)
+}
+
+func TestAnonymizeAllUserExpenses_NoExpenses(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	// User has no expenses: repo returns nil (0 rows updated is not an error)
+	repo.On("AnonymizeAllUserExpenses", mock.Anything, "user-no-expenses").Return(nil)
+
+	err := svc.AnonymizeAllUserExpenses(context.Background(), "user-no-expenses")
+
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func TestAnonymizeAllUserExpenses_DatabaseFailure(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("AnonymizeAllUserExpenses", mock.Anything, "user-1").
+		Return(fmt.Errorf("connection refused"))
+
+	err := svc.AnonymizeAllUserExpenses(context.Background(), "user-1")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "anonymizing user expenses")
 }
