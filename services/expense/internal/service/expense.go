@@ -351,6 +351,30 @@ func (s *ExpenseService) GetAllUserExpenses(ctx context.Context, userID string, 
 	}, nil
 }
 
+// AnonymizeAllUserExpenses redacts PII fields on all expense rows for a user.
+// Satisfies GDPR right-to-erasure by overwriting the current accessible state.
+// Idempotent: calling for already-redacted data returns success.
+func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
+	if userID == "" {
+		return &ServiceError{
+			Code:    model.ErrValidationError,
+			Message: "user_id is required",
+			Status:  400,
+		}
+	}
+
+	if err := s.repo.AnonymizeAllUserExpenses(ctx, userID); err != nil {
+		return fmt.Errorf("anonymizing user expenses: %w", err)
+	}
+
+	s.logger.Info("user expenses anonymized",
+		slog.String("method", "AnonymizeAllUserExpenses"),
+		slog.String("user_id", userID),
+	)
+
+	return nil
+}
+
 // validateCorrectExpenseRequest checks all required fields for a correction.
 func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *ServiceError {
 	fields := make(map[string]string)
