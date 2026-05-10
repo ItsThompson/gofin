@@ -8,9 +8,47 @@ Each microservice owns its database schema exclusively. No service queries anoth
 |---------|----------|---------------|------------|
 | Auth Service | PostgreSQL (`auth` schema) | sqlc | Users, credentials, refresh token blacklist |
 | Finance Service | PostgreSQL (`finance` schema) | sqlc | Budget periods, default settings, tags, pro-rata schedules |
+| Datarights Service | PostgreSQL (`datarights` schema) | pgx | Export job records |
 | Expense Service | immudb | Native Go client | Expense ledger entries |
 
 PostgreSQL runs as a single instance with separate schemas and connection credentials per service. This provides logical isolation with the option to split into separate databases later.
+
+## Datarights Schema
+
+Canonical source: `services/datarights/db/migrations/`
+
+### `datarights.export_jobs`
+
+Stores export job metadata. The service tracks job lifecycle but does not persist user data: collected data exists only transiently during ZIP assembly. Key design points:
+
+- **No foreign key to `auth.users`**: cross-schema FKs are avoided project-wide; referential integrity enforced at the application layer via gateway auth validation
+- **Nullable terminal fields**: `error`, `file_size_bytes`, and `completed_at` are NULL while a job is in-progress, populated only on completion/failure
+- **Indexes**: `(user_id, status)` for rate limit and deduplication checks; `(user_id, created_at DESC)` for paginated listing
+
+```sql
+CREATE TABLE datarights.export_jobs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID         NOT NULL,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+    error           TEXT,
+    file_size_bytes BIGINT,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    completed_at    TIMESTAMPTZ,
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+```
+
+### Job State Machine
+
+| From | To | Trigger | Side Effects |
+|------|----|---------|--------------|
+| (new) | pending | POST /exports | Row inserted, async goroutine queued |
+| pending | running | Goroutine acquires pool slot | `updated_at` set |
+| running | completed | All data collected + email sent | `completed_at`, `file_size_bytes` set |
+| running | failed | Any unrecoverable error | `completed_at`, `error` set |
+
+Only `completed` jobs consume the 30-day rate limit. Failed exports do not block retries.
 
 ## Auth Schema
 
