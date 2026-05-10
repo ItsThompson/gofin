@@ -10,6 +10,7 @@ Canonical sources for endpoint definitions:
 - Auth handlers: `services/auth/internal/handler/`
 - Expense handlers: `services/expense/internal/handler/`
 - Finance handlers: `services/finance/internal/handler/`
+- Datarights handlers: `services/datarights/internal/handler/`
 - gRPC definitions: `services/*/proto/*.proto`
 
 ## Gateway Routing
@@ -54,101 +55,7 @@ Budget period lifecycle (get current, create, update, list history), default set
 
 ### Datarights (`/api/datarights/*`)
 
-GDPR data export endpoints. All endpoints require authentication.
-
-#### POST /api/datarights/exports
-
-Creates a new data export job. Returns immediately with job metadata (LRO pattern). The export runs asynchronously: data is collected from upstream services, packaged as a ZIP of CSVs, and emailed to the user.
-
-**Request:** No body required. User ID extracted from `X-User-ID` header (injected by gateway).
-
-**Success (202 Accepted):** New job created.
-```json
-{
-  "job": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "userId": "user-uuid",
-    "status": "pending",
-    "createdAt": "2026-05-09T14:30:00Z",
-    "completedAt": null,
-    "fileSizeBytes": null,
-    "error": null
-  }
-}
-```
-
-**Already In-Progress (200 OK):** Returns the existing pending/running job (idempotent).
-```json
-{
-  "job": { "...existing job..." }
-}
-```
-
-**Rate Limited (429 Too Many Requests):** One successful export allowed per 30 days.
-```json
-{
-  "code": "RATE_LIMITED",
-  "message": "Export limit reached. You can request another export after 2026-06-08.",
-  "retryAfter": "2026-06-08T14:30:00Z"
-}
-```
-
-#### GET /api/datarights/exports
-
-Lists the user's export job history (paginated).
-
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| page | int | 1 | Page number |
-| pageSize | int | 10 | Results per page |
-
-**Response (200 OK):**
-```json
-{
-  "data": [
-    {
-      "id": "550e8400-...",
-      "userId": "user-uuid",
-      "status": "completed",
-      "createdAt": "2026-05-09T14:30:00Z",
-      "completedAt": "2026-05-09T14:31:15Z",
-      "fileSizeBytes": 24576,
-      "error": null
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "pageSize": 10,
-  "hasMore": false
-}
-```
-
-#### GET /api/datarights/exports/:id
-
-Gets a single export job by ID. Returns 404 if the job doesn't exist or belongs to another user.
-
-**Response (200 OK):**
-```json
-{
-  "job": {
-    "id": "550e8400-...",
-    "userId": "user-uuid",
-    "status": "completed",
-    "createdAt": "2026-05-09T14:30:00Z",
-    "completedAt": "2026-05-09T14:31:15Z",
-    "fileSizeBytes": 24576,
-    "error": null
-  }
-}
-```
-
-**Error (404 Not Found):**
-```json
-{
-  "code": "NOT_FOUND",
-  "message": "Export job not found"
-}
-```
+GDPR data export: creating async export jobs (POST returns 202, runs in background), listing export history with pagination, and retrieving individual job status. The POST endpoint is idempotent (returns existing in-progress job) and rate-limited to one successful export per 30 days (429 with `retryAfter` timestamp). Completed exports are delivered via email as a ZIP of CSV files.
 
 ## Response Contracts
 
@@ -193,5 +100,6 @@ All API errors follow a consistent shape:
 | 403 | Authorization failure | Non-admin accessing admin routes, correcting an expense outside the current period |
 | 404 | Resource not found | No budget period for the requested month |
 | 409 | Conflict | Duplicate email/username, expense already corrected, tag in use |
+| 429 | Rate limited | Data export requested within 30-day cooldown |
 
 Error codes are defined in each service's handler layer. See the handler source files for the complete set.
