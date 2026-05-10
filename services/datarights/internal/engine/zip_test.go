@@ -33,7 +33,7 @@ func TestBuildZIP_SingleFile(t *testing.T) {
 	// Read and verify CSV content
 	f, err := reader.File[0].Open()
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	csvReader := csv.NewReader(f)
 	records, err := csvReader.ReadAll()
@@ -74,7 +74,7 @@ func TestBuildZIP_MultipleFiles(t *testing.T) {
 	// Verify expenses.csv has 3 rows (header + 2 data)
 	f, err := reader.File[1].Open()
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	csvReader := csv.NewReader(f)
 	records, err := csvReader.ReadAll()
@@ -100,7 +100,7 @@ func TestBuildZIP_EmptyRows(t *testing.T) {
 
 	f, err := reader.File[0].Open()
 	require.NoError(t, err)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	content, err := io.ReadAll(f)
 	require.NoError(t, err)

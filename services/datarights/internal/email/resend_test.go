@@ -85,7 +85,7 @@ func TestResendSender_HTTPInteraction_APIError(t *testing.T) {
 
 	err = sender.SendExportEmail(context.Background(), "user@example.com", []byte("zip"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Resend API error (status 429)")
+	assert.Contains(t, err.Error(), "resend API error (status 429)")
 	assert.Contains(t, err.Error(), "rate limit exceeded")
 }
 

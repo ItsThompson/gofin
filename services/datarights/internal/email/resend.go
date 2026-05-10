@@ -173,7 +173,7 @@ func (s *ResendSender) SendExportEmail(ctx context.Context, toEmail string, zipB
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Resend API error (status %d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("resend API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var resendResp resendResponse
