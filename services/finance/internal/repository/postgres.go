@@ -373,6 +373,29 @@ func (r *PostgresFinanceRepository) GetUpcomingProRata(ctx context.Context, user
 	return schedules, nil
 }
 
+func (r *PostgresFinanceRepository) DeleteAllUserData(ctx context.Context, userID string) error {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return fmt.Errorf("parsing user ID: %w", err)
+	}
+
+	// Delete in consistent order: pro_rata_schedules → tags → budget_periods → default_settings
+	if err := r.queries.DeleteAllUserProRataSchedules(ctx, uid); err != nil {
+		return fmt.Errorf("deleting pro_rata_schedules: %w", err)
+	}
+	if err := r.queries.DeleteAllUserTags(ctx, uid); err != nil {
+		return fmt.Errorf("deleting tags: %w", err)
+	}
+	if err := r.queries.DeleteAllUserBudgetPeriods(ctx, uid); err != nil {
+		return fmt.Errorf("deleting budget_periods: %w", err)
+	}
+	if err := r.queries.DeleteAllUserDefaultSettings(ctx, uid); err != nil {
+		return fmt.Errorf("deleting default_settings: %w", err)
+	}
+
+	return nil
+}
+
 func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	return &model.DefaultSettings{
 		UserID:            formatUUID(d.UserID.Bytes),

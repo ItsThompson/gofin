@@ -145,6 +145,11 @@ func (m *mockRepo) GetUpcomingProRata(ctx context.Context, userID string) ([]*mo
 	return args.Get(0).([]*model.ProRataSchedule), args.Error(1)
 }
 
+func (m *mockRepo) DeleteAllUserData(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 func (m *mockRepo) GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error) {
 	args := m.Called(ctx, periodID, userID)
 	if args.Get(0) == nil {

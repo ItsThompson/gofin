@@ -27,6 +27,7 @@ type FinanceRepository interface {
 	GetPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error)
 	MarkProRataApplied(ctx context.Context, scheduleID string) error
 	GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error)
+	DeleteAllUserData(ctx context.Context, userID string) error
 }
 
 // TxBeginner abstracts the ability to begin a transaction for use in service layer.

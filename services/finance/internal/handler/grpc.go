@@ -262,3 +262,20 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 		Defaults: pbDefaults,
 	}, nil
 }
+
+func (h *GRPCHandler) DeleteAllUserData(ctx context.Context, req *pb.DeleteAllUserDataRequest) (*pb.DeleteAllUserDataResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	if err := h.financeService.DeleteAllUserData(ctx, userID); err != nil {
+		h.logger.Error("DeleteAllUserData failed",
+			"user_id", userID,
+			"error", err.Error(),
+		)
+		return nil, status.Error(codes.Internal, "failed to delete user data")
+	}
+
+	return &pb.DeleteAllUserDataResponse{}, nil
+}
