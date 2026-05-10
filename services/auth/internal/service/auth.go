@@ -665,7 +665,7 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *mo
 
 // CheckPassword compares a plaintext password against a bcrypt hash.
 // Exposed for gRPC handlers that need password verification without the full
-// Login/DeleteUser business logic.
+// Login business logic.
 func (s *AuthService) CheckPassword(password, hash string) bool {
 	return s.password.CheckPassword(password, hash)
 }
