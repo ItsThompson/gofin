@@ -17,6 +17,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
+	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
@@ -136,11 +137,29 @@ func run() error {
 
 	exportEngine := engine.NewEngine(registry, repo, emailSender, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
 
-	// Startup recovery: re-submit non-terminal jobs
+	// Startup recovery: re-submit non-terminal export jobs
 	emailResolver := service.NewAuthUserEmailResolver(authClient)
 	recoverJobs(ctx, repo, exportEngine, emailResolver, logger)
 
 	exportSvc := service.NewExportService(repo, logger, service.WithEngine(exportEngine), service.WithEmailResolver(emailResolver))
+
+	// Set up deletion engine with provider registry
+	deletionRepo := repository.NewPostgresDeletionJobRepository(pool)
+	deletionRegistry := deletion.NewDeletionProviderRegistry()
+	// Providers will be registered in later tickets (Ticket 6)
+
+	deletionEngine := deletion.NewDeletionEngine(
+		deletionRegistry,
+		deletionRepo,
+		cfg.MaxConcurrent,
+		cfg.DeletionTimeout,
+		logger,
+	)
+
+	// Startup recovery: re-submit non-terminal deletion jobs
+	recoverDeletionJobs(ctx, deletionRepo, deletionEngine, logger)
+
+	deletionSvc := service.NewDeletionService(deletionRepo, logger)
 
 	// Start REST server
 	if cfg.IsProduction() {
@@ -165,6 +184,9 @@ func run() error {
 
 	restHandler := handler.NewRESTHandler(exportSvc, logger)
 	restHandler.RegisterRoutes(router)
+
+	deletionHandler := handler.NewDeletionHandler(deletionSvc, logger)
+	deletionHandler.RegisterRoutes(router)
 
 	httpServer := &http.Server{
 		Addr:    ":" + cfg.RESTPort,
@@ -231,6 +253,29 @@ func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine
 			slog.String("user_id", job.UserID),
 		)
 		eng.Submit(job.ID, job.UserID, userEmail)
+	}
+}
+
+// recoverDeletionJobs re-submits any non-terminal deletion jobs on startup.
+func recoverDeletionJobs(ctx context.Context, repo repository.DeletionJobRepository, eng *deletion.DeletionEngine, logger *slog.Logger) {
+	jobs, err := repo.GetNonTerminalJobs(ctx)
+	if err != nil {
+		logger.Error("failed to query recoverable deletion jobs", slog.String("error", err.Error()))
+		return
+	}
+
+	if len(jobs) == 0 {
+		return
+	}
+
+	logger.Info("recovering non-terminal deletion jobs", slog.Int("count", len(jobs)))
+
+	for _, job := range jobs {
+		logger.Info("re-submitting deletion job",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+		)
+		eng.Submit(job.ID, job.UserID)
 	}
 }
 
