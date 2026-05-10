@@ -42,3 +42,11 @@ func (r *PostgresBlacklistRepository) IsTokenBlacklisted(ctx context.Context, jt
 func (r *PostgresBlacklistRepository) CleanupExpired(ctx context.Context) error {
 	return r.queries.CleanupExpiredBlacklist(ctx)
 }
+
+func (r *PostgresBlacklistRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return err
+	}
+	return r.queries.DeleteRefreshTokenBlacklist(ctx, uid)
+}

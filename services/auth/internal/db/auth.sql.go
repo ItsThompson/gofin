@@ -104,6 +104,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (AuthUse
 	return i, err
 }
 
+const deleteRefreshTokenBlacklist = `-- name: DeleteRefreshTokenBlacklist :exec
+DELETE FROM auth.refresh_token_blacklist WHERE user_id = $1
+`
+
+func (q *Queries) DeleteRefreshTokenBlacklist(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRefreshTokenBlacklist, userID)
+	return err
+}
+
 const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM auth.users WHERE id = $1
 `
