@@ -32,6 +32,7 @@ const AUTH_ENDPOINT_PREFIXES = [
   "/api/auth/register",
   "/api/auth/refresh",
   "/api/admin/users",
+  "/api/datarights/deletions",
 ];
 
 function isAuthEndpoint(url: string): boolean {

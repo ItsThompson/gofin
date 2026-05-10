@@ -663,86 +663,38 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *mo
 	}, nil
 }
 
-// protectedUsernames contains usernames that cannot be deleted.
-var protectedUsernames = []string{"admin", "thompson"}
-
-// isProtectedUsername returns true if the username is in the protected list.
-func isProtectedUsername(username string) bool {
-	for _, protected := range protectedUsernames {
-		if username == protected {
-			return true
-		}
-	}
-	return false
+// CheckPassword compares a plaintext password against a bcrypt hash.
+// Exposed for gRPC handlers that need password verification without the full
+// Login business logic.
+func (s *AuthService) CheckPassword(password, hash string) bool {
+	return s.password.CheckPassword(password, hash)
 }
 
-// DeleteUser permanently deletes a user. Validates that the admin is not
-// deleting themselves, that the target user is not protected, and that the
-// admin's password is correct before performing the deletion.
-func (s *AuthService) DeleteUser(ctx context.Context, adminUserID, targetUserID, password string) error {
-	// Guard: cannot delete yourself
-	if adminUserID == targetUserID {
-		return &AuthError{
-			Code:    model.ErrValidationError,
-			Message: "Cannot delete your own account",
-			Status:  400,
-		}
+// DeleteRefreshTokenBlacklist removes all blacklisted refresh tokens for a user.
+// Returns nil if no tokens exist (idempotent).
+func (s *AuthService) DeleteRefreshTokenBlacklist(ctx context.Context, userID string) error {
+	if err := s.blacklistRepo.DeleteByUserID(ctx, userID); err != nil {
+		return fmt.Errorf("deleting refresh token blacklist: %w", err)
 	}
 
-	// Look up admin to verify password
-	adminUser, err := s.repo.GetUserByID(ctx, adminUserID)
-	if err != nil {
-		return fmt.Errorf("looking up admin user: %w", err)
-	}
-	if adminUser == nil {
-		return &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "Admin user not found",
-			Status:  401,
-		}
+	s.logger.Info("refresh token blacklist deleted",
+		slog.String("method", "DeleteRefreshTokenBlacklist"),
+		slog.String("user_id", userID),
+	)
+
+	return nil
+}
+
+// DeleteUserRow deletes the user record. Wraps the existing repo.DeleteUser.
+// Returns nil if the user does not exist (idempotent).
+func (s *AuthService) DeleteUserRow(ctx context.Context, userID string) error {
+	if err := s.repo.DeleteUser(ctx, userID); err != nil {
+		return fmt.Errorf("deleting user row: %w", err)
 	}
 
-	// Verify admin's password
-	if !s.password.CheckPassword(password, adminUser.PasswordHash) {
-		return &AuthError{
-			Code:    model.ErrInvalidCredentials,
-			Message: "Invalid password",
-			Status:  401,
-		}
-	}
-
-	// Look up target user
-	targetUser, err := s.repo.GetUserByID(ctx, targetUserID)
-	if err != nil {
-		return fmt.Errorf("looking up target user: %w", err)
-	}
-	if targetUser == nil {
-		return &AuthError{
-			Code:    model.ErrNotFound,
-			Message: "User not found",
-			Status:  404,
-		}
-	}
-
-	// Check if target user is protected
-	if isProtectedUsername(targetUser.Username) {
-		return &AuthError{
-			Code:    model.ErrProtectedUser,
-			Message: "Cannot delete a protected user",
-			Status:  403,
-		}
-	}
-
-	// Perform deletion
-	if err := s.repo.DeleteUser(ctx, targetUserID); err != nil {
-		return fmt.Errorf("deleting user: %w", err)
-	}
-
-	s.logger.Info("user deleted",
-		slog.String("method", "DeleteUser"),
-		slog.String("admin_user_id", adminUserID),
-		slog.String("deleted_user_id", targetUserID),
-		slog.String("deleted_username", targetUser.Username),
+	s.logger.Info("user row deleted",
+		slog.String("method", "DeleteUserRow"),
+		slog.String("user_id", userID),
 	)
 
 	return nil

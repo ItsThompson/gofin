@@ -27,3 +27,22 @@ type RecoverableJob struct {
 	ID     string
 	UserID string
 }
+
+// DeletionJob represents a GDPR user deletion job.
+type DeletionJob struct {
+	ID          string     `json:"id"`
+	UserID      string     `json:"userId"`
+	AdminUserID string     `json:"adminUserId"`
+	Status      string     `json:"status"`
+	Error       *string    `json:"error"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	CompletedAt *time.Time `json:"completedAt"`
+	UpdatedAt   time.Time  `json:"-"`
+}
+
+// RecoverableDeletionJob holds the minimal fields needed to re-submit a
+// deletion job on startup recovery.
+type RecoverableDeletionJob struct {
+	ID     string
+	UserID string
+}

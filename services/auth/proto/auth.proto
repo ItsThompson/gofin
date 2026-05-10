@@ -10,6 +10,10 @@ service AuthService {
   rpc Login(LoginRequest) returns (AuthResponse);
   rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
 
+  // GDPR deletion support
+  rpc VerifyPassword(VerifyPasswordRequest) returns (VerifyPasswordResponse);
+  rpc DeleteUserData(DeleteUserDataRequest) returns (DeleteUserDataResponse);
+
   // Stubs: implemented in later tickets
   rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
@@ -118,3 +122,26 @@ message ChangePasswordRequest {
 }
 
 message ChangePasswordResponse {}
+
+// ---------------------------------------------------------------------------
+// VerifyPassword
+// ---------------------------------------------------------------------------
+
+message VerifyPasswordRequest {
+  string user_id = 1;   // The user whose password to verify
+  string password = 2;  // Plaintext password to check against stored hash
+}
+
+message VerifyPasswordResponse {
+  bool valid = 1;  // true if password matches stored hash
+}
+
+// ---------------------------------------------------------------------------
+// DeleteUserData
+// ---------------------------------------------------------------------------
+
+message DeleteUserDataRequest {
+  string user_id = 1;  // The user to delete
+}
+
+message DeleteUserDataResponse {}

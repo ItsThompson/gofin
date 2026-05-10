@@ -178,6 +178,19 @@ func (h *GRPCHandler) GetAllUserExpenses(ctx context.Context, req *pb.GetAllUser
 	}, nil
 }
 
+func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.AnonymizeRequest) (*pb.AnonymizeResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	if err := h.expenseService.AnonymizeAllUserExpenses(ctx, userID); err != nil {
+		return nil, status.Error(codes.Internal, "failed to anonymize expenses")
+	}
+
+	return &pb.AnonymizeResponse{}, nil
+}
+
 // expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{

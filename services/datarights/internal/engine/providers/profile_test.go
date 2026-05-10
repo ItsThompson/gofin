@@ -56,6 +56,12 @@ func (m *mockAuthServiceClient) UpdateUser(_ context.Context, _ *authpb.UpdateUs
 func (m *mockAuthServiceClient) ChangePassword(_ context.Context, _ *authpb.ChangePasswordRequest, _ ...grpc.CallOption) (*authpb.ChangePasswordResponse, error) {
 	return nil, nil
 }
+func (m *mockAuthServiceClient) VerifyPassword(_ context.Context, _ *authpb.VerifyPasswordRequest, _ ...grpc.CallOption) (*authpb.VerifyPasswordResponse, error) {
+	return nil, nil
+}
+func (m *mockAuthServiceClient) DeleteUserData(_ context.Context, _ *authpb.DeleteUserDataRequest, _ ...grpc.CallOption) (*authpb.DeleteUserDataResponse, error) {
+	return nil, nil
+}
 
 func TestProfileProvider_Name(t *testing.T) {
 	p := NewProfileProvider(nil)

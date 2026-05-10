@@ -16,3 +16,4 @@ export {
   type UseFormMutationOptions,
   type FormMutation,
 } from "./hooks/useFormMutation";
+export { usePolling, type UsePollingOptions } from "./hooks/usePolling";

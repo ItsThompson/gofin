@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v7.34.1
-// source: finance.proto
+// source: proto/finance.proto
 
 package financepb
 
@@ -23,6 +23,7 @@ const (
 	FinanceService_UpdateDefaults_FullMethodName          = "/finance.FinanceService/UpdateDefaults"
 	FinanceService_CompleteOnboarding_FullMethodName      = "/finance.FinanceService/CompleteOnboarding"
 	FinanceService_GetAllUserData_FullMethodName          = "/finance.FinanceService/GetAllUserData"
+	FinanceService_DeleteAllUserData_FullMethodName       = "/finance.FinanceService/DeleteAllUserData"
 	FinanceService_GetCurrentPeriod_FullMethodName        = "/finance.FinanceService/GetCurrentPeriod"
 	FinanceService_CreatePeriod_FullMethodName            = "/finance.FinanceService/CreatePeriod"
 	FinanceService_UpdatePeriod_FullMethodName            = "/finance.FinanceService/UpdatePeriod"
@@ -50,6 +51,8 @@ type FinanceServiceClient interface {
 	CompleteOnboarding(ctx context.Context, in *CompleteOnboardingRequest, opts ...grpc.CallOption) (*DefaultsResponse, error)
 	// Data export (datarights support)
 	GetAllUserData(ctx context.Context, in *GetAllUserDataRequest, opts ...grpc.CallOption) (*AllUserDataResponse, error)
+	// Data deletion (datarights support)
+	DeleteAllUserData(ctx context.Context, in *DeleteAllUserDataRequest, opts ...grpc.CallOption) (*DeleteAllUserDataResponse, error)
 	// Budget period operations (stubs for later tickets)
 	GetCurrentPeriod(ctx context.Context, in *GetCurrentPeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
 	CreatePeriod(ctx context.Context, in *CreatePeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
@@ -113,6 +116,16 @@ func (c *financeServiceClient) GetAllUserData(ctx context.Context, in *GetAllUse
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AllUserDataResponse)
 	err := c.cc.Invoke(ctx, FinanceService_GetAllUserData_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *financeServiceClient) DeleteAllUserData(ctx context.Context, in *DeleteAllUserDataRequest, opts ...grpc.CallOption) (*DeleteAllUserDataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAllUserDataResponse)
+	err := c.cc.Invoke(ctx, FinanceService_DeleteAllUserData_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -279,6 +292,8 @@ type FinanceServiceServer interface {
 	CompleteOnboarding(context.Context, *CompleteOnboardingRequest) (*DefaultsResponse, error)
 	// Data export (datarights support)
 	GetAllUserData(context.Context, *GetAllUserDataRequest) (*AllUserDataResponse, error)
+	// Data deletion (datarights support)
+	DeleteAllUserData(context.Context, *DeleteAllUserDataRequest) (*DeleteAllUserDataResponse, error)
 	// Budget period operations (stubs for later tickets)
 	GetCurrentPeriod(context.Context, *GetCurrentPeriodRequest) (*PeriodResponse, error)
 	CreatePeriod(context.Context, *CreatePeriodRequest) (*PeriodResponse, error)
@@ -319,6 +334,9 @@ func (UnimplementedFinanceServiceServer) CompleteOnboarding(context.Context, *Co
 }
 func (UnimplementedFinanceServiceServer) GetAllUserData(context.Context, *GetAllUserDataRequest) (*AllUserDataResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAllUserData not implemented")
+}
+func (UnimplementedFinanceServiceServer) DeleteAllUserData(context.Context, *DeleteAllUserDataRequest) (*DeleteAllUserDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteAllUserData not implemented")
 }
 func (UnimplementedFinanceServiceServer) GetCurrentPeriod(context.Context, *GetCurrentPeriodRequest) (*PeriodResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetCurrentPeriod not implemented")
@@ -454,6 +472,24 @@ func _FinanceService_GetAllUserData_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(FinanceServiceServer).GetAllUserData(ctx, req.(*GetAllUserDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FinanceService_DeleteAllUserData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAllUserDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FinanceServiceServer).DeleteAllUserData(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FinanceService_DeleteAllUserData_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FinanceServiceServer).DeleteAllUserData(ctx, req.(*DeleteAllUserDataRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -752,6 +788,10 @@ var FinanceService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _FinanceService_GetAllUserData_Handler,
 		},
 		{
+			MethodName: "DeleteAllUserData",
+			Handler:    _FinanceService_DeleteAllUserData_Handler,
+		},
+		{
 			MethodName: "GetCurrentPeriod",
 			Handler:    _FinanceService_GetCurrentPeriod_Handler,
 		},
@@ -813,5 +853,5 @@ var FinanceService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "finance.proto",
+	Metadata: "proto/finance.proto",
 }

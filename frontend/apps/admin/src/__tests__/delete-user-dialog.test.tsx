@@ -6,6 +6,15 @@ import { DeleteUserDialog } from "@/components/DeleteUserDialog";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+const mockDeletionJob = {
+  id: "job-1",
+  userId: "user-1",
+  status: "pending",
+  error: null,
+  createdAt: "2026-05-10T00:00:00Z",
+  completedAt: null,
+};
+
 describe("DeleteUserDialog", () => {
   const mockOnOpenChange = vi.fn();
   const mockOnSuccess = vi.fn();
@@ -104,10 +113,11 @@ describe("DeleteUserDialog", () => {
     expect(screen.getByLabelText("Confirmation")).toBeInTheDocument();
   });
 
-  it("calls API and onSuccess on successful deletion", async () => {
+  it("calls POST /api/datarights/deletions and passes job to onSuccess", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      status: 204,
+      status: 202,
+      json: () => Promise.resolve(mockDeletionJob),
     });
 
     const user = userEvent.setup();
@@ -129,22 +139,20 @@ describe("DeleteUserDialog", () => {
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
     await waitFor(() => {
-      expect(mockOnSuccess).toHaveBeenCalled();
+      expect(mockOnSuccess).toHaveBeenCalledWith(mockDeletionJob);
     });
 
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/admin/users/user-1",
+      "/api/datarights/deletions",
       expect.objectContaining({
-        method: "DELETE",
-        body: JSON.stringify({ password: "mypassword" }),
+        method: "POST",
+        body: JSON.stringify({ userId: "user-1", password: "mypassword" }),
       }),
     );
   });
 
   it("shows inline error on wrong password (401)", async () => {
-    // With /api/admin/users in AUTH_ENDPOINT_PREFIXES, 401 throws directly
-    // without attempting token refresh
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -175,6 +183,93 @@ describe("DeleteUserDialog", () => {
 
     // Dialog stays open
     expect(mockOnOpenChange).not.toHaveBeenCalledWith(false);
+    expect(mockOnSuccess).not.toHaveBeenCalled();
+  });
+
+  it("shows inline error on 403 protected user", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({ code: "PROTECTED_USER", message: "Cannot delete a protected user" }),
+    });
+
+    const user = userEvent.setup();
+    render(
+      <DeleteUserDialog
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        user={testUser}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Your Password"), "mypassword");
+    await user.click(screen.getByRole("button", { name: "Delete User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cannot delete a protected user")).toBeInTheDocument();
+    });
+
+    expect(mockOnSuccess).not.toHaveBeenCalled();
+  });
+
+  it("shows inline error on 409 export in progress", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ code: "EXPORT_CONFLICT", message: "Cannot delete user while data export is in progress" }),
+    });
+
+    const user = userEvent.setup();
+    render(
+      <DeleteUserDialog
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        user={testUser}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Your Password"), "mypassword");
+    await user.click(screen.getByRole("button", { name: "Delete User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cannot delete user while data export is in progress")).toBeInTheDocument();
+    });
+
+    expect(mockOnSuccess).not.toHaveBeenCalled();
+  });
+
+  it("shows inline error on 400 self-deletion", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ code: "BAD_REQUEST", message: "Cannot delete your own account" }),
+    });
+
+    const user = userEvent.setup();
+    render(
+      <DeleteUserDialog
+        open={true}
+        onOpenChange={mockOnOpenChange}
+        user={testUser}
+        onSuccess={mockOnSuccess}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.type(screen.getByLabelText("Your Password"), "mypassword");
+    await user.click(screen.getByRole("button", { name: "Delete User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cannot delete your own account")).toBeInTheDocument();
+    });
+
     expect(mockOnSuccess).not.toHaveBeenCalled();
   });
 

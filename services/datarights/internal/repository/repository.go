@@ -18,3 +18,14 @@ type JobRepository interface {
 	FailJob(ctx context.Context, jobID string, errMsg string) error
 	GetNonTerminalJobs(ctx context.Context) ([]model.RecoverableJob, error)
 }
+
+// DeletionJobRepository defines the data access contract for deletion job operations.
+type DeletionJobRepository interface {
+	CreateJob(ctx context.Context, userID, adminUserID string) (*model.DeletionJob, error)
+	GetJob(ctx context.Context, jobID string) (*model.DeletionJob, error)
+	GetInProgressJob(ctx context.Context, userID string) (*model.DeletionJob, error)
+	UpdateStatus(ctx context.Context, jobID string, status string) error
+	CompleteJob(ctx context.Context, jobID string) error
+	FailJob(ctx context.Context, jobID string, errMsg string) error
+	GetNonTerminalJobs(ctx context.Context) ([]model.RecoverableDeletionJob, error)
+}

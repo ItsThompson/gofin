@@ -19,6 +19,7 @@ type Config struct {
 	FinanceServiceAddr string
 	MaxConcurrent      int
 	ExportTimeout      time.Duration
+	DeletionTimeout    time.Duration
 	ResendAPIKey       string
 	EmailFrom          string
 	EmailEnabled       bool
@@ -81,6 +82,13 @@ func Load() (*Config, error) {
 		}
 	}
 
+	deletionTimeout := 5 * time.Minute
+	if v := os.Getenv("DELETION_TIMEOUT_SECONDS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			deletionTimeout = time.Duration(parsed) * time.Second
+		}
+	}
+
 	emailEnabled := true
 	if v := os.Getenv("EMAIL_ENABLED"); v == "false" {
 		emailEnabled = false
@@ -108,6 +116,7 @@ func Load() (*Config, error) {
 		FinanceServiceAddr: financeServiceAddr,
 		MaxConcurrent:      maxConcurrent,
 		ExportTimeout:      exportTimeout,
+		DeletionTimeout:    deletionTimeout,
 		ResendAPIKey:       resendAPIKey,
 		EmailFrom:          emailFrom,
 		EmailEnabled:       emailEnabled,

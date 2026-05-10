@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminPanelPage } from "@/pages/AdminPanelPage";
 import type { User } from "@gofin/core";
@@ -41,6 +41,15 @@ const mockUsers = [
   { id: "thompson-1", username: "thompson", email: "thompson@gofin.local", role: "admin", createdAt: "2026-01-01T00:00:00Z" },
 ];
 
+const mockDeletionJob = {
+  id: "job-1",
+  userId: "user-1",
+  status: "pending",
+  error: null,
+  createdAt: "2026-05-10T00:00:00Z",
+  completedAt: null,
+};
+
 function mockFetchSuccess() {
   mockFetch.mockResolvedValueOnce({
     ok: true,
@@ -54,6 +63,27 @@ function mockFetchError(message: string) {
     ok: false,
     status: 500,
     json: () => Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message }),
+  });
+}
+
+function mockDeletionPostSuccess(job = mockDeletionJob) {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 202,
+    json: () => Promise.resolve(job),
+  });
+}
+
+function mockDeletionPollResponse(status: string, error: string | null = null) {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({
+      ...mockDeletionJob,
+      status,
+      error,
+      completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
+    }),
   });
 }
 
@@ -82,7 +112,6 @@ describe("AdminPanelPage", () => {
     });
 
     expect(screen.getByText("bob")).toBeInTheDocument();
-    // "admin" appears in both the username column and the role badge
     expect(screen.getAllByText("admin").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("4 users registered")).toBeInTheDocument();
   });
@@ -198,7 +227,6 @@ describe("AdminPanelPage", () => {
     });
 
     // Delete buttons should appear for alice and bob only
-    // Not for admin (self) or thompson (protected)
     const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
     expect(deleteButtons).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Delete alice" })).toBeInTheDocument();
@@ -224,7 +252,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    // Admin row doesn't show any action buttons
     expect(screen.queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
   });
 
@@ -236,11 +263,8 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    // No delete button for admin (protected username)
     expect(screen.queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
-    // No delete button for thompson (self)
     expect(screen.queryByRole("button", { name: "Delete thompson" })).not.toBeInTheDocument();
-    // Delete buttons exist for alice and bob
     expect(screen.getByRole("button", { name: "Delete alice" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete bob" })).toBeInTheDocument();
   });
@@ -259,7 +283,9 @@ describe("AdminPanelPage", () => {
     expect(screen.getByText(/Delete User: alice/)).toBeInTheDocument();
   });
 
-  it("removes user from table after successful deletion", async () => {
+  // --- Deletion State Tests ---
+
+  it("shows spinner and 'Deleting...' for pending/running user", async () => {
     mockFetchSuccess();
     const user = userEvent.setup();
     render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
@@ -268,26 +294,102 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    // Open delete dialog
+    // Trigger deletion
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
-
-    // Step 1: type confirmation phrase
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
 
-    // Step 2: enter password and submit
-    // Mock: DELETE succeeds
-    mockFetch.mockResolvedValueOnce({ ok: true, status: 204 });
-
+    mockDeletionPostSuccess();
     await user.type(screen.getByLabelText("Your Password"), "mypassword");
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
-    // User should be removed from table
+    await waitFor(() => {
+      expect(screen.getByText("Deleting...")).toBeInTheDocument();
+    });
+
+    // Assume and Delete buttons should NOT be present for alice
+    expect(screen.queryByRole("button", { name: "Delete alice" })).not.toBeInTheDocument();
+  });
+
+  it("removes user from table after polling returns completed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockFetchSuccess();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const { toast } = await import("sonner");
+    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("alice")).toBeInTheDocument();
+    });
+
+    // Trigger deletion
+    await user.click(screen.getByRole("button", { name: "Delete alice" }));
+    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    mockDeletionPostSuccess();
+    await user.type(screen.getByLabelText("Your Password"), "mypassword");
+    await user.click(screen.getByRole("button", { name: "Delete User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Deleting...")).toBeInTheDocument();
+    });
+
+    // Simulate polling returning "completed"
+    mockDeletionPollResponse("completed");
+    await act(async () => {
+      vi.advanceTimersByTime(2500);
+    });
+
     await waitFor(() => {
       expect(screen.queryByText("alice")).not.toBeInTheDocument();
     });
 
     // Other users still present
     expect(screen.getByText("bob")).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith('User "alice" has been deleted');
+    vi.useRealTimers();
+  });
+
+  it("shows Failed badge and re-enables Delete button after polling returns failed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockFetchSuccess();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const { toast } = await import("sonner");
+    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("alice")).toBeInTheDocument();
+    });
+
+    // Trigger deletion
+    await user.click(screen.getByRole("button", { name: "Delete alice" }));
+    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    mockDeletionPostSuccess();
+    await user.type(screen.getByLabelText("Your Password"), "mypassword");
+    await user.click(screen.getByRole("button", { name: "Delete User" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Deleting...")).toBeInTheDocument();
+    });
+
+    // Simulate polling returning "failed"
+    mockDeletionPollResponse("failed", "Provider finance failed: connection timeout");
+    await act(async () => {
+      vi.advanceTimersByTime(2500);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed")).toBeInTheDocument();
+    });
+
+    // Delete button should be re-enabled for retry
+    expect(screen.getByRole("button", { name: "Delete alice" })).toBeInTheDocument();
+    expect(toast.error).toHaveBeenCalledWith(
+      'Deletion of "alice" failed: Provider finance failed: connection timeout',
+    );
+    vi.useRealTimers();
   });
 });

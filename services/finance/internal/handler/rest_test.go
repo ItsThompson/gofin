@@ -168,6 +168,11 @@ func (m *mockFinanceRepository) GetUpcomingProRata(ctx context.Context, userID s
 	return args.Get(0).([]*model.ProRataSchedule), args.Error(1)
 }
 
+func (m *mockFinanceRepository) DeleteAllUserData(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
 // mockTxBeginner implements repository.TxBeginner.
 type mockTxBeginner struct {
 	mock.Mock

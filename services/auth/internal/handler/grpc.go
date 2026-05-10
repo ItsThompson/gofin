@@ -113,3 +113,64 @@ func (h *GRPCHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest)
 func (h *GRPCHandler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ChangePasswordResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "ChangePassword not yet implemented")
 }
+
+func (h *GRPCHandler) VerifyPassword(ctx context.Context, req *pb.VerifyPasswordRequest) (*pb.VerifyPasswordResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	password := req.GetPassword()
+	if password == "" {
+		return nil, status.Error(codes.InvalidArgument, "password is required")
+	}
+
+	user, err := h.authService.GetUserByID(ctx, userID)
+	if err != nil {
+		if authErr, ok := err.(*service.AuthError); ok && authErr.Status == 401 {
+			return nil, status.Error(codes.NotFound, "user not found")
+		}
+		h.logger.Error("failed to look up user for password verification",
+			slog.String("method", "VerifyPassword"),
+			slog.String("user_id", userID),
+			slog.String("error", err.Error()),
+		)
+		return nil, status.Error(codes.Internal, "failed to look up user")
+	}
+
+	valid := h.authService.CheckPassword(password, user.PasswordHash)
+	return &pb.VerifyPasswordResponse{Valid: valid}, nil
+}
+
+func (h *GRPCHandler) DeleteUserData(ctx context.Context, req *pb.DeleteUserDataRequest) (*pb.DeleteUserDataResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// Delete refresh token blacklist entries first (FK constraint)
+	if err := h.authService.DeleteRefreshTokenBlacklist(ctx, userID); err != nil {
+		h.logger.Error("failed to delete refresh token blacklist",
+			slog.String("method", "DeleteUserData"),
+			slog.String("user_id", userID),
+			slog.String("error", err.Error()),
+		)
+		return nil, status.Error(codes.Internal, "failed to delete refresh tokens")
+	}
+
+	// Delete the user row
+	if err := h.authService.DeleteUserRow(ctx, userID); err != nil {
+		h.logger.Error("failed to delete user row",
+			slog.String("method", "DeleteUserData"),
+			slog.String("user_id", userID),
+			slog.String("error", err.Error()),
+		)
+		return nil, status.Error(codes.Internal, "failed to delete user")
+	}
+
+	h.logger.Info("user data deleted via gRPC",
+		slog.String("method", "DeleteUserData"),
+		slog.String("user_id", userID),
+	)
+
+	return &pb.DeleteUserDataResponse{}, nil
+}

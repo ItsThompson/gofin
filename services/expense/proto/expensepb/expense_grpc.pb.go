@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ExpenseService_CreateExpense_FullMethodName        = "/expense.ExpenseService/CreateExpense"
-	ExpenseService_GetExpensesForPeriod_FullMethodName = "/expense.ExpenseService/GetExpensesForPeriod"
-	ExpenseService_GetExpense_FullMethodName           = "/expense.ExpenseService/GetExpense"
-	ExpenseService_CountExpensesByTag_FullMethodName   = "/expense.ExpenseService/CountExpensesByTag"
-	ExpenseService_GetAllUserExpenses_FullMethodName   = "/expense.ExpenseService/GetAllUserExpenses"
-	ExpenseService_CorrectExpense_FullMethodName       = "/expense.ExpenseService/CorrectExpense"
-	ExpenseService_GetCorrectionHistory_FullMethodName = "/expense.ExpenseService/GetCorrectionHistory"
-	ExpenseService_GetProRataGroup_FullMethodName      = "/expense.ExpenseService/GetProRataGroup"
+	ExpenseService_CreateExpense_FullMethodName            = "/expense.ExpenseService/CreateExpense"
+	ExpenseService_GetExpensesForPeriod_FullMethodName     = "/expense.ExpenseService/GetExpensesForPeriod"
+	ExpenseService_GetExpense_FullMethodName               = "/expense.ExpenseService/GetExpense"
+	ExpenseService_CountExpensesByTag_FullMethodName       = "/expense.ExpenseService/CountExpensesByTag"
+	ExpenseService_GetAllUserExpenses_FullMethodName       = "/expense.ExpenseService/GetAllUserExpenses"
+	ExpenseService_AnonymizeAllUserExpenses_FullMethodName = "/expense.ExpenseService/AnonymizeAllUserExpenses"
+	ExpenseService_CorrectExpense_FullMethodName           = "/expense.ExpenseService/CorrectExpense"
+	ExpenseService_GetCorrectionHistory_FullMethodName     = "/expense.ExpenseService/GetCorrectionHistory"
+	ExpenseService_GetProRataGroup_FullMethodName          = "/expense.ExpenseService/GetProRataGroup"
 )
 
 // ExpenseServiceClient is the client API for ExpenseService service.
@@ -41,6 +42,8 @@ type ExpenseServiceClient interface {
 	CountExpensesByTag(ctx context.Context, in *CountExpensesByTagRequest, opts ...grpc.CallOption) (*CountExpensesByTagResponse, error)
 	// Data export: returns all expenses (active + corrected) for a user, paginated
 	GetAllUserExpenses(ctx context.Context, in *GetAllUserExpensesRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
+	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
+	AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error)
 	// Stubs: implemented in later tickets
 	CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	GetCorrectionHistory(ctx context.Context, in *GetCorrectionHistoryRequest, opts ...grpc.CallOption) (*CorrectionHistoryResponse, error)
@@ -105,6 +108,16 @@ func (c *expenseServiceClient) GetAllUserExpenses(ctx context.Context, in *GetAl
 	return out, nil
 }
 
+func (c *expenseServiceClient) AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AnonymizeResponse)
+	err := c.cc.Invoke(ctx, ExpenseService_AnonymizeAllUserExpenses_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExpenseResponse)
@@ -147,6 +160,8 @@ type ExpenseServiceServer interface {
 	CountExpensesByTag(context.Context, *CountExpensesByTagRequest) (*CountExpensesByTagResponse, error)
 	// Data export: returns all expenses (active + corrected) for a user, paginated
 	GetAllUserExpenses(context.Context, *GetAllUserExpensesRequest) (*ExpenseListResponse, error)
+	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
+	AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error)
 	// Stubs: implemented in later tickets
 	CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error)
 	GetCorrectionHistory(context.Context, *GetCorrectionHistoryRequest) (*CorrectionHistoryResponse, error)
@@ -175,6 +190,9 @@ func (UnimplementedExpenseServiceServer) CountExpensesByTag(context.Context, *Co
 }
 func (UnimplementedExpenseServiceServer) GetAllUserExpenses(context.Context, *GetAllUserExpensesRequest) (*ExpenseListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAllUserExpenses not implemented")
+}
+func (UnimplementedExpenseServiceServer) AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AnonymizeAllUserExpenses not implemented")
 }
 func (UnimplementedExpenseServiceServer) CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CorrectExpense not implemented")
@@ -296,6 +314,24 @@ func _ExpenseService_GetAllUserExpenses_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExpenseService_AnonymizeAllUserExpenses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AnonymizeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExpenseServiceServer).AnonymizeAllUserExpenses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExpenseService_AnonymizeAllUserExpenses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExpenseServiceServer).AnonymizeAllUserExpenses(ctx, req.(*AnonymizeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ExpenseService_CorrectExpense_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CorrectExpenseRequest)
 	if err := dec(in); err != nil {
@@ -376,6 +412,10 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAllUserExpenses",
 			Handler:    _ExpenseService_GetAllUserExpenses_Handler,
+		},
+		{
+			MethodName: "AnonymizeAllUserExpenses",
+			Handler:    _ExpenseService_AnonymizeAllUserExpenses_Handler,
 		},
 		{
 			MethodName: "CorrectExpense",

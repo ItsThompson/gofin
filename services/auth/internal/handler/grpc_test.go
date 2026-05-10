@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -26,6 +27,16 @@ func newTestGRPCHandler() (*GRPCHandler, *service.JWTService, *mockUserRepositor
 	pwdSvc := service.NewPasswordService(4)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 	return NewGRPCHandler(authSvc, logger), jwtSvc, repo
+}
+
+func newTestGRPCHandlerWithBlacklist() (*GRPCHandler, *mockUserRepository, *mockBlacklistRepository) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	jwtSvc := service.NewJWTService("test-secret")
+	pwdSvc := service.NewPasswordService(4)
+	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
+	return NewGRPCHandler(authSvc, logger), repo, blacklistRepo
 }
 
 func TestGRPCValidateToken_Success(t *testing.T) {
@@ -147,4 +158,173 @@ func TestGRPCGetUser_EmptyUserID(t *testing.T) {
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	assert.Equal(t, codes.InvalidArgument, st.Code())
+}
+
+// --- VerifyPassword Tests ---
+
+func TestGRPCVerifyPassword_Valid(t *testing.T) {
+	handler, repo, _ := newTestGRPCHandlerWithBlacklist()
+
+	// Hash for "CorrectPass1"
+	pwdSvc := service.NewPasswordService(4)
+	hash, err := pwdSvc.HashPassword("CorrectPass1")
+	require.NoError(t, err)
+
+	repo.On("GetUserByID", mock.Anything, "user-123").Return(&model.User{
+		ID:           "user-123",
+		Username:     "johndoe",
+		PasswordHash: hash,
+	}, nil)
+
+	resp, err := handler.VerifyPassword(context.Background(), &pb.VerifyPasswordRequest{
+		UserId:   "user-123",
+		Password: "CorrectPass1",
+	})
+
+	require.NoError(t, err)
+	assert.True(t, resp.Valid)
+}
+
+func TestGRPCVerifyPassword_Invalid(t *testing.T) {
+	handler, repo, _ := newTestGRPCHandlerWithBlacklist()
+
+	pwdSvc := service.NewPasswordService(4)
+	hash, err := pwdSvc.HashPassword("CorrectPass1")
+	require.NoError(t, err)
+
+	repo.On("GetUserByID", mock.Anything, "user-123").Return(&model.User{
+		ID:           "user-123",
+		Username:     "johndoe",
+		PasswordHash: hash,
+	}, nil)
+
+	resp, err := handler.VerifyPassword(context.Background(), &pb.VerifyPasswordRequest{
+		UserId:   "user-123",
+		Password: "WrongPassword1",
+	})
+
+	require.NoError(t, err)
+	assert.False(t, resp.Valid)
+}
+
+func TestGRPCVerifyPassword_UserNotFound(t *testing.T) {
+	handler, repo, _ := newTestGRPCHandlerWithBlacklist()
+
+	repo.On("GetUserByID", mock.Anything, "nonexistent").Return(nil, nil)
+
+	_, err := handler.VerifyPassword(context.Background(), &pb.VerifyPasswordRequest{
+		UserId:   "nonexistent",
+		Password: "SomePass123",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
+}
+
+func TestGRPCVerifyPassword_EmptyUserID(t *testing.T) {
+	handler, _, _ := newTestGRPCHandlerWithBlacklist()
+
+	_, err := handler.VerifyPassword(context.Background(), &pb.VerifyPasswordRequest{
+		Password: "SomePass123",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "user_id")
+}
+
+func TestGRPCVerifyPassword_EmptyPassword(t *testing.T) {
+	handler, _, _ := newTestGRPCHandlerWithBlacklist()
+
+	_, err := handler.VerifyPassword(context.Background(), &pb.VerifyPasswordRequest{
+		UserId: "user-123",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "password")
+}
+
+// --- DeleteUserData Tests ---
+
+func TestGRPCDeleteUserData_Success(t *testing.T) {
+	handler, repo, blacklistRepo := newTestGRPCHandlerWithBlacklist()
+
+	blacklistRepo.On("DeleteByUserID", mock.Anything, "user-123").Return(nil)
+	repo.On("DeleteUser", mock.Anything, "user-123").Return(nil)
+
+	resp, err := handler.DeleteUserData(context.Background(), &pb.DeleteUserDataRequest{
+		UserId: "user-123",
+	})
+
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+	blacklistRepo.AssertCalled(t, "DeleteByUserID", mock.Anything, "user-123")
+	repo.AssertCalled(t, "DeleteUser", mock.Anything, "user-123")
+}
+
+func TestGRPCDeleteUserData_NonexistentUser(t *testing.T) {
+	// Idempotent: returns success even if user does not exist (0 rows affected)
+	handler, repo, blacklistRepo := newTestGRPCHandlerWithBlacklist()
+
+	blacklistRepo.On("DeleteByUserID", mock.Anything, "nonexistent").Return(nil)
+	repo.On("DeleteUser", mock.Anything, "nonexistent").Return(nil)
+
+	resp, err := handler.DeleteUserData(context.Background(), &pb.DeleteUserDataRequest{
+		UserId: "nonexistent",
+	})
+
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+}
+
+func TestGRPCDeleteUserData_EmptyUserID(t *testing.T) {
+	handler, _, _ := newTestGRPCHandlerWithBlacklist()
+
+	_, err := handler.DeleteUserData(context.Background(), &pb.DeleteUserDataRequest{})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "user_id")
+}
+
+func TestGRPCDeleteUserData_BlacklistDeleteFails(t *testing.T) {
+	handler, _, blacklistRepo := newTestGRPCHandlerWithBlacklist()
+
+	blacklistRepo.On("DeleteByUserID", mock.Anything, "user-123").Return(fmt.Errorf("db connection lost"))
+
+	_, err := handler.DeleteUserData(context.Background(), &pb.DeleteUserDataRequest{
+		UserId: "user-123",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Contains(t, st.Message(), "refresh tokens")
+}
+
+func TestGRPCDeleteUserData_UserDeleteFails(t *testing.T) {
+	handler, repo, blacklistRepo := newTestGRPCHandlerWithBlacklist()
+
+	blacklistRepo.On("DeleteByUserID", mock.Anything, "user-123").Return(nil)
+	repo.On("DeleteUser", mock.Anything, "user-123").Return(fmt.Errorf("db connection lost"))
+
+	_, err := handler.DeleteUserData(context.Background(), &pb.DeleteUserDataRequest{
+		UserId: "user-123",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Contains(t, st.Message(), "delete user")
 }

@@ -83,6 +83,9 @@ func (m *mockFinanceServiceClient) GetCumulativeSpend(_ context.Context, _ *fina
 func (m *mockFinanceServiceClient) GetHistoricalComparison(_ context.Context, _ *financepb.GetHistoricalComparisonRequest, _ ...grpc.CallOption) (*financepb.HistoricalComparisonResponse, error) {
 	return nil, nil
 }
+func (m *mockFinanceServiceClient) DeleteAllUserData(_ context.Context, _ *financepb.DeleteAllUserDataRequest, _ ...grpc.CallOption) (*financepb.DeleteAllUserDataResponse, error) {
+	return nil, nil
+}
 
 // mockExpenseServiceClient implements ExpenseServiceClient for tests.
 type mockExpenseServiceClient struct {
@@ -124,5 +127,8 @@ func (m *mockExpenseServiceClient) GetCorrectionHistory(_ context.Context, _ *ex
 	return nil, nil
 }
 func (m *mockExpenseServiceClient) GetProRataGroup(_ context.Context, _ *expensepb.GetProRataGroupRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
+	return nil, nil
+}
+func (m *mockExpenseServiceClient) AnonymizeAllUserExpenses(_ context.Context, _ *expensepb.AnonymizeRequest, _ ...grpc.CallOption) (*expensepb.AnonymizeResponse, error) {
 	return nil, nil
 }

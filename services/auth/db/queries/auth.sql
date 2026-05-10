@@ -54,5 +54,8 @@ WHERE id = $1;
 -- name: GetTokensRevokedAt :one
 SELECT tokens_revoked_at FROM auth.users WHERE id = $1;
 
+-- name: DeleteRefreshTokenBlacklist :exec
+DELETE FROM auth.refresh_token_blacklist WHERE user_id = $1;
+
 -- name: DeleteUser :exec
 DELETE FROM auth.users WHERE id = $1;

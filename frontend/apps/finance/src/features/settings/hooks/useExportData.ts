@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ApiRequestError } from "@gofin/api";
+import { ApiRequestError, usePolling } from "@gofin/api";
 import { toast } from "sonner";
 import { settingsApi } from "../api";
 import type {
@@ -50,14 +50,18 @@ function computeNextExportDate(jobs: ExportJob[]): string | null {
   return null;
 }
 
+interface ExportListResponse {
+  data: ExportJob[];
+}
+
 export function useExportData(): { state: ExportDataState; actions: ExportDataActions } {
   const [jobs, setJobs] = useState<ExportJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextExportDate, setNextExportDate] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
 
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
   const fetchJobs = useCallback(async () => {
@@ -66,6 +70,13 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       if (!mountedRef.current) return;
       setJobs(response.data);
       setError(null);
+
+      // Start polling immediately if active jobs are detected.
+      // Setting this in the same batch as setJobs avoids an extra render
+      // cycle that would delay interval creation.
+      if (hasActiveJobs(response.data)) {
+        setPolling(true);
+      }
 
       const computed = computeNextExportDate(response.data);
       setNextExportDate((prev) => prev ?? computed);
@@ -83,31 +94,22 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
     }
   }, []);
 
-  const startPolling = useCallback(() => {
-    if (pollIntervalRef.current) return;
+  const handlePollData = useCallback((response: ExportListResponse) => {
+    if (!mountedRef.current) return;
+    setJobs(response.data);
 
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const response = await settingsApi.listExports(1, 50);
-        if (!mountedRef.current) return;
-        setJobs(response.data);
-
-        if (!hasActiveJobs(response.data) && pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      } catch {
-        // Silently retry on next poll interval
-      }
-    }, POLL_INTERVAL_MS);
-  }, []);
-
-  const stopPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+    if (!hasActiveJobs(response.data)) {
+      setPolling(false);
     }
   }, []);
+
+  usePolling<ExportListResponse>({
+    fetcher: () => settingsApi.listExports(1, 50),
+    enabled: polling,
+    intervalMs: POLL_INTERVAL_MS,
+    onData: handlePollData,
+    shouldStop: (response) => !hasActiveJobs(response.data),
+  });
 
   const requestExport = useCallback(async () => {
     setCreating(true);
@@ -129,19 +131,16 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
           : "Your data export is already being prepared.",
       );
 
-      startPolling();
+      setPolling(true);
     } catch (err) {
       if (!mountedRef.current) return;
 
       if (err instanceof ApiRequestError && err.status === 429) {
-        // Extract date from error message (format: "...after 2026-06-08." or ISO)
         const isoMatch = err.message.match(/(\d{4}-\d{2}-\d{2})(T[\d:]+Z)?/);
         if (isoMatch) {
           const dateStr = isoMatch[2] ? isoMatch[0] : `${isoMatch[1]}T00:00:00Z`;
           setNextExportDate(dateStr);
         }
-
-        // No error toast for 429: just update state
         return;
       }
 
@@ -157,7 +156,7 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
         setCreating(false);
       }
     }
-  }, [startPolling]);
+  }, []);
 
   const refresh = useCallback(async () => {
     await fetchJobs();
@@ -170,18 +169,8 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
 
     return () => {
       mountedRef.current = false;
-      stopPolling();
     };
-  }, [fetchJobs, stopPolling]);
-
-  // Start/stop polling based on job states
-  useEffect(() => {
-    if (hasActiveJobs(jobs)) {
-      startPolling();
-    } else {
-      stopPolling();
-    }
-  }, [jobs, startPolling, stopPolling]);
+  }, [fetchJobs]);
 
   const canExport = computeCanExport(jobs, nextExportDate);
 

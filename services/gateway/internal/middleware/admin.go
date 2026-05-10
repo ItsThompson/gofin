@@ -3,6 +3,7 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,10 +18,24 @@ var adminOnlyRoutes = []struct {
 	{method: http.MethodPost, path: "/api/auth/assume"},
 }
 
+// adminOnlyPrefixes lists URL path prefixes that require admin role.
+// Any request whose path starts with one of these prefixes is subject to
+// admin enforcement (used for routes with dynamic segments like :id).
+var adminOnlyPrefixes = []string{
+	"/api/datarights/deletions",
+}
+
 // isAdminOnlyRoute checks whether a given method+path pair requires admin role.
+// It checks both exact matches from adminOnlyRoutes and prefix matches from
+// adminOnlyPrefixes.
 func isAdminOnlyRoute(method, path string) bool {
 	for _, route := range adminOnlyRoutes {
 		if route.method == method && route.path == path {
+			return true
+		}
+	}
+	for _, prefix := range adminOnlyPrefixes {
+		if strings.HasPrefix(path, prefix) {
 			return true
 		}
 	}
@@ -57,8 +72,9 @@ func RequireAdmin(logger *slog.Logger) gin.HandlerFunc {
 }
 
 // AdminRouteGuard returns Gin middleware that enforces admin role on specific
-// routes that live outside the /api/admin/* prefix (e.g., POST /api/auth/assume).
-// It checks the request method+path against the adminOnlyRoutes list.
+// routes that live outside the /api/admin/* prefix. It checks the request
+// against both the exact adminOnlyRoutes list (e.g., POST /api/auth/assume)
+// and the adminOnlyPrefixes list (e.g., /api/datarights/deletions*).
 func AdminRouteGuard(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if isAdminOnlyRoute(c.Request.Method, c.Request.URL.Path) {
