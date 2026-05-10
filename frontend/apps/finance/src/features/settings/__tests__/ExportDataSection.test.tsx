@@ -411,14 +411,14 @@ describe("ExportDataSection", () => {
         expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1);
       });
 
-      // Advance timer to trigger first poll
+      // Advance timer to trigger first poll (async to flush pending promises)
       await act(async () => {
-        vi.advanceTimersByTime(5000);
+        await vi.advanceTimersByTimeAsync(5000);
       });
 
       // Advance timer to trigger second poll
       await act(async () => {
-        vi.advanceTimersByTime(5000);
+        await vi.advanceTimersByTimeAsync(5000);
       });
 
       await waitFor(() => {
