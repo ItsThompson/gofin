@@ -82,7 +82,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to auth service gRPC at %s: %w", cfg.AuthServiceAddr, err)
 	}
-	defer func() { _ = authConn.Close() }()
+	defer authConn.Close() //nolint:errcheck
 
 	logger.Info("gRPC client configured",
 		slog.String("auth_service_addr", cfg.AuthServiceAddr),
@@ -98,7 +98,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to expense service gRPC at %s: %w", cfg.ExpenseServiceAddr, err)
 	}
-	defer func() { _ = expenseConn.Close() }()
+	defer expenseConn.Close() //nolint:errcheck
 
 	expenseClient := expensepb.NewExpenseServiceClient(expenseConn)
 
@@ -110,7 +110,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to finance service gRPC at %s: %w", cfg.FinanceServiceAddr, err)
 	}
-	defer func() { _ = financeConn.Close() }()
+	defer financeConn.Close() //nolint:errcheck
 
 	financeClient := financepb.NewFinanceServiceClient(financeConn)
 
