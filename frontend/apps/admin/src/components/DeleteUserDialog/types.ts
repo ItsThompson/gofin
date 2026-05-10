@@ -3,7 +3,7 @@ export type DeletionStatus = "idle" | "pending" | "running" | "failed" | "comple
 export interface DeletionJobResponse {
   id: string;
   userId: string;
-  status: string;
+  status: DeletionStatus;
   error: string | null;
   createdAt: string;
   completedAt: string | null;

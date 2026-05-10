@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { apiClient } from "@gofin/api";
-import type { DeletionJobResponse, DeletionStatus } from "../components/DeleteUserDialog/types";
+import type { DeletionJobResponse } from "../components/DeleteUserDialog/types";
 
 export interface UseDeletionPollingOptions {
   jobId: string;
@@ -34,7 +34,7 @@ export function useDeletionPolling({
         const job = await apiClient<DeletionJobResponse>(
           `/api/datarights/deletions/${jobId}`,
         );
-        const status = job.status as DeletionStatus;
+        const status = job.status;
 
         callbacksRef.current.onStatusChange(status, job.error ?? undefined);
 

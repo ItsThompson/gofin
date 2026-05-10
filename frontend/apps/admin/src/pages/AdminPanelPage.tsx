@@ -10,9 +10,10 @@ import {
 import { apiClient } from "@gofin/api";
 import { useApiToast } from "@gofin/api";
 import { toast } from "sonner";
-import { Shield, UserCheck, Loader2, Activity, ExternalLink, Trash2 } from "lucide-react";
+import { Shield, Loader2, Activity, ExternalLink } from "lucide-react";
 import { DeleteUserDialog } from "../components/DeleteUserDialog";
 import { useDeletionPolling } from "../hooks/useDeletionPolling";
+import { UserActionsCell } from "./components/UserActionsCell";
 import type { AdminUser, AdminUsersResponse, AdminPanelPageProps } from "../types";
 import type {
   DeletionJobResponse,
@@ -21,12 +22,6 @@ import type {
 } from "../components/DeleteUserDialog/types";
 
 type LoadState = "loading" | "error" | "success";
-
-const PROTECTED_USERNAMES = ["admin", "thompson"];
-
-function isProtectedUser(username: string): boolean {
-  return PROTECTED_USERNAMES.includes(username);
-}
 
 /**
  * Admin panel page displaying all registered users with identity assumption controls.
@@ -258,82 +253,6 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
         user={deletingUser}
         onSuccess={handleDeletionSuccess}
       />
-    </div>
-  );
-}
-
-interface UserActionsCellProps {
-  user: AdminUser;
-  deletionState: { jobId: string; status: DeletionStatus; error?: string } | undefined;
-  assumingUserId: string | null;
-  onAssume: (userId: string) => void;
-  onDelete: (user: AdminUser) => void;
-}
-
-function UserActionsCell({
-  user,
-  deletionState,
-  assumingUserId,
-  onAssume,
-  onDelete,
-}: UserActionsCellProps) {
-  const status = deletionState?.status;
-
-  if (status === "pending" || status === "running") {
-    return (
-      <div className="flex items-center gap-2">
-        <Loader2 className="size-3 animate-spin" />
-        <span className="text-sm text-muted-foreground">Deleting...</span>
-      </div>
-    );
-  }
-
-  if (status === "failed") {
-    return (
-      <div className="flex items-center gap-1">
-        <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-          Failed
-        </span>
-        {!isProtectedUser(user.username) && (
-          <Button
-            variant="destructive"
-            size="icon-sm"
-            onClick={() => onDelete(user)}
-            aria-label={`Delete ${user.username}`}
-          >
-            <Trash2 className="size-3" />
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  // idle or no deletion state
-  return (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onAssume(user.id)}
-        disabled={assumingUserId !== null}
-      >
-        {assumingUserId === user.id ? (
-          <Loader2 className="size-3 animate-spin" />
-        ) : (
-          <UserCheck className="size-3" />
-        )}
-        Assume
-      </Button>
-      {!isProtectedUser(user.username) && (
-        <Button
-          variant="destructive"
-          size="icon-sm"
-          onClick={() => onDelete(user)}
-          aria-label={`Delete ${user.username}`}
-        >
-          <Trash2 className="size-3" />
-        </Button>
-      )}
     </div>
   );
 }
