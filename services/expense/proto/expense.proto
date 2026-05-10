@@ -16,6 +16,9 @@ service ExpenseService {
   // Data export: returns all expenses (active + corrected) for a user, paginated
   rpc GetAllUserExpenses(GetAllUserExpensesRequest) returns (ExpenseListResponse);
 
+  // GDPR: anonymize all expenses for a user (field redaction, not deletion)
+  rpc AnonymizeAllUserExpenses(AnonymizeRequest) returns (AnonymizeResponse);
+
   // Stubs: implemented in later tickets
   rpc CorrectExpense(CorrectExpenseRequest) returns (ExpenseResponse);
   rpc GetCorrectionHistory(GetCorrectionHistoryRequest) returns (CorrectionHistoryResponse);
@@ -147,3 +150,13 @@ message CountExpensesByTagRequest {
 message CountExpensesByTagResponse {
   int64 count = 1;
 }
+
+// ---------------------------------------------------------------------------
+// AnonymizeAllUserExpenses (GDPR deletion)
+// ---------------------------------------------------------------------------
+
+message AnonymizeRequest {
+  string user_id = 1;
+}
+
+message AnonymizeResponse {}
