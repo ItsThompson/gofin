@@ -881,6 +881,182 @@ func (*ChangePasswordResponse) Descriptor() ([]byte, []int) {
 	return file_proto_auth_proto_rawDescGZIP(), []int{16}
 }
 
+type VerifyPasswordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // The user whose password to verify
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`           // Plaintext password to check against stored hash
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyPasswordRequest) Reset() {
+	*x = VerifyPasswordRequest{}
+	mi := &file_proto_auth_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyPasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyPasswordRequest) ProtoMessage() {}
+
+func (x *VerifyPasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyPasswordRequest.ProtoReflect.Descriptor instead.
+func (*VerifyPasswordRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *VerifyPasswordRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *VerifyPasswordRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type VerifyPasswordResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"` // true if password matches stored hash
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyPasswordResponse) Reset() {
+	*x = VerifyPasswordResponse{}
+	mi := &file_proto_auth_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyPasswordResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyPasswordResponse) ProtoMessage() {}
+
+func (x *VerifyPasswordResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyPasswordResponse.ProtoReflect.Descriptor instead.
+func (*VerifyPasswordResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *VerifyPasswordResponse) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+type DeleteUserDataRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // The user to delete
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserDataRequest) Reset() {
+	*x = DeleteUserDataRequest{}
+	mi := &file_proto_auth_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserDataRequest) ProtoMessage() {}
+
+func (x *DeleteUserDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserDataRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUserDataRequest) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *DeleteUserDataRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type DeleteUserDataResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserDataResponse) Reset() {
+	*x = DeleteUserDataResponse{}
+	mi := &file_proto_auth_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserDataResponse) ProtoMessage() {}
+
+func (x *DeleteUserDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_auth_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserDataResponse.ProtoReflect.Descriptor instead.
+func (*DeleteUserDataResponse) Descriptor() ([]byte, []int) {
+	return file_proto_auth_proto_rawDescGZIP(), []int{20}
+}
+
 var File_proto_auth_proto protoreflect.FileDescriptor
 
 const file_proto_auth_proto_rawDesc = "" +
@@ -935,11 +1111,21 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12)\n" +
 	"\x10current_password\x18\x02 \x01(\tR\x0fcurrentPassword\x12!\n" +
 	"\fnew_password\x18\x03 \x01(\tR\vnewPassword\"\x18\n" +
-	"\x16ChangePasswordResponse2\xb6\x05\n" +
+	"\x16ChangePasswordResponse\"L\n" +
+	"\x15VerifyPasswordRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\".\n" +
+	"\x16VerifyPasswordResponse\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\"0\n" +
+	"\x15DeleteUserDataRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x18\n" +
+	"\x16DeleteUserDataResponse2\xd0\x06\n" +
 	"\vAuthService\x125\n" +
 	"\bRegister\x12\x15.auth.RegisterRequest\x1a\x12.auth.AuthResponse\x12/\n" +
 	"\x05Login\x12\x12.auth.LoginRequest\x1a\x12.auth.AuthResponse\x12H\n" +
-	"\rValidateToken\x12\x1a.auth.ValidateTokenRequest\x1a\x1b.auth.ValidateTokenResponse\x12=\n" +
+	"\rValidateToken\x12\x1a.auth.ValidateTokenRequest\x1a\x1b.auth.ValidateTokenResponse\x12K\n" +
+	"\x0eVerifyPassword\x12\x1b.auth.VerifyPasswordRequest\x1a\x1c.auth.VerifyPasswordResponse\x12K\n" +
+	"\x0eDeleteUserData\x12\x1b.auth.DeleteUserDataRequest\x1a\x1c.auth.DeleteUserDataResponse\x12=\n" +
 	"\fRefreshToken\x12\x19.auth.RefreshTokenRequest\x1a\x12.auth.AuthResponse\x123\n" +
 	"\x06Logout\x12\x13.auth.LogoutRequest\x1a\x14.auth.LogoutResponse\x12A\n" +
 	"\x0eAssumeIdentity\x12\x1b.auth.AssumeIdentityRequest\x1a\x12.auth.AuthResponse\x12C\n" +
@@ -962,7 +1148,7 @@ func file_proto_auth_proto_rawDescGZIP() []byte {
 	return file_proto_auth_proto_rawDescData
 }
 
-var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_proto_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_proto_auth_proto_goTypes = []any{
 	(*UserResponse)(nil),           // 0: auth.UserResponse
 	(*AuthResponse)(nil),           // 1: auth.AuthResponse
@@ -981,6 +1167,10 @@ var file_proto_auth_proto_goTypes = []any{
 	(*UpdateUserRequest)(nil),      // 14: auth.UpdateUserRequest
 	(*ChangePasswordRequest)(nil),  // 15: auth.ChangePasswordRequest
 	(*ChangePasswordResponse)(nil), // 16: auth.ChangePasswordResponse
+	(*VerifyPasswordRequest)(nil),  // 17: auth.VerifyPasswordRequest
+	(*VerifyPasswordResponse)(nil), // 18: auth.VerifyPasswordResponse
+	(*DeleteUserDataRequest)(nil),  // 19: auth.DeleteUserDataRequest
+	(*DeleteUserDataResponse)(nil), // 20: auth.DeleteUserDataResponse
 }
 var file_proto_auth_proto_depIdxs = []int32{
 	0,  // 0: auth.AuthResponse.user:type_name -> auth.UserResponse
@@ -988,27 +1178,31 @@ var file_proto_auth_proto_depIdxs = []int32{
 	2,  // 2: auth.AuthService.Register:input_type -> auth.RegisterRequest
 	3,  // 3: auth.AuthService.Login:input_type -> auth.LoginRequest
 	4,  // 4: auth.AuthService.ValidateToken:input_type -> auth.ValidateTokenRequest
-	6,  // 5: auth.AuthService.RefreshToken:input_type -> auth.RefreshTokenRequest
-	7,  // 6: auth.AuthService.Logout:input_type -> auth.LogoutRequest
-	9,  // 7: auth.AuthService.AssumeIdentity:input_type -> auth.AssumeIdentityRequest
-	10, // 8: auth.AuthService.RestoreIdentity:input_type -> auth.RestoreIdentityRequest
-	11, // 9: auth.AuthService.ListUsers:input_type -> auth.ListUsersRequest
-	13, // 10: auth.AuthService.GetUser:input_type -> auth.GetUserRequest
-	14, // 11: auth.AuthService.UpdateUser:input_type -> auth.UpdateUserRequest
-	15, // 12: auth.AuthService.ChangePassword:input_type -> auth.ChangePasswordRequest
-	1,  // 13: auth.AuthService.Register:output_type -> auth.AuthResponse
-	1,  // 14: auth.AuthService.Login:output_type -> auth.AuthResponse
-	5,  // 15: auth.AuthService.ValidateToken:output_type -> auth.ValidateTokenResponse
-	1,  // 16: auth.AuthService.RefreshToken:output_type -> auth.AuthResponse
-	8,  // 17: auth.AuthService.Logout:output_type -> auth.LogoutResponse
-	1,  // 18: auth.AuthService.AssumeIdentity:output_type -> auth.AuthResponse
-	1,  // 19: auth.AuthService.RestoreIdentity:output_type -> auth.AuthResponse
-	12, // 20: auth.AuthService.ListUsers:output_type -> auth.ListUsersResponse
-	0,  // 21: auth.AuthService.GetUser:output_type -> auth.UserResponse
-	0,  // 22: auth.AuthService.UpdateUser:output_type -> auth.UserResponse
-	16, // 23: auth.AuthService.ChangePassword:output_type -> auth.ChangePasswordResponse
-	13, // [13:24] is the sub-list for method output_type
-	2,  // [2:13] is the sub-list for method input_type
+	17, // 5: auth.AuthService.VerifyPassword:input_type -> auth.VerifyPasswordRequest
+	19, // 6: auth.AuthService.DeleteUserData:input_type -> auth.DeleteUserDataRequest
+	6,  // 7: auth.AuthService.RefreshToken:input_type -> auth.RefreshTokenRequest
+	7,  // 8: auth.AuthService.Logout:input_type -> auth.LogoutRequest
+	9,  // 9: auth.AuthService.AssumeIdentity:input_type -> auth.AssumeIdentityRequest
+	10, // 10: auth.AuthService.RestoreIdentity:input_type -> auth.RestoreIdentityRequest
+	11, // 11: auth.AuthService.ListUsers:input_type -> auth.ListUsersRequest
+	13, // 12: auth.AuthService.GetUser:input_type -> auth.GetUserRequest
+	14, // 13: auth.AuthService.UpdateUser:input_type -> auth.UpdateUserRequest
+	15, // 14: auth.AuthService.ChangePassword:input_type -> auth.ChangePasswordRequest
+	1,  // 15: auth.AuthService.Register:output_type -> auth.AuthResponse
+	1,  // 16: auth.AuthService.Login:output_type -> auth.AuthResponse
+	5,  // 17: auth.AuthService.ValidateToken:output_type -> auth.ValidateTokenResponse
+	18, // 18: auth.AuthService.VerifyPassword:output_type -> auth.VerifyPasswordResponse
+	20, // 19: auth.AuthService.DeleteUserData:output_type -> auth.DeleteUserDataResponse
+	1,  // 20: auth.AuthService.RefreshToken:output_type -> auth.AuthResponse
+	8,  // 21: auth.AuthService.Logout:output_type -> auth.LogoutResponse
+	1,  // 22: auth.AuthService.AssumeIdentity:output_type -> auth.AuthResponse
+	1,  // 23: auth.AuthService.RestoreIdentity:output_type -> auth.AuthResponse
+	12, // 24: auth.AuthService.ListUsers:output_type -> auth.ListUsersResponse
+	0,  // 25: auth.AuthService.GetUser:output_type -> auth.UserResponse
+	0,  // 26: auth.AuthService.UpdateUser:output_type -> auth.UserResponse
+	16, // 27: auth.AuthService.ChangePassword:output_type -> auth.ChangePasswordResponse
+	15, // [15:28] is the sub-list for method output_type
+	2,  // [2:15] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -1025,7 +1219,7 @@ func file_proto_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_auth_proto_rawDesc), len(file_proto_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
