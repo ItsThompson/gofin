@@ -18,6 +18,5 @@ const (
 	ErrUnauthorized        = "UNAUTHORIZED"
 	ErrForbidden           = "FORBIDDEN"
 	ErrNotFound            = "NOT_FOUND"
-	ErrProtectedUser       = "PROTECTED_USER"
 	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
 )

@@ -49,7 +49,6 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	admin := r.Group("/api/admin")
 	{
 		admin.GET("/users", h.ListUsers)
-		admin.DELETE("/users/:id", h.DeleteUser)
 	}
 }
 
@@ -310,55 +309,6 @@ func (h *RESTHandler) ListUsers(c *gin.Context) {
 	)
 
 	c.JSON(http.StatusOK, model.AdminUsersResponse{Users: adminUsers})
-}
-
-// DeleteUser handles DELETE /api/admin/users/:id.
-// Permanently deletes a user after verifying the admin's password.
-// The gateway enforces admin role via RequireAdmin middleware.
-func (h *RESTHandler) DeleteUser(c *gin.Context) {
-	start := time.Now()
-
-	adminUserID := c.GetHeader("X-User-ID")
-	if adminUserID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
-		return
-	}
-
-	targetUserID := c.Param("id")
-	if targetUserID == "" {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "User ID is required",
-		})
-		return
-	}
-
-	var req model.DeleteUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
-		return
-	}
-
-	err := h.authService.DeleteUser(c.Request.Context(), adminUserID, targetUserID, req.Password)
-	if err != nil {
-		h.handleError(c, err)
-		return
-	}
-
-	h.logger.Info("delete user handler completed",
-		slog.String("method", "DELETE /api/admin/users/:id"),
-		slog.String("admin_user_id", adminUserID),
-		slog.String("deleted_user_id", targetUserID),
-		slog.Int64("duration_ms", time.Since(start).Milliseconds()),
-	)
-
-	c.Status(http.StatusNoContent)
 }
 
 // AssumeIdentity handles POST /api/auth/assume.
