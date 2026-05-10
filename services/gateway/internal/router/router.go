@@ -87,7 +87,10 @@ func New(
 	}
 
 	// /api/datarights/* → Datarights service (REST)
+	// AdminRouteGuard enforces admin role on /api/datarights/deletions* paths.
+	// Export routes (/api/datarights/exports*) remain accessible to all authenticated users.
 	datarightsGroup := engine.Group("/api/datarights")
+	datarightsGroup.Use(middleware.AdminRouteGuard(logger))
 	{
 		datarightsGroup.Any("", ginWrapHandler(datarightsProxy))
 		datarightsGroup.Any("/*path", ginWrapHandler(datarightsProxy))
