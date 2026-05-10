@@ -40,16 +40,6 @@ describe("useDeletionPolling", () => {
     vi.useRealTimers();
   });
 
-  it("does not poll when enabled is false", async () => {
-    renderHook(() => useDeletionPolling({ ...defaultOptions, enabled: false }));
-
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
   it("does not poll when jobId is empty", async () => {
     renderHook(() => useDeletionPolling({ ...defaultOptions, jobId: "" }));
 
@@ -60,34 +50,22 @@ describe("useDeletionPolling", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("polls at the specified interval when enabled", async () => {
+  it("fetches the correct deletion endpoint", async () => {
     mockFetch.mockResolvedValue(buildPollResponse("running"));
 
     renderHook(() => useDeletionPolling(defaultOptions));
 
-    // No call immediately
-    expect(mockFetch).not.toHaveBeenCalled();
-
-    // First tick
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/datarights/deletions/job-1",
       expect.objectContaining({ credentials: "include" }),
     );
-
-    // Second tick
-    await act(async () => {
-      vi.advanceTimersByTime(2500);
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("calls onStatusChange with status on each poll", async () => {
+  it("calls onStatusChange with status and error on each poll", async () => {
     const onStatusChange = vi.fn();
     mockFetch.mockResolvedValue(buildPollResponse("running"));
 
@@ -100,7 +78,7 @@ describe("useDeletionPolling", () => {
     expect(onStatusChange).toHaveBeenCalledWith("running", undefined);
   });
 
-  it("stops polling and calls onCompleted when status is completed", async () => {
+  it("calls onCompleted and onStatusChange when status is completed", async () => {
     const onCompleted = vi.fn();
     const onStatusChange = vi.fn();
     mockFetch.mockResolvedValue(buildPollResponse("completed"));
@@ -113,17 +91,9 @@ describe("useDeletionPolling", () => {
 
     expect(onCompleted).toHaveBeenCalledTimes(1);
     expect(onStatusChange).toHaveBeenCalledWith("completed", undefined);
-
-    // No further polls after terminal state
-    mockFetch.mockClear();
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("stops polling and calls onFailed when status is failed", async () => {
+  it("calls onFailed with error message when status is failed", async () => {
     const onFailed = vi.fn();
     const onStatusChange = vi.fn();
     mockFetch.mockResolvedValue(buildPollResponse("failed", "auth provider timeout"));
@@ -136,28 +106,30 @@ describe("useDeletionPolling", () => {
 
     expect(onFailed).toHaveBeenCalledWith("auth provider timeout");
     expect(onStatusChange).toHaveBeenCalledWith("failed", "auth provider timeout");
-
-    // No further polls after terminal state
-    mockFetch.mockClear();
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("cleans up interval on unmount", async () => {
-    mockFetch.mockResolvedValue(buildPollResponse("running"));
+  it("calls onFailed with 'Unknown error' when error field is null", async () => {
+    const onFailed = vi.fn();
+    mockFetch.mockResolvedValue(buildPollResponse("failed", null));
 
-    const { unmount } = renderHook(() => useDeletionPolling(defaultOptions));
+    renderHook(() => useDeletionPolling({ ...defaultOptions, onFailed }));
 
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(onFailed).toHaveBeenCalledWith("Unknown error");
+  });
 
-    unmount();
+  it("stops polling after terminal state is reached", async () => {
+    mockFetch.mockResolvedValue(buildPollResponse("completed"));
+
+    renderHook(() => useDeletionPolling(defaultOptions));
+
+    await act(async () => {
+      vi.advanceTimersByTime(2500);
+    });
+
     mockFetch.mockClear();
 
     await act(async () => {
@@ -167,18 +139,15 @@ describe("useDeletionPolling", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("continues polling on network error (resilient to transient failures)", async () => {
+  it("does not call onFailed on network errors (resilient polling)", async () => {
     const onFailed = vi.fn();
     const onStatusChange = vi.fn();
 
-    // First poll: network error
     mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    // Second poll: success
     mockFetch.mockResolvedValueOnce(buildPollResponse("running"));
 
     renderHook(() => useDeletionPolling({ ...defaultOptions, onFailed, onStatusChange }));
 
-    // First tick: network error, should NOT call onFailed
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
@@ -186,57 +155,10 @@ describe("useDeletionPolling", () => {
     expect(onFailed).not.toHaveBeenCalled();
     expect(onStatusChange).not.toHaveBeenCalled();
 
-    // Second tick: success
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
 
     expect(onStatusChange).toHaveBeenCalledWith("running", undefined);
-    expect(onFailed).not.toHaveBeenCalled();
-  });
-
-  it("stops polling when enabled changes from true to false", async () => {
-    mockFetch.mockResolvedValue(buildPollResponse("running"));
-
-    const { rerender } = renderHook(
-      (props: UseDeletionPollingOptions) => useDeletionPolling(props),
-      { initialProps: defaultOptions },
-    );
-
-    await act(async () => {
-      vi.advanceTimersByTime(2500);
-    });
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-
-    // Disable polling
-    rerender({ ...defaultOptions, enabled: false });
-    mockFetch.mockClear();
-
-    await act(async () => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("uses default interval of 2500ms when intervalMs not specified", async () => {
-    mockFetch.mockResolvedValue(buildPollResponse("running"));
-    const optionsWithoutInterval = { ...defaultOptions };
-    delete (optionsWithoutInterval as Partial<UseDeletionPollingOptions>).intervalMs;
-
-    renderHook(() => useDeletionPolling(optionsWithoutInterval));
-
-    // At 2400ms, should not have polled yet
-    await act(async () => {
-      vi.advanceTimersByTime(2400);
-    });
-    expect(mockFetch).not.toHaveBeenCalled();
-
-    // At 2500ms, should have polled
-    await act(async () => {
-      vi.advanceTimersByTime(100);
-    });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

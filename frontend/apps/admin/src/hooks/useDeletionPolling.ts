@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
-import { apiClient } from "@gofin/api";
-import type { DeletionJobResponse } from "../components/DeleteUserDialog/types";
+import { useCallback } from "react";
+import { apiClient, usePolling } from "@gofin/api";
+import type { DeletionJobResponse, DeletionStatus } from "../components/DeleteUserDialog/types";
 
 export interface UseDeletionPollingOptions {
   jobId: string;
@@ -13,6 +13,10 @@ export interface UseDeletionPollingOptions {
 
 const DEFAULT_INTERVAL_MS = 2500;
 
+function isTerminalStatus(job: DeletionJobResponse): boolean {
+  return job.status === "completed" || job.status === "failed";
+}
+
 export function useDeletionPolling({
   jobId,
   enabled,
@@ -21,47 +25,24 @@ export function useDeletionPolling({
   onCompleted,
   onFailed,
 }: UseDeletionPollingOptions): void {
-  const callbacksRef = useRef({ onStatusChange, onCompleted, onFailed });
-  callbacksRef.current = { onStatusChange, onCompleted, onFailed };
+  const handleData = useCallback(
+    (job: DeletionJobResponse) => {
+      onStatusChange(job.status, job.error ?? undefined);
 
-  useEffect(() => {
-    if (!enabled || !jobId) return;
-
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const poll = async () => {
-      try {
-        const job = await apiClient<DeletionJobResponse>(
-          `/api/datarights/deletions/${jobId}`,
-        );
-        const status = job.status;
-
-        callbacksRef.current.onStatusChange(status, job.error ?? undefined);
-
-        if (status === "completed") {
-          if (intervalId !== null) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          callbacksRef.current.onCompleted();
-        } else if (status === "failed") {
-          if (intervalId !== null) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          callbacksRef.current.onFailed(job.error ?? "Unknown error");
-        }
-      } catch {
-        // Network error during polling: silently continue on next tick
+      if (job.status === "completed") {
+        onCompleted();
+      } else if (job.status === "failed") {
+        onFailed(job.error ?? "Unknown error");
       }
-    };
+    },
+    [onStatusChange, onCompleted, onFailed],
+  );
 
-    intervalId = setInterval(poll, intervalMs);
-
-    return () => {
-      if (intervalId !== null) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [jobId, enabled, intervalMs]);
+  usePolling<DeletionJobResponse>({
+    fetcher: () => apiClient<DeletionJobResponse>(`/api/datarights/deletions/${jobId}`),
+    enabled: enabled && !!jobId,
+    intervalMs,
+    onData: handleData,
+    shouldStop: isTerminalStatus,
+  });
 }
