@@ -213,10 +213,6 @@ func TestEngine_ProvidersExecuteInOrder(t *testing.T) {
 	repo := &mockDeletionRepo{}
 	registry := NewDeletionProviderRegistry()
 
-	// Use a channel to track execution order
-	var executionOrder sync.Mutex
-	var order []string
-
 	p1 := &mockDeletionProvider{name: "finance"}
 	p2 := &mockDeletionProvider{name: "expense"}
 	p3 := &mockDeletionProvider{name: "auth"}
@@ -233,10 +229,6 @@ func TestEngine_ProvidersExecuteInOrder(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 
 	// All providers should have been called with the same userID
-	executionOrder.Lock()
-	_ = order
-	executionOrder.Unlock()
-
 	assert.Equal(t, []string{"user-1"}, p1.getCalls())
 	assert.Equal(t, []string{"user-1"}, p2.getCalls())
 	assert.Equal(t, []string{"user-1"}, p3.getCalls())

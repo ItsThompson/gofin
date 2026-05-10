@@ -90,9 +90,10 @@ func (e *DeletionEngine) execute(ctx context.Context, jobID, userID string) {
 
 	// Execute each provider in registration order
 	for _, provider := range e.registry.All() {
-		if err := e.executeProvider(ctx, provider, jobID, userID); err != nil {
-			// Provider exhausted retries: mark job as failed
-			errMsg := fmt.Sprintf("provider %s failed after %d attempts: %s", provider.Name(), maxRetries, err.Error())
+		attempts, err := e.executeProvider(ctx, provider, jobID, userID)
+		if err != nil {
+			// Provider exhausted retries or context expired: mark job as failed
+			errMsg := fmt.Sprintf("provider %s failed after %d attempts: %s", provider.Name(), attempts, err.Error())
 			e.failJob(jobID, userID, errMsg)
 			return
 		}
@@ -117,8 +118,9 @@ func (e *DeletionEngine) execute(ctx context.Context, jobID, userID string) {
 }
 
 // executeProvider attempts a single provider up to maxRetries times with backoff.
-// Returns nil if the provider eventually succeeds, or the last error if retries are exhausted.
-func (e *DeletionEngine) executeProvider(ctx context.Context, provider DeletionProvider, jobID, userID string) error {
+// Returns the number of attempts made and nil if the provider eventually succeeds,
+// or the number of attempts and the last error if retries are exhausted or context expires.
+func (e *DeletionEngine) executeProvider(ctx context.Context, provider DeletionProvider, jobID, userID string) (int, error) {
 	backoffs := []time.Duration{backoffFirst, backoffSecond}
 
 	var lastErr error
@@ -142,7 +144,7 @@ func (e *DeletionEngine) executeProvider(ctx context.Context, provider DeletionP
 					slog.String("method", "deletion.engine.executeProvider"),
 				)
 			}
-			return nil
+			return attempt, nil
 		}
 
 		lastErr = err
@@ -161,12 +163,12 @@ func (e *DeletionEngine) executeProvider(ctx context.Context, provider DeletionP
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
-				return ctx.Err()
+				return attempt, ctx.Err()
 			}
 		}
 	}
 
-	return lastErr
+	return maxRetries, lastErr
 }
 
 // failJob marks a job as failed using a background context (in case the original expired).
