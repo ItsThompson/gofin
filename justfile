@@ -95,10 +95,7 @@ test: test-backend test-frontend
 
 # Create a new database migration file pair
 migrate-create service name:
-    cd services/{{service}} && \
-    migrate -path db/migrations \
-    -seq -ext sql -dir db/migrations \
-    create {{name}}
+    migrate create -ext sql -dir services/{{service}}/db/migrations -seq {{name}}
 
 # Roll back the last applied migration
 migrate-down service:

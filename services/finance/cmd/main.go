@@ -133,6 +133,10 @@ func run() error {
 
 	metrics.Register(router)
 
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	restHandler := handler.NewRESTHandler(financeSvc, logger)
 	restHandler.RegisterRoutes(router)
 

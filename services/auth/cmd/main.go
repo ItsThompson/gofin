@@ -121,6 +121,10 @@ func run() error {
 
 	metrics.Register(router)
 
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction(), cfg.CookieDomain)
 	restHandler.RegisterRoutes(router)
 

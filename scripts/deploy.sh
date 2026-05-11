@@ -191,7 +191,7 @@ for i in $(seq 1 12); do
 set -euo pipefail
 cd /opt/gofin
 failed=0
-for endpoint in "http://localhost:8080/health" "http://localhost:8084/health"; do
+for endpoint in "http://localhost:8080/health" "http://localhost:8081/health" "http://localhost:8083/health" "http://localhost:8084/health"; do
   if ! curl -sf -o /dev/null "${endpoint}" 2>/dev/null; then
     failed=1
   fi
