@@ -31,7 +31,15 @@ func Run(dbURL, migrationsPath string) error {
 	if err != nil {
 		return fmt.Errorf("dbmigrate: creating migrator: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		sourceErr, dbErr := m.Close()
+		if sourceErr != nil {
+			slog.Warn("dbmigrate: closing source", slog.String("error", sourceErr.Error()))
+		}
+		if dbErr != nil {
+			slog.Warn("dbmigrate: closing database", slog.String("error", dbErr.Error()))
+		}
+	}()
 
 	err = m.Up()
 	if errors.Is(err, migrate.ErrNoChange) {
