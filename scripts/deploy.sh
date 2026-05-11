@@ -187,19 +187,17 @@ REMOTE_START
 echo "==> Running post-deploy health checks..."
 HEALTH_OK=false
 for i in $(seq 1 12); do
-  HEALTH_RESULT=$(ssh "${SSH_TARGET}" bash <<'REMOTE_HEALTH'
+  UNHEALTHY=$(ssh "${SSH_TARGET}" bash <<'REMOTE_HEALTH'
 set -euo pipefail
 cd /opt/gofin
-failed=0
-for endpoint in "http://localhost:8080/health" "http://localhost:8081/health" "http://localhost:8083/health" "http://localhost:8084/health"; do
-  if ! curl -sf -o /dev/null "${endpoint}" 2>/dev/null; then
-    failed=1
-  fi
-done
-exit ${failed}
+docker compose ps --format json | jq -r 'select(.Health != "healthy" and .Health != "") | .Service'
 REMOTE_HEALTH
-  ) && HEALTH_OK=true && break
-  echo "  Health check attempt ${i}/12... waiting 5s"
+  )
+  if [ -z "${UNHEALTHY}" ]; then
+    HEALTH_OK=true
+    break
+  fi
+  echo "  Waiting for: ${UNHEALTHY//$'\n'/, } (attempt ${i}/12)"
   sleep 5
 done
 

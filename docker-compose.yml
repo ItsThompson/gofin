@@ -51,6 +51,12 @@ services:
       dockerfile: gateway/Dockerfile
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - AUTH_SERVICE_ADDR=auth-service:9081
       - AUTH_SERVICE_REST=http://auth-service:8081
@@ -84,6 +90,12 @@ services:
     ports:
       - "8081:8081"
       - "9081:9081"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - AUTH_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=auth
       - JWT_SECRET=${JWT_SECRET}
@@ -146,6 +158,12 @@ services:
     ports:
       - "8083:8083"
       - "9083:9083"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - FINANCE_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=finance
       - EXPENSE_SERVICE_ADDR=expense-service:9082
@@ -175,6 +193,12 @@ services:
     ports:
       - "8084:8084"
       - "9084:9084"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - DATARIGHTS_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=datarights
       - LOG_LEVEL=${LOG_LEVEL:-info}
