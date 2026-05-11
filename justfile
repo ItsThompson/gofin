@@ -54,7 +54,7 @@ dev-mock:
 
 # Start a specific backend service for development
 dev-service service:
-    cd services/{{service}} && go run ./cmd/main.go
+    cd services/{{service}} && MIGRATIONS_PATH=./db/migrations go run ./cmd/main.go
 
 # Start infrastructure only (databases + monitoring)
 dev-infra:
