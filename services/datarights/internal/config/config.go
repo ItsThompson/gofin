@@ -24,6 +24,7 @@ type Config struct {
 	EmailFrom          string
 	EmailEnabled       bool
 	BrandTokensPath    string
+	MigrationsPath     string
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -105,6 +106,11 @@ func Load() (*Config, error) {
 		brandTokensPath = "/app/tokens/brand.json"
 	}
 
+	migrationsPath := os.Getenv("MIGRATIONS_PATH")
+	if migrationsPath == "" {
+		migrationsPath = "/migrations"
+	}
+
 	return &Config{
 		DBUrl:              dbURL,
 		LogLevel:           logLevel,
@@ -121,6 +127,7 @@ func Load() (*Config, error) {
 		EmailFrom:          emailFrom,
 		EmailEnabled:       emailEnabled,
 		BrandTokensPath:    brandTokensPath,
+		MigrationsPath:     migrationsPath,
 	}, nil
 }
 
