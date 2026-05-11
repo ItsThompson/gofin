@@ -13,6 +13,7 @@ type Config struct {
 	Environment        string
 	RESTPort           string
 	GRPCPort           string
+	MigrationsPath     string
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -48,6 +49,11 @@ func Load() (*Config, error) {
 		grpcPort = "9083"
 	}
 
+	migrationsPath := os.Getenv("MIGRATIONS_PATH")
+	if migrationsPath == "" {
+		migrationsPath = "/migrations"
+	}
+
 	return &Config{
 		DBUrl:              dbURL,
 		ExpenseServiceAddr: expenseAddr,
@@ -55,6 +61,7 @@ func Load() (*Config, error) {
 		Environment:        environment,
 		RESTPort:           restPort,
 		GRPCPort:           grpcPort,
+		MigrationsPath:     migrationsPath,
 	}, nil
 }
 
