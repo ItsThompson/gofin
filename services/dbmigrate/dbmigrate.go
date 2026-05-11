@@ -3,18 +3,26 @@
 package dbmigrate
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/lib/pq"
 )
 
 // Run connects to the database at dbURL, reads migrations from migrationsPath,
 // and applies any pending migrations. It returns nil when all migrations are
 // applied (including the case where no new migrations exist).
+//
+// If the connection URL contains a search_path parameter referencing a schema
+// that doesn't yet exist, Run creates the schema before running migrations.
+// This solves the chicken-and-egg problem where golang-migrate's postgres driver
+// requires the schema to exist on connect.
 //
 // A non-nil error is returned when:
 //   - The migrations path doesn't exist or contains no migration files
@@ -25,21 +33,17 @@ func Run(dbURL, migrationsPath string) error {
 		return fmt.Errorf("dbmigrate: migrations path is empty")
 	}
 
+	if err := ensureSchema(dbURL); err != nil {
+		return fmt.Errorf("dbmigrate: ensuring schema exists: %w", err)
+	}
+
 	sourceURL := fmt.Sprintf("file://%s", migrationsPath)
 
 	m, err := migrate.New(sourceURL, dbURL)
 	if err != nil {
 		return fmt.Errorf("dbmigrate: creating migrator: %w", err)
 	}
-	defer func() {
-		sourceErr, dbErr := m.Close()
-		if sourceErr != nil {
-			slog.Warn("dbmigrate: closing source", slog.String("error", sourceErr.Error()))
-		}
-		if dbErr != nil {
-			slog.Warn("dbmigrate: closing database", slog.String("error", dbErr.Error()))
-		}
-	}()
+	defer m.Close() //nolint:errcheck
 
 	err = m.Up()
 	if errors.Is(err, migrate.ErrNoChange) {
@@ -56,5 +60,41 @@ func Run(dbURL, migrationsPath string) error {
 		slog.Bool("dirty", dirty),
 	)
 
+	return nil
+}
+
+// ensureSchema parses the search_path from the database URL and creates the
+// schema if it doesn't exist. This must run before golang-migrate connects,
+// because the postgres driver fails with "no schema" if search_path references
+// a non-existent schema.
+func ensureSchema(dbURL string) error {
+	parsed, err := url.Parse(dbURL)
+	if err != nil {
+		return fmt.Errorf("parsing database URL: %w", err)
+	}
+
+	searchPath := parsed.Query().Get("search_path")
+	if searchPath == "" {
+		return nil
+	}
+
+	// Connect without search_path so the connection succeeds even if the schema
+	// doesn't exist yet.
+	q := parsed.Query()
+	q.Del("search_path")
+	parsed.RawQuery = q.Encode()
+
+	db, err := sql.Open("postgres", parsed.String())
+	if err != nil {
+		return fmt.Errorf("connecting to database: %w", err)
+	}
+	defer db.Close() //nolint:errcheck
+
+	stmt := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", searchPath)
+	if _, err := db.Exec(stmt); err != nil {
+		return fmt.Errorf("creating schema %q: %w", searchPath, err)
+	}
+
+	slog.Info("dbmigrate: schema ensured", slog.String("schema", searchPath))
 	return nil
 }
