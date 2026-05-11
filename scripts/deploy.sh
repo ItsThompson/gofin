@@ -182,6 +182,57 @@ docker compose pull
 docker compose --profile tunnels up -d
 REMOTE_START
 
+# --- Post-deploy health check ------------------------------------------------
+
+echo "==> Running post-deploy health checks..."
+HEALTH_OK=false
+for i in $(seq 1 12); do
+  UNHEALTHY=$(ssh "${SSH_TARGET}" bash <<'REMOTE_HEALTH'
+set -euo pipefail
+cd /opt/gofin
+docker compose ps --format json | jq -r 'select(.Health != "healthy" and .Health != "") | .Service'
+REMOTE_HEALTH
+  )
+  if [ -z "${UNHEALTHY}" ]; then
+    HEALTH_OK=true
+    break
+  fi
+  echo "  Waiting for: ${UNHEALTHY//$'\n'/, } (attempt ${i}/12)"
+  sleep 5
+done
+
+if [ "${HEALTH_OK}" = "true" ]; then
+  echo "  All services healthy."
+  # Record deployed SHA for future rollback
+  if [ -n "${DEPLOY_SHA:-}" ]; then
+    ssh "${SSH_TARGET}" "echo '${DEPLOY_SHA}' > /opt/gofin/.deployed-sha"
+    echo "  Recorded deployed SHA: ${DEPLOY_SHA}"
+  fi
+else
+  echo "ERROR: Health checks failed after 60 seconds."
+  # Attempt rollback if previous SHA is recorded
+  PREV_SHA=$(ssh "${SSH_TARGET}" "cat /opt/gofin/.deployed-sha 2>/dev/null || true")
+  if [ -n "${PREV_SHA}" ]; then
+    echo "==> Rolling back to previous SHA: ${PREV_SHA}"
+    ssh "${SSH_TARGET}" bash <<REMOTE_ROLLBACK
+set -euo pipefail
+cd /opt/gofin
+
+# Pull previous images by SHA tag
+for svc in auth-service finance-service datarights-service api-gateway mfe; do
+  docker pull "ghcr.io/itsthompson/gofin/\${svc}:sha-${PREV_SHA}" || true
+  docker tag "ghcr.io/itsthompson/gofin/\${svc}:sha-${PREV_SHA}" "ghcr.io/itsthompson/gofin/\${svc}:latest" || true
+done
+
+docker compose --profile tunnels up -d
+REMOTE_ROLLBACK
+    echo "  Rollback complete. Previous version restored."
+  else
+    echo "  No previous SHA recorded: cannot rollback automatically."
+  fi
+  exit 1
+fi
+
 # --- Seed admin --------------------------------------------------------------
 
 echo "==> Waiting for services to be healthy..."

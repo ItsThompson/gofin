@@ -21,6 +21,7 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/handler"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
+	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/metrics"
 	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
@@ -56,6 +57,11 @@ func run() error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	logger = logger.With(slog.String("service", "finance"))
 	slog.SetDefault(logger)
+
+	// Run database migrations
+	if err := dbmigrate.Run(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
 
 	// Connect to PostgreSQL
 	pool, err := pgxpool.New(ctx, cfg.DBUrl)
@@ -126,6 +132,10 @@ func run() error {
 	router.Use(metrics.HTTPMetrics())
 
 	metrics.Register(router)
+
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 
 	restHandler := handler.NewRESTHandler(financeSvc, logger)
 	restHandler.RegisterRoutes(router)

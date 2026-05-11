@@ -54,7 +54,7 @@ dev-mock:
 
 # Start a specific backend service for development
 dev-service service:
-    cd services/{{service}} && go run ./cmd/main.go
+    cd services/{{service}} && MIGRATIONS_PATH=./db/migrations go run ./cmd/main.go
 
 # Start infrastructure only (databases + monitoring)
 dev-infra:
@@ -93,12 +93,24 @@ test-e2e:
 # Run all tests
 test: test-backend test-frontend
 
-# Run database migrations
-migrate service direction="up":
+# Create a new database migration file pair
+migrate-create service name:
+    migrate create -ext sql -dir services/{{service}}/db/migrations -seq {{name}}
+
+# Roll back the last applied migration
+migrate-down service:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{service}}" in
+      auth)       db_url="$AUTH_DB_URL" ;;
+      finance)    db_url="$FINANCE_DB_URL" ;;
+      datarights) db_url="$DATARIGHTS_DB_URL" ;;
+      *) echo "Unknown service: {{service}}"; exit 1 ;;
+    esac
     cd services/{{service}} && \
     migrate -path db/migrations \
-    -database "$(if [ '{{service}}' = 'auth' ]; then echo $AUTH_DB_URL; else echo $FINANCE_DB_URL; fi)" \
-    {{direction}}
+    -database "${db_url}" \
+    down 1
 
 # Generate sqlc code
 sqlc service:

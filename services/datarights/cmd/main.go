@@ -26,6 +26,7 @@ import (
 	_ "github.com/ItsThompson/gofin/services/datarights/internal/metrics" // register Prometheus metrics
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
+	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/metrics"
@@ -61,6 +62,11 @@ func run() error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	logger = logger.With(slog.String("service", "datarights"))
 	slog.SetDefault(logger)
+
+	// Run database migrations
+	if err := dbmigrate.Run(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
 
 	// Connect to PostgreSQL
 	pool, err := pgxpool.New(ctx, cfg.DBUrl)

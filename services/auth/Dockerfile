@@ -6,11 +6,13 @@ WORKDIR /app
 
 # Copy module files for dependency caching.
 COPY auth/go.mod auth/go.sum* ./auth/
+COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
 RUN cd auth && GOWORK=off go mod download
 
 # Copy source.
 COPY auth/ ./auth/
+COPY dbmigrate/ ./dbmigrate/
 COPY metrics/ ./metrics/
 
 RUN cd auth && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/main.go

@@ -51,6 +51,12 @@ services:
       dockerfile: gateway/Dockerfile
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - AUTH_SERVICE_ADDR=auth-service:9081
       - AUTH_SERVICE_REST=http://auth-service:8081
@@ -84,6 +90,12 @@ services:
     ports:
       - "8081:8081"
       - "9081:9081"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - AUTH_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=auth
       - JWT_SECRET=${JWT_SECRET}
@@ -94,6 +106,7 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin1234!}
+      - MIGRATIONS_PATH=/migrations
     networks:
       - compute-net
       - data-net
@@ -145,12 +158,19 @@ services:
     ports:
       - "8083:8083"
       - "9083:9083"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - FINANCE_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=finance
       - EXPENSE_SERVICE_ADDR=expense-service:9082
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - MIGRATIONS_PATH=/migrations
     networks:
       - compute-net
       - data-net
@@ -173,6 +193,12 @@ services:
     ports:
       - "8084:8084"
       - "9084:9084"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - DATARIGHTS_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=datarights
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -181,6 +207,7 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-gofin <noreply@usegofin.com>}
       - BRAND_TOKENS_PATH=/app/tokens/brand.json
+      - MIGRATIONS_PATH=/migrations
     volumes:
       - ./tokens/brand.json:/app/tokens/brand.json:ro
     networks:
@@ -210,14 +237,6 @@ services:
       - POSTGRES_DB=gofin
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./services/auth/db/migrations/000001_create_users.up.sql:/docker-entrypoint-initdb.d/02-auth-001.sql:ro
-      - ./services/auth/db/migrations/000002_create_refresh_token_blacklist.up.sql:/docker-entrypoint-initdb.d/03-auth-002.sql:ro
-      - ./services/finance/db/migrations/000001_create_budget_periods.up.sql:/docker-entrypoint-initdb.d/04-finance-001.sql:ro
-      - ./services/finance/db/migrations/000002_create_default_settings.up.sql:/docker-entrypoint-initdb.d/05-finance-002.sql:ro
-      - ./services/finance/db/migrations/000003_create_tags.up.sql:/docker-entrypoint-initdb.d/06-finance-003.sql:ro
-      - ./services/finance/db/migrations/000004_create_pro_rata_schedules.up.sql:/docker-entrypoint-initdb.d/07-finance-004.sql:ro
-      - ./services/datarights/db/migrations/000001_create_export_jobs.up.sql:/docker-entrypoint-initdb.d/08-datarights-001.sql:ro
     networks:
       - data-net
     healthcheck:

@@ -64,7 +64,9 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: true
-          tags: ghcr.io/itsthompson/gofin/${{ matrix.service }}:latest
+          tags: |
+            ghcr.io/itsthompson/gofin/${{ matrix.service }}:latest
+            ghcr.io/itsthompson/gofin/${{ matrix.service }}:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -104,3 +106,5 @@ jobs:
 
       - name: Deploy to VPS
         run: ./scripts/deploy.sh ${{ secrets.DEPLOY_SERVER_IP }}
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
