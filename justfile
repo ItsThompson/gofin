@@ -93,12 +93,27 @@ test-e2e:
 # Run all tests
 test: test-backend test-frontend
 
-# Run database migrations
-migrate service direction="up":
+# Create a new database migration file pair
+migrate-create service name:
     cd services/{{service}} && \
     migrate -path db/migrations \
-    -database "$(if [ '{{service}}' = 'auth' ]; then echo $AUTH_DB_URL; else echo $FINANCE_DB_URL; fi)" \
-    {{direction}}
+    -seq -ext sql -dir db/migrations \
+    create {{name}}
+
+# Roll back the last applied migration
+migrate-down service:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{service}}" in
+      auth)       db_url="$AUTH_DB_URL" ;;
+      finance)    db_url="$FINANCE_DB_URL" ;;
+      datarights) db_url="$DATARIGHTS_DB_URL" ;;
+      *) echo "Unknown service: {{service}}"; exit 1 ;;
+    esac
+    cd services/{{service}} && \
+    migrate -path db/migrations \
+    -database "${db_url}" \
+    down 1
 
 # Generate sqlc code
 sqlc service:
