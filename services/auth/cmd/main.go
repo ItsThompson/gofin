@@ -20,6 +20,7 @@ import (
 	"github.com/ItsThompson/gofin/services/auth/internal/handler"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/metrics"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
@@ -63,6 +64,11 @@ func run() error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	logger = logger.With(slog.String("service", "auth"))
 	slog.SetDefault(logger)
+
+	// Run database migrations
+	if err := dbmigrate.Run(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
 
 	// Connect to PostgreSQL
 	pool, err := pgxpool.New(ctx, cfg.DBUrl)

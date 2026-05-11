@@ -8,14 +8,15 @@ import (
 
 // Config holds all configuration for the auth service, loaded from environment variables.
 type Config struct {
-	DBUrl        string
-	JWTSecret    string
-	BcryptCost   int
-	LogLevel     string
-	Environment  string
-	RESTPort     string
-	GRPCPort     string
-	CookieDomain string
+	DBUrl          string
+	JWTSecret      string
+	BcryptCost     int
+	LogLevel       string
+	Environment    string
+	RESTPort       string
+	GRPCPort       string
+	CookieDomain   string
+	MigrationsPath string
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -63,15 +64,21 @@ func Load() (*Config, error) {
 		grpcPort = "9081"
 	}
 
+	migrationsPath := os.Getenv("MIGRATIONS_PATH")
+	if migrationsPath == "" {
+		migrationsPath = "/migrations"
+	}
+
 	return &Config{
-		DBUrl:        dbURL,
-		JWTSecret:    jwtSecret,
-		BcryptCost:   bcryptCost,
-		LogLevel:     logLevel,
-		Environment:  environment,
-		RESTPort:     restPort,
-		GRPCPort:     grpcPort,
-		CookieDomain: os.Getenv("COOKIE_DOMAIN"),
+		DBUrl:          dbURL,
+		JWTSecret:      jwtSecret,
+		BcryptCost:     bcryptCost,
+		LogLevel:       logLevel,
+		Environment:    environment,
+		RESTPort:       restPort,
+		GRPCPort:       grpcPort,
+		CookieDomain:   os.Getenv("COOKIE_DOMAIN"),
+		MigrationsPath: migrationsPath,
 	}, nil
 }
 
