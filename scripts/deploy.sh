@@ -65,7 +65,7 @@ fi
 
 # --- Install dependencies on server -----------------------------------------
 
-echo "==> Installing Docker, Git, and envsubst on the server..."
+echo "==> Installing Docker, Git, envsubst, and jq on the server..."
 ssh "${SSH_TARGET}" bash <<'REMOTE_INSTALL'
 set -euo pipefail
 
@@ -91,6 +91,14 @@ if ! command -v envsubst &>/dev/null; then
   apt-get update -qq && apt-get install -y -qq gettext-base
 else
   echo "  envsubst already installed."
+fi
+
+# jq (for parsing docker compose health status)
+if ! command -v jq &>/dev/null; then
+  echo "  Installing jq..."
+  apt-get update -qq && apt-get install -y -qq jq
+else
+  echo "  jq already installed."
 fi
 REMOTE_INSTALL
 
