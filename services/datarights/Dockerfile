@@ -31,9 +31,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     cd datarights && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/main.go
 
 # Stage 2: Runtime
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates
+FROM gcr.io/distroless/static:nonroot
 COPY --from=builder /service /service
-COPY datarights/db/migrations /migrations
 EXPOSE 8084 9084
-CMD ["/service"]
+USER 65532:65532
+ENTRYPOINT ["/service"]

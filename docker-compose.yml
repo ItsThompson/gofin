@@ -113,7 +113,6 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin1234!}
-      - MIGRATIONS_PATH=/migrations
     networks:
       - compute-net
       - data-net
@@ -181,7 +180,6 @@ services:
       - EXPENSE_SERVICE_ADDR=expense-service:9082
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
-      - MIGRATIONS_PATH=/migrations
     networks:
       - compute-net
       - data-net
@@ -218,7 +216,6 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-gofin <noreply@usegofin.com>}
       - BRAND_TOKENS_PATH=/app/tokens/brand.json
-      - MIGRATIONS_PATH=/migrations
     volumes:
       - ./tokens/brand.json:/app/tokens/brand.json:ro
     networks:

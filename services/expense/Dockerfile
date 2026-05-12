@@ -23,8 +23,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     cd expense && GOWORK=off CGO_ENABLED=0 go build -tags docker -o /service ./cmd/
 
 # Stage 2: Runtime
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates
+FROM gcr.io/distroless/static:nonroot
 COPY --from=builder /service /service
 EXPOSE 8082 9082
-CMD ["/service"]
+USER 65532:65532
+ENTRYPOINT ["/service"]
