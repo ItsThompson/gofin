@@ -303,6 +303,7 @@ services:
     restart: unless-stopped
 
   cadvisor:
+    # Pinned 2026-05-12. Check for updates quarterly.
     image: gcr.io/cadvisor/cadvisor:v0.55.1
     volumes:
       - /:/rootfs:ro
@@ -319,6 +320,7 @@ services:
     restart: unless-stopped
 
   node-exporter:
+    # Pinned 2026-05-12. Check for updates quarterly.
     image: prom/node-exporter:v1.11.1
     command:
       - '--path.procfs=/host/proc'
