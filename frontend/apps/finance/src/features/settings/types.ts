@@ -33,18 +33,27 @@ export interface ExportRateLimitedResponse {
   retryAfter: string;
 }
 
+/** Export lifecycle phases: exactly one is active at any time. */
+export type ExportStatus = 'idle' | 'loading' | 'creating' | 'polling' | 'error';
+
 /** State returned by the useExportData hook. */
 export interface ExportDataState {
+  /** Current lifecycle phase. */
+  status: ExportStatus;
+  /** Export job history (populated after initial load). */
   jobs: ExportJob[];
-  loading: boolean;
-  creating: boolean;
-  error: string | null;
+  /** Whether the user can request a new export (cooldown + no active jobs). */
   canExport: boolean;
+  /** ISO date when next export becomes available, or null if available now. */
   nextExportDate: string | null;
+  /** Error message when status === 'error', or operational error in other states. */
+  error: string | null;
 }
 
 /** Actions returned by the useExportData hook. */
 export interface ExportDataActions {
-  requestExport: () => Promise<void>;
-  refresh: () => Promise<void>;
+  /** Request a new data export. Only callable when canExport === true. */
+  requestExport: () => void;
+  /** Re-fetch job list. */
+  refresh: () => void;
 }
