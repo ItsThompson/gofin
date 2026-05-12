@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/datarights/db/migrations"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
 	deletionproviders "github.com/ItsThompson/gofin/services/datarights/internal/deletion/providers"
@@ -68,8 +69,8 @@ func run() error {
 	logger = logger.With(slog.String("service", "datarights"))
 	slog.SetDefault(logger)
 
-	// Run database migrations
-	if err := dbmigrate.Run(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+	// Run database migrations (embedded in binary via go:embed)
+	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 
+	"github.com/ItsThompson/gofin/services/auth/db/migrations"
 	"github.com/ItsThompson/gofin/services/auth/internal/config"
 	"github.com/ItsThompson/gofin/services/auth/internal/db"
 	"github.com/ItsThompson/gofin/services/auth/internal/handler"
@@ -71,8 +72,8 @@ func run() error {
 	logger = logger.With(slog.String("service", "auth"))
 	slog.SetDefault(logger)
 
-	// Run database migrations
-	if err := dbmigrate.Run(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+	// Run database migrations (embedded in binary via go:embed)
+	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 

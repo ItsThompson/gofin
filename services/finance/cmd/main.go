@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/ItsThompson/gofin/services/finance/db/migrations"
 	"github.com/ItsThompson/gofin/services/finance/internal/config"
 	"github.com/ItsThompson/gofin/services/finance/internal/db"
 	"github.com/ItsThompson/gofin/services/finance/internal/handler"
@@ -63,8 +64,8 @@ func run() error {
 	logger = logger.With(slog.String("service", "finance"))
 	slog.SetDefault(logger)
 
-	// Run database migrations
-	if err := dbmigrate.Run(cfg.DBUrl, cfg.MigrationsPath); err != nil {
+	// Run database migrations (embedded in binary via go:embed)
+	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 
