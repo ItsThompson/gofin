@@ -23,42 +23,42 @@ export function DashboardFeature({ user }: DashboardFeatureProps) {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
-  if (periodState.state === "loading") {
-    return <DashboardSkeleton />;
-  }
+  switch (periodState.status) {
+    case "loading":
+      return <DashboardSkeleton />;
 
-  if (periodState.state === "error") {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">Something went wrong</CardTitle>
-          <CardDescription>
-            Could not load the dashboard. The error details were shown in a
-            notification.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" onClick={periodState.retry}>
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+    case "error":
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-destructive">Something went wrong</CardTitle>
+            <CardDescription>
+              Could not load the dashboard. The error details were shown in a
+              notification.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={periodState.retry}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      );
 
-  if (periodState.state === "no-period") {
-    return (
-      <CreatePeriodPrompt
-        defaults={periodState.defaults}
-        user={user}
-        year={currentYear}
-        month={currentMonth}
-        onCreatePeriod={periodState.createPeriod}
-        creating={periodState.creating}
-        createError={periodState.createError}
-      />
-    );
-  }
+    case "no-period":
+      return (
+        <CreatePeriodPrompt
+          defaults={periodState.defaults}
+          user={user}
+          year={currentYear}
+          month={currentMonth}
+          onCreatePeriod={periodState.createPeriod}
+          creating={periodState.creating}
+          createError={periodState.createError}
+        />
+      );
 
-  return <ActiveDashboard period={periodState.period!} user={user} />;
+    case "active":
+      return <ActiveDashboard period={periodState.period} user={user} />;
+  }
 }
