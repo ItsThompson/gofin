@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { usePeriodState } from "../hooks/usePeriodState";
-import { createMockApi, buildPeriod, buildDefaults, mockSequence } from "@gofin/test-utils";
+import { createMockApi, buildPeriod, buildDefaults } from "@gofin/test-utils";
 import type { PeriodStateResult } from "../types";
 
 const testPeriod = buildPeriod({
