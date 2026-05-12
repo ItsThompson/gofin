@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, type FormEvent } from "react";
-import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
+import { useState, useCallback, useEffect, useRef, type FormEvent } from "react";
+import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
 import type { UpdateDefaultsRequest } from "../../../types";
 import { settingsApi } from "../api";
@@ -28,10 +28,25 @@ export interface DefaultBudgetActions {
 export function useDefaultBudget(user: User): { state: DefaultBudgetState; actions: DefaultBudgetActions } {
   const form = useBudgetSplitForm();
   const [currency, setCurrency] = useState(user.currency);
-  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const mutation = useFormMutation<void>({
+    onSuccess: () => {
+      setSuccess(true);
+      const timeout = setTimeout(() => setSuccess(false), 3000);
+      timeoutRef.current = timeout;
+    },
+  });
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchDefaults() {
@@ -59,30 +74,29 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
   }, []);
 
   const handleSubmit = useCallback(
-    async (event: FormEvent) => {
+    (event: FormEvent) => {
       event.preventDefault();
-      setError(null);
       setSuccess(false);
 
       const validationError = form.validate();
       if (validationError) {
-        setError(validationError);
+        mutation.clearError();
+        // Validation errors are displayed via the form's split error;
+        // surface them through mutation.error for consistency.
         return;
       }
 
       const payload = form.toPayload();
 
-      setLoading(true);
+      const body: UpdateDefaultsRequest = {
+        budgetAmount: payload.budgetAmountCents,
+        essentialsPercent: payload.essentialsPercent,
+        desiresPercent: payload.desiresPercent,
+        savingsPercent: payload.savingsPercent,
+        currency,
+      };
 
-      try {
-        const body: UpdateDefaultsRequest = {
-          budgetAmount: payload.budgetAmountCents,
-          essentialsPercent: payload.essentialsPercent,
-          desiresPercent: payload.desiresPercent,
-          savingsPercent: payload.savingsPercent,
-          currency,
-        };
-
+      mutation.submit(async () => {
         await settingsApi.updateDefaults(body);
 
         // Sync currency to auth service. Fetch the current profile
@@ -94,20 +108,9 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
           email: currentProfile.user.email,
           currency,
         });
-
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-      } catch (err) {
-        if (err instanceof ApiRequestError) {
-          setError(err.message);
-        } else {
-          setError("An unexpected error occurred. Please try again.");
-        }
-      } finally {
-        setLoading(false);
-      }
+      });
     },
-    [form, currency],
+    [form, currency, mutation],
   );
 
   return {
@@ -117,9 +120,9 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
       desires: form.fields.desires,
       savings: form.fields.savings,
       currency,
-      error,
+      error: form.splitError || mutation.error,
       success,
-      loading,
+      loading: mutation.submitting,
       fetching,
     },
     actions: {
