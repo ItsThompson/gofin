@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0-00010101000000-000000000000
+	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
@@ -13,6 +14,8 @@ require (
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
 )
+
+replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 

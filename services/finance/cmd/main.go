@@ -22,12 +22,17 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	"github.com/ItsThompson/gofin/services/dbmigrate"
+	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/metrics"
 	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
 func main() {
+	if healthcheck.ShouldRun(os.Args) {
+		os.Exit(healthcheck.Run("8083"))
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "finance-service: %v\n", err)
 		os.Exit(1)

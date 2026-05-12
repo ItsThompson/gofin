@@ -29,10 +29,15 @@ import (
 	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
+	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 func main() {
+	if healthcheck.ShouldRun(os.Args) {
+		os.Exit(healthcheck.Run("8084"))
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "datarights-service: %v\n", err)
 		os.Exit(1)

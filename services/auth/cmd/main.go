@@ -21,11 +21,17 @@ import (
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	"github.com/ItsThompson/gofin/services/dbmigrate"
+	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/metrics"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
 
 func main() {
+	// Support subcommands: "--healthcheck" checks the health endpoint and exits.
+	if healthcheck.ShouldRun(os.Args) {
+		os.Exit(healthcheck.Run("8081"))
+	}
+
 	// Support subcommands: "seed-admin" runs the admin seeder and exits.
 	if len(os.Args) > 1 && os.Args[1] == "seed-admin" {
 		if err := runSeedAdmin(); err != nil {

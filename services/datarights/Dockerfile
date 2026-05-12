@@ -12,6 +12,7 @@ COPY auth/go.mod auth/go.sum* ./auth/
 COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
 COPY expense/go.mod expense/go.sum* ./expense/
 COPY finance/go.mod finance/go.sum* ./finance/
+COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd datarights && GOWORK=off go mod download
@@ -22,6 +23,7 @@ COPY auth/ ./auth/
 COPY dbmigrate/ ./dbmigrate/
 COPY expense/ ./expense/
 COPY finance/ ./finance/
+COPY healthcheck/ ./healthcheck/
 COPY metrics/ ./metrics/
 
 RUN --mount=type=cache,target=/go/pkg/mod \

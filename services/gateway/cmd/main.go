@@ -16,9 +16,14 @@ import (
 
 	"github.com/ItsThompson/gofin/services/gateway/internal/config"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
+	"github.com/ItsThompson/gofin/services/healthcheck"
 )
 
 func main() {
+	if healthcheck.ShouldRun(os.Args) {
+		os.Exit(healthcheck.Run("8080"))
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "api-gateway: %v\n", err)
 		os.Exit(1)
