@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -119,14 +120,14 @@ type mockBlacklistRepository struct {
 	mock.Mock
 }
 
+func (m *mockBlacklistRepository) ConsumeToken(ctx context.Context, jti, userID string, expiresAt time.Time) (bool, error) {
+	args := m.Called(ctx, jti, userID, expiresAt)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *mockBlacklistRepository) BlacklistToken(ctx context.Context, jti, userID string, expiresAt time.Time) error {
 	args := m.Called(ctx, jti, userID, expiresAt)
 	return args.Error(0)
-}
-
-func (m *mockBlacklistRepository) IsTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
-	args := m.Called(ctx, jti)
-	return args.Bool(0), args.Error(1)
 }
 
 func (m *mockBlacklistRepository) CleanupExpired(ctx context.Context) error {
@@ -187,6 +188,27 @@ func TestRegister_WeakPassword(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
 	assert.Equal(t, 400, authErr.Status)
+}
+
+func TestRegister_PasswordTooLong(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	// 73 bytes: exceeds bcrypt's 72-byte limit
+	longPassword := "Ab1" + strings.Repeat("x", 70)
+	_, _, err := svc.Register(ctx, &model.RegisterRequest{
+		Username: "testuser",
+		Email:    "test@example.com",
+		Password: longPassword,
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
+	assert.Equal(t, 400, authErr.Status)
+	assert.Contains(t, authErr.Message, "must not exceed 72 characters")
 }
 
 func TestRegister_DuplicateEmail(t *testing.T) {
@@ -481,7 +503,7 @@ func TestRefreshToken_Success(t *testing.T) {
 	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
 	require.NoError(t, err)
 
-	blacklistRepo.On("IsTokenBlacklisted", ctx, refreshClaims.ID).Return(false, nil)
+	blacklistRepo.On("ConsumeToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(true, nil)
 	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
 		ID:       "user-123",
 		Username: "testuser",
@@ -489,7 +511,6 @@ func TestRefreshToken_Success(t *testing.T) {
 		Role:     "user",
 		Currency: "USD",
 	}, nil)
-	blacklistRepo.On("BlacklistToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(nil)
 	blacklistRepo.On("CleanupExpired", mock.Anything).Return(nil)
 
 	user, tokens, err := svc.RefreshToken(ctx, refreshToken)
@@ -500,7 +521,7 @@ func TestRefreshToken_Success(t *testing.T) {
 	assert.NotEmpty(t, tokens.RefreshToken)
 	// New tokens should be different from the original
 	assert.NotEqual(t, refreshToken, tokens.RefreshToken)
-	blacklistRepo.AssertCalled(t, "BlacklistToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time"))
+	blacklistRepo.AssertCalled(t, "ConsumeToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time"))
 }
 
 func TestRefreshToken_BlacklistedToken(t *testing.T) {
@@ -516,7 +537,8 @@ func TestRefreshToken_BlacklistedToken(t *testing.T) {
 	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
 	require.NoError(t, err)
 
-	blacklistRepo.On("IsTokenBlacklisted", ctx, refreshClaims.ID).Return(true, nil)
+	// ConsumeToken returns (false, nil) meaning token was already consumed
+	blacklistRepo.On("ConsumeToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(false, nil)
 
 	_, _, err = svc.RefreshToken(ctx, refreshToken)
 
@@ -555,7 +577,7 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
 	require.NoError(t, err)
 
-	blacklistRepo.On("IsTokenBlacklisted", ctx, refreshClaims.ID).Return(false, nil)
+	blacklistRepo.On("ConsumeToken", ctx, refreshClaims.ID, "deleted-user", mock.AnythingOfType("time.Time")).Return(true, nil)
 	repo.On("GetUserByID", ctx, "deleted-user").Return(nil, nil)
 
 	_, _, err = svc.RefreshToken(ctx, refreshToken)
@@ -1010,6 +1032,32 @@ func TestChangePassword_WeakNewPassword(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
 	assert.Equal(t, 400, authErr.Status)
+}
+
+func TestChangePassword_NewPasswordTooLong(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	hash, _ := svc.password.HashPassword("OldPass123")
+	repo.On("GetUserByID", ctx, "user-123").Return(&model.User{
+		ID:           "user-123",
+		PasswordHash: hash,
+	}, nil)
+
+	// 73 bytes: exceeds bcrypt's 72-byte limit
+	longPassword := "Ab1" + strings.Repeat("x", 70)
+	_, _, err := svc.ChangePassword(ctx, "user-123", &model.ChangePasswordRequest{
+		CurrentPassword: "OldPass123",
+		NewPassword:     longPassword,
+	})
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
+	assert.Equal(t, 400, authErr.Status)
+	assert.Contains(t, authErr.Message, "must not exceed 72 characters")
 }
 
 func TestChangePassword_TokenRevocation(t *testing.T) {

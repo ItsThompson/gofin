@@ -32,8 +32,12 @@ func (p *PasswordService) CheckPassword(password, hash string) bool {
 }
 
 // ValidatePasswordStrength checks the password meets the strength requirements:
-// 8+ chars, at least 1 uppercase, 1 lowercase, 1 digit.
+// max 72 bytes (bcrypt limit), min 8 chars, at least 1 uppercase, 1 lowercase, 1 digit.
 func ValidatePasswordStrength(password string) error {
+	if len(password) > 72 {
+		return fmt.Errorf("password must not exceed 72 characters")
+	}
+
 	if len(password) < 8 {
 		return fmt.Errorf("password must be at least 8 characters with one uppercase letter, one lowercase letter, and one digit")
 	}
