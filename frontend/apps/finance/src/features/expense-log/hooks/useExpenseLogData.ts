@@ -3,7 +3,7 @@ import { useApiToast } from "@gofin/api";
 import type { BudgetPeriod, Expense, Tag } from "../../../types";
 import { expenseLogApi } from "../api";
 import { resolveTagNames, type ExpenseRow } from "../../../lib/expense-table-columns";
-import type { ExpenseFilters } from "./useExpenseFilters";
+import type { FilterCriteria } from "./useExpenseFilters";
 
 /** Result of the data fetch, grouped for atomic replacement. */
 export interface ExpenseLogFetchResult {
@@ -41,7 +41,7 @@ export interface ExpenseLogData {
  * `true` immediately so consumers can dim stale content while the new
  * fetch completes.
  */
-export function useExpenseLogData(filters: ExpenseFilters): ExpenseLogData {
+export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);

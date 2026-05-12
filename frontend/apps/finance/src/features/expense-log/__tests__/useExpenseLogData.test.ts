@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useExpenseLogData, EMPTY_FETCH_RESULT, type ExpenseLogFetchResult } from "../hooks/useExpenseLogData";
-import type { ExpenseFilters } from "../hooks/useExpenseFilters";
+import { useExpenseLogData, EMPTY_FETCH_RESULT } from "../hooks/useExpenseLogData";
+import type { FilterCriteria } from "../hooks/useExpenseFilters";
 import type { Expense, Tag, BudgetPeriod } from "@/types";
 
 // Mock the API module
@@ -32,19 +32,11 @@ const mockGetExpenses = vi.mocked(expenseLogApi.getExpenses);
 const mockGetTags = vi.mocked(expenseLogApi.getTags);
 const mockGetPeriods = vi.mocked(expenseLogApi.getPeriods);
 
-const emptyFilters: ExpenseFilters = {
+const emptyFilters: FilterCriteria = {
   selectedTypes: new Set(),
   selectedTags: new Set(),
-  showFilters: false,
   dateFrom: "",
   dateTo: "",
-  hasActiveFilters: false,
-  toggleType: vi.fn(),
-  toggleTag: vi.fn(),
-  toggleFilters: vi.fn(),
-  clearFilters: vi.fn(),
-  setDateFrom: vi.fn(),
-  setDateTo: vi.fn(),
 };
 
 const mockExpenses: Expense[] = [

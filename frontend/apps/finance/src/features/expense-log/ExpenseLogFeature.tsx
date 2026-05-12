@@ -21,7 +21,7 @@ import { ExpenseDetailModal } from "../expense-detail";
 export function ExpenseLogFeature({ user }: FinancePageProps) {
   const now = new Date();
   const filters = useExpenseFilters();
-  const data = useExpenseLogData(filters);
+  const data = useExpenseLogData(filters.criteria);
   const { table } = useExpenseTable(data.expenses, user.currency);
 
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -100,10 +100,10 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
           Filters
           {filters.hasActiveFilters && (
             <span className="ml-1 rounded-full bg-primary-foreground px-1.5 text-xs font-bold text-primary">
-              {filters.selectedTypes.size +
-                filters.selectedTags.size +
-                (filters.dateFrom ? 1 : 0) +
-                (filters.dateTo ? 1 : 0)}
+              {filters.criteria.selectedTypes.size +
+                filters.criteria.selectedTags.size +
+                (filters.criteria.dateFrom ? 1 : 0) +
+                (filters.criteria.dateTo ? 1 : 0)}
             </span>
           )}
         </Button>
