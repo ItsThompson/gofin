@@ -38,29 +38,23 @@ export function ExpenseDetailModal({
   onClose,
   onCorrected,
 }: ExpenseDetailModalProps) {
-  const {
-    expense,
-    history,
-    proRataGroup,
-    viewState,
-    error,
-    setViewState,
-    submitCorrection,
-    correctionSubmitting,
-    correctionError,
-  } = useExpenseDetail(expenseId, { onCorrectionSuccess: onCorrected });
+  const state = useExpenseDetail(expenseId, {
+    onCorrectionSuccess: onCorrected,
+  });
 
   return (
     <Dialog open={expenseId !== null} onOpenChange={() => onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {viewState === "correct" ? "Correct Expense" : "Expense Detail"}
+            {state.status === "correct"
+              ? "Correct Expense"
+              : "Expense Detail"}
           </DialogTitle>
           <DialogClose onClick={onClose} />
         </DialogHeader>
 
-        {viewState === "loading" && (
+        {state.status === "loading" && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
             <span className="ml-2 text-sm text-muted-foreground">
@@ -69,35 +63,35 @@ export function ExpenseDetailModal({
           </div>
         )}
 
-        {viewState === "error" && (
+        {state.status === "error" && (
           <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="size-4 shrink-0" />
-            {error}
+            {state.error}
           </div>
         )}
 
-        {viewState === "detail" && expense && (
+        {state.status === "detail" && (
           <DetailView
-            expense={expense}
+            expense={state.expense}
             currency={currency}
             tags={tags}
-            history={history}
-            proRataGroup={proRataGroup}
+            history={state.history}
+            proRataGroup={state.proRataGroup}
             currentYear={currentYear}
             currentMonth={currentMonth}
-            onCorrectClick={() => setViewState("correct")}
+            onCorrectClick={state.startCorrection}
           />
         )}
 
-        {viewState === "correct" && expense && (
+        {state.status === "correct" && (
           <CorrectionForm
-            expense={expense}
+            expense={state.expense}
             currency={currency}
             tags={tags}
-            onCancel={() => setViewState("detail")}
-            onSubmit={submitCorrection}
-            submitting={correctionSubmitting}
-            submitError={correctionError}
+            onCancel={state.cancelCorrection}
+            onSubmit={state.correction.submitCorrection}
+            submitting={state.correction.submitting}
+            submitError={state.correction.error}
           />
         )}
       </DialogContent>
