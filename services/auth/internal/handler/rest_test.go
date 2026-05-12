@@ -26,14 +26,14 @@ type mockBlacklistRepository struct {
 	mock.Mock
 }
 
+func (m *mockBlacklistRepository) ConsumeToken(ctx context.Context, jti, userID string, expiresAt time.Time) (bool, error) {
+	args := m.Called(ctx, jti, userID, expiresAt)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *mockBlacklistRepository) BlacklistToken(ctx context.Context, jti, userID string, expiresAt time.Time) error {
 	args := m.Called(ctx, jti, userID, expiresAt)
 	return args.Error(0)
-}
-
-func (m *mockBlacklistRepository) IsTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
-	args := m.Called(ctx, jti)
-	return args.Bool(0), args.Error(1)
 }
 
 func (m *mockBlacklistRepository) CleanupExpired(ctx context.Context) error {
@@ -435,7 +435,7 @@ func TestRefreshHandler_Success(t *testing.T) {
 	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
 	require.NoError(t, err)
 
-	blacklistRepo.On("IsTokenBlacklisted", mock.Anything, refreshClaims.ID).Return(false, nil)
+	blacklistRepo.On("ConsumeToken", mock.Anything, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(true, nil)
 	repo.On("GetUserByID", mock.Anything, "user-123").Return(&model.User{
 		ID:       "user-123",
 		Username: "testuser",
@@ -444,8 +444,6 @@ func TestRefreshHandler_Success(t *testing.T) {
 		Currency: "USD",
 		CreatedAt: time.Now(),
 	}, nil)
-	blacklistRepo.On("BlacklistToken", mock.Anything, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(nil)
-	blacklistRepo.On("CleanupExpired", mock.Anything).Return(nil)
 
 	w := doJSONWithCookies(r, "POST", "/api/auth/refresh", nil, []*http.Cookie{
 		{Name: "gofin_refresh", Value: refreshToken},
@@ -497,7 +495,7 @@ func TestRefreshHandler_BlacklistedToken(t *testing.T) {
 	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
 	require.NoError(t, err)
 
-	blacklistRepo.On("IsTokenBlacklisted", mock.Anything, refreshClaims.ID).Return(true, nil)
+	blacklistRepo.On("ConsumeToken", mock.Anything, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(false, nil)
 
 	w := doJSONWithCookies(r, "POST", "/api/auth/refresh", nil, []*http.Cookie{
 		{Name: "gofin_refresh", Value: refreshToken},

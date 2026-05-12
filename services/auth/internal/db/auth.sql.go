@@ -14,6 +14,7 @@ import (
 const blacklistToken = `-- name: BlacklistToken :exec
 INSERT INTO auth.refresh_token_blacklist (jti, user_id, expires_at)
 VALUES ($1, $2, $3)
+ON CONFLICT (jti) DO NOTHING
 `
 
 type BlacklistTokenParams struct {
@@ -64,6 +65,26 @@ func (q *Queries) CompleteOnboarding(ctx context.Context, arg CompleteOnboarding
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const consumeRefreshToken = `-- name: ConsumeRefreshToken :one
+INSERT INTO auth.refresh_token_blacklist (jti, user_id, expires_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (jti) DO NOTHING
+RETURNING jti
+`
+
+type ConsumeRefreshTokenParams struct {
+	Jti       string             `json:"jti"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) ConsumeRefreshToken(ctx context.Context, arg ConsumeRefreshTokenParams) (string, error) {
+	row := q.db.QueryRow(ctx, consumeRefreshToken, arg.Jti, arg.UserID, arg.ExpiresAt)
+	var jti string
+	err := row.Scan(&jti)
+	return jti, err
 }
 
 const createUser = `-- name: CreateUser :one
@@ -197,19 +218,6 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (AuthU
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const isTokenBlacklisted = `-- name: IsTokenBlacklisted :one
-SELECT EXISTS(
-    SELECT 1 FROM auth.refresh_token_blacklist WHERE jti = $1
-) AS is_blacklisted
-`
-
-func (q *Queries) IsTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
-	row := q.db.QueryRow(ctx, isTokenBlacklisted, jti)
-	var is_blacklisted bool
-	err := row.Scan(&is_blacklisted)
-	return is_blacklisted, err
 }
 
 const listAllUsers = `-- name: ListAllUsers :many

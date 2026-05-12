@@ -87,9 +87,9 @@ services:
     build:
       context: ./services
       dockerfile: auth/Dockerfile
-    ports:
-      - "8081:8081"
-      - "9081:9081"
+    expose:
+      - "8081"
+      - "9081"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
       interval: 5s
@@ -126,14 +126,13 @@ services:
     build:
       context: ./services
       dockerfile: expense/Dockerfile
-    ports:
-      - "8082:8082"
-      - "9082:9082"
+    expose:
+      - "8082"
+      - "9082"
     environment:
       - IMMUDB_ADDR=immudb:3322
       - IMMUDB_USERNAME=${IMMUDB_USERNAME:-immudb}
       - IMMUDB_PASSWORD=${IMMUDB_PASSWORD:-immudb}
-      - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
     networks:
@@ -155,9 +154,9 @@ services:
     build:
       context: ./services
       dockerfile: finance/Dockerfile
-    ports:
-      - "8083:8083"
-      - "9083:9083"
+    expose:
+      - "8083"
+      - "9083"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
       interval: 5s
@@ -167,7 +166,6 @@ services:
     environment:
       - FINANCE_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=finance
       - EXPENSE_SERVICE_ADDR=expense-service:9082
-      - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - MIGRATIONS_PATH=/migrations
@@ -190,9 +188,9 @@ services:
     build:
       context: ./services
       dockerfile: datarights/Dockerfile
-    ports:
-      - "8084:8084"
-      - "9084:9084"
+    expose:
+      - "8084"
+      - "9084"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
       interval: 5s

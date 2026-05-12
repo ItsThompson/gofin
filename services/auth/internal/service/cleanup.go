@@ -1,0 +1,57 @@
+package service
+
+import (
+	"context"
+	"log/slog"
+	"sync/atomic"
+	"time"
+)
+
+// StartPeriodicCleanup launches a background goroutine that cleans up expired
+// blacklist entries on a fixed interval. It respects the provided context for
+// graceful shutdown and ensures only one cleanup runs at a time.
+func (s *AuthService) StartPeriodicCleanup(ctx context.Context, interval, timeout time.Duration) {
+	ticker := time.NewTicker(interval)
+
+	go func() {
+		defer ticker.Stop()
+
+		var running atomic.Bool
+
+		for {
+			select {
+			case <-ctx.Done():
+				s.logger.Info("periodic cleanup stopped",
+					slog.String("method", "StartPeriodicCleanup"),
+				)
+				return
+			case <-ticker.C:
+				if !running.CompareAndSwap(false, true) {
+					s.logger.Debug("cleanup skipped: previous run still in progress",
+						slog.String("method", "StartPeriodicCleanup"),
+					)
+					continue
+				}
+
+				go func() {
+					defer running.Store(false)
+
+					cleanupCtx, cancel := context.WithTimeout(ctx, timeout)
+					defer cancel()
+
+					if err := s.blacklistRepo.CleanupExpired(cleanupCtx); err != nil {
+						s.logger.Error("blacklist cleanup failed",
+							slog.String("method", "StartPeriodicCleanup"),
+							slog.String("error", err.Error()),
+						)
+						return
+					}
+
+					s.logger.Debug("blacklist cleanup completed",
+						slog.String("method", "StartPeriodicCleanup"),
+					)
+				}()
+			}
+		}
+	}()
+}

@@ -90,6 +90,9 @@ func run() error {
 	pwdSvc := service.NewPasswordService(cfg.BcryptCost)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
+	// Start background workers
+	authSvc.StartPeriodicCleanup(ctx, 5*time.Minute, 30*time.Second)
+
 	// Start gRPC server
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),

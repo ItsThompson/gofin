@@ -14,12 +14,14 @@ SELECT * FROM auth.users WHERE username = $1;
 
 -- name: BlacklistToken :exec
 INSERT INTO auth.refresh_token_blacklist (jti, user_id, expires_at)
-VALUES ($1, $2, $3);
+VALUES ($1, $2, $3)
+ON CONFLICT (jti) DO NOTHING;
 
--- name: IsTokenBlacklisted :one
-SELECT EXISTS(
-    SELECT 1 FROM auth.refresh_token_blacklist WHERE jti = $1
-) AS is_blacklisted;
+-- name: ConsumeRefreshToken :one
+INSERT INTO auth.refresh_token_blacklist (jti, user_id, expires_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (jti) DO NOTHING
+RETURNING jti;
 
 -- name: CleanupExpiredBlacklist :exec
 DELETE FROM auth.refresh_token_blacklist WHERE expires_at < now();
