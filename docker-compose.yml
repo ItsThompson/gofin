@@ -277,7 +277,7 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Node 4: Monitoring (Alloy, Alertmanager, Grafana, auth proxy, tunnel)
+  # Node 4: Monitoring (Alloy + exporters → Grafana Cloud)
   # ---------------------------------------------------------------------------
   grafana-alloy:
     # Pinned 2026-05-13. Check for updates quarterly.
@@ -337,91 +337,6 @@ services:
         limits:
           cpus: "0.15"
           memory: 64M
-    restart: unless-stopped
-
-  alertmanager:
-    image: ghcr.io/itsthompson/gofin/alertmanager:latest
-    build:
-      context: ./monitoring/alertmanager
-      dockerfile: Dockerfile
-    ports:
-      - "9093:9093"
-    environment:
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
-    volumes:
-      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.tpl:ro
-    networks:
-      - monitoring-net
-    depends_on:
-      - grafana-alloy
-    deploy:
-      resources:
-        limits:
-          cpus: "0.15"
-          memory: 128M
-    restart: unless-stopped
-
-  grafana:
-    # Pinned 2026-05-12. Check for updates quarterly.
-    image: grafana/grafana:11.6.0
-    ports:
-      - "3001:3000"
-    volumes:
-      - ./monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    networks:
-      - monitoring-net
-    depends_on:
-      - grafana-alloy
-    deploy:
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 512M
-    restart: unless-stopped
-
-  grafana-auth-proxy:
-    image: ghcr.io/itsthompson/gofin/grafana-auth-proxy:latest
-    build:
-      context: ./monitoring/auth-proxy
-      dockerfile: Dockerfile
-    ports:
-      - "3002:3002"
-    environment:
-      - JWT_SECRET=${JWT_SECRET}
-      - GRAFANA_URL=http://grafana:3000
-      - APP_URL=${APP_URL:-http://localhost:3000}
-    networks:
-      - monitoring-net
-    depends_on:
-      - grafana
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 128M
-    restart: unless-stopped
-
-  cloudflared-grafana:
-    # Pinned 2026-05-12. Check for updates quarterly.
-    image: cloudflare/cloudflared:2025.4.0
-    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-grafana
-    volumes:
-      - ./deployments/cloudflare/config-grafana.rendered.yml:/etc/cloudflared/config.yml:ro
-      - ./deployments/cloudflare/gofin-grafana.json:/etc/cloudflared/credentials.json:ro
-      - ./deployments/cloudflare/cert.pem:/etc/cloudflared/cert.pem:ro
-    networks:
-      - monitoring-net
-    depends_on:
-      - grafana-auth-proxy
-    profiles:
-      - tunnels
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256M
     restart: unless-stopped
 
 # -----------------------------------------------------------------------------
