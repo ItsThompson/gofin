@@ -2,6 +2,7 @@ import { Button } from "@gofin/ui/components/button";
 import { Loader2, Download } from "lucide-react";
 import { useExportData } from "../hooks/useExportData";
 import { ExportHistoryTable } from "./ExportHistoryTable";
+import type { ExportStatus } from "../types";
 
 function formatCooldownDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("en-US", {
@@ -11,42 +12,35 @@ function formatCooldownDate(isoDate: string): string {
   });
 }
 
-export function ExportDataSection() {
-  const { state, actions } = useExportData();
-
-  const hasActiveJob = state.jobs.some(
-    (job) => job.status === "pending" || job.status === "running",
-  );
-
-  const isInCooldown = !state.canExport && !hasActiveJob && state.nextExportDate != null;
-  const isButtonDisabled = state.creating || !state.canExport || hasActiveJob;
-
-  function getButtonContent() {
-    if (state.creating) {
-      return (
-        <>
-          <Loader2 className="size-4 animate-spin" />
-          Exporting...
-        </>
-      );
-    }
-    if (hasActiveJob) {
-      return (
-        <>
-          <Loader2 className="size-4 animate-spin" />
-          Export in progress...
-        </>
-      );
-    }
+function getButtonContent(status: ExportStatus) {
+  if (status === "creating") {
     return (
       <>
-        <Download className="size-4" />
-        Export My Data
+        <Loader2 className="size-4 animate-spin" />
+        Exporting...
       </>
     );
   }
+  if (status === "polling") {
+    return (
+      <>
+        <Loader2 className="size-4 animate-spin" />
+        Export in progress...
+      </>
+    );
+  }
+  return (
+    <>
+      <Download className="size-4" />
+      Export My Data
+    </>
+  );
+}
 
-  if (state.loading) {
+export function ExportDataSection() {
+  const { state, actions } = useExportData();
+
+  if (state.status === "loading") {
     return (
       <div className="space-y-4">
         <h3 className="text-base font-medium">Data Export</h3>
@@ -57,6 +51,15 @@ export function ExportDataSection() {
       </div>
     );
   }
+
+  const isButtonDisabled =
+    state.status === "creating" || state.status === "polling" || !state.canExport;
+
+  const showCooldown =
+    !state.canExport &&
+    state.status !== "polling" &&
+    state.status !== "creating" &&
+    state.nextExportDate != null;
 
   return (
     <div className="space-y-4">
@@ -75,10 +78,10 @@ export function ExportDataSection() {
           disabled={isButtonDisabled}
           className="w-full sm:w-auto"
         >
-          {getButtonContent()}
+          {getButtonContent(state.status)}
         </Button>
 
-        {isInCooldown && state.nextExportDate && (
+        {showCooldown && state.nextExportDate && (
           <span className="text-sm text-muted-foreground">
             Next export available: {formatCooldownDate(state.nextExportDate)}
           </span>

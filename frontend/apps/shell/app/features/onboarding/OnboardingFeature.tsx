@@ -9,21 +9,7 @@ import { SplitStep } from "./steps/SplitStep";
 const STEP_ORDER: OnboardingStep[] = ["welcome", "currency", "budget", "split"];
 
 export function OnboardingFeature() {
-  const {
-    currentStep,
-    stepIndex,
-    currency,
-    setCurrency,
-    budgetDollars,
-    setBudgetDollars,
-    splitForm,
-    goNext,
-    goBack,
-    skipStep,
-    submit,
-    submitting,
-    error,
-  } = useOnboarding();
+  const { state, actions } = useOnboarding();
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -34,52 +20,52 @@ export function OnboardingFeature() {
             <div
               key={step}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
-                index <= stepIndex ? "bg-primary" : "bg-muted"
+                index <= state.stepIndex ? "bg-primary" : "bg-muted"
               }`}
             />
           ))}
         </div>
 
-        {currentStep === "welcome" && (
-          <WelcomeStep onNext={goNext} />
+        {state.currentStep === "welcome" && (
+          <WelcomeStep onNext={actions.goNext} />
         )}
 
-        {currentStep === "currency" && (
+        {state.currentStep === "currency" && (
           <CurrencyStep
-            currency={currency}
-            onCurrencyChange={setCurrency}
-            onNext={goNext}
-            onBack={goBack}
-            onSkip={skipStep}
+            currency={state.currency}
+            onCurrencyChange={actions.setCurrency}
+            onNext={actions.goNext}
+            onBack={actions.goBack}
+            onSkip={actions.skipStep}
           />
         )}
 
-        {currentStep === "budget" && (
+        {state.currentStep === "budget" && (
           <BudgetStep
-            budgetDollars={budgetDollars}
-            onBudgetChange={setBudgetDollars}
-            currency={currency}
-            onNext={goNext}
-            onBack={goBack}
-            onSkip={skipStep}
+            budgetDollars={state.budgetDollars}
+            onBudgetChange={actions.setBudgetDollars}
+            currency={state.currency}
+            onNext={actions.goNext}
+            onBack={actions.goBack}
+            onSkip={actions.skipStep}
           />
         )}
 
-        {currentStep === "split" && (
+        {state.currentStep === "split" && (
           <SplitStep
-            essentials={splitForm.essentials}
-            desires={splitForm.desires}
-            savings={splitForm.savings}
-            onEssentialsChange={splitForm.setEssentials}
-            onDesiresChange={splitForm.setDesires}
-            onSavingsChange={splitForm.setSavings}
-            splitError={splitForm.splitError}
-            onClearSplitError={splitForm.clearSplitError}
-            error={error}
-            submitting={submitting}
-            onSubmit={submit}
-            onBack={goBack}
-            onSkip={skipStep}
+            essentials={state.splitForm.essentials}
+            desires={state.splitForm.desires}
+            savings={state.splitForm.savings}
+            onEssentialsChange={state.splitForm.setEssentials}
+            onDesiresChange={state.splitForm.setDesires}
+            onSavingsChange={state.splitForm.setSavings}
+            splitError={state.splitForm.splitError}
+            onClearSplitError={state.splitForm.clearSplitError}
+            error={state.error}
+            submitting={state.submitting}
+            onSubmit={actions.submit}
+            onBack={actions.goBack}
+            onSkip={actions.skipStep}
           />
         )}
       </Card>

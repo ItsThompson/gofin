@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { ApiRequestError, useFormMutation } from "@gofin/api";
@@ -8,28 +8,37 @@ import {
   validateUsername,
 } from "@gofin/core";
 
-export interface RegisterFormResult {
+/** Grouped registration form fields. */
+export interface RegisterFields {
   username: string;
   email: string;
   password: string;
   confirmPassword: string;
-  setUsername: (value: string) => void;
-  setEmail: (value: string) => void;
-  setPassword: (value: string) => void;
-  setConfirmPassword: (value: string) => void;
+}
+
+export interface RegisterFormState {
+  fields: RegisterFields;
   errors: Record<string, string>;
   submitting: boolean;
+}
+
+export interface RegisterFormActions {
+  setField: (key: keyof RegisterFields, value: string) => void;
   handleSubmit: (event: FormEvent) => void;
 }
 
-export function useRegisterForm(): RegisterFormResult {
+const INITIAL_FIELDS: RegisterFields = {
+  username: "",
+  email: "",
+  password: "",
+  confirmPassword: "",
+};
+
+export function useRegisterForm(): { state: RegisterFormState; actions: RegisterFormActions } {
   const { isAuthenticated, isLoading, checkAuth, register } = useAuthStore();
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fields, setFields] = useState<RegisterFields>(INITIAL_FIELDS);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -42,6 +51,13 @@ export function useRegisterForm(): RegisterFormResult {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
+  const setField = useCallback(
+    (key: keyof RegisterFields, value: string) => {
+      setFields((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
+
   const mutation = useFormMutation<void>({
     onError: (errorMessage) => setErrors((prev) => ({ ...prev, form: errorMessage })),
   });
@@ -52,16 +68,16 @@ export function useRegisterForm(): RegisterFormResult {
 
     const validationErrors: Record<string, string> = {};
 
-    const usernameError = validateUsername(username);
+    const usernameError = validateUsername(fields.username);
     if (usernameError) validationErrors.username = usernameError;
 
-    const emailError = validateEmail(email);
+    const emailError = validateEmail(fields.email);
     if (emailError) validationErrors.email = emailError;
 
-    const passwordError = validatePassword(password);
+    const passwordError = validatePassword(fields.password);
     if (passwordError) validationErrors.password = passwordError;
 
-    if (confirmPassword && confirmPassword !== password) {
+    if (fields.confirmPassword && fields.confirmPassword !== fields.password) {
       validationErrors.confirmPassword = "Passwords do not match";
     }
 
@@ -72,7 +88,7 @@ export function useRegisterForm(): RegisterFormResult {
 
     mutation.submit(async () => {
       try {
-        await register(username, email, password);
+        await register(fields.username, fields.email, fields.password);
         navigate("/onboarding");
       } catch (err) {
         if (err instanceof ApiRequestError) {
@@ -95,16 +111,14 @@ export function useRegisterForm(): RegisterFormResult {
   };
 
   return {
-    username,
-    email,
-    password,
-    confirmPassword,
-    setUsername,
-    setEmail,
-    setPassword,
-    setConfirmPassword,
-    errors,
-    submitting: mutation.submitting,
-    handleSubmit,
+    state: {
+      fields,
+      errors,
+      submitting: mutation.submitting,
+    },
+    actions: {
+      setField,
+      handleSubmit,
+    },
   };
 }

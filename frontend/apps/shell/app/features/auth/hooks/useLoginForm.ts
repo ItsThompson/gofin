@@ -1,27 +1,38 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { consumeReturnToPath, useFormMutation } from "@gofin/api";
 import { validateEmail } from "@gofin/core";
 
-export interface LoginFormResult {
+/** Grouped login credential fields. */
+export interface LoginCredentials {
   email: string;
   password: string;
-  setEmail: (value: string) => void;
-  setPassword: (value: string) => void;
+}
+
+export interface LoginFormState {
+  credentials: LoginCredentials;
   error: string | null;
   submitting: boolean;
   isSessionExpired: boolean;
+}
+
+export interface LoginFormActions {
+  setField: (key: keyof LoginCredentials, value: string) => void;
   handleSubmit: (event: FormEvent) => void;
 }
 
-export function useLoginForm(): LoginFormResult {
+const INITIAL_CREDENTIALS: LoginCredentials = {
+  email: "",
+  password: "",
+};
+
+export function useLoginForm(): { state: LoginFormState; actions: LoginFormActions } {
   const { login, isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [credentials, setCredentials] = useState<LoginCredentials>(INITIAL_CREDENTIALS);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isSessionExpired = searchParams.get("expired") === "true";
@@ -35,6 +46,13 @@ export function useLoginForm(): LoginFormResult {
       navigate("/dashboard");
     }
   }, [isLoading, isAuthenticated, navigate]);
+
+  const setField = useCallback(
+    (key: keyof LoginCredentials, value: string) => {
+      setCredentials((prev) => ({ ...prev, [key]: value }));
+    },
+    [],
+  );
 
   const mutation = useFormMutation<Awaited<ReturnType<typeof login>>>({
     onSuccess: (user) => {
@@ -54,27 +72,29 @@ export function useLoginForm(): LoginFormResult {
     event.preventDefault();
     setValidationError(null);
 
-    const emailError = validateEmail(email);
+    const emailError = validateEmail(credentials.email);
     if (emailError) {
       setValidationError(emailError);
       return;
     }
-    if (!password) {
+    if (!credentials.password) {
       setValidationError("Password is required");
       return;
     }
 
-    mutation.submit(() => login(email, password));
+    mutation.submit(() => login(credentials.email, credentials.password));
   };
 
   return {
-    email,
-    password,
-    setEmail,
-    setPassword,
-    error: validationError || mutation.error,
-    submitting: mutation.submitting,
-    isSessionExpired,
-    handleSubmit,
+    state: {
+      credentials,
+      error: validationError || mutation.error,
+      submitting: mutation.submitting,
+      isSessionExpired,
+    },
+    actions: {
+      setField,
+      handleSubmit,
+    },
   };
 }

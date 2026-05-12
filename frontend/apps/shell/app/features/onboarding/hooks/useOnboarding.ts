@@ -1,10 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { apiClient, ApiRequestError, useBudgetSplitForm } from "@gofin/api";
+import { apiClient, useBudgetSplitForm, useFormMutation } from "@gofin/api";
 import { DEFAULT_BUDGET_SPLIT } from "@gofin/core";
+import type {
+  OnboardingStep,
+  OnboardingState,
+  OnboardingActions,
+  SplitForm,
+} from "./types";
 
-export type OnboardingStep = "welcome" | "currency" | "budget" | "split";
+export type { OnboardingStep, OnboardingState, OnboardingActions, SplitForm } from "./types";
 
 const STEP_ORDER: OnboardingStep[] = ["welcome", "currency", "budget", "split"];
 
@@ -14,35 +20,7 @@ const DEFAULTS = {
   budgetDollars: 0,
 };
 
-export interface SplitForm {
-  essentials: string;
-  desires: string;
-  savings: string;
-  setEssentials: (value: string) => void;
-  setDesires: (value: string) => void;
-  setSavings: (value: string) => void;
-  splitError: string | null;
-  clearSplitError: () => void;
-}
-
-export interface OnboardingResult {
-  currentStep: OnboardingStep;
-  stepIndex: number;
-  totalSteps: number;
-  currency: string;
-  setCurrency: (code: string) => void;
-  budgetDollars: string;
-  setBudgetDollars: (value: string) => void;
-  splitForm: SplitForm;
-  goNext: () => void;
-  goBack: () => void;
-  skipStep: () => void;
-  submit: (event?: FormEvent) => void;
-  submitting: boolean;
-  error: string | null;
-}
-
-export function useOnboarding(): OnboardingResult {
+export function useOnboarding(): { state: OnboardingState; actions: OnboardingActions } {
   const navigate = useNavigate();
   const { checkAuth } = useAuthStore();
 
@@ -50,8 +28,13 @@ export function useOnboarding(): OnboardingResult {
   const [currency, setCurrency] = useState(DEFAULTS.currency);
   const [budgetDollars, setBudgetDollars] = useState<string>("");
   const form = useBudgetSplitForm();
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+
+  const mutation = useFormMutation<void>({
+    onSuccess: async () => {
+      await checkAuth();
+      navigate("/dashboard");
+    },
+  });
 
   const stepIndex = STEP_ORDER.indexOf(currentStep);
   const totalSteps = STEP_ORDER.length;
@@ -83,9 +66,8 @@ export function useOnboarding(): OnboardingResult {
     }
   }
 
-  async function handleSubmit(event?: FormEvent, useDefaults = false) {
+  function handleSubmit(event?: FormEvent, useDefaults = false) {
     if (event) event.preventDefault();
-    setError(null);
 
     const finalEssentials = useDefaults ? DEFAULT_BUDGET_SPLIT.essentials : (parseInt(form.fields.essentials, 10) || 0);
     const finalDesires = useDefaults ? DEFAULT_BUDGET_SPLIT.desires : (parseInt(form.fields.desires, 10) || 0);
@@ -100,8 +82,7 @@ export function useOnboarding(): OnboardingResult {
 
     const budgetAmountCents = Math.round(finalBudgetDollars * 100);
 
-    setSubmitting(true);
-    try {
+    mutation.submit(async () => {
       await apiClient("/api/finance/onboarding", {
         method: "POST",
         body: JSON.stringify({
@@ -119,18 +100,7 @@ export function useOnboarding(): OnboardingResult {
           currency: finalCurrency,
         }),
       });
-
-      await checkAuth();
-      navigate("/dashboard");
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    });
   }
 
   const splitForm: SplitForm = {
@@ -145,19 +115,23 @@ export function useOnboarding(): OnboardingResult {
   };
 
   return {
-    currentStep,
-    stepIndex,
-    totalSteps,
-    currency,
-    setCurrency,
-    budgetDollars,
-    setBudgetDollars,
-    splitForm,
-    goNext,
-    goBack,
-    skipStep,
-    submit: handleSubmit,
-    submitting,
-    error,
+    state: {
+      currentStep,
+      stepIndex,
+      totalSteps,
+      currency,
+      budgetDollars,
+      splitForm,
+      submitting: mutation.submitting,
+      error: mutation.error,
+    },
+    actions: {
+      setCurrency,
+      setBudgetDollars,
+      goNext,
+      goBack,
+      skipStep,
+      submit: handleSubmit,
+    },
   };
 }

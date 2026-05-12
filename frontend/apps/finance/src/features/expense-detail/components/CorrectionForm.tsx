@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
-import { getCurrencySymbol, EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
-import type { Expense, Tag, CorrectExpenseRequest } from "../../../types";
+import type { FormEvent } from "react";
+import { getCurrencySymbol, EXPENSE_TYPES } from "@gofin/core";
+import type { ExpenseFields } from "../../../lib/validate-expense-fields";
+import type { Tag } from "../../../types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -11,85 +12,40 @@ import {
 } from "@gofin/ui/components/form";
 
 interface CorrectionFormProps {
-  expense: Expense;
   currency: string;
   tags: Tag[];
-  onCancel: () => void;
-  onSubmit: (form: CorrectExpenseRequest) => void;
+  fields: ExpenseFields;
+  fieldErrors: Record<string, string>;
   submitting: boolean;
   submitError: string | null;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent) => void;
+  onFieldChange: (key: keyof ExpenseFields, value: string) => void;
 }
 
 export function CorrectionForm({
-  expense,
   currency,
   tags,
-  onCancel,
-  onSubmit,
+  fields,
+  fieldErrors,
   submitting,
   submitError,
+  onCancel,
+  onSubmit,
+  onFieldChange,
 }: CorrectionFormProps) {
   const currencySymbol = getCurrencySymbol(currency);
 
-  const [name, setName] = useState(expense.name);
-  const [amountDollars, setAmountDollars] = useState(
-    (expense.amount / 100).toFixed(2),
-  );
-  const [expenseType, setExpenseType] = useState<ExpenseType>(
-    expense.expenseType,
-  );
-  const [tagId, setTagId] = useState(expense.tagId);
-  const [expenseDate, setExpenseDate] = useState(expense.expenseDate);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  function validate(): Record<string, string> {
-    const errors: Record<string, string> = {};
-    if (!name.trim()) errors.name = "Name is required";
-    const parsed = parseFloat(amountDollars);
-    if (!amountDollars || isNaN(parsed) || parsed <= 0) {
-      errors.amount = "Amount must be greater than 0";
-    }
-    if (!expenseDate) errors.expenseDate = "Date is required";
-    if (!tagId) errors.tagId = "Tag is required";
-    return errors;
-  }
-
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    setFieldErrors({});
-
-    const errors = validate();
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
-
-    const amountCents = Math.round(parseFloat(amountDollars) * 100);
-
-    const body: CorrectExpenseRequest = {
-      name: name.trim(),
-      amount: amountCents,
-      expenseType,
-      tagId,
-      expenseDate,
-    };
-
-    onSubmit(body);
-  }
-
   return (
-    <Form onSubmit={handleSubmit}>
+    <Form onSubmit={onSubmit}>
       {/* Name */}
       <FormField>
         <FormLabel htmlFor="correct-name">Name</FormLabel>
         <Input
           id="correct-name"
           type="text"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            setFieldErrors((prev) => ({ ...prev, name: "" }));
-          }}
+          value={fields.name}
+          onChange={(event) => onFieldChange("name", event.target.value)}
           aria-invalid={!!fieldErrors.name}
         />
         <FormMessage>{fieldErrors.name}</FormMessage>
@@ -107,11 +63,10 @@ export function CorrectionForm({
             type="number"
             min="0.01"
             step="0.01"
-            value={amountDollars}
-            onChange={(event) => {
-              setAmountDollars(event.target.value);
-              setFieldErrors((prev) => ({ ...prev, amount: "" }));
-            }}
+            value={fields.amountDollars}
+            onChange={(event) =>
+              onFieldChange("amountDollars", event.target.value)
+            }
             className="pl-6"
             aria-invalid={!!fieldErrors.amount}
           />
@@ -136,8 +91,8 @@ export function CorrectionForm({
                 type="radio"
                 name="correctExpenseType"
                 value={type}
-                checked={expenseType === type}
-                onChange={() => setExpenseType(type)}
+                checked={fields.expenseType === type}
+                onChange={() => onFieldChange("expenseType", type)}
                 className="size-4 accent-primary"
               />
               <span className="text-sm capitalize">{type}</span>
@@ -151,11 +106,8 @@ export function CorrectionForm({
         <FormLabel htmlFor="correct-tag">Tag</FormLabel>
         <select
           id="correct-tag"
-          value={tagId}
-          onChange={(event) => {
-            setTagId(event.target.value);
-            setFieldErrors((prev) => ({ ...prev, tagId: "" }));
-          }}
+          value={fields.tagId}
+          onChange={(event) => onFieldChange("tagId", event.target.value)}
           className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           aria-invalid={!!fieldErrors.tagId}
         >
@@ -174,11 +126,10 @@ export function CorrectionForm({
         <Input
           id="correct-date"
           type="date"
-          value={expenseDate}
-          onChange={(event) => {
-            setExpenseDate(event.target.value);
-            setFieldErrors((prev) => ({ ...prev, expenseDate: "" }));
-          }}
+          value={fields.expenseDate}
+          onChange={(event) =>
+            onFieldChange("expenseDate", event.target.value)
+          }
           aria-invalid={!!fieldErrors.expenseDate}
         />
         <FormMessage>{fieldErrors.expenseDate}</FormMessage>

@@ -194,7 +194,7 @@ describe("OnboardingPage - skip and navigation flows", () => {
     expect(screen.getByText("Total: 110%")).toBeInTheDocument();
   });
 
-  it("handles generic error from onboarding submission", async () => {
+  it("handles network error from onboarding submission", async () => {
     resetStore({ isLoading: false, isAuthenticated: true, user: newUser });
     const OnboardingPage = await importOnboardingPage();
 
@@ -209,7 +209,7 @@ describe("OnboardingPage - skip and navigation flows", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("An unexpected error occurred. Please try again."),
+        screen.getByText("Connection lost. Check your internet and try again."),
       ).toBeInTheDocument();
     });
   });

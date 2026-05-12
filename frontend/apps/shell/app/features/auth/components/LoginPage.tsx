@@ -19,16 +19,7 @@ import { useLoginForm } from "../hooks/useLoginForm";
 
 export function LoginPage() {
   const { isLoading } = useAuthStore();
-  const {
-    email,
-    password,
-    setEmail,
-    setPassword,
-    error,
-    submitting,
-    isSessionExpired,
-    handleSubmit,
-  } = useLoginForm();
+  const { state, actions } = useLoginForm();
 
   if (isLoading) {
     return (
@@ -48,20 +39,20 @@ export function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isSessionExpired && (
+          {state.isSessionExpired && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
               Your session has expired. Please log in again.
             </div>
           )}
-          <Form onSubmit={handleSubmit}>
+          <Form onSubmit={actions.handleSubmit}>
             <FormField>
               <FormLabel htmlFor="email">Email</FormLabel>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                value={state.credentials.email}
+                onChange={(event) => actions.setField("email", event.target.value)}
                 autoComplete="email"
                 required
               />
@@ -73,17 +64,17 @@ export function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="Enter your password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                value={state.credentials.password}
+                onChange={(event) => actions.setField("password", event.target.value)}
                 autoComplete="current-password"
                 required
               />
             </FormField>
 
-            {error && <FormMessage>{error}</FormMessage>}
+            {state.error && <FormMessage>{state.error}</FormMessage>}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Signing in..." : "Sign in"}
+            <Button type="submit" className="w-full" disabled={state.submitting}>
+              {state.submitting ? "Signing in..." : "Sign in"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">

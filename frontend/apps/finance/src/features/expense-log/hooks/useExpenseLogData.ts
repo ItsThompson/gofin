@@ -1,9 +1,23 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useApiToast } from "@gofin/api";
 import type { BudgetPeriod, Expense, Tag } from "../../../types";
 import { expenseLogApi } from "../api";
 import { resolveTagNames, type ExpenseRow } from "../../../lib/expense-table-columns";
-import type { ExpenseFilters } from "./useExpenseFilters";
+import type { FilterCriteria } from "./useExpenseFilters";
+
+/** Result of the data fetch, grouped for atomic replacement. */
+export interface ExpenseLogFetchResult {
+  rawExpenses: Expense[];
+  tags: Tag[];
+  periods: BudgetPeriod[];
+}
+
+/** Empty state constant for initial state and resets. */
+export const EMPTY_FETCH_RESULT: ExpenseLogFetchResult = {
+  rawExpenses: [],
+  tags: [],
+  periods: [],
+};
 
 export interface ExpenseLogData {
   expenses: ExpenseRow[];
@@ -21,16 +35,24 @@ export interface ExpenseLogData {
  * Encapsulates expense log data fetching, year/month selection, and
  * filtering. Returns resolved expense rows (with tag names) already
  * filtered by the current filter state.
+ *
+ * Internal state separates selection (year/month) from fetch results
+ * (expenses/tags/periods). When selection changes, `loading` is set to
+ * `true` immediately so consumers can dim stale content while the new
+ * fetch completes.
  */
-export function useExpenseLogData(filters: ExpenseFilters): ExpenseLogData {
+export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
-  const [rawExpenses, setRawExpenses] = useState<Expense[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [periods, setPeriods] = useState<BudgetPeriod[]>([]);
+  // Grouped fetch-result state: replaced atomically on success
+  const [fetchResult, setFetchResult] = useState<ExpenseLogFetchResult>(EMPTY_FETCH_RESULT);
   const [loading, setLoading] = useState(true);
+
+  // Track whether this is the initial mount to avoid duplicate loading=true
+  const isInitialMount = useRef(true);
+
   const { call: toastCall } = useApiToast<{
     expensesResponse: { data: Expense[] };
     tagsResponse: { tags: Tag[] };
@@ -50,19 +72,30 @@ export function useExpenseLogData(filters: ExpenseFilters): ExpenseLogData {
     });
 
     if (result) {
-      setRawExpenses(result.expensesResponse.data);
-      setTags(result.tagsResponse.tags);
-      setPeriods(result.periodsResponse.periods);
+      setFetchResult({
+        rawExpenses: result.expensesResponse.data,
+        tags: result.tagsResponse.tags,
+        periods: result.periodsResponse.periods,
+      });
     }
     setLoading(false);
   }, [selectedYear, selectedMonth, toastCall]);
+
+  // When selection changes, set loading=true immediately before the fetch effect fires
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    setLoading(true);
+  }, [selectedYear, selectedMonth]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const expenses = useMemo(() => {
-    const rows = resolveTagNames(rawExpenses, tags);
+    const rows = resolveTagNames(fetchResult.rawExpenses, fetchResult.tags);
 
     return rows.filter((row) => {
       if (filters.selectedTypes.size > 0 && !filters.selectedTypes.has(row.expenseType)) {
@@ -79,12 +112,12 @@ export function useExpenseLogData(filters: ExpenseFilters): ExpenseLogData {
       }
       return true;
     });
-  }, [rawExpenses, tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo]);
+  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo]);
 
   return {
     expenses,
-    tags,
-    periods,
+    tags: fetchResult.tags,
+    periods: fetchResult.periods,
     loading,
     selectedYear,
     selectedMonth,

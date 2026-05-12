@@ -253,4 +253,34 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     expect(screen.getByText("Monthly Spending")).toBeInTheDocument();
     expect(screen.getByText("Category Split")).toBeInTheDocument();
   });
+
+  it("shows network error message when budget save has connection failure", async () => {
+    const mockApi = createMockApi({
+      "/api/finance/periods/current": { body: { period: testPeriod } },
+      ...dashboardDataRoutes(),
+    });
+    global.fetch = mockApi as unknown as typeof fetch;
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Budget Settings"));
+
+    // Override fetch to simulate network failure
+    global.fetch = (() => Promise.reject(new TypeError("Failed to fetch"))) as unknown as typeof fetch;
+
+    await user.click(screen.getByText("Save Changes"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Connection lost. Check your internet and try again."),
+      ).toBeInTheDocument();
+    });
+
+    // Editor should remain open on error
+    expect(screen.getByTestId("budget-settings-editor")).toBeInTheDocument();
+  });
 });

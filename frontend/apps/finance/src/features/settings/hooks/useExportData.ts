@@ -4,8 +4,10 @@ import { toast } from "sonner";
 import { settingsApi } from "../api";
 import type {
   ExportJob,
+  ExportStatus,
   ExportDataState,
   ExportDataActions,
+  ExportListResponse,
 } from "../types";
 
 const POLL_INTERVAL_MS = 5000;
@@ -50,17 +52,11 @@ function computeNextExportDate(jobs: ExportJob[]): string | null {
   return null;
 }
 
-interface ExportListResponse {
-  data: ExportJob[];
-}
-
 export function useExportData(): { state: ExportDataState; actions: ExportDataActions } {
+  const [status, setStatus] = useState<ExportStatus>("loading");
   const [jobs, setJobs] = useState<ExportJob[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextExportDate, setNextExportDate] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
 
   const mountedRef = useRef(true);
 
@@ -72,10 +68,10 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       setError(null);
 
       // Start polling immediately if active jobs are detected.
-      // Setting this in the same batch as setJobs avoids an extra render
-      // cycle that would delay interval creation.
       if (hasActiveJobs(response.data)) {
-        setPolling(true);
+        setStatus("polling");
+      } else {
+        setStatus("idle");
       }
 
       const computed = computeNextExportDate(response.data);
@@ -87,10 +83,7 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       } else {
         setError("Failed to load export history.");
       }
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
+      setStatus("error");
     }
   }, []);
 
@@ -99,20 +92,20 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
     setJobs(response.data);
 
     if (!hasActiveJobs(response.data)) {
-      setPolling(false);
+      setStatus("idle");
     }
   }, []);
 
   usePolling<ExportListResponse>({
     fetcher: () => settingsApi.listExports(1, 50),
-    enabled: polling,
+    enabled: status === "polling",
     intervalMs: POLL_INTERVAL_MS,
     onData: handlePollData,
     shouldStop: (response) => !hasActiveJobs(response.data),
   });
 
   const requestExport = useCallback(async () => {
-    setCreating(true);
+    setStatus("creating");
     setError(null);
 
     try {
@@ -131,7 +124,7 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
           : "Your data export is already being prepared.",
       );
 
-      setPolling(true);
+      setStatus("polling");
     } catch (err) {
       if (!mountedRef.current) return;
 
@@ -141,6 +134,7 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
           const dateStr = isoMatch[2] ? isoMatch[0] : `${isoMatch[1]}T00:00:00Z`;
           setNextExportDate(dateStr);
         }
+        setStatus("idle");
         return;
       }
 
@@ -151,10 +145,7 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
         setError("Failed to create export.");
         toast.error("Failed to create export. Please try again.");
       }
-    } finally {
-      if (mountedRef.current) {
-        setCreating(false);
-      }
+      setStatus("idle");
     }
   }, []);
 
@@ -175,7 +166,7 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
   const canExport = computeCanExport(jobs, nextExportDate);
 
   return {
-    state: { jobs, loading, creating, error, canExport, nextExportDate },
+    state: { status, jobs, canExport, nextExportDate, error },
     actions: { requestExport, refresh },
   };
 }

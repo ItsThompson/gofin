@@ -8,6 +8,7 @@ import {
 } from "@gofin/ui/components/dialog";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useExpenseDetail } from "./hooks/useExpenseDetail";
+import { useCorrectionForm } from "./hooks/useCorrectionForm";
 import { DetailView } from "./components/DetailView";
 import { CorrectionForm } from "./components/CorrectionForm";
 
@@ -38,29 +39,23 @@ export function ExpenseDetailModal({
   onClose,
   onCorrected,
 }: ExpenseDetailModalProps) {
-  const {
-    expense,
-    history,
-    proRataGroup,
-    viewState,
-    error,
-    setViewState,
-    submitCorrection,
-    correctionSubmitting,
-    correctionError,
-  } = useExpenseDetail(expenseId, { onCorrectionSuccess: onCorrected });
+  const state = useExpenseDetail(expenseId, {
+    onCorrectionSuccess: onCorrected,
+  });
 
   return (
     <Dialog open={expenseId !== null} onOpenChange={() => onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {viewState === "correct" ? "Correct Expense" : "Expense Detail"}
+            {state.status === "correct"
+              ? "Correct Expense"
+              : "Expense Detail"}
           </DialogTitle>
           <DialogClose onClick={onClose} />
         </DialogHeader>
 
-        {viewState === "loading" && (
+        {state.status === "loading" && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
             <span className="ml-2 text-sm text-muted-foreground">
@@ -69,38 +64,76 @@ export function ExpenseDetailModal({
           </div>
         )}
 
-        {viewState === "error" && (
+        {state.status === "error" && (
           <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="size-4 shrink-0" />
-            {error}
+            {state.error}
           </div>
         )}
 
-        {viewState === "detail" && expense && (
+        {state.status === "detail" && (
           <DetailView
-            expense={expense}
+            expense={state.expense}
             currency={currency}
             tags={tags}
-            history={history}
-            proRataGroup={proRataGroup}
+            history={state.history}
+            proRataGroup={state.proRataGroup}
             currentYear={currentYear}
             currentMonth={currentMonth}
-            onCorrectClick={() => setViewState("correct")}
+            onCorrectClick={state.startCorrection}
           />
         )}
 
-        {viewState === "correct" && expense && (
-          <CorrectionForm
-            expense={expense}
+        {state.status === "correct" && (
+          <CorrectionFormContainer
+            expense={state.expense}
             currency={currency}
             tags={tags}
-            onCancel={() => setViewState("detail")}
-            onSubmit={submitCorrection}
-            submitting={correctionSubmitting}
-            submitError={correctionError}
+            onCancel={state.cancelCorrection}
+            onSubmit={state.correction.submitCorrection}
+            submitting={state.correction.submitting}
+            submitError={state.correction.error}
           />
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Container that instantiates useCorrectionForm and passes
+ * state/actions to the presentational CorrectionForm component.
+ */
+function CorrectionFormContainer({
+  expense,
+  currency,
+  tags,
+  onCancel,
+  onSubmit,
+  submitting,
+  submitError,
+}: {
+  expense: Parameters<typeof useCorrectionForm>[0];
+  currency: string;
+  tags: Tag[];
+  onCancel: () => void;
+  onSubmit: Parameters<typeof useCorrectionForm>[1];
+  submitting: boolean;
+  submitError: string | null;
+}) {
+  const { state, actions } = useCorrectionForm(expense, onSubmit);
+
+  return (
+    <CorrectionForm
+      currency={currency}
+      tags={tags}
+      fields={state.fields}
+      fieldErrors={state.fieldErrors}
+      submitting={submitting}
+      submitError={submitError}
+      onCancel={onCancel}
+      onSubmit={actions.handleSubmit}
+      onFieldChange={actions.setField}
+    />
   );
 }

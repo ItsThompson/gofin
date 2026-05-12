@@ -3,23 +3,31 @@ import { ApiRequestError, useFormMutation } from "@gofin/api";
 import type { Tag } from "../../../types";
 import { settingsApi } from "../api";
 
+export interface EditingTag {
+  /** ID of the tag being edited. */
+  id: string;
+  /** Current value of the editing input. */
+  name: string;
+}
+
 export interface TagsCrudState {
   tags: Tag[];
   loading: boolean;
   newTagName: string;
-  editingId: string | null;
-  editingName: string;
+  /** Currently editing tag, or null if not editing. */
+  editing: EditingTag | null;
   error: string | null;
   saving: boolean;
 }
 
 export interface TagsCrudActions {
   setNewTagName: (value: string) => void;
-  setEditingName: (value: string) => void;
+  /** Update the name of the tag currently being edited. */
+  setEditingValue: (name: string) => void;
   handleAddTag: (event: FormEvent) => void;
   handleStartEdit: (tag: Tag) => void;
   handleCancelEdit: () => void;
-  handleSaveEdit: (tagId: string) => void;
+  handleSaveEdit: () => void;
   handleDelete: (tagId: string) => void;
 }
 
@@ -27,8 +35,7 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTagName, setNewTagName] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
+  const [editing, setEditing] = useState<EditingTag | null>(null);
 
   const { submit, error: mutationError, submitting: saving } = useFormMutation<void>();
 
@@ -73,28 +80,31 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
   );
 
   const handleStartEdit = useCallback((tag: Tag) => {
-    setEditingId(tag.id);
-    setEditingName(tag.name);
+    setEditing({ id: tag.id, name: tag.name });
   }, []);
 
   const handleCancelEdit = useCallback(() => {
-    setEditingId(null);
-    setEditingName("");
+    setEditing(null);
+  }, []);
+
+  const setEditingValue = useCallback((name: string) => {
+    setEditing((prev) => (prev ? { ...prev, name } : prev));
   }, []);
 
   const handleSaveEdit = useCallback(
-    (tagId: string) => {
-      const trimmed = editingName.trim();
+    () => {
+      if (!editing) return;
+      const trimmed = editing.name.trim();
       if (!trimmed) return;
 
+      const tagId = editing.id;
       submit(async () => {
         try {
           const response = await settingsApi.updateTag(tagId, trimmed);
           setTags((prev) =>
             prev.map((tag) => (tag.id === tagId ? response.tag : tag)).sort((a, b) => a.name.localeCompare(b.name)),
           );
-          setEditingId(null);
-          setEditingName("");
+          setEditing(null);
         } catch (err) {
           if (err instanceof ApiRequestError && err.code === "DUPLICATE_TAG") {
             throw new ApiRequestError(err.status, {
@@ -106,7 +116,7 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
         }
       });
     },
-    [editingName, submit],
+    [editing, submit],
   );
 
   const handleDelete = useCallback(
@@ -132,7 +142,7 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
   );
 
   return {
-    state: { tags, loading, newTagName, editingId, editingName, error: mutationError, saving },
-    actions: { setNewTagName, setEditingName, handleAddTag, handleStartEdit, handleCancelEdit, handleSaveEdit, handleDelete },
+    state: { tags, loading, newTagName, editing, error: mutationError, saving },
+    actions: { setNewTagName, setEditingValue, handleAddTag, handleStartEdit, handleCancelEdit, handleSaveEdit, handleDelete },
   };
 }

@@ -1,25 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { ApiRequestError, useApiToast, useFormMutation } from "@gofin/api";
 import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "../../../types";
+import type { PeriodStateResult } from "../types";
 import { dashboardApi } from "../api";
 
-type PeriodState = "loading" | "no-period" | "active" | "error";
-
-export interface PeriodStateResult {
-  state: PeriodState;
-  period: BudgetPeriod | null;
-  defaults: DefaultSettings | null;
-  retry: () => void;
-  handlePeriodCreated: (period: BudgetPeriod) => void;
-  createPeriod: (body: CreatePeriodRequest) => void;
-  creating: boolean;
-  createError: string | null;
-  clearCreateError: () => void;
-  lastCreateResponse: CreatePeriodResponse | null;
-}
+type InternalStatus = "loading" | "no-period" | "active" | "error";
 
 export function usePeriodState(): PeriodStateResult {
-  const [state, setState] = useState<PeriodState>("loading");
+  const [status, setStatus] = useState<InternalStatus>("loading");
   const [period, setPeriod] = useState<BudgetPeriod | null>(null);
   const [defaults, setDefaults] = useState<DefaultSettings | null>(null);
   const [lastCreateResponse, setLastCreateResponse] = useState<CreatePeriodResponse | null>(null);
@@ -29,7 +17,7 @@ export function usePeriodState(): PeriodStateResult {
     onSuccess: (response) => {
       setLastCreateResponse(response);
       setPeriod(response.period);
-      setState("active");
+      setStatus("active");
     },
   });
 
@@ -46,14 +34,14 @@ export function usePeriodState(): PeriodStateResult {
   const currentMonth = now.getMonth() + 1;
 
   const fetchPeriod = useCallback(async () => {
-    setState("loading");
+    setStatus("loading");
     try {
       const response = await dashboardApi.getCurrentPeriod(
         currentYear,
         currentMonth,
       );
       setPeriod(response.period);
-      setState("active");
+      setStatus("active");
     } catch (error) {
       if (
         error instanceof ApiRequestError &&
@@ -65,11 +53,11 @@ export function usePeriodState(): PeriodStateResult {
         } catch {
           setDefaults(null);
         }
-        setState("no-period");
+        setStatus("no-period");
         return;
       }
       await toastCall(() => Promise.reject(error));
-      setState("error");
+      setStatus("error");
     }
   }, [currentYear, currentMonth, toastCall]);
 
@@ -77,21 +65,30 @@ export function usePeriodState(): PeriodStateResult {
     fetchPeriod();
   }, [fetchPeriod]);
 
-  const handlePeriodCreated = useCallback((newPeriod: BudgetPeriod) => {
-    setPeriod(newPeriod);
-    setState("active");
-  }, []);
+  switch (status) {
+    case "loading":
+      return { status: "loading", retry: fetchPeriod };
 
-  return {
-    state,
-    period,
-    defaults,
-    retry: fetchPeriod,
-    handlePeriodCreated,
-    createPeriod,
-    creating: createMutation.submitting,
-    createError: createMutation.error,
-    clearCreateError: createMutation.clearError,
-    lastCreateResponse,
-  };
+    case "no-period":
+      return {
+        status: "no-period",
+        defaults,
+        createPeriod,
+        creating: createMutation.submitting,
+        createError: createMutation.error,
+        clearCreateError: createMutation.clearError,
+        lastCreateResponse,
+        retry: fetchPeriod,
+      };
+
+    case "active":
+      return {
+        status: "active",
+        period: period!,
+        retry: fetchPeriod,
+      };
+
+    case "error":
+      return { status: "error", retry: fetchPeriod };
+  }
 }

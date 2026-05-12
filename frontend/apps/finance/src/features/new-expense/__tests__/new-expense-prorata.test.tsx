@@ -159,7 +159,7 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     expect(body.expenseType).toBe("savings");
   });
 
-  it("shows generic error when non-API error occurs", async () => {
+  it("shows network error message when network error occurs", async () => {
     const user = userEvent.setup();
     renderNewExpense();
 
@@ -176,7 +176,7 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("An unexpected error occurred. Please try again."),
+        screen.getByText("Connection lost. Check your internet and try again."),
       ).toBeInTheDocument();
     });
   });

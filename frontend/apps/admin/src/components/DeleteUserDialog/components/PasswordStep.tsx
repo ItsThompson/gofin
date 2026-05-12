@@ -3,37 +3,29 @@ import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import { Label } from "@gofin/ui/components/label";
 import { useMultiStepDialog } from "@gofin/ui/components/multi-step-dialog";
-import { apiClient, ApiRequestError } from "@gofin/api";
+import { apiClient, useFormMutation } from "@gofin/api";
 import { Loader2 } from "lucide-react";
 import type { PasswordStepProps, DeletionJobResponse } from "../types";
 
 export function PasswordStep({ userId, username, onSuccess, onOpenChange }: PasswordStepProps) {
   const { back } = useMultiStepDialog();
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = useCallback(async () => {
-    setError("");
-    setIsSubmitting(true);
-
-    try {
-      const job = await apiClient<DeletionJobResponse>("/api/datarights/deletions", {
-        method: "POST",
-        body: JSON.stringify({ userId, password }),
-      });
+  const mutation = useFormMutation<DeletionJobResponse>({
+    onSuccess: (job) => {
       onOpenChange(false);
       onSuccess(job);
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [userId, password, onSuccess, onOpenChange]);
+    },
+  });
+
+  const handleSubmit = useCallback(() => {
+    mutation.submit(() =>
+      apiClient<DeletionJobResponse>("/api/datarights/deletions", {
+        method: "POST",
+        body: JSON.stringify({ userId, password }),
+      }),
+    );
+  }, [userId, password, mutation]);
 
   return (
     <div className="space-y-4">
@@ -51,20 +43,20 @@ export function PasswordStep({ userId, username, onSuccess, onOpenChange }: Pass
           placeholder="Enter your password"
           autoComplete="current-password"
         />
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
+        {mutation.error && (
+          <p className="text-sm text-destructive">{mutation.error}</p>
         )}
       </div>
       <div className="flex justify-between">
-        <Button variant="outline" onClick={back} disabled={isSubmitting}>
+        <Button variant="outline" onClick={back} disabled={mutation.submitting}>
           Back
         </Button>
         <Button
           variant="destructive"
           onClick={handleSubmit}
-          disabled={!password || isSubmitting}
+          disabled={!password || mutation.submitting}
         >
-          {isSubmitting && <Loader2 className="size-3 animate-spin" />}
+          {mutation.submitting && <Loader2 className="size-3 animate-spin" />}
           Delete User
         </Button>
       </div>

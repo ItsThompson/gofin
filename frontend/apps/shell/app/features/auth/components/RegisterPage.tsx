@@ -19,19 +19,7 @@ import { useRegisterForm } from "../hooks/useRegisterForm";
 
 export function RegisterPage() {
   const { isLoading } = useAuthStore();
-  const {
-    username,
-    email,
-    password,
-    confirmPassword,
-    setUsername,
-    setEmail,
-    setPassword,
-    setConfirmPassword,
-    errors,
-    submitting,
-    handleSubmit,
-  } = useRegisterForm();
+  const { state, actions } = useRegisterForm();
 
   if (isLoading) {
     return (
@@ -51,20 +39,20 @@ export function RegisterPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form onSubmit={handleSubmit}>
+          <Form onSubmit={actions.handleSubmit}>
             <FormField>
               <FormLabel htmlFor="username">Username</FormLabel>
               <Input
                 id="username"
                 type="text"
                 placeholder="johndoe"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                value={state.fields.username}
+                onChange={(event) => actions.setField("username", event.target.value)}
                 autoComplete="username"
-                aria-invalid={!!errors.username}
+                aria-invalid={!!state.errors.username}
                 required
               />
-              <FormMessage>{errors.username}</FormMessage>
+              <FormMessage>{state.errors.username}</FormMessage>
             </FormField>
 
             <FormField>
@@ -73,13 +61,13 @@ export function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                value={state.fields.email}
+                onChange={(event) => actions.setField("email", event.target.value)}
                 autoComplete="email"
-                aria-invalid={!!errors.email}
+                aria-invalid={!!state.errors.email}
                 required
               />
-              <FormMessage>{errors.email}</FormMessage>
+              <FormMessage>{state.errors.email}</FormMessage>
             </FormField>
 
             <FormField>
@@ -88,13 +76,13 @@ export function RegisterPage() {
                 id="password"
                 type="password"
                 placeholder="At least 8 characters"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                value={state.fields.password}
+                onChange={(event) => actions.setField("password", event.target.value)}
                 autoComplete="new-password"
-                aria-invalid={!!errors.password}
+                aria-invalid={!!state.errors.password}
                 required
               />
-              <FormMessage>{errors.password}</FormMessage>
+              <FormMessage>{state.errors.password}</FormMessage>
             </FormField>
 
             <FormField>
@@ -103,19 +91,19 @@ export function RegisterPage() {
                 id="confirmPassword"
                 type="password"
                 placeholder="Re-enter your password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
+                value={state.fields.confirmPassword}
+                onChange={(event) => actions.setField("confirmPassword", event.target.value)}
                 autoComplete="new-password"
-                aria-invalid={!!errors.confirmPassword}
+                aria-invalid={!!state.errors.confirmPassword}
                 required
               />
-              <FormMessage>{errors.confirmPassword}</FormMessage>
+              <FormMessage>{state.errors.confirmPassword}</FormMessage>
             </FormField>
 
-            {errors.form && <FormMessage>{errors.form}</FormMessage>}
+            {state.errors.form && <FormMessage>{state.errors.form}</FormMessage>}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Creating account..." : "Create account"}
+            <Button type="submit" className="w-full" disabled={state.submitting}>
+              {state.submitting ? "Creating account..." : "Create account"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">

@@ -2,41 +2,27 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useFormMutation } from "@gofin/api";
 import type { Expense, CorrectExpenseRequest } from "../../../types";
 import { expenseDetailApi } from "../api";
+import type {
+  ExpenseDetailState,
+  UseExpenseDetailOptions,
+  CorrectionState,
+} from "../types";
 
-export type DetailViewState = "loading" | "detail" | "correct" | "error";
-
-export interface UseExpenseDetailOptions {
-  /** Called after a correction is successfully submitted. */
-  onCorrectionSuccess?: () => void;
-}
-
-export interface ExpenseDetailResult {
-  expense: Expense | null;
-  history: Expense[];
-  proRataGroup: Expense[];
-  viewState: DetailViewState;
-  error: string | null;
-  setViewState: (state: DetailViewState) => void;
-  submitCorrection: (form: CorrectExpenseRequest) => void;
-  correctionSubmitting: boolean;
-  correctionError: string | null;
-  clearCorrectionError: () => void;
-  refresh: () => void;
-}
+export type { ExpenseDetailState, UseExpenseDetailOptions } from "../types";
 
 export function useExpenseDetail(
   expenseId: string | null,
   options?: UseExpenseDetailOptions,
-): ExpenseDetailResult {
+): ExpenseDetailState {
   const [expense, setExpense] = useState<Expense | null>(null);
   const [history, setHistory] = useState<Expense[]>([]);
   const [proRataGroup, setProRataGroup] = useState<Expense[]>([]);
-  const [viewState, setViewState] = useState<DetailViewState>("loading");
+  const [status, setStatus] = useState<"loading" | "detail" | "correct" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
   const fetchExpenseData = useCallback(async () => {
     if (!expenseId) return;
-    setViewState("loading");
+    setStatus("loading");
     setError(null);
 
     try {
@@ -62,10 +48,10 @@ export function useExpenseDetail(
         setProRataGroup([]);
       }
 
-      setViewState("detail");
+      setStatus("detail");
     } catch {
       setError("Failed to load expense details.");
-      setViewState("error");
+      setStatus("error");
     }
   }, [expenseId]);
 
@@ -78,7 +64,7 @@ export function useExpenseDetail(
 
   const correctionMutation = useFormMutation<void>({
     onSuccess: () => {
-      setViewState("detail");
+      setStatus("detail");
       fetchExpenseData();
       optionsRef.current?.onCorrectionSuccess?.();
     },
@@ -99,17 +85,52 @@ export function useExpenseDetail(
     fetchExpenseData();
   }, [fetchExpenseData]);
 
+  const startCorrection = useCallback(() => {
+    setStatus("correct");
+  }, []);
+
+  const cancelCorrection = useCallback(() => {
+    setStatus("detail");
+  }, []);
+
+  const correction: CorrectionState = {
+    submitCorrection,
+    submitting: correctionMutation.submitting,
+    error: correctionMutation.error,
+    clearError: correctionMutation.clearError,
+  };
+
+  if (status === "loading") {
+    return { status: "loading", refresh };
+  }
+
+  if (status === "error") {
+    return { status: "error", error: error ?? "Unknown error", refresh };
+  }
+
+  // At this point, status is "detail" or "correct" and expense must be non-null
+  // (we only transition to these statuses after a successful fetch)
+  const loadedExpense = expense!;
+
+  if (status === "correct") {
+    return {
+      status: "correct",
+      expense: loadedExpense,
+      history,
+      proRataGroup,
+      correction,
+      cancelCorrection,
+      refresh,
+    };
+  }
+
   return {
-    expense,
+    status: "detail",
+    expense: loadedExpense,
     history,
     proRataGroup,
-    viewState,
-    error,
-    setViewState,
-    submitCorrection,
-    correctionSubmitting: correctionMutation.submitting,
-    correctionError: correctionMutation.error,
-    clearCorrectionError: correctionMutation.clearError,
+    correction,
+    startCorrection,
     refresh,
   };
 }

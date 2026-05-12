@@ -29,7 +29,7 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
                 type="button"
                 onClick={() => filters.toggleType(type)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
-                  filters.selectedTypes.has(type)
+                  filters.criteria.selectedTypes.has(type)
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-input bg-transparent hover:bg-muted"
                 }`}
@@ -53,7 +53,7 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
                   type="button"
                   onClick={() => filters.toggleTag(tag.id)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    filters.selectedTags.has(tag.id)
+                    filters.criteria.selectedTags.has(tag.id)
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-input bg-transparent hover:bg-muted"
                   }`}
@@ -73,7 +73,7 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
           <div className="flex items-center gap-2">
             <Input
               type="date"
-              value={filters.dateFrom}
+              value={filters.criteria.dateFrom}
               onChange={(event) => filters.setDateFrom(event.target.value)}
               className="h-8 w-auto text-xs"
               aria-label="Date from"
@@ -81,7 +81,7 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
             <span className="text-xs text-muted-foreground">to</span>
             <Input
               type="date"
-              value={filters.dateTo}
+              value={filters.criteria.dateTo}
               onChange={(event) => filters.setDateTo(event.target.value)}
               className="h-8 w-auto text-xs"
               aria-label="Date to"

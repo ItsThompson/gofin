@@ -25,10 +25,19 @@ export interface DashboardData {
   trendData: TrendPoint[] | null;
 }
 
+export const EMPTY_DASHBOARD_DATA: DashboardData = {
+  summary: null,
+  tagSpending: [],
+  cumulativeData: [],
+  recentExpenses: [],
+  comparison: null,
+  upcomingProRata: [],
+  trendData: null,
+};
+
 export interface DashboardDataResult {
   data: DashboardData;
   loading: boolean;
-  error: string | null;
   refresh: () => void;
   trendMonths: 6 | 12;
   setTrendMonths: (months: 6 | 12) => void;
@@ -38,28 +47,19 @@ export function useDashboardData(
   year: number,
   month: number,
 ): DashboardDataResult {
+  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<PeriodSummary | null>(null);
-  const [tagSpending, setTagSpending] = useState<TagSpending[]>([]);
-  const [cumulativeData, setCumulativeData] = useState<CumulativeSpendPoint[]>(
-    [],
-  );
-  const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
-  const [comparison, setComparison] = useState<HistoricalComparison | null>(
-    null,
-  );
-  const [upcomingProRata, setUpcomingProRata] = useState<ProRataSchedule[]>([]);
-  const [trendData, setTrendData] = useState<TrendPoint[] | null>(null);
   const [trendMonths, setTrendMonths] = useState<6 | 12>(6);
   const { call: toastCall } = useApiToast();
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setData(EMPTY_DASHBOARD_DATA);
 
     // Fetch each section independently so a single endpoint failure
     // doesn't prevent the rest of the dashboard from rendering.
+    // Critical sections use toastCall (shows error toast to user).
+    // Non-critical sections (comparison, proRata) fail silently with fallbacks.
     const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
       await Promise.all([
         toastCall(() => dashboardApi.getSummary(year, month)) as Promise<SummaryResponse | undefined>,
@@ -67,17 +67,18 @@ export function useDashboardData(
         toastCall(() => dashboardApi.getCumulative(year, month)) as Promise<CumulativeSpendResponse | undefined>,
         toastCall(() => dashboardApi.getRecentExpenses(year, month, 5)) as Promise<PaginatedResponse<Expense> | undefined>,
         dashboardApi.getComparison(year, month).catch(() => null),
-        dashboardApi
-          .getUpcomingProRata()
-          .catch(() => ({ schedules: [] as ProRataSchedule[] })),
+        dashboardApi.getUpcomingProRata().catch(() => ({ schedules: [] as ProRataSchedule[] })),
       ]);
 
-    if (summaryRes) setSummary(summaryRes.summary);
-    if (tagRes) setTagSpending(tagRes.tagSpending);
-    if (cumulativeRes) setCumulativeData(cumulativeRes.points);
-    if (expensesRes) setRecentExpenses(expensesRes.data);
-    if (comparisonRes) setComparison(comparisonRes.comparison);
-    if (upcomingRes) setUpcomingProRata(upcomingRes.schedules);
+    setData((prev) => ({
+      ...prev,
+      summary: summaryRes?.summary ?? null,
+      tagSpending: tagRes?.tagSpending ?? [],
+      cumulativeData: cumulativeRes?.points ?? [],
+      recentExpenses: expensesRes?.data ?? [],
+      comparison: comparisonRes?.comparison ?? null,
+      upcomingProRata: upcomingRes?.schedules ?? [],
+    }));
 
     setLoading(false);
   }, [year, month, toastCall]);
@@ -86,7 +87,7 @@ export function useDashboardData(
     const trendRes = await dashboardApi
       .getTrend(year, month, trendMonths)
       .catch(() => null);
-    setTrendData(trendRes?.trends ?? null);
+    setData(prev => ({ ...prev, trendData: trendRes?.trends ?? null }));
   }, [year, month, trendMonths]);
 
   useEffect(() => {
@@ -98,17 +99,8 @@ export function useDashboardData(
   }, [fetchTrendData]);
 
   return {
-    data: {
-      summary,
-      tagSpending,
-      cumulativeData,
-      recentExpenses,
-      comparison,
-      upcomingProRata,
-      trendData,
-    },
+    data,
     loading,
-    error,
     refresh: fetchDashboardData,
     trendMonths,
     setTrendMonths,

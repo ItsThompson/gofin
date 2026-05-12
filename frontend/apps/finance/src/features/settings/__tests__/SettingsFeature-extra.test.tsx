@@ -266,3 +266,33 @@ describe("SettingsFeature - Mobile accordion", () => {
     });
   });
 });
+
+describe("SettingsFeature - Network error handling", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it("shows network error message when default budget save has connection failure", async () => {
+    mockDefaultsFound();
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => {
+      expect(
+        (screen.getAllByLabelText("Monthly Budget")[0] as HTMLInputElement).value,
+      ).toBe("3000");
+    });
+
+    // Simulate network failure on save
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const submitButton = screen.getAllByRole("button", { name: /save defaults/i })[0];
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Connection lost. Check your internet and try again."),
+      ).toBeInTheDocument();
+    });
+  });
+});

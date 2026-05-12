@@ -1,7 +1,8 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { apiClient, ApiRequestError } from "@gofin/api";
+import { apiClient, useFormMutation } from "@gofin/api";
 import { EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
+import type { ExpenseFields } from "../../../lib/validate-expense-fields";
 import type {
   ExpenseResponse,
   CreateExpenseRequest,
@@ -10,48 +11,37 @@ import type {
   Tag,
   TagListResponse,
 } from "../../../types";
-
-function todayISO(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+import { useExpenseFields } from "./useExpenseFields";
 
 export { EXPENSE_TYPES };
-export type { ExpenseType };
+export type { ExpenseType, ExpenseFields };
 
 export interface NewExpenseFormState {
   tags: Tag[];
   tagsLoading: boolean;
-  name: string;
-  amountDollars: string;
-  expenseType: ExpenseType;
-  tagId: string;
-  expenseDate: string;
-  error: string | null;
+  fields: ExpenseFields;
   fieldErrors: Record<string, string>;
-  submitting: boolean;
   isProRata: boolean;
   proRataMonths: string;
+  error: string | null;
+  submitting: boolean;
 }
 
 export interface NewExpenseFormActions {
-  setName: (value: string) => void;
-  setAmountDollars: (value: string) => void;
-  setExpenseType: (type: ExpenseType) => void;
-  setTagId: (id: string) => void;
-  setExpenseDate: (date: string) => void;
+  setField: (key: keyof ExpenseFields, value: string) => void;
+  clearFieldError: (field: string) => void;
   setIsProRata: (checked: boolean) => void;
   setProRataMonths: (value: string) => void;
-  clearFieldError: (field: string) => void;
   handleSubmit: (event: FormEvent) => void;
 }
 
 /**
  * Manages new expense form state: field values, validation,
  * tag fetching, and submission (including pro-rata).
+ *
+ * Composes useExpenseFields for field state and useFormMutation
+ * for submission lifecycle. Total useState count: 4
+ * (tags, tagsLoading, isProRata, proRataMonths).
  */
 export function useNewExpenseForm(currency: string): {
   state: NewExpenseFormState;
@@ -62,18 +52,19 @@ export function useNewExpenseForm(currency: string): {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
+  // Field state management via base hook
+  const expenseFields = useExpenseFields();
+
+  // Feature-specific state (4 useState calls)
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagsLoading, setTagsLoading] = useState(true);
-  const [name, setName] = useState("");
-  const [amountDollars, setAmountDollars] = useState("");
-  const [expenseType, setExpenseType] = useState<ExpenseType>("essentials");
-  const [tagId, setTagId] = useState("");
-  const [expenseDate, setExpenseDate] = useState(todayISO());
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [isProRata, setIsProRata] = useState(false);
   const [proRataMonths, setProRataMonths] = useState("");
+
+  // Submission lifecycle via useFormMutation
+  const mutation = useFormMutation<void>({
+    onSuccess: () => navigate("/dashboard"),
+  });
 
   useEffect(() => {
     async function fetchTags() {
@@ -81,7 +72,7 @@ export function useNewExpenseForm(currency: string): {
         const response = await apiClient<TagListResponse>("/api/finance/tags");
         setTags(response.tags);
         if (response.tags.length > 0) {
-          setTagId(response.tags[0].id);
+          expenseFields.setField("tagId", response.tags[0].id);
         }
       } catch {
         // Tags fail silently: form will show empty dropdown
@@ -90,61 +81,37 @@ export function useNewExpenseForm(currency: string): {
       }
     }
     fetchTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function validate(): Record<string, string> {
-    const errors: Record<string, string> = {};
-
-    if (!name.trim()) {
-      errors.name = "Name is required";
+  function handleSetIsProRata(checked: boolean) {
+    setIsProRata(checked);
+    if (!checked) {
+      setProRataMonths("");
+      expenseFields.clearFieldError("proRataMonths");
     }
-
-    const parsedAmount = parseFloat(amountDollars);
-    if (!amountDollars || isNaN(parsedAmount) || parsedAmount <= 0) {
-      errors.amount = "Amount must be greater than 0";
-    }
-
-    if (!expenseDate) {
-      errors.expenseDate = "Date is required";
-    }
-
-    if (!tagId) {
-      errors.tagId = "Tag is required";
-    }
-
-    if (isProRata) {
-      const months = parseInt(proRataMonths, 10);
-      if (!proRataMonths || isNaN(months) || months < 2) {
-        errors.proRataMonths = "Must be at least 2 months";
-      }
-    }
-
-    return errors;
   }
 
-  async function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setError(null);
-    setFieldErrors({});
 
-    const errors = validate();
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      return;
-    }
+    const isValid = expenseFields.validate({
+      isProRata,
+      proRataMonths,
+    });
+    if (!isValid) return;
 
-    const amountCents = Math.round(parseFloat(amountDollars) * 100);
+    const { fields, amountCents } = expenseFields;
 
-    setSubmitting(true);
-    try {
+    mutation.submit(async () => {
       if (isProRata) {
         const body: CreateProRataRequest = {
-          name: name.trim(),
+          name: fields.name.trim(),
           totalAmount: amountCents,
           currency,
-          expenseType,
-          tagId,
-          expenseDate,
+          expenseType: fields.expenseType,
+          tagId: fields.tagId,
+          expenseDate: fields.expenseDate,
           months: parseInt(proRataMonths, 10),
         };
         await apiClient<ProRataResponse>("/api/finance/prorata", {
@@ -153,12 +120,12 @@ export function useNewExpenseForm(currency: string): {
         });
       } else {
         const body: CreateExpenseRequest = {
-          name: name.trim(),
+          name: fields.name.trim(),
           amount: amountCents,
           currency,
-          expenseType,
-          tagId,
-          expenseDate,
+          expenseType: fields.expenseType,
+          tagId: fields.tagId,
+          expenseDate: fields.expenseDate,
           periodYear: currentYear,
           periodMonth: currentMonth,
         };
@@ -167,54 +134,25 @@ export function useNewExpenseForm(currency: string): {
           body: JSON.stringify(body),
         });
       }
-      navigate("/dashboard");
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function clearFieldError(field: string) {
-    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
-  }
-
-  function handleSetIsProRata(checked: boolean) {
-    setIsProRata(checked);
-    if (!checked) {
-      setProRataMonths("");
-      setFieldErrors((prev) => ({ ...prev, proRataMonths: "" }));
-    }
+    });
   }
 
   return {
     state: {
       tags,
       tagsLoading,
-      name,
-      amountDollars,
-      expenseType,
-      tagId,
-      expenseDate,
-      error,
-      fieldErrors,
-      submitting,
+      fields: expenseFields.fields,
+      fieldErrors: expenseFields.fieldErrors,
       isProRata,
       proRataMonths,
+      error: mutation.error,
+      submitting: mutation.submitting,
     },
     actions: {
-      setName,
-      setAmountDollars,
-      setExpenseType,
-      setTagId,
-      setExpenseDate,
+      setField: expenseFields.setField,
+      clearFieldError: expenseFields.clearFieldError,
       setIsProRata: handleSetIsProRata,
       setProRataMonths,
-      clearFieldError,
       handleSubmit,
     },
   };

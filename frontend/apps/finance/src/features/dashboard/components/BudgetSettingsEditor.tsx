@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { type FormEvent } from "react";
 import { getCurrencySymbol } from "@gofin/core";
-import { ApiRequestError, useBudgetSplitForm } from "@gofin/api";
-import type { BudgetPeriod, UpdatePeriodRequest } from "../../../types";
+import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
+import type { BudgetPeriod, PeriodResponse, UpdatePeriodRequest } from "../../../types";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -44,12 +44,13 @@ export function BudgetSettingsEditor({
     },
   });
 
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const mutation = useFormMutation<PeriodResponse>({
+    onSuccess: (response) => onSaved(response.period),
+  });
 
-  async function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setError(null);
+    mutation.clearError();
 
     const validationError = form.validate();
     if (validationError) return;
@@ -62,19 +63,7 @@ export function BudgetSettingsEditor({
       savingsPercent: payload.savingsPercent,
     };
 
-    setSubmitting(true);
-    try {
-      const response = await dashboardApi.updatePeriod(period.id, body);
-      onSaved(response.period);
-    } catch (err) {
-      if (err instanceof ApiRequestError) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    mutation.submit(() => dashboardApi.updatePeriod(period.id, body));
   }
 
   return (
@@ -146,12 +135,12 @@ export function BudgetSettingsEditor({
           </div>
           <div className="mt-3 flex items-center justify-between">
             <FormDescription>Total: {form.splitTotal}%</FormDescription>
-            <Button type="submit" size="sm" disabled={submitting}>
-              {submitting ? "Saving..." : "Save Changes"}
+            <Button type="submit" size="sm" disabled={mutation.submitting}>
+              {mutation.submitting ? "Saving..." : "Save Changes"}
             </Button>
           </div>
           {form.splitError && <FormMessage>{form.splitError}</FormMessage>}
-          {error && <FormMessage>{error}</FormMessage>}
+          {mutation.error && <FormMessage>{mutation.error}</FormMessage>}
         </Form>
       </CardContent>
     </Card>
