@@ -50,12 +50,12 @@ export function TagsSection() {
       <ul className="divide-y" role="list">
         {state.tags.map((tag) => (
           <li key={tag.id} className="flex items-center justify-between py-2 gap-2">
-            {state.editingId === tag.id ? (
+            {state.editing?.id === tag.id ? (
               <div className="flex flex-1 items-center gap-2">
                 <Input
                   type="text"
-                  value={state.editingName}
-                  onChange={(event) => actions.setEditingName(event.target.value)}
+                  value={state.editing.name}
+                  onChange={(event) => actions.setEditingValue(event.target.value)}
                   maxLength={50}
                   aria-label="Edit tag name"
                   className="flex-1"
@@ -64,8 +64,8 @@ export function TagsSection() {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => actions.handleSaveEdit(tag.id)}
-                  disabled={state.saving || !state.editingName.trim()}
+                  onClick={actions.handleSaveEdit}
+                  disabled={state.saving || !state.editing.name.trim()}
                 >
                   <Check className="size-3" />
                 </Button>
