@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Stage 1: Build
 # Context is ./services (set in docker-compose.yml) so the auth module
 # is available for the replace directive in go.mod.
@@ -8,14 +10,17 @@ WORKDIR /app
 COPY gateway/go.mod gateway/go.sum* ./gateway/
 COPY auth/go.mod auth/go.sum* ./auth/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
-RUN cd gateway && GOWORK=off go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    cd gateway && GOWORK=off go mod download
 
 # Copy only what the gateway build needs: gateway source + auth proto + metrics.
 COPY gateway/ ./gateway/
 COPY auth/proto/ ./auth/proto/
 COPY metrics/ ./metrics/
 
-RUN cd gateway && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    cd gateway && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/
 
 # Stage 2: Runtime
 FROM alpine:3.21
