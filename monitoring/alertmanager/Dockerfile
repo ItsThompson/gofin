@@ -1,11 +1,8 @@
 FROM prom/alertmanager:v0.32.1 AS alertmanager
 
-FROM alpine:3.19
-
-RUN apk add --no-cache gettext
+FROM alpine:3.21
 
 COPY --from=alertmanager /bin/alertmanager /bin/alertmanager
-COPY --from=alertmanager /bin/amtool /bin/amtool
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

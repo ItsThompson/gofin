@@ -1,7 +1,11 @@
 #!/bin/sh
 set -e
 
-# Substitute only DISCORD_WEBHOOK_URL to avoid clobbering Go template variables
-envsubst '${DISCORD_WEBHOOK_URL}' < /etc/alertmanager/alertmanager.yml.tpl > /etc/alertmanager/alertmanager.yml
+# Use sed for selective substitution: only replaces the literal string
+# ${DISCORD_WEBHOOK_URL} with its value. This preserves Go template syntax
+# (e.g., {{ .GroupLabels.alertname }}, {{ range .Alerts }}) which envsubst
+# would clobber if the variable list filter were misconfigured.
+sed "s|\${DISCORD_WEBHOOK_URL}|${DISCORD_WEBHOOK_URL}|g" \
+  /etc/alertmanager/alertmanager.yml.tpl > /etc/alertmanager/alertmanager.yml
 
 exec /bin/alertmanager "$@"
