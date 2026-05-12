@@ -8,6 +8,7 @@ import {
 } from "@gofin/ui/components/dialog";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useExpenseDetail } from "./hooks/useExpenseDetail";
+import { useCorrectionForm } from "./hooks/useCorrectionForm";
 import { DetailView } from "./components/DetailView";
 import { CorrectionForm } from "./components/CorrectionForm";
 
@@ -84,7 +85,7 @@ export function ExpenseDetailModal({
         )}
 
         {state.status === "correct" && (
-          <CorrectionForm
+          <CorrectionFormContainer
             expense={state.expense}
             currency={currency}
             tags={tags}
@@ -96,5 +97,43 @@ export function ExpenseDetailModal({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Container that instantiates useCorrectionForm and passes
+ * state/actions to the presentational CorrectionForm component.
+ */
+function CorrectionFormContainer({
+  expense,
+  currency,
+  tags,
+  onCancel,
+  onSubmit,
+  submitting,
+  submitError,
+}: {
+  expense: Parameters<typeof useCorrectionForm>[0];
+  currency: string;
+  tags: Tag[];
+  onCancel: () => void;
+  onSubmit: Parameters<typeof useCorrectionForm>[1];
+  submitting: boolean;
+  submitError: string | null;
+}) {
+  const { state, actions } = useCorrectionForm(expense, onSubmit);
+
+  return (
+    <CorrectionForm
+      currency={currency}
+      tags={tags}
+      fields={state.fields}
+      fieldErrors={state.fieldErrors}
+      submitting={submitting}
+      submitError={submitError}
+      onCancel={onCancel}
+      onSubmit={actions.handleSubmit}
+      onFieldChange={actions.setField}
+    />
   );
 }
