@@ -36,9 +36,12 @@ ENV NODE_ENV=production
 # Copy pruned workspace structure and install production-only deps.
 # Then remove packages that are not needed at runtime but get pulled in
 # as optional peer dependencies (typescript via @react-router/node).
+# lucide-react (39MB) is bundled into the SSR output via ssr.noExternal
+# so only the ~12 used icons are included; the full package is unnecessary.
 COPY --from=pruner /app/out/json/ ./
 RUN npm ci --omit=dev && \
-    rm -rf node_modules/typescript node_modules/@types
+    rm -rf node_modules/typescript node_modules/@types \
+           node_modules/lucide-react
 
 # Copy shell build output and entry point
 COPY --from=builder /app/apps/shell/build ./apps/shell/build
