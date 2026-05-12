@@ -265,6 +265,30 @@ echo "ERROR: Auth service did not become healthy in time."
 exit 1
 REMOTE_SEED
 
+# --- Post-deploy cleanup (success path only) ---------------------------------
+
+echo "==> Cleaning up stale Docker artifacts..."
+ssh "${SSH_TARGET}" bash <<'REMOTE_CLEANUP' || true
+
+# Remove build cache older than 24 hours
+echo "  Pruning build cache..."
+docker builder prune -af --filter "until=24h" 2>&1 | tail -1 || echo "  WARNING: builder prune failed (non-critical)"
+
+# Remove unused images older than 72 hours (keeps images used by running containers)
+echo "  Pruning unused images..."
+docker image prune -af --filter "until=72h" 2>&1 | tail -1 || echo "  WARNING: image prune failed (non-critical)"
+
+# System-level cleanup
+echo "  Running system cleanup..."
+journalctl --vacuum-size=50M 2>/dev/null || true
+apt-get clean -y 2>/dev/null || true
+: > /var/log/btmp 2>/dev/null || true
+
+# Report final state
+echo "  Docker disk usage after cleanup:"
+docker system df 2>/dev/null || true
+REMOTE_CLEANUP
+
 # --- Done --------------------------------------------------------------------
 
 DOMAIN=$(ssh "${SSH_TARGET}" "grep CF_APP_HOSTNAME /opt/gofin/.env | cut -d= -f2" 2>/dev/null || echo "your-domain")
