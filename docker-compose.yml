@@ -1,3 +1,9 @@
+# =============================================================================
+# Image version pinning: all third-party images are pinned to exact versions.
+# Review and update quarterly. Check release notes before bumping.
+# Last reviewed: 2026-05-12
+# =============================================================================
+
 services:
   # ---------------------------------------------------------------------------
   # Node 1: Edge (MFE + Cloudflare tunnels)
@@ -22,7 +28,8 @@ services:
     restart: unless-stopped
 
   cloudflared-app:
-    image: cloudflare/cloudflared:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: cloudflare/cloudflared:2025.4.0
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-app
     volumes:
       - ./deployments/cloudflare/config-app.rendered.yml:/etc/cloudflared/config.yml:ro
@@ -226,7 +233,8 @@ services:
   # Node 3: Data (PostgreSQL + immudb)
   # ---------------------------------------------------------------------------
   postgresql:
-    image: postgres:16
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: postgres:16.8-alpine
     ports:
       - "5432:5432"
     environment:
@@ -250,7 +258,8 @@ services:
     restart: unless-stopped
 
   immudb:
-    image: codenotary/immudb:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: codenotary/immudb:1.11.0
     ports:
       - "3322:3322"
     volumes:
@@ -268,7 +277,8 @@ services:
   # Node 4: Monitoring (Prometheus, Alertmanager, Grafana, auth proxy, tunnel)
   # ---------------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: prom/prometheus:v3.11.3
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=3d'
@@ -352,7 +362,8 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: grafana/grafana:11.6.0
     ports:
       - "3001:3000"
     volumes:
@@ -393,7 +404,8 @@ services:
     restart: unless-stopped
 
   cloudflared-grafana:
-    image: cloudflare/cloudflared:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: cloudflare/cloudflared:2025.4.0
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-grafana
     volumes:
       - ./deployments/cloudflare/config-grafana.rendered.yml:/etc/cloudflared/config.yml:ro
