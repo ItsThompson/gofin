@@ -55,10 +55,9 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                 id="expense-name"
                 type="text"
                 placeholder="e.g. Grocery shopping"
-                value={state.name}
+                value={state.fields.name}
                 onChange={(event) => {
-                  actions.setName(event.target.value);
-                  actions.clearFieldError("name");
+                  actions.setField("name", event.target.value);
                 }}
                 aria-invalid={!!state.fieldErrors.name}
               />
@@ -78,10 +77,9 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                   min="0.01"
                   step="0.01"
                   placeholder="0.00"
-                  value={state.amountDollars}
+                  value={state.fields.amountDollars}
                   onChange={(event) => {
-                    actions.setAmountDollars(event.target.value);
-                    actions.clearFieldError("amount");
+                    actions.setField("amountDollars", event.target.value);
                   }}
                   className="pl-6"
                   aria-invalid={!!state.fieldErrors.amount}
@@ -103,8 +101,8 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                       type="radio"
                       name="expenseType"
                       value={type}
-                      checked={state.expenseType === type}
-                      onChange={() => actions.setExpenseType(type)}
+                      checked={state.fields.expenseType === type}
+                      onChange={() => actions.setField("expenseType", type)}
                       className="size-4 accent-primary"
                     />
                     <span className="text-sm capitalize">{type}</span>
@@ -118,10 +116,9 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <FormLabel htmlFor="expense-tag">Tag</FormLabel>
               <select
                 id="expense-tag"
-                value={state.tagId}
+                value={state.fields.tagId}
                 onChange={(event) => {
-                  actions.setTagId(event.target.value);
-                  actions.clearFieldError("tagId");
+                  actions.setField("tagId", event.target.value);
                 }}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 aria-invalid={!!state.fieldErrors.tagId}
@@ -145,10 +142,9 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <Input
                 id="expense-date"
                 type="date"
-                value={state.expenseDate}
+                value={state.fields.expenseDate}
                 onChange={(event) => {
-                  actions.setExpenseDate(event.target.value);
-                  actions.clearFieldError("expenseDate");
+                  actions.setField("expenseDate", event.target.value);
                 }}
                 aria-invalid={!!state.fieldErrors.expenseDate}
               />
