@@ -34,19 +34,19 @@ echo "==> Preflight checks..."
 
 if [[ ! -f "${CREDENTIALS_DIR}/gofin-app.json" ]]; then
   echo "ERROR: Tunnel credentials not found at ${CREDENTIALS_DIR}/gofin-app.json"
-  echo "Run the tunnel setup runbook first: docs/tunnel-setup.md"
+  echo "Run the tunnel setup runbook first: docs/initial-setup.md"
   exit 1
 fi
 
 if [[ ! -f "${CREDENTIALS_DIR}/gofin-grafana.json" ]]; then
   echo "ERROR: Tunnel credentials not found at ${CREDENTIALS_DIR}/gofin-grafana.json"
-  echo "Run the tunnel setup runbook first: docs/tunnel-setup.md"
+  echo "Run the tunnel setup runbook first: docs/initial-setup.md"
   exit 1
 fi
 
 if [[ ! -f "${CREDENTIALS_DIR}/cert.pem" ]]; then
   echo "ERROR: Origin certificate not found at ${CREDENTIALS_DIR}/cert.pem"
-  echo "Run the tunnel setup runbook first: docs/tunnel-setup.md"
+  echo "Run the tunnel setup runbook first: docs/initial-setup.md"
   exit 1
 fi
 
