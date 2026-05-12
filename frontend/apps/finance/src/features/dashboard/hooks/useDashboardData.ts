@@ -25,6 +25,16 @@ export interface DashboardData {
   trendData: TrendPoint[] | null;
 }
 
+export const EMPTY_DASHBOARD_DATA: DashboardData = {
+  summary: null,
+  tagSpending: [],
+  cumulativeData: [],
+  recentExpenses: [],
+  comparison: null,
+  upcomingProRata: [],
+  trendData: null,
+};
+
 export interface DashboardDataResult {
   data: DashboardData;
   loading: boolean;
@@ -38,19 +48,9 @@ export function useDashboardData(
   year: number,
   month: number,
 ): DashboardDataResult {
+  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<PeriodSummary | null>(null);
-  const [tagSpending, setTagSpending] = useState<TagSpending[]>([]);
-  const [cumulativeData, setCumulativeData] = useState<CumulativeSpendPoint[]>(
-    [],
-  );
-  const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
-  const [comparison, setComparison] = useState<HistoricalComparison | null>(
-    null,
-  );
-  const [upcomingProRata, setUpcomingProRata] = useState<ProRataSchedule[]>([]);
-  const [trendData, setTrendData] = useState<TrendPoint[] | null>(null);
   const [trendMonths, setTrendMonths] = useState<6 | 12>(6);
   const { call: toastCall } = useApiToast();
 
@@ -72,12 +72,12 @@ export function useDashboardData(
           .catch(() => ({ schedules: [] as ProRataSchedule[] })),
       ]);
 
-    if (summaryRes) setSummary(summaryRes.summary);
-    if (tagRes) setTagSpending(tagRes.tagSpending);
-    if (cumulativeRes) setCumulativeData(cumulativeRes.points);
-    if (expensesRes) setRecentExpenses(expensesRes.data);
-    if (comparisonRes) setComparison(comparisonRes.comparison);
-    if (upcomingRes) setUpcomingProRata(upcomingRes.schedules);
+    if (summaryRes) setData(prev => ({ ...prev, summary: summaryRes.summary }));
+    if (tagRes) setData(prev => ({ ...prev, tagSpending: tagRes.tagSpending }));
+    if (cumulativeRes) setData(prev => ({ ...prev, cumulativeData: cumulativeRes.points }));
+    if (expensesRes) setData(prev => ({ ...prev, recentExpenses: expensesRes.data }));
+    if (comparisonRes) setData(prev => ({ ...prev, comparison: comparisonRes.comparison }));
+    if (upcomingRes) setData(prev => ({ ...prev, upcomingProRata: upcomingRes.schedules }));
 
     setLoading(false);
   }, [year, month, toastCall]);
@@ -86,7 +86,7 @@ export function useDashboardData(
     const trendRes = await dashboardApi
       .getTrend(year, month, trendMonths)
       .catch(() => null);
-    setTrendData(trendRes?.trends ?? null);
+    setData(prev => ({ ...prev, trendData: trendRes?.trends ?? null }));
   }, [year, month, trendMonths]);
 
   useEffect(() => {
@@ -98,15 +98,7 @@ export function useDashboardData(
   }, [fetchTrendData]);
 
   return {
-    data: {
-      summary,
-      tagSpending,
-      cumulativeData,
-      recentExpenses,
-      comparison,
-      upcomingProRata,
-      trendData,
-    },
+    data,
     loading,
     error,
     refresh: fetchDashboardData,
