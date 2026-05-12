@@ -1,0 +1,53 @@
+# Grafana Cloud Recording Rules
+#
+# Import via Grafana Cloud UI: Alerting → Recording rules
+# Or via the Mimir ruler API:
+#   POST /api/v1/rules/{namespace}
+#
+# These are direct copies of the Prometheus recording rules.
+# Mimir uses the same YAML format as Prometheus for recording rules.
+#
+# Original source: monitoring/prometheus/recording_rules.yml
+
+groups:
+  - name: http-latency
+    interval: 30s
+    rules:
+      - record: job:http_request_duration_seconds:p50
+        expr: histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le))
+
+      - record: job:http_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le))
+
+      - record: job:http_request_duration_seconds:p99
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le))
+
+  - name: http-rates
+    interval: 30s
+    rules:
+      - record: job:http_requests:rate5m
+        expr: sum(rate(http_requests_total[5m])) by (job)
+
+      - record: job:http_errors_5xx:rate5m
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+
+  - name: db-latency
+    interval: 30s
+    rules:
+      - record: job_query:db_query_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (job, query_name, le))
+
+  - name: grpc-latency
+    interval: 30s
+    rules:
+      - record: job_method:grpc_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(grpc_request_duration_seconds_bucket[5m])) by (job, method, le))
+
+  - name: service-specific
+    interval: 30s
+    rules:
+      - record: job_path:http_request_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="finance-service"}[5m])) by (path, le))
+
+      - record: query:db_query_duration_seconds:p95_expense
+        expr: histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket{job="expense-service"}[5m])) by (query_name, le))

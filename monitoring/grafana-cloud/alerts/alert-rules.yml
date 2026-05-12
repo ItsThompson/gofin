@@ -1,0 +1,496 @@
+# Grafana Cloud Alert Rules
+#
+# Import via Grafana Cloud UI: Alerting → Alert rules → Import
+# Or via the Grafana Alerting provisioning API:
+#   POST /api/v1/provisioning/alert-rules
+#
+# These rules are converted from Prometheus alerting rules format to
+# Grafana Cloud managed alerting format. The PromQL expressions are identical.
+#
+# Original sources:
+#   - monitoring/prometheus/alerts.yml
+#   - monitoring/prometheus/hardware_alerts.yml
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: service-health
+    folder: GoFin
+    interval: 1m
+    rules:
+      - uid: gofin-high-error-rate
+        title: HighErrorRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                sum(rate(http_requests_total{status=~"5.."}[5m]))
+                / sum(rate(http_requests_total[5m])) > 0.05
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate (> 5%)"
+
+      - uid: gofin-service-down
+        title: ServiceDown
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: up == 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is down"
+
+      - uid: gofin-slow-queries
+        title: SlowQueries
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 1
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 query duration > 1s for {{ $labels.query_name }}"
+
+      - uid: gofin-auth-failures-spike
+        title: AuthFailuresSpike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: rate(http_requests_total{job="auth-service",path="/api/auth/login",status="401"}[1m]) > 10
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 60
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "> 10 failed logins in 1 minute"
+
+  - orgId: 1
+    name: datarights
+    folder: GoFin
+    interval: 1m
+    rules:
+      - uid: gofin-export-job-failure-rate
+        title: ExportJobFailureRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                sum(rate(export_jobs_completed_total{status="failed"}[1h]))
+                / sum(rate(export_jobs_completed_total[1h])) > 0.5
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High export job failure rate"
+          description: "More than 50% of export jobs failed in the last hour."
+
+      - uid: gofin-export-job-stuck
+        title: ExportJobStuck
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: export_pool_active_jobs > 0 and sum(changes(export_jobs_completed_total[10m])) == 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Export job appears stuck"
+          description: "Active jobs exist but no completions in 10 minutes."
+
+  - orgId: 1
+    name: hardware
+    folder: GoFin
+    interval: 1m
+    rules:
+      - uid: gofin-container-high-cpu
+        title: ContainerHighCPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                (
+                  sum(rate(container_cpu_usage_seconds_total{name!=""}[5m])) by (name)
+                  / on(name)
+                  (sum(container_spec_cpu_quota{name!=""}) by (name) / sum(container_spec_cpu_period{name!=""}) by (name))
+                  > 0.9
+                )
+                and on(name)
+                sum(container_spec_cpu_quota{name!=""}) by (name) > 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} CPU > 90% of limit"
+
+      - uid: gofin-container-high-memory
+        title: ContainerHighMemory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                container_memory_working_set_bytes{name!=""}
+                / container_spec_memory_limit_bytes{name!=""}
+                > 0.9
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Container {{ $labels.name }} memory > 90% of limit"
+
+      - uid: gofin-host-disk-almost-full
+        title: HostDiskAlmostFull
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+                / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})
+                < 0.1
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 120
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host filesystem {{ $labels.mountpoint }} has < 10% free"
+
+      - uid: gofin-host-high-memory
+        title: HostHighMemory
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.9
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host memory usage > 90%"
+
+      - uid: gofin-host-high-cpu
+        title: HostHighCPU
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) > 0.9
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host CPU usage > 90%"
+
+      - uid: gofin-host-disk-filling-up
+        title: HostDiskFillingUp
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 21600
+              to: 0
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: |
+                predict_linear(
+                  node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24*60*60
+                ) < 0
+              intervalMs: 15000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 21600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host filesystem {{ $labels.mountpoint }} predicted to fill within 24h"
+
+# Notification policy for Discord:
+# After importing these rules, configure a contact point:
+#   1. Go to Alerting → Contact points → New contact point
+#   2. Type: Discord
+#   3. Webhook URL: (your Discord webhook URL)
+#   4. Title template (critical): 🚨 [CRITICAL] {{ .GroupLabels.alertname }}
+#   5. Title template (warning): ⚠️ [WARNING] {{ .GroupLabels.alertname }}
+#   6. Set up notification policy routing severity=critical → discord-critical
