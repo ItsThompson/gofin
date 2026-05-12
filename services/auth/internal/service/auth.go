@@ -308,15 +308,6 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 		slog.String("user_id", user.ID),
 	)
 
-	// Best-effort cleanup of expired blacklist entries
-	go func() {
-		if err := s.blacklistRepo.CleanupExpired(context.Background()); err != nil {
-			s.logger.Error("failed to cleanup expired blacklist entries",
-				slog.String("error", err.Error()),
-			)
-		}
-	}()
-
 	return user, &model.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,

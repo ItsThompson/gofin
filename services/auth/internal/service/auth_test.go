@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -511,7 +512,6 @@ func TestRefreshToken_Success(t *testing.T) {
 		Role:     "user",
 		Currency: "USD",
 	}, nil)
-	blacklistRepo.On("CleanupExpired", mock.Anything).Return(nil)
 
 	user, tokens, err := svc.RefreshToken(ctx, refreshToken)
 
@@ -547,6 +547,30 @@ func TestRefreshToken_BlacklistedToken(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
 	assert.Equal(t, 401, authErr.Status)
+}
+
+func TestRefreshToken_ConsumeError(t *testing.T) {
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+	svc := newTestAuthServiceWithBlacklist(repo, blacklistRepo)
+	ctx := context.Background()
+
+	jwtSvc := NewJWTService("test-secret")
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-123", "user", "testuser")
+	require.NoError(t, err)
+
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	// ConsumeToken returns (false, err) meaning a database error occurred
+	dbErr := fmt.Errorf("connection refused")
+	blacklistRepo.On("ConsumeToken", ctx, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(false, dbErr)
+
+	_, _, err = svc.RefreshToken(ctx, refreshToken)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	assert.Contains(t, err.Error(), "consuming refresh token")
 }
 
 func TestRefreshToken_ExpiredToken(t *testing.T) {

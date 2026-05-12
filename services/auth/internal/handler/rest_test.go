@@ -444,7 +444,6 @@ func TestRefreshHandler_Success(t *testing.T) {
 		Currency: "USD",
 		CreatedAt: time.Now(),
 	}, nil)
-	blacklistRepo.On("CleanupExpired", mock.Anything).Return(nil)
 
 	w := doJSONWithCookies(r, "POST", "/api/auth/refresh", nil, []*http.Cookie{
 		{Name: "gofin_refresh", Value: refreshToken},
