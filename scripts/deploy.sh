@@ -38,12 +38,6 @@ if [[ ! -f "${CREDENTIALS_DIR}/gofin-app.json" ]]; then
   exit 1
 fi
 
-if [[ ! -f "${CREDENTIALS_DIR}/gofin-grafana.json" ]]; then
-  echo "ERROR: Tunnel credentials not found at ${CREDENTIALS_DIR}/gofin-grafana.json"
-  echo "Run the tunnel setup runbook first: docs/initial-setup.md"
-  exit 1
-fi
-
 if [[ ! -f "${CREDENTIALS_DIR}/cert.pem" ]]; then
   echo "ERROR: Origin certificate not found at ${CREDENTIALS_DIR}/cert.pem"
   echo "Run the tunnel setup runbook first: docs/initial-setup.md"
@@ -154,7 +148,6 @@ REMOTE_REPO
 
 echo "==> Copying tunnel credentials and certificate to server..."
 scp "${CREDENTIALS_DIR}/gofin-app.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-app.json"
-scp "${CREDENTIALS_DIR}/gofin-grafana.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-grafana.json"
 scp "${CREDENTIALS_DIR}/cert.pem" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/cert.pem"
 ssh "${SSH_TARGET}" "chmod 644 /opt/gofin/deployments/cloudflare/*.json /opt/gofin/deployments/cloudflare/cert.pem"
 
@@ -184,7 +177,6 @@ set -a
 source .env
 set +a
 envsubst < deployments/cloudflare/config-app.yml > deployments/cloudflare/config-app.rendered.yml
-envsubst < deployments/cloudflare/config-grafana.yml > deployments/cloudflare/config-grafana.rendered.yml
 
 # Pull pre-built images from GHCR
 docker compose pull
@@ -292,7 +284,6 @@ REMOTE_CLEANUP
 # --- Done --------------------------------------------------------------------
 
 DOMAIN=$(ssh "${SSH_TARGET}" "grep CF_APP_HOSTNAME /opt/gofin/.env | cut -d= -f2" 2>/dev/null || echo "your-domain")
-GRAFANA_DOMAIN=$(ssh "${SSH_TARGET}" "grep CF_GRAFANA_HOSTNAME /opt/gofin/.env | cut -d= -f2" 2>/dev/null || echo "grafana.your-domain")
 
 echo ""
 echo "==========================================================================="
@@ -300,7 +291,6 @@ echo "  gofin deployed successfully!"
 echo "==========================================================================="
 echo ""
 echo "  App:     https://${DOMAIN:-your-domain}"
-echo "  Grafana: https://${GRAFANA_DOMAIN:-grafana.your-domain}"
 echo ""
 echo "  To redeploy after code changes:"
 echo "    Push to main — CD workflow handles build, push, and deploy automatically."
