@@ -209,4 +209,4 @@ Pushes to `main` automatically deploy after CI passes. See [CI/CD Pipeline](docs
 | [Testing](docs/testing.md) | Test strategy, patterns, coverage |
 | [Monitoring](docs/monitoring.md) | Prometheus metrics, Grafana dashboards |
 | [Data Export](docs/data-export.md) | GDPR export, CSV formats, email delivery |
-| [Tunnel Setup](docs/tunnel-setup.md) | Cloudflare tunnel creation and DNS routing |
+| [Initial Setup](docs/initial-setup.md) | VPS hardening, Cloudflare tunnel creation and DNS routing |

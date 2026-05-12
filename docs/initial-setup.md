@@ -1,4 +1,38 @@
-# Cloudflare Tunnel Setup
+# Initial Server Setup
+
+VPS hardening and Cloudflare tunnel creation for gofin. Follow these steps when provisioning a new server.
+
+## VPS Hardening
+
+Baseline firewall setup for new server provisioning. Run once on initial VPS setup.
+
+### UFW Baseline
+
+```bash
+sudo ufw default deny incoming
+sudo ufw allow ssh
+sudo ufw enable
+```
+
+### Important: UFW and Docker
+
+UFW alone does NOT protect Docker-published ports. Docker manipulates iptables
+directly (FORWARD and DOCKER chains), bypassing UFW's INPUT chain entirely.
+
+The primary control for service isolation is the `expose:` directive in
+docker-compose.yml (instead of `ports:`). UFW provides defense-in-depth for
+non-Docker services (SSH, any host-level processes) but is not sufficient on
+its own.
+
+### Cloudflare Tunnels and Inbound Rules
+
+Cloudflare tunnels use outbound connections from the server to Cloudflare's
+edge. They are unaffected by `ufw default deny incoming`. No inbound port
+exceptions are needed for application traffic.
+
+---
+
+## Cloudflare Tunnel Setup
 
 One-time interactive setup to create named Cloudflare tunnels for gofin. Run these steps on any machine with `cloudflared` installed and a browser available.
 

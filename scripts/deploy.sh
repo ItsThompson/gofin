@@ -8,7 +8,7 @@
 #
 # Prerequisites:
 #   - SSH access to the server (key-based auth)
-#   - Tunnel credentials in deployments/cloudflare/ (see docs/tunnel-setup.md)
+#   - Tunnel credentials in deployments/cloudflare/ (see docs/initial-setup.md)
 #   - .env already configured on the server
 #
 # Usage:
