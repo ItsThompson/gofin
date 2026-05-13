@@ -1,0 +1,14 @@
+# Compiled Go binaries (Mach-O / Linux) built locally
+*/main
+*/main.exe
+
+# Test files: not needed for `go build`
+**/*_test.go
+**/testdata/
+
+# Go workspace files: builds use GOWORK=off
+go.work
+go.work.sum
+
+# OS artifacts
+**/.DS_Store

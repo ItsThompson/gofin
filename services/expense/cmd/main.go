@@ -18,11 +18,16 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/handler"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
+	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/metrics"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
 func main() {
+	if healthcheck.ShouldRun(os.Args) {
+		os.Exit(healthcheck.Run("8082"))
+	}
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "expense-service: %v\n", err)
 		os.Exit(1)
@@ -101,6 +106,10 @@ func run() error {
 	router.Use(metrics.HTTPMetrics())
 
 	metrics.Register(router)
+
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 
 	restHandler := handler.NewRESTHandler(expenseSvc, logger)
 	restHandler.RegisterRoutes(router)

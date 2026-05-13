@@ -7,6 +7,7 @@ require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0
 	github.com/ItsThompson/gofin/services/finance v0.0.0
+	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
@@ -22,6 +23,8 @@ replace github.com/ItsThompson/gofin/services/dbmigrate => ../dbmigrate
 replace github.com/ItsThompson/gofin/services/expense => ../expense
 
 replace github.com/ItsThompson/gofin/services/finance => ../finance
+
+replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 

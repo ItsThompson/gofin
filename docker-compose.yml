@@ -1,3 +1,9 @@
+# =============================================================================
+# Image version pinning: all third-party images are pinned to exact versions.
+# Review and update quarterly. Check release notes before bumping.
+# Last reviewed: 2026-05-12
+# =============================================================================
+
 services:
   # ---------------------------------------------------------------------------
   # Node 1: Edge (MFE + Cloudflare tunnels)
@@ -22,7 +28,8 @@ services:
     restart: unless-stopped
 
   cloudflared-app:
-    image: cloudflare/cloudflared:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: cloudflare/cloudflared:2025.4.0
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-app
     volumes:
       - ./deployments/cloudflare/config-app.rendered.yml:/etc/cloudflared/config.yml:ro
@@ -52,7 +59,7 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "/service", "--healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -91,7 +98,7 @@ services:
       - "8081"
       - "9081"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      test: ["CMD", "/service", "--healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -106,7 +113,6 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin1234!}
-      - MIGRATIONS_PATH=/migrations
     networks:
       - compute-net
       - data-net
@@ -129,6 +135,12 @@ services:
     expose:
       - "8082"
       - "9082"
+    healthcheck:
+      test: ["CMD", "/service", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
     environment:
       - IMMUDB_ADDR=immudb:3322
       - IMMUDB_USERNAME=${IMMUDB_USERNAME:-immudb}
@@ -158,7 +170,7 @@ services:
       - "8083"
       - "9083"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      test: ["CMD", "/service", "--healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -168,7 +180,6 @@ services:
       - EXPENSE_SERVICE_ADDR=expense-service:9082
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
-      - MIGRATIONS_PATH=/migrations
     networks:
       - compute-net
       - data-net
@@ -192,7 +203,7 @@ services:
       - "8084"
       - "9084"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      test: ["CMD", "/service", "--healthcheck"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -205,7 +216,6 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-gofin <noreply@usegofin.com>}
       - BRAND_TOKENS_PATH=/app/tokens/brand.json
-      - MIGRATIONS_PATH=/migrations
     volumes:
       - ./tokens/brand.json:/app/tokens/brand.json:ro
     networks:
@@ -226,7 +236,8 @@ services:
   # Node 3: Data (PostgreSQL + immudb)
   # ---------------------------------------------------------------------------
   postgresql:
-    image: postgres:16
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: postgres:16.8-alpine
     ports:
       - "5432:5432"
     environment:
@@ -250,7 +261,8 @@ services:
     restart: unless-stopped
 
   immudb:
-    image: codenotary/immudb:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: codenotary/immudb:1.11.0
     ports:
       - "3322:3322"
     volumes:
@@ -268,7 +280,8 @@ services:
   # Node 4: Monitoring (Prometheus, Alertmanager, Grafana, auth proxy, tunnel)
   # ---------------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: prom/prometheus:v3.11.3
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=3d'
@@ -293,6 +306,7 @@ services:
     restart: unless-stopped
 
   cadvisor:
+    # Pinned 2026-05-12. Check for updates quarterly.
     image: gcr.io/cadvisor/cadvisor:v0.55.1
     volumes:
       - /:/rootfs:ro
@@ -309,6 +323,7 @@ services:
     restart: unless-stopped
 
   node-exporter:
+    # Pinned 2026-05-12. Check for updates quarterly.
     image: prom/node-exporter:v1.11.1
     command:
       - '--path.procfs=/host/proc'
@@ -352,7 +367,8 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: grafana/grafana:11.6.0
     ports:
       - "3001:3000"
     volumes:
@@ -393,7 +409,8 @@ services:
     restart: unless-stopped
 
   cloudflared-grafana:
-    image: cloudflare/cloudflared:latest
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: cloudflare/cloudflared:2025.4.0
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-grafana
     volumes:
       - ./deployments/cloudflare/config-grafana.rendered.yml:/etc/cloudflared/config.yml:ro

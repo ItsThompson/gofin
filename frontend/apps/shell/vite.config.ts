@@ -10,6 +10,12 @@ export default defineConfig(({ isSsrBuild }) => ({
         }
       : undefined,
   },
+  ssr: {
+    // Bundle tree-shakeable packages into SSR output so only imported symbols
+    // are included. This eliminates the need for lucide-react (39MB) in
+    // production node_modules: only the ~12 icons actually used get bundled.
+    noExternal: ["lucide-react"],
+  },
   plugins: [tailwindcss(), reactRouter()],
   resolve: {
     alias: {
