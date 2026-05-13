@@ -277,27 +277,32 @@ services:
     restart: unless-stopped
 
   # ---------------------------------------------------------------------------
-  # Node 4: Monitoring (Alloy, Alertmanager, Grafana, auth proxy, tunnel)
+  # Node 4: Monitoring (Prometheus, Alertmanager, Grafana, auth proxy, tunnel)
   # ---------------------------------------------------------------------------
-  grafana-alloy:
-    # Pinned 2026-05-13. Check for updates quarterly.
-    image: grafana/alloy:v1.8.0
+  prometheus:
+    # Pinned 2026-05-12. Check for updates quarterly.
+    image: prom/prometheus:v3.11.3
     command:
-      - run
-      - /etc/alloy/config.alloy
-    environment:
-      - GRAFANA_REMOTE_WRITE_URL=${GRAFANA_REMOTE_WRITE_URL}
-      - GRAFANA_REMOTE_WRITE_USER=${GRAFANA_REMOTE_WRITE_USER}
-      - GRAFANA_REMOTE_WRITE_KEY=${GRAFANA_REMOTE_WRITE_KEY}
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=3d'
+      - '--storage.tsdb.retention.size=2GB'
+      - '--query.max-concurrency=5'
+      - '--query.timeout=30s'
+    ports:
+      - "9090:9090"
     volumes:
-      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./monitoring/prometheus/hardware_alerts.yml:/etc/prometheus/hardware_alerts.yml:ro
+      - ./monitoring/prometheus/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
+      - promdata:/prometheus
     networks:
       - monitoring-net
     deploy:
       resources:
         limits:
-          cpus: "0.25"
-          memory: 256M
+          cpus: "0.50"
+          memory: 1024M
     restart: unless-stopped
 
   cadvisor:
@@ -353,7 +358,7 @@ services:
     networks:
       - monitoring-net
     depends_on:
-      - grafana-alloy
+      - prometheus
     deploy:
       resources:
         limits:
@@ -373,7 +378,7 @@ services:
     networks:
       - monitoring-net
     depends_on:
-      - grafana-alloy
+      - prometheus
     deploy:
       resources:
         limits:
@@ -443,4 +448,4 @@ networks:
 volumes:
   pgdata:
   immudata:
-
+  promdata:
