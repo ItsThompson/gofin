@@ -55,3 +55,4 @@ deployments/cloudflare/cert.pem
 
 # Stray protobuf generated output
 services/*/github.com/
+

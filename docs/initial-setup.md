@@ -55,14 +55,16 @@ This opens a browser. Select your domain and authorize.
 
 ```bash
 cloudflared tunnel create gofin-app
+cloudflared tunnel create gofin-grafana
 ```
 
-The command prints a tunnel ID (UUID). Save it for step 4.
+Each command prints a tunnel ID (UUID). Save these for step 4.
 
 ### 3. Route DNS
 
 ```bash
 cloudflared tunnel route dns gofin-app usegofin.com
+cloudflared tunnel route dns gofin-grafana grafana.usegofin.com
 ```
 
 ### 4. Copy credentials and certificate
@@ -72,6 +74,7 @@ The `tunnel create` commands saved credential JSON files to `~/.cloudflared/`. T
 ```bash
 mkdir -p deployments/cloudflare
 cp ~/.cloudflared/<app-tunnel-id>.json deployments/cloudflare/gofin-app.json
+cp ~/.cloudflared/<grafana-tunnel-id>.json deployments/cloudflare/gofin-grafana.json
 cp ~/.cloudflared/cert.pem deployments/cloudflare/cert.pem
 chmod 644 deployments/cloudflare/*.json deployments/cloudflare/cert.pem
 ```
@@ -90,11 +93,18 @@ ADMIN_PASSWORD=<strong password>
 
 # Enable HTTPS cookies (Cloudflare terminates TLS)
 COOKIE_SECURE=true
+
+# Enable subdomain cookie access for Grafana
 COOKIE_DOMAIN=.usegofin.com
 
-# Tunnel ID from step 2
+# Grafana auth proxy "Back to gofin" link
+APP_URL=https://usegofin.com
+
+# Tunnel IDs from step 2
 CF_APP_TUNNEL_ID=<app-tunnel-id>
 CF_APP_HOSTNAME=usegofin.com
+CF_GRAFANA_TUNNEL_ID=<grafana-tunnel-id>
+CF_GRAFANA_HOSTNAME=grafana.usegofin.com
 ```
 
 All other values (database URLs, service addresses) can stay as defaults since services communicate via Docker networking.
@@ -102,6 +112,6 @@ All other values (database URLs, service addresses) can stay as defaults since s
 ## Result
 
 After these steps you have:
-- A named tunnel registered with Cloudflare
-- DNS CNAME record pointing your domain to the tunnel
-- Credential JSON file and origin certificate ready for the deploy script to copy to the server
+- Two named tunnels registered with Cloudflare
+- DNS CNAME records pointing your domain to the tunnels
+- Credential JSON files and origin certificate ready for the deploy script to copy to the server
