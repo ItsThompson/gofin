@@ -14,5 +14,9 @@ ingress:
   - hostname: app.gofin.example.com
     service: http://mfe:3000
 
+  # Grafana tunnel: routes to the auth proxy (NOT directly to Grafana)
+  - hostname: grafana.gofin.example.com
+    service: http://grafana-auth-proxy:3002
+
   # Catch-all: required by cloudflared
   - service: http_status:404
