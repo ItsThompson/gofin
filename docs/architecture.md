@@ -141,10 +141,10 @@ The service coordinates data collection from all other compute services but owns
 
 ### Observability Stack (Node 4)
 
-- **Grafana Alloy**: scrapes `/metrics` from all Go services and infrastructure exporters, remote-writes to Grafana Cloud
-- **cadvisor**: exposes container resource metrics
-- **node-exporter**: exposes host-level hardware and OS metrics
-- **Grafana Cloud** (external SaaS): dashboards, alerting, and long-term metric storage
+- **Prometheus**: scrapes `/metrics` from all Go services on the compute network
+- **Alertmanager**: routes alerts based on Prometheus rules
+- **Grafana**: pre-provisioned dashboards for system overview, per-service metrics, and database health
+- **Auth Proxy**: a small Go service that validates JWTs and checks admin role before proxying to Grafana
 
 ## Network Isolation
 
