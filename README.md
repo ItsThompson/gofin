@@ -35,7 +35,7 @@ gofin is an intentionally overengineered personal finance tracker that lets user
 - **Backend:** Go microservices (Gin framework) communicating over REST and gRPC
 - **Databases:** PostgreSQL (relational data), immudb (immutable expense ledger)
 - **Auth:** JWT with RBAC, Google OAuth, admin identity assumption
-- **Observability:** Prometheus, Grafana, Alertmanager
+- **Observability:** Grafana Cloud, Grafana Alloy, Prometheus metrics
 - **Infrastructure:** Docker Compose, Cloudflare Tunnels, single-VPS deployment
 - **CI/CD:** GitHub Actions with automated deployment on push to main
 
@@ -46,7 +46,6 @@ graph TB
     subgraph Internet
         Browser[Browser]
         CFApp[Cloudflare Tunnel<br/>app traffic]
-        CFGraf[Cloudflare Tunnel<br/>grafana traffic]
     end
 
     subgraph Node1[Node 1: Edge / DMZ]
@@ -69,14 +68,13 @@ graph TB
     end
 
     subgraph Node4[Node 4: Observability]
-        AuthProxy[Grafana Auth Proxy]
-        Grafana[Grafana]
-        Prom[Prometheus]
-        Alert[Alertmanager]
+        Alloy[Grafana Alloy]
+        CAD[cadvisor]
+        NE[node-exporter]
+        GC[Grafana Cloud]
     end
 
     Browser -->|HTTPS| CFApp --> Shell
-    Browser -->|HTTPS| CFGraf --> AuthProxy
 
     Shell -->|Module Federation| FinMFE
     Shell -->|Module Federation| AdminMFE
@@ -97,14 +95,14 @@ graph TB
     DR --> PG
     Expense --> Immudb
 
-    AuthProxy -->|JWT check + proxy| Grafana
-    Prom -->|scrape /metrics| GW
-    Prom -->|scrape /metrics| Auth
-    Prom -->|scrape /metrics| Expense
-    Prom -->|scrape /metrics| Finance
-    Prom -->|scrape /metrics| DR
-    Prom --> Alert
-    Grafana --> Prom
+    Alloy -->|scrape /metrics| GW
+    Alloy -->|scrape /metrics| Auth
+    Alloy -->|scrape /metrics| Expense
+    Alloy -->|scrape /metrics| Finance
+    Alloy -->|scrape /metrics| DR
+    CAD --> Alloy
+    NE --> Alloy
+    Alloy -->|remote-write| GC
 ```
 
 | Path | Protocol | Purpose |
@@ -115,7 +113,7 @@ graph TB
 | Gateway → Services | REST | Routed API calls with trusted user identity |
 | Finance → Expense | gRPC | Ledger writes during pro-rata application |
 | Services → Databases | SQL / native client | Data persistence |
-| Prometheus → Services | HTTP `/metrics` | Metrics collection |
+| Alloy → Services | HTTP `/metrics` | Metrics collection |
 
 ## Usage
 
@@ -142,7 +140,7 @@ just up
 just seed-admin
 ```
 
-The app is available at `http://localhost:3000`. Grafana dashboards are at `http://localhost:3001`.
+The app is available at `http://localhost:3000`. Grafana dashboards are on [Grafana Cloud](https://grafana.usegofin.com).
 
 ### Frontend Only (Mock Mode)
 
@@ -207,6 +205,6 @@ Pushes to `main` automatically deploy after CI passes. See [CI/CD Pipeline](docs
 | [API Reference](docs/api.md) | REST endpoint catalog |
 | [Development Guide](docs/development.md) | Local workflow, environment variables |
 | [Testing](docs/testing.md) | Test strategy, patterns, coverage |
-| [Monitoring](docs/monitoring.md) | Prometheus metrics, Grafana dashboards |
+| [Monitoring](docs/monitoring.md) | Grafana Alloy metrics, Grafana Cloud dashboards |
 | [Data Export](docs/data-export.md) | GDPR export, CSV formats, email delivery |
 | [Initial Setup](docs/initial-setup.md) | VPS hardening, Cloudflare tunnel creation and DNS routing |

@@ -58,7 +58,7 @@ dev-service service:
 
 # Start infrastructure only (databases + monitoring)
 dev-infra:
-    docker compose up -d postgresql immudb prometheus alertmanager grafana cadvisor node-exporter
+    docker compose up -d postgresql immudb grafana-alloy cadvisor node-exporter
 
 # Run all backend tests
 test-backend:
@@ -141,9 +141,9 @@ lint-frontend:
 # Lint all
 lint: lint-backend lint-frontend
 
-# Open Grafana in browser
+# Open Grafana Cloud in browser
 grafana:
-    open http://localhost:3001
+    open https://grafana.usegofin.com
 
 # View logs for a specific service
 logs service:
