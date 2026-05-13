@@ -28,6 +28,8 @@ func Run(port string) int {
 
 // ShouldRun returns true if the process arguments contain "--healthcheck".
 // Call this at the top of main() before service initialization.
+// NOTE: Only checks args[1] (positional). This is safe because Docker HEALTHCHECK
+// controls the full command: ["/service", "--healthcheck"]. No other flags precede it.
 func ShouldRun(args []string) bool {
 	return len(args) > 1 && args[1] == "--healthcheck"
 }

@@ -28,7 +28,7 @@ COPY metrics/ ./metrics/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    cd datarights && GOWORK=off CGO_ENABLED=0 go build -o /service ./cmd/main.go
+    cd datarights && GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /service ./cmd/main.go
 
 # Stage 2: Runtime
 FROM gcr.io/distroless/static:nonroot
