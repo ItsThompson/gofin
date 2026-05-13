@@ -116,7 +116,7 @@ docker compose --profile tunnels up -d
 
 - PostgreSQL has a healthcheck (`pg_isready`). Services with `condition: service_healthy` wait for it.
 - immudb has no healthcheck. The expense-service uses `condition: service_started` and retries connections internally. It may take a few extra seconds on first boot.
-- Cloudflare tunnels reconnect within seconds once their upstream services (mfe) are listening.
+- Cloudflare tunnels reconnect within seconds once their upstream services (mfe, grafana-auth-proxy) are listening.
 
 ## Emergency: Hetzner Console Power Off Was Used (or Crash)
 

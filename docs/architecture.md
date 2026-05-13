@@ -31,10 +31,11 @@ graph LR
 
     subgraph Node4[Node 4: Observability]
         direction TB
-        ALLOY[Grafana Alloy]
-        CAD[cadvisor]
-        NE[node-exporter]
-        GC[Grafana Cloud]
+        PR[Prometheus]
+        AL[Alertmanager]
+        GR[Grafana]
+        AP[Auth Proxy]
+        CF2[cloudflared-grafana]
     end
 
     CF1 <--> MFE
@@ -54,14 +55,14 @@ graph LR
     DR -->|data-net| PG
     ES -->|data-net| IM
 
-    ALLOY -->|monitoring-net| GW
-    ALLOY -->|monitoring-net| AS
-    ALLOY -->|monitoring-net| ES
-    ALLOY -->|monitoring-net| FS
-    ALLOY -->|monitoring-net| DR
-    CAD --> ALLOY
-    NE --> ALLOY
-    ALLOY -->|remote-write| GC
+    PR -->|monitoring-net| GW
+    PR -->|monitoring-net| AS
+    PR -->|monitoring-net| ES
+    PR -->|monitoring-net| FS
+    PR -->|monitoring-net| DR
+    PR --> AL
+    GR --> PR
+    CF2 --> AP --> GR
 ```
 
 ## Service Responsibilities
@@ -155,7 +156,7 @@ Four Docker bridge networks enforce traffic boundaries:
 | `edge-net` | MFE, cloudflared-app, API Gateway | Public-facing traffic only |
 | `compute-net` | API Gateway, all microservices (Auth, Expense, Finance, Datarights) | Internal service communication |
 | `data-net` | Microservices, PostgreSQL, immudb | Database access only |
-| `monitoring-net` | Grafana Alloy, cadvisor, node-exporter, all microservices (for /metrics) | Observability plane |
+| `monitoring-net` | Prometheus, Grafana, Alertmanager, auth proxy, all microservices (for /metrics) | Observability plane |
 
 Databases are never reachable from `edge-net`. The browser only communicates with the shell app, which proxies everything else.
 

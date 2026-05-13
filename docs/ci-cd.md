@@ -38,6 +38,7 @@ All secrets must be configured in the repository settings under **Settings → S
 | `DEPLOY_SSH_KEY` | Ed25519 private key for VPS access | Raw (paste the full key including headers) |
 | `DEPLOY_SERVER_IP` | VPS IP address (e.g., `65.108.42.100`) | Raw string |
 | `CF_APP_CREDENTIALS` | Contents of `deployments/cloudflare/gofin-app.json` | Base64 |
+| `CF_GRAFANA_CREDENTIALS` | Contents of `deployments/cloudflare/gofin-grafana.json` | Base64 |
 | `CF_CERT_PEM` | Contents of `deployments/cloudflare/cert.pem` | Base64 |
 
 ### Encoding Credentials
@@ -49,6 +50,7 @@ ssh root@<your-server-ip>
 cd /opt/gofin
 
 base64 -w0 < deployments/cloudflare/gofin-app.json
+base64 -w0 < deployments/cloudflare/gofin-grafana.json
 base64 -w0 < deployments/cloudflare/cert.pem
 ```
 
