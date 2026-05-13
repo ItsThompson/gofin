@@ -26,7 +26,7 @@ That's it. On reboot, everything comes back automatically:
 - `shutdown -h now` sends SIGTERM to dockerd, which propagates SIGTERM to all containers (10s grace period)
 - All services have `restart: unless-stopped`, so Docker auto-starts them on boot
 - Cloudflare tunnels reconnect automatically (no re-authentication needed)
-- Database volumes (`pgdata`, `immudata`, `promdata`) persist on disk
+- Database volumes (`pgdata`, `immudata`) persist on disk
 - Rendered tunnel configs and credentials persist on the host filesystem
 - Admin user and all data survive (stored in named volumes)
 
@@ -165,7 +165,7 @@ systemctl enable docker
 
 No Cloudflare setup is needed on restart. Here's why:
 
-- Rendered configs (`config-app.rendered.yml`, `config-grafana.rendered.yml`) are regular files on the host filesystem that persist across reboots
+- Rendered configs (`config-app.rendered.yml`) are regular files on the host filesystem that persist across reboots
 - Credentials (`.json` files, `cert.pem`) also persist on the host
 - DNS CNAME records point to the tunnel UUID, not the server IP: no DNS changes needed
 - cloudflared reconnects to Cloudflare's edge automatically using existing credentials
