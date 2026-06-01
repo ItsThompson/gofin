@@ -12,7 +12,7 @@ function currentPeriod() {
 }
 
 test.describe("Expense autocomplete smoke", () => {
-  test("routes suggestions through the gateway and submits an edited selected suggestion", async ({ page }) => {
+  test("selects a gateway suggestion, verifies autofill, and submits an edited amount", async ({ page }) => {
     await registerAndOnboard(page, { budget: "2000" });
     await confirmNewPeriod(page);
 
