@@ -102,6 +102,62 @@ func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
 	assert.Equal(t, "tag-new", result.Data[0].TagID)
 }
 
+func TestGetExpenseSuggestions_AssignsRecencyBucketWeights(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo).WithClock(func() time.Time {
+		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	})
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		{ID: "exp-1", Name: "Today", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-1", CreatedAt: "2026-06-01T01:00:00Z"},
+		{ID: "exp-2", Name: "Last 7", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-2", CreatedAt: "2026-05-29T12:00:00Z"},
+		{ID: "exp-3", Name: "Last 30", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-3", CreatedAt: "2026-05-15T12:00:00Z"},
+		{ID: "exp-4", Name: "Older", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-4", CreatedAt: "2026-04-15T12:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	assertSuggestionBucket(t, result.Data, "Today", "today", 8)
+	assertSuggestionBucket(t, result.Data, "Last 7", "last_7_days", 4)
+	assertSuggestionBucket(t, result.Data, "Last 30", "last_30_days", 2)
+	assertSuggestionBucket(t, result.Data, "Older", "older", 1)
+}
+
+func TestGetExpenseSuggestions_PaginatesRankedSuggestions(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo).WithClock(func() time.Time {
+		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	})
+	inputs := make([]*model.ExpenseSuggestionInput, 0, 51)
+	for i := 0; i < 51; i++ {
+		inputs = append(inputs, &model.ExpenseSuggestionInput{
+			ID:          fmt.Sprintf("exp-%02d", i),
+			Name:        fmt.Sprintf("Expense %02d", i),
+			Amount:      int64(1000 + i),
+			Currency:    "USD",
+			ExpenseType: "essentials",
+			TagID:       "tag",
+			CreatedAt:   "2026-05-31T10:00:00Z",
+		})
+	}
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return(inputs, nil)
+
+	pageOne, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	assert.Len(t, pageOne.Data, 50)
+	assert.Equal(t, int64(51), pageOne.Total)
+	assert.True(t, pageOne.HasMore)
+
+	pageTwo, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 2, PageSize: 50})
+
+	require.NoError(t, err)
+	assert.Len(t, pageTwo.Data, 1)
+	assert.Equal(t, int64(51), pageTwo.Total)
+	assert.False(t, pageTwo.HasMore)
+}
+
 func TestGetExpenseSuggestions_ReturnsEmptyPageWhenPageStartExceedsTotal(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo).WithClock(func() time.Time {
@@ -126,6 +182,18 @@ func suggestionNames(suggestions []*model.ExpenseSuggestion) []string {
 		names = append(names, suggestion.Name)
 	}
 	return names
+}
+
+func assertSuggestionBucket(t *testing.T, suggestions []*model.ExpenseSuggestion, name string, expectedBucket string, expectedScore float64) {
+	t.Helper()
+	for _, suggestion := range suggestions {
+		if suggestion.Name == name {
+			assert.Equal(t, expectedBucket, suggestion.RecencyBucket)
+			assert.Equal(t, expectedScore, suggestion.FrecencyScore)
+			return
+		}
+	}
+	require.Failf(t, "suggestion not found", "expected suggestion %q", name)
 }
 
 func TestGetExpenseSuggestions_ValidationAndRepositoryFailure(t *testing.T) {
