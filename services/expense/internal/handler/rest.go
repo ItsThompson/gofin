@@ -31,6 +31,7 @@ func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		expenses.POST("", h.CreateExpense)
 		expenses.GET("", h.GetExpenses)
+		expenses.GET("/suggestions", h.GetExpenseSuggestions)
 		expenses.GET("/prorata/:groupId", h.GetProRataGroup)
 		expenses.GET("/:id", h.GetExpense)
 		expenses.POST("/:id/correct", h.CorrectExpense)
@@ -142,6 +143,54 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// GetExpenseSuggestions handles GET /api/expenses/suggestions?page=1&pageSize=50.
+func (h *RESTHandler) GetExpenseSuggestions(c *gin.Context) {
+	userID := c.GetHeader("X-User-ID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, model.ApiError{
+			Code:    model.ErrUnauthorized,
+			Message: "Authentication required",
+		})
+		return
+	}
+
+	page, ok := parsePositiveIntQuery(c, "page", 1)
+	if !ok {
+		c.JSON(http.StatusBadRequest, model.ApiError{Code: model.ErrValidationError, Message: "page must be a positive integer"})
+		return
+	}
+
+	pageSize, ok := parsePositiveIntQuery(c, "pageSize", 50)
+	if !ok || pageSize > 100 {
+		c.JSON(http.StatusBadRequest, model.ApiError{Code: model.ErrValidationError, Message: "pageSize must be a positive integer no greater than 100"})
+		return
+	}
+
+	result, err := h.expenseService.GetExpenseSuggestions(c.Request.Context(), &model.ExpenseSuggestionRequest{
+		UserID:   userID,
+		Page:     int32(page),
+		PageSize: int32(pageSize),
+	})
+	if err != nil {
+		h.handleError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func parsePositiveIntQuery(c *gin.Context, key string, defaultValue int64) (int64, bool) {
+	value := c.Query(key)
+	if value == "" {
+		return defaultValue, true
+	}
+	parsed, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || parsed < 1 {
+		return 0, false
+	}
+	return parsed, true
 }
 
 // GetExpense handles GET /api/expenses/:id.
