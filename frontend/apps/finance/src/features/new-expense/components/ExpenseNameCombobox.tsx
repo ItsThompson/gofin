@@ -35,12 +35,10 @@ export function ExpenseNameCombobox({
 
   function handleValueChange(nextValue: string) {
     onValueChange(nextValue);
-    setQuery(nextValue);
   }
 
   function handleSelectSuggestion(suggestion: ExpenseSuggestion) {
     onValueChange(suggestion.name);
-    setQuery(suggestion.name);
     onSelectSuggestion(suggestion);
   }
 
