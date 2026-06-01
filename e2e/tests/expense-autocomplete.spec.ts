@@ -40,7 +40,7 @@ test.describe("Expense autocomplete smoke", () => {
     await page.getByText("Autocomplete Coffee").click();
 
     await expect(page.getByLabel("Name")).toHaveValue("Autocomplete Coffee");
-    await expect(page.getByLabel("Amount")).toHaveValue("12");
+    await expect(page.getByLabel("Amount")).toHaveValue("12.00");
     await expect(page.getByLabel("Desires")).toBeChecked();
     await expect(page.getByLabel("Tag")).toHaveValue(foodTag.id);
 

@@ -7,9 +7,10 @@
     "npm": ">=11"
   },
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "test:ui": "playwright test --ui",
+    "stack:up": "cd .. && test -f .env || cp .env.example .env && docker compose up -d --build && docker compose exec -T auth-service /service seed-admin",
+    "test": "npm run stack:up && playwright test",
+    "test:headed": "npm run stack:up && playwright test --headed",
+    "test:ui": "npm run stack:up && playwright test --ui",
     "report": "playwright show-report"
   },
   "devDependencies": {
