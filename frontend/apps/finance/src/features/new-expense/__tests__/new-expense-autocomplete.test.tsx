@@ -85,10 +85,13 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function renderNewExpense(suggestions: ExpenseSuggestionsResponse = mockSuggestions) {
+function renderNewExpense(
+  suggestions: ExpenseSuggestionsResponse = mockSuggestions,
+  tags = mockTags,
+) {
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     if (url.includes("/api/finance/tags")) {
-      return jsonResponse({ tags: mockTags });
+      return jsonResponse({ tags });
     }
 
     if (url.includes("/api/expenses/suggestions")) {
@@ -107,6 +110,18 @@ function renderNewExpense(suggestions: ExpenseSuggestionsResponse = mockSuggesti
       <NewExpenseFeature user={mockUser} />
     </MemoryRouter>,
   );
+}
+
+function getSubmittedExpenseRequest() {
+  const postCall = mockFetch.mock.calls.find(
+    (call) =>
+      typeof call[0] === "string" &&
+      call[0].includes("/api/expenses") &&
+      !call[0].includes("/api/expenses/suggestions") &&
+      call[1]?.method === "POST",
+  );
+
+  return JSON.parse(postCall?.[1]?.body as string);
 }
 
 describe("NewExpenseFeature autocomplete integration", () => {
@@ -167,14 +182,113 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
 
-    const postCall = mockFetch.mock.calls.find(
-      (call) =>
-        typeof call[0] === "string" &&
-        call[0].includes("/api/expenses") &&
-        !call[0].includes("/api/expenses/suggestions") &&
-        call[1]?.method === "POST",
-    );
-    expect(JSON.parse(postCall?.[1]?.body as string).name).toBe("Custom Coffee");
+    expect(getSubmittedExpenseRequest().name).toBe("Custom Coffee");
+  });
+
+  it("autofills name, amount, type, and existing tag when clicking a suggestion", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    const dateBeforeSelection = (screen.getByLabelText("Date") as HTMLInputElement).value;
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await user.click(await screen.findByText("Coffee Shop"));
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Coffee Shop");
+    expect(screen.getByLabelText("Amount")).toHaveValue(4.5);
+    expect(screen.getByLabelText("desires")).toBeChecked();
+    expect(screen.getByLabelText("Tag")).toHaveValue("tag-food");
+    expect(screen.getByLabelText("Date")).toHaveValue(dateBeforeSelection);
+    expect(screen.getByLabelText("Spread across months")).not.toBeChecked();
+    expect(screen.queryByLabelText("Number of months")).not.toBeInTheDocument();
+  });
+
+  it("applies the same autofill behavior with ArrowDown and Enter", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await screen.findByText("Coffee Shop");
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Coffee Shop");
+    expect(screen.getByLabelText("Amount")).toHaveValue(4.5);
+    expect(screen.getByLabelText("desires")).toBeChecked();
+    expect(screen.getByLabelText("Tag")).toHaveValue("tag-food");
+  });
+
+  it("does not autofill on highlight movement, plain Enter, or blur", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await user.type(screen.getByLabelText("Amount"), "9.99");
+    await user.click(screen.getByLabelText("essentials"));
+    await user.selectOptions(screen.getByLabelText("Tag"), "tag-bills");
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await screen.findByText("Coffee Shop");
+    await user.keyboard("{ArrowDown}");
+
+    expect(screen.getByLabelText("Amount")).toHaveValue(9.99);
+    expect(screen.getByLabelText("essentials")).toBeChecked();
+    expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Plain Coffee{Enter}");
+    await user.tab();
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Plain Coffee");
+    expect(screen.getByLabelText("Amount")).toHaveValue(9.99);
+    expect(screen.getByLabelText("essentials")).toBeChecked();
+    expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
+  });
+
+  it("leaves the current tag unchanged when the selected suggestion tag is stale", async () => {
+    const user = userEvent.setup();
+    renderNewExpense(mockSuggestions, [mockTags[0]]);
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await user.click(await screen.findByText("Coffee Shop"));
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Coffee Shop");
+    expect(screen.getByLabelText("Amount")).toHaveValue(4.5);
+    expect(screen.getByLabelText("desires")).toBeChecked();
+    expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
+  });
+
+  it("submits visible edited values after autofill", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await user.click(await screen.findByText("Coffee Shop"));
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Edited Coffee");
+    await user.clear(screen.getByLabelText("Amount"));
+    await user.type(screen.getByLabelText("Amount"), "6.25");
+    await user.click(screen.getByLabelText("essentials"));
+    await user.selectOptions(screen.getByLabelText("Tag"), "tag-bills");
+    await user.clear(screen.getByLabelText("Date"));
+    await user.type(screen.getByLabelText("Date"), "2026-05-02");
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+
+    expect(getSubmittedExpenseRequest()).toMatchObject({
+      name: "Edited Coffee",
+      amount: 625,
+      expenseType: "essentials",
+      tagId: "tag-bills",
+      expenseDate: "2026-05-02",
+    });
   });
 
   it("keeps existing required-name validation for typed input", async () => {

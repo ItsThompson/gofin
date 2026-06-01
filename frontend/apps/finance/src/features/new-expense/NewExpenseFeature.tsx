@@ -58,7 +58,7 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                   actions.setField("name", value);
                   actions.clearFieldError("name");
                 }}
-                onSelectSuggestion={() => undefined}
+                onSelectSuggestion={actions.applySuggestion}
                 error={state.fieldErrors.name}
               />
             </FormField>

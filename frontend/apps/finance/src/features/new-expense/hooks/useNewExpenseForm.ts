@@ -11,7 +11,12 @@ import type {
   Tag,
   TagListResponse,
 } from "../../../types";
+import type { ExpenseSuggestion } from "../types";
 import { useExpenseFields } from "./useExpenseFields";
+
+function formatMinorUnits(amount: number): string {
+  return (amount / 100).toFixed(2);
+}
 
 export { EXPENSE_TYPES };
 export type { ExpenseType, ExpenseFields };
@@ -32,6 +37,7 @@ export interface NewExpenseFormActions {
   clearFieldError: (field: string) => void;
   setIsProRata: (checked: boolean) => void;
   setProRataMonths: (value: string) => void;
+  applySuggestion: (suggestion: ExpenseSuggestion) => void;
   handleSubmit: (event: FormEvent) => void;
 }
 
@@ -52,16 +58,13 @@ export function useNewExpenseForm(currency: string): {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
-  // Field state management via base hook
   const expenseFields = useExpenseFields();
 
-  // Feature-specific state (4 useState calls)
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagsLoading, setTagsLoading] = useState(true);
   const [isProRata, setIsProRata] = useState(false);
   const [proRataMonths, setProRataMonths] = useState("");
 
-  // Submission lifecycle via useFormMutation
   const mutation = useFormMutation<void>({
     onSuccess: () => navigate("/dashboard"),
   });
@@ -92,6 +95,19 @@ export function useNewExpenseForm(currency: string): {
     }
   }
 
+  function applySuggestion(suggestion: ExpenseSuggestion) {
+    expenseFields.setField("name", suggestion.name);
+    expenseFields.setField(
+      "amountDollars",
+      formatMinorUnits(suggestion.amount),
+    );
+    expenseFields.setField("expenseType", suggestion.expenseType);
+
+    if (tags.some((tag) => tag.id === suggestion.tagId)) {
+      expenseFields.setField("tagId", suggestion.tagId);
+    }
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
@@ -118,22 +134,23 @@ export function useNewExpenseForm(currency: string): {
           method: "POST",
           body: JSON.stringify(body),
         });
-      } else {
-        const body: CreateExpenseRequest = {
-          name: fields.name.trim(),
-          amount: amountCents,
-          currency,
-          expenseType: fields.expenseType,
-          tagId: fields.tagId,
-          expenseDate: fields.expenseDate,
-          periodYear: currentYear,
-          periodMonth: currentMonth,
-        };
-        await apiClient<ExpenseResponse>("/api/expenses", {
-          method: "POST",
-          body: JSON.stringify(body),
-        });
+        return;
       }
+
+      const body: CreateExpenseRequest = {
+        name: fields.name.trim(),
+        amount: amountCents,
+        currency,
+        expenseType: fields.expenseType,
+        tagId: fields.tagId,
+        expenseDate: fields.expenseDate,
+        periodYear: currentYear,
+        periodMonth: currentMonth,
+      };
+      await apiClient<ExpenseResponse>("/api/expenses", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     });
   }
 
@@ -153,6 +170,7 @@ export function useNewExpenseForm(currency: string): {
       clearFieldError: expenseFields.clearFieldError,
       setIsProRata: handleSetIsProRata,
       setProRataMonths,
+      applySuggestion,
       handleSubmit,
     },
   };
