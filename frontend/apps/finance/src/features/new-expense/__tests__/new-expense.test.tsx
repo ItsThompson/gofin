@@ -34,11 +34,24 @@ const mockTags = [
 ];
 
 function mockTagsResponse() {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve({ tags: mockTags }),
-  });
+  mockFetch
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: [],
+          total: 0,
+          page: 1,
+          pageSize: 50,
+          hasMore: false,
+        }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ tags: mockTags }),
+    });
 }
 
 function renderNewExpense(user: User = mockUser) {
