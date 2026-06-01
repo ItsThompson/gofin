@@ -165,6 +165,74 @@ describe("useExpenseAutocomplete", () => {
     expect(result.current.state.candidates).toEqual([firstGroceries, coffee]);
   });
 
+  it("loads the next page and appends deduped candidates", async () => {
+    const groceries = buildSuggestion({ name: "Groceries", amount: 1000, frecencyScore: 50 });
+    const duplicateGroceries = buildSuggestion({ name: "Groceries", amount: 2000, frecencyScore: 10 });
+    const coffee = buildSuggestion({ name: "Coffee", amount: 500, frecencyScore: 20 });
+    mockApiResponse(buildResponse([groceries], { hasMore: true }));
+    mockApiResponse(buildResponse([duplicateGroceries, coffee], { page: 2, hasMore: false }));
+
+    const { result } = renderHook(() => useExpenseAutocomplete());
+
+    await waitFor(() => {
+      expect(result.current.state.isInitialLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.actions.loadMore();
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/expenses/suggestions?page=2&pageSize=50",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(result.current.state.candidates).toEqual([groceries, coffee]);
+    expect(result.current.state.page).toBe(2);
+    expect(result.current.state.hasMore).toBe(false);
+    expect(result.current.state.error).toBeNull();
+  });
+
+  it("keeps loaded candidates usable when loadMore fails", async () => {
+    const groceries = buildSuggestion({ name: "Groceries" });
+    mockApiResponse(buildResponse([groceries], { hasMore: true }));
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      json: () => Promise.resolve({ code: "internal_server_error", message: "failed" }),
+    });
+
+    const { result } = renderHook(() => useExpenseAutocomplete());
+
+    await waitFor(() => {
+      expect(result.current.state.isInitialLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.actions.loadMore();
+    });
+
+    expect(result.current.state.candidates).toEqual([groceries]);
+    expect(result.current.state.hasMore).toBe(true);
+    expect(result.current.state.error).toBe("Suggestions are unavailable right now.");
+  });
+
+  it("does not request another page when hasMore is false", async () => {
+    mockApiResponse(buildResponse([buildSuggestion({ name: "Groceries" })], { hasMore: false }));
+
+    const { result } = renderHook(() => useExpenseAutocomplete());
+
+    await waitFor(() => {
+      expect(result.current.state.isInitialLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.actions.loadMore();
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("aborts the initial request on unmount so stale responses are ignored", () => {
     let requestSignal: AbortSignal | undefined;
     mockFetch.mockImplementationOnce((_: string, options: RequestInit) => {
