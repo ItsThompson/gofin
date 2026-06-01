@@ -60,6 +60,74 @@ func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
 	assert.Equal(t, int32(2), result.Data[0].Frequency)
 }
 
+func TestGetExpenseSuggestions_RankingTieBreakers(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo).WithClock(func() time.Time {
+		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	})
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		{ID: "exp-1", Name: "Coffee", Amount: 500, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T10:00:00Z"},
+		{ID: "exp-2", Name: "Coffee", Amount: 600, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T11:00:00Z"},
+		{ID: "exp-3", Name: "Groceries", Amount: 2000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-4", Name: "Transit", Amount: 300, Currency: "USD", ExpenseType: "essentials", TagID: "tag-transit", CreatedAt: "2026-05-29T10:00:00Z"},
+		{ID: "exp-5", Name: "Apples", Amount: 700, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-28T10:00:00Z"},
+		{ID: "exp-6", Name: "Bakery", Amount: 800, Currency: "USD", ExpenseType: "desires", TagID: "tag-bakery", CreatedAt: "2026-05-28T10:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	require.Len(t, result.Data, 5)
+	assert.Equal(t, []string{"Coffee", "Groceries", "Transit", "Apples", "Bakery"}, suggestionNames(result.Data))
+}
+
+func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo).WithClock(func() time.Time {
+		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	})
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "USD", ExpenseType: "desires", TagID: "tag-old", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-2", Name: "Lunch", Amount: 1500, Currency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	require.Len(t, result.Data, 1)
+	assert.Equal(t, int64(1500), result.Data[0].Amount)
+	assert.Equal(t, "essentials", result.Data[0].ExpenseType)
+	assert.Equal(t, "tag-new", result.Data[0].TagID)
+}
+
+func TestGetExpenseSuggestions_ReturnsEmptyPageWhenPageStartExceedsTotal(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo).WithClock(func() time.Time {
+		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	})
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 2, PageSize: 50})
+
+	require.NoError(t, err)
+	assert.Empty(t, result.Data)
+	assert.Equal(t, int64(1), result.Total)
+	assert.False(t, result.HasMore)
+}
+
+func suggestionNames(suggestions []*model.ExpenseSuggestion) []string {
+	names := make([]string, 0, len(suggestions))
+	for _, suggestion := range suggestions {
+		names = append(names, suggestion.Name)
+	}
+	return names
+}
+
 func TestGetExpenseSuggestions_ValidationAndRepositoryFailure(t *testing.T) {
 	tests := []struct {
 		name string

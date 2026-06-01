@@ -58,6 +58,7 @@ func TestGetActiveExpenseSuggestionInputs_ReadsActiveRowsForUserAndMapsFields(t 
 	require.NoError(t, err)
 	assert.Contains(t, client.query, "WHERE user_id = @user_id")
 	assert.Contains(t, client.query, "AND status = 'active'")
+	assert.Contains(t, client.query, "ORDER BY created_at DESC, id DESC")
 	assert.NotContains(t, strings.ToLower(client.query), "corrected")
 	assert.Equal(t, "user-1", client.params["user_id"])
 	require.Len(t, inputs, 1)

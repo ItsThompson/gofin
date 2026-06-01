@@ -222,7 +222,8 @@ func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.C
 		expense_date, is_pro_rata, pro_rata_group
 		FROM expenses
 		WHERE user_id = @user_id
-		AND status = 'active';`
+		AND status = 'active'
+		ORDER BY created_at DESC, id DESC;`
 
 	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"user_id": userID})
 	if err != nil {
