@@ -42,6 +42,7 @@ test.describe("Expense autocomplete smoke", () => {
     await expect(page.getByLabel("Name")).toHaveValue("Autocomplete Coffee");
     await expect(page.getByLabel("Amount")).toHaveValue("12");
     await expect(page.getByLabel("Desires")).toBeChecked();
+    await expect(page.getByLabel("Tag")).toHaveValue(foodTag.id);
 
     await page.getByLabel("Amount").fill("13.25");
     await page.getByRole("button", { name: "Log Expense" }).click();
@@ -49,7 +50,6 @@ test.describe("Expense autocomplete smoke", () => {
 
     await expect(page.getByText("Autocomplete Coffee").first()).toBeVisible();
     await expect(page.getByText("$13.25").first()).toBeVisible();
-    expect(foodTag.id).toBeTruthy();
   });
 
   test("keeps manual submission working when suggestions fail", async ({ page }) => {
@@ -78,6 +78,8 @@ test.describe("Expense autocomplete smoke", () => {
   test("suggestions exclude corrected values and count a pro-rata group once", async ({ page }) => {
     await registerAndOnboard(page, { budget: "2000" });
     await confirmNewPeriod(page);
+    const { tags } = await apiGetTags(page.request);
+    const defaultTag = tags[0];
 
     await logExpense(page, {
       name: "Corrected Autocomplete",
@@ -108,6 +110,11 @@ test.describe("Expense autocomplete smoke", () => {
     expect(correctedSuggestion).toMatchObject({ amount: 3000, frequency: 1 });
 
     const proRataSuggestion = body.data.find((suggestion: { name: string }) => suggestion.name === "Autocomplete Subscription");
-    expect(proRataSuggestion).toMatchObject({ frequency: 1, expenseType: "essentials" });
+    expect(proRataSuggestion).toMatchObject({
+      amount: 10000,
+      frequency: 1,
+      expenseType: "essentials",
+      tagId: defaultTag.id,
+    });
   });
 });
