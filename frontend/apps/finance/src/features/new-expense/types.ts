@@ -1,0 +1,37 @@
+import type { ExpenseType } from "@gofin/core";
+
+export interface ExpenseSuggestion {
+  name: string;
+  amount: number;
+  currency: string;
+  expenseType: ExpenseType;
+  tagId: string;
+  frequency: number;
+  lastUsedAt: string;
+  recencyBucket: "today" | "last_7_days" | "last_30_days" | "older";
+  frecencyScore: number;
+}
+
+export interface ExpenseSuggestionsResponse {
+  data: ExpenseSuggestion[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}
+
+export interface ExpenseAutocompleteState {
+  candidates: ExpenseSuggestion[];
+  visibleSuggestions: ExpenseSuggestion[];
+  page: number;
+  isInitialLoading: boolean;
+  isLoadingMore: boolean;
+  hasMore: boolean;
+  error: string | null;
+}
+
+export interface ExpenseAutocompleteActions {
+  setQuery: (query: string) => void;
+  loadMore: () => Promise<void>;
+  clearError: () => void;
+}
