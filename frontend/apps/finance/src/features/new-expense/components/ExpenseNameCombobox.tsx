@@ -27,7 +27,7 @@ export function ExpenseNameCombobox({
   error,
 }: ExpenseNameComboboxProps) {
   const { state, actions } = useExpenseAutocomplete();
-  const { setQuery } = actions;
+  const { loadMore, setQuery } = actions;
 
   React.useEffect(() => {
     setQuery(value);
@@ -44,6 +44,7 @@ export function ExpenseNameCombobox({
 
   const hasTypedInput = value.trim().length > 0;
   const shouldShowEmpty = hasTypedInput && state.visibleSuggestions.length === 0;
+  const loadMoreLabel = state.isLoadingMore ? "Loading more suggestions..." : "Load more suggestions";
 
   return (
     <Combobox>
@@ -72,6 +73,19 @@ export function ExpenseNameCombobox({
             </ComboboxItem>
           ))}
           {shouldShowEmpty && <ComboboxEmpty>No matching expenses</ComboboxEmpty>}
+          {state.hasMore && (
+            <ComboboxItem
+              value="load-more-suggestions"
+              disabled={state.isLoadingMore}
+              closeOnSelect={false}
+              onSelect={() => {
+                void loadMore();
+              }}
+              className="text-muted-foreground"
+            >
+              {loadMoreLabel}
+            </ComboboxItem>
+          )}
         </ComboboxList>
       </ComboboxContent>
       <FormMessage>{error}</FormMessage>

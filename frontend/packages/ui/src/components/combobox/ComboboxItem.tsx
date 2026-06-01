@@ -8,6 +8,7 @@ import type { ComboboxItemProps } from "./types";
 export function ComboboxItem({
   value,
   disabled = false,
+  closeOnSelect = true,
   onSelect,
   className,
   children,
@@ -24,14 +25,16 @@ export function ComboboxItem({
     }
 
     onSelect?.(value);
-    setIsOpen(false);
-  }, [disabled, onSelect, setIsOpen, value]);
+    if (closeOnSelect) {
+      setIsOpen(false);
+    }
+  }, [closeOnSelect, disabled, onSelect, setIsOpen, value]);
 
   React.useEffect(() => {
-    registerOption({ id: itemId, value, disabled, onSelect: selectItem });
+    registerOption({ id: itemId, value, disabled, closeOnSelect, onSelect: selectItem });
 
     return () => unregisterOption(itemId);
-  }, [disabled, itemId, registerOption, selectItem, unregisterOption, value]);
+  }, [closeOnSelect, disabled, itemId, registerOption, selectItem, unregisterOption, value]);
 
   return (
     <div

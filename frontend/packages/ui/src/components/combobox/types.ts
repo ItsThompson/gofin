@@ -4,6 +4,7 @@ export interface ComboboxOptionRegistration {
   id: string;
   value: string;
   disabled: boolean;
+  closeOnSelect: boolean;
   onSelect: () => void;
 }
 
@@ -35,5 +36,6 @@ export type ComboboxEmptyProps = React.ComponentPropsWithoutRef<"div">;
 export interface ComboboxItemProps extends Omit<React.ComponentPropsWithoutRef<"div">, "onSelect"> {
   value: string;
   disabled?: boolean;
+  closeOnSelect?: boolean;
   onSelect?: (value: string) => void;
 }

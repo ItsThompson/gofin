@@ -65,7 +65,9 @@ export function ComboboxInput({ id, onBlur, onFocus, onKeyDown, ...props }: Comb
           if (highlightedOption && !highlightedOption.disabled) {
             event.preventDefault();
             highlightedOption.onSelect();
-            setIsOpen(false);
+            if (highlightedOption.closeOnSelect) {
+              setIsOpen(false);
+            }
           }
         } else if (event.key === "Escape") {
           event.preventDefault();

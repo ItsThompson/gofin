@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import type { User } from "@gofin/core";
@@ -112,6 +112,18 @@ function renderNewExpense(
   );
 }
 
+function renderNewExpenseWithFetchHandler(
+  handler: (url: string, init?: RequestInit) => Promise<unknown>,
+) {
+  mockFetch.mockImplementation(handler);
+
+  return render(
+    <MemoryRouter>
+      <NewExpenseFeature user={mockUser} />
+    </MemoryRouter>,
+  );
+}
+
 function getSubmittedExpenseRequest() {
   const postCall = mockFetch.mock.calls.find(
     (call) =>
@@ -167,6 +179,127 @@ describe("NewExpenseFeature autocomplete integration", () => {
     expect(screen.getByText("Frecency score: 31")).toBeInTheDocument();
   });
 
+  it("places load more after visible suggestions when the latest page has more results", async () => {
+    const user = userEvent.setup();
+    renderNewExpense({ ...mockSuggestions, hasMore: true });
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+
+    const listbox = await screen.findByRole("listbox");
+    const options = within(listbox).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Coffee ShopFrecency score: 42",
+      "Coffee BeansFrecency score: 31",
+      "Load more suggestions",
+    ]);
+  });
+
+  it("shows no-match state followed by load more when more pages are available", async () => {
+    const user = userEvent.setup();
+    renderNewExpense({ ...mockSuggestions, hasMore: true });
+
+    await user.type(screen.getByLabelText("Name"), "zzzz");
+
+    expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Load more suggestions" })).toBeInTheDocument();
+  });
+
+  it("hides load more when the latest page has no more results", async () => {
+    const user = userEvent.setup();
+    renderNewExpense({ ...mockSuggestions, hasMore: false });
+
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await screen.findByText("Coffee Shop");
+
+    expect(screen.queryByRole("option", { name: "Load more suggestions" })).not.toBeInTheDocument();
+  });
+
+  it("loads the next page by pointer and refreshes fuzzy matches without dropping existing suggestions", async () => {
+    const user = userEvent.setup();
+    const secondPageSuggestion = {
+      ...mockSuggestions.data[0],
+      name: "Custom Coffee Roaster",
+      amount: 2200,
+      frecencyScore: 18,
+    };
+
+    renderNewExpenseWithFetchHandler((url: string) => {
+      if (url.includes("/api/finance/tags")) {
+        return jsonResponse({ tags: mockTags });
+      }
+
+      if (url.includes("/api/expenses/suggestions?page=1")) {
+        return jsonResponse({ ...mockSuggestions, hasMore: true });
+      }
+
+      if (url.includes("/api/expenses/suggestions?page=2")) {
+        return jsonResponse({
+          data: [secondPageSuggestion],
+          total: 3,
+          page: 2,
+          pageSize: 50,
+          hasMore: false,
+        });
+      }
+
+      return jsonResponse({ message: "Unhandled request" }, 404);
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Custom");
+    expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("option", { name: "Load more suggestions" }));
+
+    expect(await screen.findByText("Custom Coffee Roaster")).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/expenses/suggestions?page=2&pageSize=50",
+      expect.objectContaining({ credentials: "include" }),
+    );
+
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+
+    expect(await screen.findByText("Coffee Shop")).toBeInTheDocument();
+    expect(screen.getByText("Custom Coffee Roaster")).toBeInTheDocument();
+  });
+
+  it("loads the next page by keyboard without selecting a suggestion", async () => {
+    const user = userEvent.setup();
+    const secondPageSuggestion = {
+      ...mockSuggestions.data[0],
+      name: "Coffee Cart",
+      amount: 900,
+      frecencyScore: 12,
+    };
+
+    renderNewExpenseWithFetchHandler((url: string) => {
+      if (url.includes("/api/finance/tags")) {
+        return jsonResponse({ tags: mockTags });
+      }
+
+      if (url.includes("/api/expenses/suggestions?page=1")) {
+        return jsonResponse({ ...mockSuggestions, data: [], hasMore: true });
+      }
+
+      if (url.includes("/api/expenses/suggestions?page=2")) {
+        return jsonResponse({ data: [secondPageSuggestion], total: 1, page: 2, pageSize: 50, hasMore: false });
+      }
+
+      return jsonResponse({ message: "Unhandled request" }, 404);
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await user.type(screen.getByLabelText("Amount"), "7.77");
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await screen.findByRole("option", { name: "Load more suggestions" });
+
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(await screen.findByText("Coffee Cart")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Coffee");
+    expect(screen.getByLabelText("Amount")).toHaveValue(7.77);
+  });
+
   it("shows no-match state without blocking manual submission or clearing input", async () => {
     const user = userEvent.setup();
     renderNewExpense();
@@ -183,6 +316,66 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
 
     expect(getSubmittedExpenseRequest().name).toBe("Custom Coffee");
+  });
+
+  it("keeps the expense form usable when the initial suggestions request fails", async () => {
+    const user = userEvent.setup();
+
+    renderNewExpenseWithFetchHandler((url: string, init?: RequestInit) => {
+      if (url.includes("/api/finance/tags")) {
+        return jsonResponse({ tags: mockTags });
+      }
+
+      if (url.includes("/api/expenses/suggestions")) {
+        return jsonResponse({ code: "internal_server_error", message: "failed" }, 500);
+      }
+
+      if (url.includes("/api/expenses") && init?.method === "POST") {
+        return jsonResponse({ expense: { id: "exp-1", name: "Manual Expense" } }, 201);
+      }
+
+      return jsonResponse({ message: "Unhandled request" }, 404);
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+
+    await user.type(screen.getByLabelText("Name"), "Manual Expense");
+    await user.type(screen.getByLabelText("Amount"), "8.25");
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    expect(getSubmittedExpenseRequest().name).toBe("Manual Expense");
+  });
+
+  it("keeps loaded suggestions selectable when a later load-more request fails", async () => {
+    const user = userEvent.setup();
+
+    renderNewExpenseWithFetchHandler((url: string) => {
+      if (url.includes("/api/finance/tags")) {
+        return jsonResponse({ tags: mockTags });
+      }
+
+      if (url.includes("/api/expenses/suggestions?page=1")) {
+        return jsonResponse({ ...mockSuggestions, hasMore: true });
+      }
+
+      if (url.includes("/api/expenses/suggestions?page=2")) {
+        return jsonResponse({ code: "internal_server_error", message: "failed" }, 500);
+      }
+
+      return jsonResponse({ message: "Unhandled request" }, 404);
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await user.type(screen.getByLabelText("Name"), "Coffee");
+    await screen.findByText("Coffee Shop");
+
+    await user.click(screen.getByRole("option", { name: "Load more suggestions" }));
+    await user.click(await screen.findByText("Coffee Shop"));
+
+    expect(screen.getByLabelText("Name")).toHaveValue("Coffee Shop");
+    expect(screen.getByLabelText("Amount")).toHaveValue(4.5);
+    expect(screen.getByLabelText("desires")).toBeChecked();
   });
 
   it("autofills name, amount, type, and existing tag when clicking a suggestion", async () => {
