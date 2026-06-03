@@ -123,7 +123,14 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: e2e
-        run: npx playwright install chromium
+        run: |
+          # Use system Chrome in CI (channel: 'chrome' in config)
+          # Only need to install if not using system channel
+          if [ -z "$(which google-chrome)" ]; then
+            npx playwright install chromium
+          else
+            echo "Using system Chrome: $(google-chrome --version)"
+          fi
         timeout-minutes: 5
 
       - name: Create .env from example
