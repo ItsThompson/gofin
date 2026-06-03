@@ -117,13 +117,6 @@ jobs:
         working-directory: e2e
         run: npm ci
 
-      - name: Install Playwright browsers
-        working-directory: e2e
-        run: |
-          # Use system Chrome in CI (channel: 'chrome' in config)
-          # Video disabled in CI so no ffmpeg/CDN downloads needed
-          echo "Using system Chrome: $(google-chrome --version)"
-
       - name: Create .env from example
         run: cp .env.example .env
 
