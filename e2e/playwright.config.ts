@@ -20,7 +20,7 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: process.env.CI ? "off" : "retain-on-failure",
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
   },
@@ -28,7 +28,10 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: process.env.CI ? "chrome" : undefined,
+      },
     },
   ],
 });

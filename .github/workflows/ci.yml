@@ -107,6 +107,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
       - name: Create .env from example
         run: cp .env.example .env
 
@@ -153,23 +163,9 @@ jobs:
       - name: Seed admin user
         run: docker compose exec -T auth-service /service seed-admin
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: e2e/package-lock.json
-
-      - name: Install E2E dependencies
-        working-directory: e2e
-        run: npm ci
-
       - name: Create E2E .env.test from example
         working-directory: e2e
         run: cp .env.test.example .env.test
-
-      - name: Install Playwright browsers
-        working-directory: e2e
-        run: npx playwright install --with-deps chromium
 
       - name: Run E2E tests
         working-directory: e2e

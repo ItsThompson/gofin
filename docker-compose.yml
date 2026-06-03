@@ -238,8 +238,8 @@ services:
   postgresql:
     # Pinned 2026-05-12. Check for updates quarterly.
     image: postgres:16.8-alpine
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     environment:
       - POSTGRES_USER=gofin
       - POSTGRES_PASSWORD=gofin
