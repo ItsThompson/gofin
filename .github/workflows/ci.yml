@@ -125,7 +125,8 @@ jobs:
         working-directory: e2e
         run: |
           # Use system Chrome in CI (channel: 'chrome' in config)
-          # Only need to install if not using system channel
+          # Still need ffmpeg for video recording on failure
+          npx playwright install --with-deps ffmpeg
           if [ -z "$(which google-chrome)" ]; then
             npx playwright install chromium
           else
