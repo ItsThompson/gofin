@@ -117,9 +117,14 @@ jobs:
         working-directory: e2e
         run: npm ci
 
+      - name: Install Playwright dependencies
+        working-directory: e2e
+        run: npx playwright install-deps chromium
+
       - name: Install Playwright browsers
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+        timeout-minutes: 5
 
       - name: Create .env from example
         run: cp .env.example .env
