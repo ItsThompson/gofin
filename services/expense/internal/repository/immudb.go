@@ -216,16 +216,22 @@ func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID
 	return 0, nil
 }
 
-// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
+const expenseSuggestionInputLimit int32 = 1000
+
+// GetActiveExpenseSuggestionInputs returns recent active expense rows for suggestion ranking.
 func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error) {
 	query := `SELECT id, name, amount, currency, expense_type, tag_id, created_at,
 		expense_date, is_pro_rata, pro_rata_group
 		FROM expenses
 		WHERE user_id = @user_id
 		AND status = 'active'
-		ORDER BY created_at DESC, id DESC;`
+		ORDER BY created_at DESC, id DESC
+		LIMIT @limit;`
 
-	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"user_id": userID})
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{
+		"user_id": userID,
+		"limit":   expenseSuggestionInputLimit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("querying active expense suggestion inputs: %w", err)
 	}
