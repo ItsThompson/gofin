@@ -167,6 +167,18 @@ describe("NewExpenseFeature autocomplete integration", () => {
     expect(screen.getByLabelText("Number of months")).toHaveValue(3);
   });
 
+  it("keeps the suggestion list hidden and disables browser autocomplete before typing", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    const nameInput = screen.getByLabelText("Name");
+    await user.click(nameInput);
+
+    expect(nameInput).toHaveAttribute("autocomplete", "off");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("No matching expenses")).not.toBeInTheDocument();
+  });
+
   it("renders loaded fuzzy suggestions with name and frecency score", async () => {
     const user = userEvent.setup();
     renderNewExpense();

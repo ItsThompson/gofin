@@ -28,6 +28,7 @@ export function ExpenseNameCombobox({
 }: ExpenseNameComboboxProps) {
   const { state, actions } = useExpenseAutocomplete();
   const { loadMore, setQuery } = actions;
+  const [isOpen, setIsOpen] = React.useState(false);
 
   React.useEffect(() => {
     setQuery(value);
@@ -35,6 +36,7 @@ export function ExpenseNameCombobox({
 
   function handleValueChange(nextValue: string) {
     onValueChange(nextValue);
+    setIsOpen(nextValue.trim().length > 0);
   }
 
   function handleSelectSuggestion(suggestion: ExpenseSuggestion) {
@@ -47,10 +49,11 @@ export function ExpenseNameCombobox({
   const loadMoreLabel = state.isLoadingMore ? "Loading more suggestions..." : "Load more suggestions";
 
   return (
-    <Combobox>
+    <Combobox open={hasTypedInput && isOpen} onOpenChange={setIsOpen}>
       <ComboboxInput
         id="expense-name"
         type="text"
+        autoComplete="off"
         placeholder="e.g. Grocery shopping"
         value={value}
         onChange={(event) => handleValueChange(event.target.value)}
