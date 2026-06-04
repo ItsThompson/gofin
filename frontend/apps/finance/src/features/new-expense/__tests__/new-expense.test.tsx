@@ -33,17 +33,54 @@ const mockTags = [
   { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
 ];
 
-function mockTagsResponse() {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve({ tags: mockTags }),
+function jsonResponse(body: unknown, status = 200) {
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+  });
+}
+
+let expensePostResponse: () => Promise<unknown>;
+
+function setupFetchMocks() {
+  expensePostResponse = () =>
+    jsonResponse({
+      expense: {
+        id: "exp-123",
+        name: "Coffee",
+        amount: 450,
+        currency: "USD",
+        expenseType: "desires",
+        status: "active",
+      },
+    }, 201);
+
+  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.includes("/api/expenses/suggestions")) {
+      return jsonResponse({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+      });
+    }
+
+    if (url.includes("/api/finance/tags")) {
+      return jsonResponse({ tags: mockTags });
+    }
+
+    if (url.includes("/api/expenses") && init?.method === "POST") {
+      return expensePostResponse();
+    }
+
+    return jsonResponse({ message: "Unhandled request" }, 404);
   });
 }
 
 function renderNewExpense(user: User = mockUser) {
-  // Every render triggers a tags fetch on mount
-  mockTagsResponse();
+  setupFetchMocks();
   return render(
     <MemoryRouter>
       <NewExpenseFeature user={user} />
@@ -140,23 +177,6 @@ describe("NewExpenseFeature", () => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
     });
 
-    // Queue submission mock AFTER tags are loaded
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 201,
-      json: () =>
-        Promise.resolve({
-          expense: {
-            id: "exp-123",
-            name: "Coffee",
-            amount: 450,
-            currency: "USD",
-            expenseType: "desires",
-            status: "active",
-          },
-        }),
-    });
-
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "4.50");
     await user.click(screen.getByLabelText("desires"));
@@ -190,14 +210,10 @@ describe("NewExpenseFeature", () => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
     });
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 201,
-      json: () =>
-        Promise.resolve({
-          expense: { id: "exp-123", name: "Groceries", status: "active" },
-        }),
-    });
+    expensePostResponse = () =>
+      jsonResponse({
+        expense: { id: "exp-123", name: "Groceries", status: "active" },
+      }, 201);
 
     await user.type(screen.getByLabelText("Name"), "Groceries");
     await user.type(screen.getByLabelText("Amount"), "25.00");
@@ -217,15 +233,14 @@ describe("NewExpenseFeature", () => {
       expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
     });
 
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: () =>
-        Promise.resolve({
+    expensePostResponse = () =>
+      jsonResponse(
+        {
           code: "VALIDATION_ERROR",
           message: "amount must be positive",
-        }),
-    });
+        },
+        400,
+      );
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "5.00");
@@ -249,7 +264,7 @@ describe("NewExpenseFeature", () => {
     });
 
     // Never-resolving promise to keep the submitting state
-    mockFetch.mockReturnValueOnce(new Promise(() => {}));
+    expensePostResponse = () => new Promise(() => {});
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "5.00");

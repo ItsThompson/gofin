@@ -1,7 +1,7 @@
 import { useState, useCallback, type FormEvent } from "react";
 import { useFormMutation } from "@gofin/api";
 import { validatePassword } from "@gofin/core";
-import { settingsApi } from "../api";
+import { settingsApi, type AuthResponse } from "../api";
 
 export interface PasswordFormState {
   currentPassword: string;
@@ -25,7 +25,7 @@ export function usePasswordForm(
   const [validationError, setValidationError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const { submit, error: mutationError, submitting } = useFormMutation<void>({
+  const { submit, error: mutationError, submitting } = useFormMutation<AuthResponse>({
     onSuccess: () => {
       setCurrentPassword("");
       setNewPassword("");

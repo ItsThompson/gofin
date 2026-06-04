@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFormMutation } from "@gofin/api";
-import type { Expense, CorrectExpenseRequest } from "../../../types";
+import type { Expense, CorrectExpenseRequest, ExpenseResponse } from "../../../types";
 import { expenseDetailApi } from "../api";
 import type {
   ExpenseDetailState,
@@ -62,7 +62,7 @@ export function useExpenseDetail(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  const correctionMutation = useFormMutation<void>({
+  const correctionMutation = useFormMutation<ExpenseResponse>({
     onSuccess: () => {
       setStatus("detail");
       fetchExpenseData();

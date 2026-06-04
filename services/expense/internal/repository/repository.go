@@ -36,6 +36,9 @@ type ExpenseRepository interface {
 	// scoped to a user.
 	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
 
+	// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
+	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
+
 	// GetAllExpensesByUser returns all expenses (active + corrected) for a user,
 	// ordered by created_at ASC, with LIMIT/OFFSET pagination.
 	// Used by the datarights service for data export (GDPR compliance).

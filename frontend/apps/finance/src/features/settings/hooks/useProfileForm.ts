@@ -1,7 +1,7 @@
 import { useState, useCallback, type FormEvent } from "react";
 import { useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
-import { settingsApi } from "../api";
+import { settingsApi, type AuthResponse } from "../api";
 
 export interface ProfileFormState {
   username: string;
@@ -25,7 +25,7 @@ export function useProfileForm(
   const [email, setEmail] = useState(user.email);
   const [success, setSuccess] = useState(false);
 
-  const { submit, error: mutationError, submitting } = useFormMutation<void>({
+  const { submit, error: mutationError, submitting } = useFormMutation<AuthResponse>({
     onSuccess: () => {
       onUserUpdated?.();
       setSuccess(true);

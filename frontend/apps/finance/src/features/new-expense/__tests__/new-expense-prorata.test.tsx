@@ -32,16 +32,34 @@ const mockTags = [
   { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
 ];
 
-function mockTagsResponse() {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve({ tags: mockTags }),
+function mockFormBootstrapResponses() {
+  mockFetch.mockImplementation((url: string) => {
+    if (url.includes("/api/finance/tags")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ tags: mockTags }),
+      });
+    }
+
+    if (url.includes("/api/expenses/suggestions")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 50, hasMore: false }),
+      });
+    }
+
+    return Promise.resolve({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ message: "Unhandled request" }),
+    });
   });
 }
 
 function renderNewExpense() {
-  mockTagsResponse();
+  mockFormBootstrapResponses();
   return render(
     <MemoryRouter>
       <NewExpenseFeature user={mockUser} />

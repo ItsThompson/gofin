@@ -215,6 +215,29 @@ func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID
 
 	return 0, nil
 }
+
+// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
+func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error) {
+	query := `SELECT id, name, amount, currency, expense_type, tag_id, created_at,
+		expense_date, is_pro_rata, pro_rata_group
+		FROM expenses
+		WHERE user_id = @user_id
+		AND status = 'active'
+		ORDER BY created_at DESC, id DESC;`
+
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"user_id": userID})
+	if err != nil {
+		return nil, fmt.Errorf("querying active expense suggestion inputs: %w", err)
+	}
+
+	inputs := make([]*model.ExpenseSuggestionInput, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		inputs = append(inputs, rowToExpenseSuggestionInput(row))
+	}
+
+	return inputs, nil
+}
+
 // Column order must match the SELECT clause in queries.
 func rowToExpense(row SQLRow) *model.Expense {
 	values := row.Values
@@ -236,6 +259,23 @@ func rowToExpense(row SQLRow) *model.Expense {
 		ProRataIndex: int32(values[14].GetInt()),
 		ProRataTotal: int32(values[15].GetInt()),
 		CreatedAt:    values[16].GetString(),
+	}
+}
+
+// Column order must match GetActiveExpenseSuggestionInputs SELECT clause.
+func rowToExpenseSuggestionInput(row SQLRow) *model.ExpenseSuggestionInput {
+	values := row.Values
+	return &model.ExpenseSuggestionInput{
+		ID:           values[0].GetString(),
+		Name:         values[1].GetString(),
+		Amount:       values[2].GetInt(),
+		Currency:     values[3].GetString(),
+		ExpenseType:  values[4].GetString(),
+		TagID:        values[5].GetString(),
+		CreatedAt:    values[6].GetString(),
+		ExpenseDate:  values[7].GetString(),
+		IsProRata:    values[8].GetBool(),
+		ProRataGroup: values[9].GetString(),
 	}
 }
 

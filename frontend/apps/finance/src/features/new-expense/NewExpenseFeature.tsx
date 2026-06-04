@@ -16,6 +16,7 @@ import {
 } from "@gofin/ui/components/form";
 import { PlusCircle } from "lucide-react";
 import type { FinancePageProps } from "../../types/pages";
+import { ExpenseNameCombobox } from "./components/ExpenseNameCombobox";
 import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
 
 /**
@@ -51,17 +52,15 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
             {/* Name */}
             <FormField>
               <FormLabel htmlFor="expense-name">Name</FormLabel>
-              <Input
-                id="expense-name"
-                type="text"
-                placeholder="e.g. Grocery shopping"
+              <ExpenseNameCombobox
                 value={state.fields.name}
-                onChange={(event) => {
-                  actions.setField("name", event.target.value);
+                onValueChange={(value) => {
+                  actions.setField("name", value);
+                  actions.clearFieldError("name");
                 }}
-                aria-invalid={!!state.fieldErrors.name}
+                onSelectSuggestion={actions.applySuggestion}
+                error={state.fieldErrors.name}
               />
-              <FormMessage>{state.fieldErrors.name}</FormMessage>
             </FormField>
 
             {/* Amount */}
@@ -91,7 +90,11 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
             {/* Expense Type (Radio) */}
             <FormField>
               <FormLabel>Type</FormLabel>
-              <div className="flex gap-4" role="radiogroup" aria-label="Expense type">
+              <div
+                className="flex gap-4"
+                role="radiogroup"
+                aria-label="Expense type"
+              >
                 {EXPENSE_TYPES.map((type) => (
                   <label
                     key={type}
@@ -157,17 +160,23 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                 <input
                   type="checkbox"
                   checked={state.isProRata}
-                  onChange={(event) => actions.setIsProRata(event.target.checked)}
+                  onChange={(event) =>
+                    actions.setIsProRata(event.target.checked)
+                  }
                   className="size-4 accent-primary"
                 />
-                <span className="text-sm font-medium">Spread across months</span>
+                <span className="text-sm font-medium">
+                  Spread across months
+                </span>
               </label>
             </FormField>
 
             {/* Pro-rata Months */}
             {state.isProRata && (
               <FormField>
-                <FormLabel htmlFor="pro-rata-months">Number of months</FormLabel>
+                <FormLabel htmlFor="pro-rata-months">
+                  Number of months
+                </FormLabel>
                 <Input
                   id="pro-rata-months"
                   type="number"
@@ -189,7 +198,11 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
             {state.error && <FormMessage>{state.error}</FormMessage>}
 
             {/* Submit */}
-            <Button type="submit" className="w-full" disabled={state.submitting}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={state.submitting}
+            >
               {state.submitting ? "Saving..." : "Log Expense"}
             </Button>
           </Form>

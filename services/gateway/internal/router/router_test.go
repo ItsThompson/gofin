@@ -153,6 +153,7 @@ func TestRouter_ExpenseRoutes_RouteToExpenseService(t *testing.T) {
 	}{
 		{http.MethodPost, "/api/expenses/"},
 		{http.MethodGet, "/api/expenses/?year=2026&month=5"},
+		{http.MethodGet, "/api/expenses/suggestions?page=1&pageSize=50"},
 		{http.MethodGet, "/api/expenses/abc-123"},
 		{http.MethodPost, "/api/expenses/abc-123/correct"},
 	}
