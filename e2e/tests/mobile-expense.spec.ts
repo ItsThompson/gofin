@@ -39,8 +39,11 @@ test.describe("Mobile Expense Logging", () => {
     await page.waitForURL("**/dashboard");
 
     // Step 3: Verify the expense appears on the dashboard
-    await expect(page.getByText("Mobile Coffee")).toBeVisible();
-    await expect(page.getByText("$5.50").first()).toBeVisible();
+    const recentExpenses = page
+      .getByText("Recent Expenses")
+      .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    await expect(recentExpenses.getByText("Mobile Coffee")).toBeVisible();
+    await expect(recentExpenses.getByText("$5.50")).toBeVisible();
 
     // Step 4: Navigate to expense log via mobile menu
     await page.getByRole("button", { name: "Open menu" }).click();
