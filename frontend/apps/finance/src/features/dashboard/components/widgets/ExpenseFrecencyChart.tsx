@@ -77,7 +77,6 @@ function ExpenseFrecencyTooltip({ active, payload }: ExpenseFrecencyTooltipProps
 export function ExpenseFrecencyChart({
   status,
   suggestions,
-  errorMessage,
 }: ExpenseFrecencyChartProps) {
   const chartData: ChartDatum[] = suggestions.map((suggestion) => ({
     name: suggestion.name,
@@ -100,7 +99,7 @@ export function ExpenseFrecencyChart({
         )}
         {status === "error" && (
           <p className="text-sm text-muted-foreground">
-            {errorMessage ?? "Repeated expenses are unavailable right now."}
+            Repeated expenses are unavailable right now.
           </p>
         )}
         {status === "empty" && (
@@ -113,6 +112,17 @@ export function ExpenseFrecencyChart({
             <p className="mb-4 text-sm text-muted-foreground">
               Frequency shows how often you have logged each expense. Color shows recency.
             </p>
+            <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground" aria-label="Recency legend">
+              {Object.entries(RECENCY_LABELS).map(([bucket, label]) => (
+                <span key={bucket} className="inline-flex items-center gap-1">
+                  <span
+                    className="size-2 rounded-full"
+                    style={{ backgroundColor: RECENCY_COLORS[bucket as ExpenseSuggestion["recencyBucket"]] }}
+                  />
+                  {label}
+                </span>
+              ))}
+            </div>
             <ResponsiveContainer width="100%" height={Math.max(240, chartData.length * 42)}>
               <BarChart
                 data={chartData}
@@ -130,6 +140,15 @@ export function ExpenseFrecencyChart({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            <ul className="mt-4 space-y-2 text-sm" aria-label="Repeated expense details">
+              {chartData.map((datum) => (
+                <li key={datum.name} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+                  <span className="font-medium text-foreground">{datum.name}</span>
+                  <span>Frequency: {datum.frequency}</span>
+                  <span>Recency: {RECENCY_LABELS[datum.recencyBucket]}</span>
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </CardContent>

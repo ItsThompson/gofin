@@ -202,12 +202,12 @@ function renderDashboard(user = testUser) {
 
 describe("DashboardFeature", () => {
   beforeEach(() => {
-    // Reset global.fetch before each test; each test sets its own createMockApi
+    // Reset globalThis.fetch before each test; each test sets its own createMockApi
   });
 
   it("renders skeleton loading state initially", () => {
     // Mock fetch that never resolves (simulates loading)
-    global.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
+    globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
     renderDashboard();
 
     const skeletons = document.querySelectorAll('[data-slot="skeleton"]');
@@ -216,7 +216,7 @@ describe("DashboardFeature", () => {
 
   describe("active period exists", () => {
     it("renders summary bar with budget values", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -237,7 +237,7 @@ describe("DashboardFeature", () => {
     });
 
     it("renders empty state with CTA to log expense", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -259,16 +259,18 @@ describe("DashboardFeature", () => {
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       });
-      global.fetch = mockApi as unknown as typeof fetch;
+      globalThis.fetch = mockApi as unknown as typeof fetch;
       renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByText("Repeated Expenses")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("Groceries")).toBeInTheDocument();
-      expect(screen.getByText("Coffee")).toBeInTheDocument();
+      expect(screen.getAllByText("Groceries").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Coffee").length).toBeGreaterThan(0);
       expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument();
+      expect(screen.getByText("Frequency: 114")).toBeInTheDocument();
+      expect(screen.getByText("Recency: Last 7 days")).toBeInTheDocument();
       expect(
         mockApi._calls.some((call) =>
           call.url.includes("/api/expenses/suggestions?page=1&pageSize=10"),
@@ -277,7 +279,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows a local repeated-expenses empty state without changing dashboard empty expense behavior", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -294,7 +296,7 @@ describe("DashboardFeature", () => {
     });
 
     it("keeps other dashboard sections rendering when repeated-expenses fetch fails", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
         "/api/expenses/suggestions": {
@@ -309,11 +311,14 @@ describe("DashboardFeature", () => {
       });
 
       expect(screen.getByText("Repeated Expenses")).toBeInTheDocument();
-      expect(screen.getByText("Suggestions failed")).toBeInTheDocument();
+      expect(
+        screen.getByText("Repeated expenses are unavailable right now."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Suggestions failed")).not.toBeInTheDocument();
     });
 
     it("displays currency symbol from user profile", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -330,7 +335,7 @@ describe("DashboardFeature", () => {
     });
 
     it("color-codes remaining balance green when > 30%", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -349,7 +354,7 @@ describe("DashboardFeature", () => {
 
     it("shows no color class when budget is $0", async () => {
       const zeroBudgetPeriod = buildPeriod({ ...testPeriod, budgetAmount: 0 });
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: zeroBudgetPeriod } },
         "/api/finance/summary": {
           body: {
@@ -391,7 +396,7 @@ describe("DashboardFeature", () => {
 
   describe("no period exists (PERIOD_NOT_FOUND)", () => {
     it("shows creation prompt with default values", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
@@ -418,7 +423,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows zero-budget warning when default budget is $0", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
@@ -435,7 +440,7 @@ describe("DashboardFeature", () => {
     });
 
     it("uses fallback defaults when defaults endpoint fails", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
@@ -456,7 +461,7 @@ describe("DashboardFeature", () => {
     });
 
     it("renders CreatePeriodPrompt with null defaults when defaults fetch returns server error", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
@@ -490,7 +495,7 @@ describe("DashboardFeature", () => {
     });
 
     it("validates E/D/S split sums to 100%", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
@@ -555,7 +560,7 @@ describe("DashboardFeature", () => {
         "/api/finance/prorata/upcoming": { body: { schedules: [] } },
         "/api/finance/spending/trends": { body: { trends: [] } },
       });
-      global.fetch = mockApi as unknown as typeof fetch;
+      globalThis.fetch = mockApi as unknown as typeof fetch;
 
       const user = userEvent.setup();
       renderDashboard();
@@ -604,7 +609,7 @@ describe("DashboardFeature", () => {
         "/api/finance/prorata/upcoming": { body: { schedules: [] } },
         "/api/finance/spending/trends": { body: { trends: [] } },
       });
-      global.fetch = mockApi as unknown as typeof fetch;
+      globalThis.fetch = mockApi as unknown as typeof fetch;
 
       const user = userEvent.setup();
       renderDashboard();
@@ -646,7 +651,7 @@ describe("DashboardFeature", () => {
 
   describe("error state", () => {
     it("renders error state on server error", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 500,
           body: { code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" },
@@ -666,7 +671,7 @@ describe("DashboardFeature", () => {
     it("retries fetch on retry button click", async () => {
       // First call returns error, subsequent calls return success.
       // Use mockSequence-like behavior: swap fetch after error is shown.
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 500,
           body: { code: "INTERNAL_SERVER_ERROR", message: "Temporary failure" },
@@ -679,7 +684,7 @@ describe("DashboardFeature", () => {
       });
 
       // Now swap to a successful mock for retry
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -695,7 +700,7 @@ describe("DashboardFeature", () => {
 
   describe("recent expenses", () => {
     it("shows recent expenses when expenses exist", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -705,14 +710,14 @@ describe("DashboardFeature", () => {
         expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("Groceries")).toBeInTheDocument();
-      expect(screen.getByText("Coffee")).toBeInTheDocument();
+      expect(screen.getAllByText("Groceries").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Coffee").length).toBeGreaterThan(0);
       expect(screen.getByText("$500.00")).toBeInTheDocument();
       expect(screen.getByText("$45.00")).toBeInTheDocument();
     });
 
     it("shows View All link to /expenses", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -727,7 +732,7 @@ describe("DashboardFeature", () => {
     });
 
     it("updates total spent in summary bar from summary endpoint", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -749,7 +754,7 @@ describe("DashboardFeature", () => {
 
   describe("category gauges", () => {
     it("renders three category gauges with allocated and spent amounts", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -777,7 +782,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows over-budget indicator when category exceeds allocation", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         "/api/finance/summary": {
           body: {
@@ -809,7 +814,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows over-budget indicator for zero-allocation category with spending", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         "/api/finance/summary": {
           body: {
@@ -842,7 +847,7 @@ describe("DashboardFeature", () => {
 
   describe("pacing indicator", () => {
     it("renders pacing data from summary endpoint", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -858,7 +863,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows on-track indicator when spending is under pace", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         "/api/finance/summary": {
           body: {
@@ -888,7 +893,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows over-budget amount when totalSpent exceeds budget", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         "/api/finance/summary": {
           body: {
@@ -928,7 +933,7 @@ describe("DashboardFeature", () => {
       });
       // Override: after period found, remaining URLs will hit "No mock route" error
       // which simulates network failures
-      global.fetch = mockApi as unknown as typeof fetch;
+      globalThis.fetch = mockApi as unknown as typeof fetch;
       renderDashboard();
 
       // Dashboard header should still render even with data errors
@@ -940,7 +945,7 @@ describe("DashboardFeature", () => {
 
   describe("responsive layout", () => {
     it("shows Log Expense button on mobile viewport", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
@@ -955,7 +960,7 @@ describe("DashboardFeature", () => {
     });
 
     it("charts container has hidden md:block class for mobile hiding", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -972,7 +977,7 @@ describe("DashboardFeature", () => {
 
   describe("budget settings editor", () => {
     it("shows budget settings editor when gear button is clicked", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -993,7 +998,7 @@ describe("DashboardFeature", () => {
     });
 
     it("hides editor when cancel is clicked", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -1011,7 +1016,7 @@ describe("DashboardFeature", () => {
     });
 
     it("validates E/D/S split sums to 100% on save", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -1037,7 +1042,7 @@ describe("DashboardFeature", () => {
 
   describe("historical comparison widget", () => {
     it("shows historical comparison data with change indicator", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
       }) as unknown as typeof fetch;
@@ -1055,7 +1060,7 @@ describe("DashboardFeature", () => {
     });
 
     it("shows 'not enough data' when only one period exists", async () => {
-      global.fetch = createMockApi({
+      globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         "/api/finance/summary": { body: { summary: testSummary } },
         "/api/finance/spending/by-tag": { body: { tagSpending: testTagSpending } },
