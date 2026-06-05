@@ -35,8 +35,11 @@ test.describe("Registration → Onboarding → First Expense", () => {
 
     // Step 5: Verify the dashboard reflects the new expense
     // Recent expenses section should show the expense
-    await expect(page.getByText("Grocery Shopping")).toBeVisible();
-    await expect(page.getByText("$42.50").first()).toBeVisible();
+    const recentExpenses = page
+      .getByText("Recent Expenses")
+      .locator('xpath=ancestor::*[@data-slot="card"][1]');
+    await expect(recentExpenses.getByText("Grocery Shopping")).toBeVisible();
+    await expect(recentExpenses.getByText("$42.50")).toBeVisible();
 
     // Total Spent should update
     await expect(page.getByText("Total Spent")).toBeVisible();

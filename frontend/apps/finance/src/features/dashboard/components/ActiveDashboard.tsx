@@ -16,6 +16,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { useDashboardData } from "../hooks/useDashboardData";
+import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 import { BudgetSettingsEditor } from "./BudgetSettingsEditor";
 import { MonthlyTrendsSection } from "./MonthlyTrendsSection";
 import { SummaryBar } from "./widgets/SummaryBar";
@@ -26,6 +27,7 @@ import { CumulativeSpendChart } from "./widgets/CumulativeSpendChart";
 import { RecentExpenses } from "./widgets/RecentExpenses";
 import { HistoricalComparisonWidget } from "./widgets/HistoricalComparisonWidget";
 import { UpcomingProRataSection } from "./widgets/UpcomingProRataSection";
+import { ExpenseFrecencyChart } from "./widgets/ExpenseFrecencyChart";
 
 export interface ActiveDashboardProps {
   period: BudgetPeriod;
@@ -40,6 +42,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
   const { data, loading, trendMonths, setTrendMonths, refresh } =
     useDashboardData(currentPeriod.year, currentPeriod.month);
+  const expenseFrecencyData = useExpenseFrecencyData({ pageSize: 10 });
 
   function handlePeriodUpdated(updatedPeriod: BudgetPeriod) {
     setCurrentPeriod(updatedPeriod);
@@ -169,6 +172,11 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           {data.tagSpending.length > 0 && (
             <TagSpendingChart tagSpending={data.tagSpending} currency={user.currency} />
           )}
+        </SectionErrorBoundary>
+
+        {/* Repeated Expenses Chart */}
+        <SectionErrorBoundary sectionName="Repeated Expenses">
+          <ExpenseFrecencyChart {...expenseFrecencyData} />
         </SectionErrorBoundary>
 
         {/* Cumulative Spend Chart */}
