@@ -1,7 +1,37 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCorrectionForm } from "../hooks/useCorrectionForm";
-import type { Expense } from "@/types";
+import type { Expense, Tag } from "@/types";
+import type { ExpenseSuggestion } from "../../expense-autocomplete";
+
+const mockTags: Tag[] = [
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-transport",
+    name: "Transport",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+];
+
+const mockSuggestion: ExpenseSuggestion = {
+  name: "Train Pass",
+  amount: 1234,
+  currency: "USD",
+  expenseType: "desires",
+  tagId: "tag-transport",
+  frequency: 4,
+  lastUsedAt: "2026-05-28T19:02:11Z",
+  recencyBucket: "last_7_days",
+  frecencyScore: 22,
+};
 
 const mockExpense: Expense = {
   id: "exp-1",
@@ -124,6 +154,46 @@ describe("useCorrectionForm", () => {
       });
 
       expect(result.current.state.fieldErrors.tagId).toBeUndefined();
+    });
+  });
+
+  describe("applySuggestion", () => {
+    it("updates name, amount, type, and valid tag from a selected suggestion", () => {
+      const onSubmit = vi.fn();
+      const { result } = renderHook(() =>
+        useCorrectionForm(mockExpense, onSubmit, mockTags),
+      );
+
+      act(() => {
+        result.current.actions.applySuggestion(mockSuggestion);
+      });
+
+      expect(result.current.state.fields).toEqual({
+        name: "Train Pass",
+        amountDollars: "12.34",
+        expenseType: "desires",
+        tagId: "tag-transport",
+        expenseDate: "2026-05-02",
+      });
+    });
+
+    it("keeps the current tag when the selected suggestion tag is stale", () => {
+      const onSubmit = vi.fn();
+      const { result } = renderHook(() =>
+        useCorrectionForm(mockExpense, onSubmit, mockTags),
+      );
+
+      act(() => {
+        result.current.actions.applySuggestion({
+          ...mockSuggestion,
+          tagId: "deleted-tag",
+        });
+      });
+
+      expect(result.current.state.fields.tagId).toBe("tag-food");
+      expect(result.current.state.fields.name).toBe("Train Pass");
+      expect(result.current.state.fields.amountDollars).toBe("12.34");
+      expect(result.current.state.fields.expenseType).toBe("desires");
     });
   });
 

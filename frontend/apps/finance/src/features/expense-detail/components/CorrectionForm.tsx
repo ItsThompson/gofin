@@ -10,6 +10,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@gofin/ui/components/form";
+import {
+  ExpenseNameCombobox,
+  type ExpenseSuggestion,
+} from "../../expense-autocomplete";
 
 interface CorrectionFormProps {
   currency: string;
@@ -21,6 +25,7 @@ interface CorrectionFormProps {
   onCancel: () => void;
   onSubmit: (event: FormEvent) => void;
   onFieldChange: (key: keyof ExpenseFields, value: string) => void;
+  onSelectSuggestion: (suggestion: ExpenseSuggestion) => void;
 }
 
 export function CorrectionForm({
@@ -33,6 +38,7 @@ export function CorrectionForm({
   onCancel,
   onSubmit,
   onFieldChange,
+  onSelectSuggestion,
 }: CorrectionFormProps) {
   const currencySymbol = getCurrencySymbol(currency);
 
@@ -41,14 +47,13 @@ export function CorrectionForm({
       {/* Name */}
       <FormField>
         <FormLabel htmlFor="correct-name">Name</FormLabel>
-        <Input
+        <ExpenseNameCombobox
           id="correct-name"
-          type="text"
           value={fields.name}
-          onChange={(event) => onFieldChange("name", event.target.value)}
-          aria-invalid={!!fieldErrors.name}
+          onValueChange={(value) => onFieldChange("name", value)}
+          onSelectSuggestion={onSelectSuggestion}
+          error={fieldErrors.name}
         />
-        <FormMessage>{fieldErrors.name}</FormMessage>
       </FormField>
 
       {/* Amount */}

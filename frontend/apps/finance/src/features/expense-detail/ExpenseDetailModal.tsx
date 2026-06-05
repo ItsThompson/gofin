@@ -121,7 +121,7 @@ function CorrectionFormContainer({
   submitting: boolean;
   submitError: string | null;
 }) {
-  const { state, actions } = useCorrectionForm(expense, onSubmit);
+  const { state, actions } = useCorrectionForm(expense, onSubmit, tags);
 
   return (
     <CorrectionForm
@@ -134,6 +134,7 @@ function CorrectionFormContainer({
       onCancel={onCancel}
       onSubmit={actions.handleSubmit}
       onFieldChange={actions.setField}
+      onSelectSuggestion={actions.applySuggestion}
     />
   );
 }

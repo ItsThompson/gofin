@@ -1,6 +1,10 @@
 import { useCallback, type FormEvent } from "react";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
-import type { Expense, CorrectExpenseRequest } from "../../../types";
+import type { Expense, CorrectExpenseRequest, Tag } from "../../../types";
+import {
+  createExpenseSuggestionPatch,
+  type ExpenseSuggestion,
+} from "../../expense-autocomplete";
 import { useExpenseFields } from "../../new-expense/hooks/useExpenseFields";
 
 /** State returned by useCorrectionForm (field-level only). */
@@ -17,6 +21,8 @@ export interface CorrectionFormActions {
   setField: (key: keyof ExpenseFields, value: string) => void;
   /** Clear a field error. */
   clearFieldError: (field: string) => void;
+  /** Apply fields from an explicitly selected historical suggestion. */
+  applySuggestion: (suggestion: ExpenseSuggestion) => void;
   /** Submit the correction (validates then calls onSubmit). */
   handleSubmit: (event: FormEvent) => void;
 }
@@ -32,6 +38,7 @@ export interface CorrectionFormActions {
 export function useCorrectionForm(
   expense: Expense,
   onSubmit: (form: CorrectExpenseRequest) => void,
+  tags: Tag[] = [],
 ): { state: CorrectionFormState; actions: CorrectionFormActions } {
   const expenseFields = useExpenseFields({
     name: expense.name,
@@ -40,6 +47,21 @@ export function useCorrectionForm(
     tagId: expense.tagId,
     expenseDate: expense.expenseDate,
   });
+
+  const applySuggestion = useCallback(
+    (suggestion: ExpenseSuggestion) => {
+      const patch = createExpenseSuggestionPatch(suggestion, tags);
+
+      expenseFields.setField("name", patch.name);
+      expenseFields.setField("amountDollars", patch.amountDollars);
+      expenseFields.setField("expenseType", patch.expenseType);
+
+      if (patch.tagId) {
+        expenseFields.setField("tagId", patch.tagId);
+      }
+    },
+    [expenseFields, tags],
+  );
 
   const handleSubmit = useCallback(
     (event: FormEvent) => {
@@ -73,6 +95,7 @@ export function useCorrectionForm(
     actions: {
       setField: expenseFields.setField,
       clearFieldError: expenseFields.clearFieldError,
+      applySuggestion,
       handleSubmit,
     },
   };
