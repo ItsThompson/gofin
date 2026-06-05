@@ -71,6 +71,31 @@ const testCumulativeData = Array.from({ length: 31 }, (_, index) => ({
   ideal: Math.round((300000 / 31) * (index + 1)),
 }));
 
+const testExpenseSuggestions = [
+  {
+    name: "Groceries",
+    amount: 50000,
+    currency: "USD",
+    expenseType: "essentials" as const,
+    tagId: "tag-food",
+    frequency: 114,
+    lastUsedAt: "2026-05-02T10:00:00Z",
+    recencyBucket: "last_7_days" as const,
+    frecencyScore: 145,
+  },
+  {
+    name: "Coffee",
+    amount: 4500,
+    currency: "USD",
+    expenseType: "desires" as const,
+    tagId: "tag-social",
+    frequency: 42,
+    lastUsedAt: "2026-05-01T09:00:00Z",
+    recencyBucket: "today" as const,
+    frecencyScore: 90,
+  },
+];
+
 const testExpenses = [
   buildExpense({
     id: "exp-1",
@@ -127,6 +152,9 @@ function dashboardDataEmptyRoutes() {
     },
     "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
     "/api/finance/spending/cumulative": { body: { points: [] } },
+    "/api/expenses/suggestions": {
+      body: { data: [], total: 0, page: 1, pageSize: 10, hasMore: false },
+    },
     "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
     "/api/finance/spending/comparison": {
       status: 404,
@@ -143,6 +171,9 @@ function dashboardDataWithExpensesRoutes() {
     "/api/finance/summary": { body: { summary: testSummary } },
     "/api/finance/spending/by-tag": { body: { tagSpending: testTagSpending } },
     "/api/finance/spending/cumulative": { body: { points: testCumulativeData } },
+    "/api/expenses/suggestions": {
+      body: { data: testExpenseSuggestions, total: 2, page: 1, pageSize: 10, hasMore: false },
+    },
     "/api/expenses": {
       body: { data: testExpenses, total: 2, page: 1, pageSize: 5, hasMore: false },
     },
@@ -221,6 +252,64 @@ describe("DashboardFeature", () => {
       });
       expect(ctaLink).toBeInTheDocument();
       expect(ctaLink).toHaveAttribute("href", "/expenses/new");
+    });
+
+    it("renders repeated-expenses chart with frequency and recency context", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataWithExpensesRoutes(),
+      });
+      global.fetch = mockApi as unknown as typeof fetch;
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Repeated Expenses")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Groceries")).toBeInTheDocument();
+      expect(screen.getByText("Coffee")).toBeInTheDocument();
+      expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument();
+      expect(
+        mockApi._calls.some((call) =>
+          call.url.includes("/api/expenses/suggestions?page=1&pageSize=10"),
+        ),
+      ).toBe(true);
+    });
+
+    it("shows a local repeated-expenses empty state without changing dashboard empty expense behavior", async () => {
+      global.fetch = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+      }) as unknown as typeof fetch;
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("No expenses yet")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Repeated Expenses")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Not enough expense history yet/i),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps other dashboard sections rendering when repeated-expenses fetch fails", async () => {
+      global.fetch = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataWithExpensesRoutes(),
+        "/api/expenses/suggestions": {
+          status: 500,
+          body: { code: "INTERNAL_SERVER_ERROR", message: "Suggestions failed" },
+        },
+      }) as unknown as typeof fetch;
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("Repeated Expenses")).toBeInTheDocument();
+      expect(screen.getByText("Suggestions failed")).toBeInTheDocument();
     });
 
     it("displays currency symbol from user profile", async () => {
