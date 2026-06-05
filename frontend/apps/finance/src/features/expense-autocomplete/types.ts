@@ -1,5 +1,12 @@
 import type { ExpenseType } from "@gofin/core";
 
+export interface ExpenseSuggestionPatch {
+  name: string;
+  amountDollars: string;
+  expenseType: ExpenseType;
+  tagId: string | null;
+}
+
 export interface ExpenseSuggestion {
   name: string;
   amount: number;

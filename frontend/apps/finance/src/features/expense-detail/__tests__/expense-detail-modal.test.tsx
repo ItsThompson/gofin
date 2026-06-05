@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { ExpenseDetailModal } from "@/features/expense-detail";
 import type { Expense, Tag } from "@/types";
+import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -89,6 +90,36 @@ function mockExpenseAndHistory(
     ok: true,
     status: 200,
     json: () => Promise.resolve({ entries: history }),
+  });
+}
+
+function mockExpenseSuggestions(
+  overrides: Partial<ExpenseSuggestionsResponse> = {},
+) {
+  mockFetch.mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    json: () =>
+      Promise.resolve({
+        data: [
+          {
+            name: "Train Pass",
+            amount: 1234,
+            currency: "USD",
+            expenseType: "desires",
+            tagId: "tag-transport",
+            frequency: 4,
+            lastUsedAt: "2026-05-28T19:02:11Z",
+            recencyBucket: "last_7_days",
+            frecencyScore: 22,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+        ...overrides,
+      }),
   });
 }
 
@@ -284,6 +315,8 @@ describe("ExpenseDetailModal", () => {
         ).toBeInTheDocument();
       });
 
+      mockExpenseSuggestions();
+
       await user.click(screen.getByText("Correct This Expense"));
 
       expect(screen.getByText("Correct Expense")).toBeInTheDocument();
@@ -301,6 +334,8 @@ describe("ExpenseDetailModal", () => {
         ).toBeInTheDocument();
       });
 
+      mockExpenseSuggestions();
+
       await user.click(screen.getByText("Correct This Expense"));
 
       const nameInput = screen.getByLabelText("Name") as HTMLInputElement;
@@ -310,6 +345,44 @@ describe("ExpenseDetailModal", () => {
       expect(nameInput.value).toBe("Groceries");
       expect(amountInput.value).toBe("50.00");
       expect(dateInput.value).toBe("2026-05-02");
+    });
+
+    it("autofills correction fields from an explicit expense suggestion selection", async () => {
+      mockExpenseAndHistory(activeExpense);
+      const user = userEvent.setup();
+      renderModal();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Correct This Expense"),
+        ).toBeInTheDocument();
+      });
+
+      mockExpenseSuggestions();
+
+      await user.click(screen.getByText("Correct This Expense"));
+
+      const nameInput = screen.getByLabelText("Name") as HTMLInputElement;
+      await user.clear(nameInput);
+      await user.type(nameInput, "tra");
+
+      await waitFor(() => {
+        expect(screen.getByText("Train Pass")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByText("Train Pass"));
+
+      expect(nameInput.value).toBe("Train Pass");
+      expect((screen.getByLabelText("Amount") as HTMLInputElement).value).toBe(
+        "12.34",
+      );
+      expect(screen.getByLabelText("desires")).toBeChecked();
+      expect((screen.getByLabelText("Tag") as HTMLSelectElement).value).toBe(
+        "tag-transport",
+      );
+      expect((screen.getByLabelText("Date") as HTMLInputElement).value).toBe(
+        "2026-05-02",
+      );
     });
 
     it("submits correction and calls onCorrected", async () => {
@@ -322,6 +395,8 @@ describe("ExpenseDetailModal", () => {
           screen.getByText("Correct This Expense"),
         ).toBeInTheDocument();
       });
+
+      mockExpenseSuggestions();
 
       await user.click(screen.getByText("Correct This Expense"));
 
@@ -353,6 +428,8 @@ describe("ExpenseDetailModal", () => {
         ).toBeInTheDocument();
       });
 
+      mockExpenseSuggestions();
+
       await user.click(screen.getByText("Correct This Expense"));
       expect(screen.getByText("Correct Expense")).toBeInTheDocument();
 
@@ -370,6 +447,8 @@ describe("ExpenseDetailModal", () => {
           screen.getByText("Correct This Expense"),
         ).toBeInTheDocument();
       });
+
+      mockExpenseSuggestions();
 
       await user.click(screen.getByText("Correct This Expense"));
 
@@ -392,6 +471,8 @@ describe("ExpenseDetailModal", () => {
           screen.getByText("Correct This Expense"),
         ).toBeInTheDocument();
       });
+
+      mockExpenseSuggestions();
 
       await user.click(screen.getByText("Correct This Expense"));
 
@@ -425,6 +506,8 @@ describe("ExpenseDetailModal", () => {
           screen.getByText("Correct This Expense"),
         ).toBeInTheDocument();
       });
+
+      mockExpenseSuggestions();
 
       await user.click(screen.getByText("Correct This Expense"));
 

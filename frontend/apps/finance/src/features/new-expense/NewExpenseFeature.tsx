@@ -16,7 +16,7 @@ import {
 } from "@gofin/ui/components/form";
 import { PlusCircle } from "lucide-react";
 import type { FinancePageProps } from "../../types/pages";
-import { ExpenseNameCombobox } from "./components/ExpenseNameCombobox";
+import { ExpenseNameCombobox } from "../expense-autocomplete";
 import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
 
 /**

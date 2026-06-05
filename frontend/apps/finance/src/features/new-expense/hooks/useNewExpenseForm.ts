@@ -11,12 +11,11 @@ import type {
   Tag,
   TagListResponse,
 } from "../../../types";
-import type { ExpenseSuggestion } from "../types";
+import {
+  createExpenseSuggestionPatch,
+  type ExpenseSuggestion,
+} from "../../expense-autocomplete";
 import { useExpenseFields } from "./useExpenseFields";
-
-function formatMinorUnits(amount: number): string {
-  return (amount / 100).toFixed(2);
-}
 
 export { EXPENSE_TYPES };
 export type { ExpenseType, ExpenseFields };
@@ -96,15 +95,14 @@ export function useNewExpenseForm(currency: string): {
   }
 
   function applySuggestion(suggestion: ExpenseSuggestion) {
-    expenseFields.setField("name", suggestion.name);
-    expenseFields.setField(
-      "amountDollars",
-      formatMinorUnits(suggestion.amount),
-    );
-    expenseFields.setField("expenseType", suggestion.expenseType);
+    const patch = createExpenseSuggestionPatch(suggestion, tags);
 
-    if (tags.some((tag) => tag.id === suggestion.tagId)) {
-      expenseFields.setField("tagId", suggestion.tagId);
+    expenseFields.setField("name", patch.name);
+    expenseFields.setField("amountDollars", patch.amountDollars);
+    expenseFields.setField("expenseType", patch.expenseType);
+
+    if (patch.tagId) {
+      expenseFields.setField("tagId", patch.tagId);
     }
   }
 

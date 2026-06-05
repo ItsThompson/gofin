@@ -14,17 +14,21 @@ import { useExpenseAutocomplete } from "../hooks/useExpenseAutocomplete";
 import type { ExpenseSuggestion } from "../types";
 
 export interface ExpenseNameComboboxProps {
+  id?: string;
   value: string;
   onValueChange: (value: string) => void;
   onSelectSuggestion: (suggestion: ExpenseSuggestion) => void;
   error?: string;
+  placeholder?: string;
 }
 
 export function ExpenseNameCombobox({
+  id = "expense-name",
   value,
   onValueChange,
   onSelectSuggestion,
   error,
+  placeholder = "e.g. Grocery shopping",
 }: ExpenseNameComboboxProps) {
   const { state, actions } = useExpenseAutocomplete();
   const { loadMore, setQuery } = actions;
@@ -51,10 +55,10 @@ export function ExpenseNameCombobox({
   return (
     <Combobox open={hasTypedInput && isOpen} onOpenChange={setIsOpen}>
       <ComboboxInput
-        id="expense-name"
+        id={id}
         type="text"
         autoComplete="off"
-        placeholder="e.g. Grocery shopping"
+        placeholder={placeholder}
         value={value}
         onChange={(event) => handleValueChange(event.target.value)}
         aria-invalid={!!error}

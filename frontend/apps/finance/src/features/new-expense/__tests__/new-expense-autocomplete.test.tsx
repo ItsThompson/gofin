@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router";
 import type { User } from "@gofin/core";
 
 import { NewExpenseFeature } from "../index";
-import type { ExpenseSuggestionsResponse } from "../types";
+import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
