@@ -8,7 +8,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatCurrency } from "@gofin/core";
 import {
   Card,
   CardContent,
@@ -17,68 +16,18 @@ import {
 } from "@gofin/ui/components/card";
 import type { ExpenseSuggestion } from "../../../expense-autocomplete/types";
 import type { ExpenseFrecencyDataState } from "../../hooks/useExpenseFrecencyData";
-
-interface ExpenseFrecencyChartProps extends ExpenseFrecencyDataState {}
-
-interface ChartDatum {
-  name: string;
-  frequency: number;
-  recencyBucket: ExpenseSuggestion["recencyBucket"];
-  lastUsedAt: string;
-  amount: number;
-  currency: string;
-  expenseType: string;
-}
-
-const RECENCY_LABELS: Record<ExpenseSuggestion["recencyBucket"], string> = {
-  today: "Today",
-  last_7_days: "Last 7 days",
-  last_30_days: "Last 30 days",
-  older: "Older",
-};
-
-const RECENCY_COLORS: Record<ExpenseSuggestion["recencyBucket"], string> = {
-  today: "var(--primary)",
-  last_7_days: "var(--chart-2)",
-  last_30_days: "var(--chart-3)",
-  older: "var(--muted-foreground)",
-};
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-interface ExpenseFrecencyTooltipProps {
-  active?: boolean;
-  payload?: Array<{ payload: ChartDatum }>;
-}
-
-function ExpenseFrecencyTooltip({ active, payload }: ExpenseFrecencyTooltipProps) {
-  if (!active || !payload?.length) return null;
-
-  const datum = payload[0].payload;
-
-  return (
-    <div className="rounded-md border bg-background p-3 text-sm shadow-sm">
-      <p className="font-medium">{datum.name}</p>
-      <p>Frequency: {datum.frequency}</p>
-      <p>Recency: {RECENCY_LABELS[datum.recencyBucket]}</p>
-      <p>Last used: {formatDate(datum.lastUsedAt)}</p>
-      <p>Latest amount: {formatCurrency(datum.amount, datum.currency)}</p>
-      <p>Type: {datum.expenseType}</p>
-    </div>
-  );
-}
+import { ExpenseFrecencyTooltip } from "./ExpenseFrecencyTooltip";
+import {
+  RECENCY_COLORS,
+  RECENCY_LABELS,
+} from "./expenseFrecencyChartData";
+import type { ExpenseFrecencyChartDatum } from "./expenseFrecencyChartData";
 
 export function ExpenseFrecencyChart({
   status,
   suggestions,
-}: ExpenseFrecencyChartProps) {
-  const chartData: ChartDatum[] = suggestions.map((suggestion) => ({
+}: ExpenseFrecencyDataState) {
+  const chartData: ExpenseFrecencyChartDatum[] = suggestions.map((suggestion) => ({
     name: suggestion.name,
     frequency: suggestion.frequency,
     recencyBucket: suggestion.recencyBucket,
@@ -112,12 +61,18 @@ export function ExpenseFrecencyChart({
             <p className="mb-4 text-sm text-muted-foreground">
               Frequency shows how often you have logged each expense. Color shows recency.
             </p>
-            <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground" aria-label="Recency legend">
+            <div
+              className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground"
+              aria-label="Recency legend"
+            >
               {Object.entries(RECENCY_LABELS).map(([bucket, label]) => (
                 <span key={bucket} className="inline-flex items-center gap-1">
                   <span
                     className="size-2 rounded-full"
-                    style={{ backgroundColor: RECENCY_COLORS[bucket as ExpenseSuggestion["recencyBucket"]] }}
+                    style={{
+                      backgroundColor:
+                        RECENCY_COLORS[bucket as ExpenseSuggestion["recencyBucket"]],
+                    }}
                   />
                   {label}
                 </span>
@@ -140,9 +95,15 @@ export function ExpenseFrecencyChart({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <ul className="mt-4 space-y-2 text-sm" aria-label="Repeated expense details">
+            <ul
+              className="mt-4 space-y-2 text-sm"
+              aria-label="Repeated expense details"
+            >
               {chartData.map((datum) => (
-                <li key={datum.name} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+                <li
+                  key={datum.name}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"
+                >
                   <span className="font-medium text-foreground">{datum.name}</span>
                   <span>Frequency: {datum.frequency}</span>
                   <span>Recency: {RECENCY_LABELS[datum.recencyBucket]}</span>
