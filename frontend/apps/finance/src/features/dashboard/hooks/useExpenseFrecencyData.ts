@@ -39,7 +39,9 @@ export function useExpenseFrecencyData(
 
         if (controller.signal.aborted) return;
 
-        const suggestions = response.data.slice(0, pageSize);
+        const suggestions = response.data
+          .filter((suggestion) => suggestion.recencyBucket !== "older")
+          .slice(0, pageSize);
         setState({
           status: suggestions.length > 0 ? "success" : "empty",
           suggestions,

@@ -14,12 +14,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@gofin/ui/components/card";
-import type { ExpenseSuggestion } from "../../../expense-autocomplete/types";
 import type { ExpenseFrecencyDataState } from "../../hooks/useExpenseFrecencyData";
 import { ExpenseFrecencyTooltip } from "./ExpenseFrecencyTooltip";
 import {
   RECENCY_COLORS,
   RECENCY_LABELS,
+  isActiveRecencyBucket,
 } from "./expenseFrecencyChartData";
 import type { ExpenseFrecencyChartDatum } from "./expenseFrecencyChartData";
 
@@ -27,15 +27,19 @@ export function ExpenseFrecencyChart({
   status,
   suggestions,
 }: ExpenseFrecencyDataState) {
-  const chartData: ExpenseFrecencyChartDatum[] = suggestions.map((suggestion) => ({
-    name: suggestion.name,
-    frequency: suggestion.frequency,
-    recencyBucket: suggestion.recencyBucket,
-    lastUsedAt: suggestion.lastUsedAt,
-    amount: suggestion.amount,
-    currency: suggestion.currency,
-    expenseType: suggestion.expenseType,
-  }));
+  const chartData: ExpenseFrecencyChartDatum[] = suggestions.flatMap((suggestion) => {
+    if (!isActiveRecencyBucket(suggestion.recencyBucket)) return [];
+
+    return [{
+      name: suggestion.name,
+      frequency: suggestion.frequency,
+      recencyBucket: suggestion.recencyBucket,
+      lastUsedAt: suggestion.lastUsedAt,
+      amount: suggestion.amount,
+      currency: suggestion.currency,
+      expenseType: suggestion.expenseType,
+    }];
+  });
 
   return (
     <Card>
@@ -70,8 +74,7 @@ export function ExpenseFrecencyChart({
                   <span
                     className="size-2 rounded-full"
                     style={{
-                      backgroundColor:
-                        RECENCY_COLORS[bucket as ExpenseSuggestion["recencyBucket"]],
+                      backgroundColor: RECENCY_COLORS[bucket as keyof typeof RECENCY_COLORS],
                     }}
                   />
                   {label}
@@ -95,21 +98,7 @@ export function ExpenseFrecencyChart({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-            <ul
-              className="mt-4 space-y-2 text-sm"
-              aria-label="Repeated expense details"
-            >
-              {chartData.map((datum) => (
-                <li
-                  key={datum.name}
-                  className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground"
-                >
-                  <span className="font-medium text-foreground">{datum.name}</span>
-                  <span>Frequency: {datum.frequency}</span>
-                  <span>Recency: {RECENCY_LABELS[datum.recencyBucket]}</span>
-                </li>
-              ))}
-            </ul>
+
           </>
         )}
       </CardContent>

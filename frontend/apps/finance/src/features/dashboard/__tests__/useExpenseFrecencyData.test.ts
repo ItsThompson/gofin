@@ -28,6 +28,18 @@ const suggestions = [
   },
 ];
 
+const olderSuggestion = {
+  name: "Old Bus Fare",
+  amount: 350,
+  currency: "USD",
+  expenseType: "essentials" as const,
+  tagId: "tag-transit",
+  frequency: 20,
+  lastUsedAt: "2026-01-01T09:00:00Z",
+  recencyBucket: "older" as const,
+  frecencyScore: 20,
+};
+
 describe("useExpenseFrecencyData", () => {
   it("fetches page 1 suggestions and exposes success state", async () => {
     const mockApi = createMockApi({
@@ -49,10 +61,32 @@ describe("useExpenseFrecencyData", () => {
     expect(mockApi._calls[0].url).toContain("/api/expenses/suggestions?page=1&pageSize=2");
   });
 
-  it("exposes empty state when no suggestions are returned", async () => {
+  it("ignores older suggestions", async () => {
     globalThis.fetch = createMockApi({
       "/api/expenses/suggestions": {
-        body: { data: [], total: 0, page: 1, pageSize: 10, hasMore: false },
+        body: {
+          data: [olderSuggestion, ...suggestions],
+          total: 3,
+          page: 1,
+          pageSize: 10,
+          hasMore: false,
+        },
+      },
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useExpenseFrecencyData());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+
+    expect(result.current.suggestions).toEqual(suggestions);
+  });
+
+  it("exposes empty state when no current suggestions are returned", async () => {
+    globalThis.fetch = createMockApi({
+      "/api/expenses/suggestions": {
+        body: { data: [olderSuggestion], total: 1, page: 1, pageSize: 10, hasMore: false },
       },
     }) as unknown as typeof fetch;
 
