@@ -27,19 +27,23 @@ export function ExpenseFrecencyChart({
   status,
   suggestions,
 }: ExpenseFrecencyDataState) {
-  const chartData: ExpenseFrecencyChartDatum[] = suggestions.flatMap((suggestion) => {
-    if (!isActiveRecencyBucket(suggestion.recencyBucket)) return [];
+  const chartData: ExpenseFrecencyChartDatum[] = suggestions.flatMap(
+    (suggestion) => {
+      if (!isActiveRecencyBucket(suggestion.recencyBucket)) return [];
 
-    return [{
-      name: suggestion.name,
-      frequency: suggestion.frequency,
-      recencyBucket: suggestion.recencyBucket,
-      lastUsedAt: suggestion.lastUsedAt,
-      amount: suggestion.amount,
-      currency: suggestion.currency,
-      expenseType: suggestion.expenseType,
-    }];
-  });
+      return [
+        {
+          name: suggestion.name,
+          frequency: suggestion.frequency,
+          recencyBucket: suggestion.recencyBucket,
+          lastUsedAt: suggestion.lastUsedAt,
+          amount: suggestion.amount,
+          currency: suggestion.currency,
+          expenseType: suggestion.expenseType,
+        },
+      ];
+    },
+  );
 
   return (
     <Card>
@@ -48,7 +52,9 @@ export function ExpenseFrecencyChart({
       </CardHeader>
       <CardContent>
         {status === "loading" && (
-          <p className="text-sm text-muted-foreground">Loading repeated expenses...</p>
+          <p className="text-sm text-muted-foreground">
+            Loading repeated expenses...
+          </p>
         )}
         {status === "error" && (
           <p className="text-sm text-muted-foreground">
@@ -63,7 +69,8 @@ export function ExpenseFrecencyChart({
         {status === "success" && (
           <>
             <p className="mb-4 text-sm text-muted-foreground">
-              Frequency shows how often you have logged each expense. Color shows recency.
+              Frequency shows how often you have logged each expense. Color
+              shows recency.
             </p>
             <div
               className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground"
@@ -74,31 +81,46 @@ export function ExpenseFrecencyChart({
                   <span
                     className="size-2 rounded-full"
                     style={{
-                      backgroundColor: RECENCY_COLORS[bucket as keyof typeof RECENCY_COLORS],
+                      backgroundColor:
+                        RECENCY_COLORS[bucket as keyof typeof RECENCY_COLORS],
                     }}
                   />
                   {label}
                 </span>
               ))}
             </div>
-            <ResponsiveContainer width="100%" height={Math.max(240, chartData.length * 42)}>
+            <ResponsiveContainer
+              width="100%"
+              height={Math.max(240, chartData.length * 42)}
+            >
               <BarChart
                 data={chartData}
                 layout="vertical"
                 margin={{ top: 0, right: 24, left: 10, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" dataKey="frequency" allowDecimals={false} />
-                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
+                <XAxis
+                  type="number"
+                  dataKey="frequency"
+                  allowDecimals={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={120}
+                  tick={{ fontSize: 12 }}
+                />
                 <Tooltip content={<ExpenseFrecencyTooltip />} />
                 <Bar dataKey="frequency" radius={[0, 4, 4, 0]}>
                   {chartData.map((datum) => (
-                    <Cell key={datum.name} fill={RECENCY_COLORS[datum.recencyBucket]} />
+                    <Cell
+                      key={datum.name}
+                      fill={RECENCY_COLORS[datum.recencyBucket]}
+                    />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-
           </>
         )}
       </CardContent>
