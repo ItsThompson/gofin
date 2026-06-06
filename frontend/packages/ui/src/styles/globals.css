@@ -43,6 +43,9 @@
     --color-essentials: var(--essentials);
     --color-desires: var(--desires);
     --color-savings: var(--savings);
+    --color-recency-today: var(--recency-today);
+    --color-recency-last-7-days: var(--recency-last-7-days);
+    --color-recency-last-30-days: var(--recency-last-30-days);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -79,6 +82,9 @@
     --essentials: var(--brand-essentials);
     --desires: var(--brand-desires);
     --savings: var(--brand-savings);
+    --recency-today: var(--brand-essentials);
+    --recency-last-7-days: var(--brand-primary);
+    --recency-last-30-days: var(--brand-desires);
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -94,6 +100,9 @@
     --essentials: var(--brand-essentials);
     --desires: var(--brand-desires);
     --savings: var(--brand-savings);
+    --recency-today: var(--brand-essentials);
+    --recency-last-7-days: var(--brand-primary);
+    --recency-last-30-days: var(--brand-desires);
     --background: var(--brand-background);
     --foreground: var(--brand-foreground);
     --card: var(--brand-primary);

@@ -22,9 +22,9 @@ export const RECENCY_LABELS: Record<ActiveRecencyBucket, string> = {
 };
 
 export const RECENCY_COLORS: Record<ActiveRecencyBucket, string> = {
-  today: "#16a34a",
-  last_7_days: "#2563eb",
-  last_30_days: "#f59e0b",
+  today: "var(--recency-today)",
+  last_7_days: "var(--recency-last-7-days)",
+  last_30_days: "var(--recency-last-30-days)",
 };
 
 export function isActiveRecencyBucket(
