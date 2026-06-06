@@ -269,8 +269,13 @@ describe("DashboardFeature", () => {
       expect(screen.getAllByText("Groceries").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Coffee").length).toBeGreaterThan(0);
       expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument();
-      expect(screen.getByText("Frequency: 114")).toBeInTheDocument();
-      expect(screen.getByText("Recency: Last 7 days")).toBeInTheDocument();
+      expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Today");
+      expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Last 7 days");
+      expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Last 30 days");
+      expect(screen.getByLabelText("Recency legend")).not.toHaveTextContent("Older");
+      expect(screen.getByLabelText("Repeated expense details")).toHaveTextContent(
+        "Groceries: Frequency 114, Recency Last 7 days",
+      );
       expect(
         mockApi._calls.some((call) =>
           call.url.includes("/api/expenses/suggestions?page=1&pageSize=10"),

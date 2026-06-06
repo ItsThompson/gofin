@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { expenseSuggestionsApi } from "../../expense-autocomplete/api";
-import type { ExpenseSuggestion } from "../../expense-autocomplete/types";
+import {
+  isActiveExpenseSuggestion,
+  type ActiveExpenseSuggestion,
+} from "../components/widgets/expenseFrecencyChartData";
 
 export interface ExpenseFrecencyDataState {
   status: "loading" | "success" | "empty" | "error";
-  suggestions: ExpenseSuggestion[];
+  suggestions: ActiveExpenseSuggestion[];
   errorMessage: string | null;
 }
 
@@ -14,6 +17,25 @@ export interface UseExpenseFrecencyDataOptions {
 
 const DEFAULT_PAGE_SIZE = 10;
 const ERROR_MESSAGE = "Repeated expenses are unavailable right now.";
+
+async function fetchActiveSuggestions(
+  pageSize: number,
+  signal: AbortSignal,
+): Promise<ActiveExpenseSuggestion[]> {
+  const suggestions: ActiveExpenseSuggestion[] = [];
+  let page = 1;
+  let hasMore = true;
+
+  while (suggestions.length < pageSize && hasMore && !signal.aborted) {
+    const response = await expenseSuggestionsApi.getSuggestions(page, pageSize, signal);
+    suggestions.push(...response.data.filter(isActiveExpenseSuggestion));
+    hasMore = response.hasMore;
+    page += 1;
+  }
+
+  return suggestions.slice(0, pageSize);
+}
+
 
 export function useExpenseFrecencyData(
   options: UseExpenseFrecencyDataOptions = {},
@@ -31,15 +53,9 @@ export function useExpenseFrecencyData(
 
     async function fetchSuggestions() {
       try {
-        const response = await expenseSuggestionsApi.getSuggestions(
-          1,
-          pageSize,
-          controller.signal,
-        );
+        const suggestions = await fetchActiveSuggestions(pageSize, controller.signal);
 
         if (controller.signal.aborted) return;
-
-        const suggestions = response.data.slice(0, pageSize);
         setState({
           status: suggestions.length > 0 ? "success" : "empty",
           suggestions,
