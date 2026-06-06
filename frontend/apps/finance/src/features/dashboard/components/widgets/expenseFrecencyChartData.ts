@@ -5,6 +5,10 @@ export type ActiveRecencyBucket = Exclude<
   "older"
 >;
 
+export type ActiveExpenseSuggestion = ExpenseSuggestion & {
+  recencyBucket: ActiveRecencyBucket;
+};
+
 export interface ExpenseFrecencyChartDatum {
   name: string;
   frequency: number;
@@ -14,6 +18,12 @@ export interface ExpenseFrecencyChartDatum {
   currency: string;
   expenseType: string;
 }
+
+export const ACTIVE_RECENCY_BUCKETS: ActiveRecencyBucket[] = [
+  "today",
+  "last_7_days",
+  "last_30_days",
+];
 
 export const RECENCY_LABELS: Record<ActiveRecencyBucket, string> = {
   today: "Today",
@@ -27,8 +37,8 @@ export const RECENCY_COLORS: Record<ActiveRecencyBucket, string> = {
   last_30_days: "var(--recency-last-30-days)",
 };
 
-export function isActiveRecencyBucket(
-  bucket: ExpenseSuggestion["recencyBucket"],
-): bucket is ActiveRecencyBucket {
-  return bucket !== "older";
+export function isActiveExpenseSuggestion(
+  suggestion: ExpenseSuggestion,
+): suggestion is ActiveExpenseSuggestion {
+  return suggestion.recencyBucket !== "older";
 }

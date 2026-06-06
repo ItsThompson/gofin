@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { createMockApi } from "@gofin/test-utils";
+import { createMockApi, mockSequence } from "@gofin/test-utils";
 import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 
 const suggestions = [
@@ -59,6 +59,44 @@ describe("useExpenseFrecencyData", () => {
     expect(result.current.suggestions).toEqual(suggestions);
     expect(result.current.errorMessage).toBeNull();
     expect(mockApi._calls[0].url).toContain("/api/expenses/suggestions?page=1&pageSize=2");
+  });
+
+  it("fetches later pages when older suggestions underfill the chart", async () => {
+    const mockApi = createMockApi({
+      "/api/expenses/suggestions": mockSequence([
+        {
+          body: {
+            data: [olderSuggestion],
+            total: 3,
+            page: 1,
+            pageSize: 2,
+            hasMore: true,
+          },
+        },
+        {
+          body: {
+            data: suggestions,
+            total: 3,
+            page: 2,
+            pageSize: 2,
+            hasMore: false,
+          },
+        },
+      ]),
+    });
+    globalThis.fetch = mockApi as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useExpenseFrecencyData({ pageSize: 2 }));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+
+    expect(result.current.suggestions).toEqual(suggestions);
+    expect(mockApi._calls.map((call) => call.url)).toEqual([
+      "/api/expenses/suggestions?page=1&pageSize=2",
+      "/api/expenses/suggestions?page=2&pageSize=2",
+    ]);
   });
 
   it("ignores older suggestions", async () => {

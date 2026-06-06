@@ -273,6 +273,9 @@ describe("DashboardFeature", () => {
       expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Last 7 days");
       expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Last 30 days");
       expect(screen.getByLabelText("Recency legend")).not.toHaveTextContent("Older");
+      expect(screen.getByLabelText("Repeated expense details")).toHaveTextContent(
+        "Groceries: Frequency 114, Recency Last 7 days",
+      );
       expect(
         mockApi._calls.some((call) =>
           call.url.includes("/api/expenses/suggestions?page=1&pageSize=10"),

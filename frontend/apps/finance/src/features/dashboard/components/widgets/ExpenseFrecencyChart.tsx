@@ -17,9 +17,9 @@ import {
 import type { ExpenseFrecencyDataState } from "../../hooks/useExpenseFrecencyData";
 import { ExpenseFrecencyTooltip } from "./ExpenseFrecencyTooltip";
 import {
+  ACTIVE_RECENCY_BUCKETS,
   RECENCY_COLORS,
   RECENCY_LABELS,
-  isActiveRecencyBucket,
 } from "./expenseFrecencyChartData";
 import type { ExpenseFrecencyChartDatum } from "./expenseFrecencyChartData";
 
@@ -27,23 +27,15 @@ export function ExpenseFrecencyChart({
   status,
   suggestions,
 }: ExpenseFrecencyDataState) {
-  const chartData: ExpenseFrecencyChartDatum[] = suggestions.flatMap(
-    (suggestion) => {
-      if (!isActiveRecencyBucket(suggestion.recencyBucket)) return [];
-
-      return [
-        {
-          name: suggestion.name,
-          frequency: suggestion.frequency,
-          recencyBucket: suggestion.recencyBucket,
-          lastUsedAt: suggestion.lastUsedAt,
-          amount: suggestion.amount,
-          currency: suggestion.currency,
-          expenseType: suggestion.expenseType,
-        },
-      ];
-    },
-  );
+  const chartData: ExpenseFrecencyChartDatum[] = suggestions.map((suggestion) => ({
+    name: suggestion.name,
+    frequency: suggestion.frequency,
+    recencyBucket: suggestion.recencyBucket,
+    lastUsedAt: suggestion.lastUsedAt,
+    amount: suggestion.amount,
+    currency: suggestion.currency,
+    expenseType: suggestion.expenseType,
+  }));
 
   return (
     <Card>
@@ -76,16 +68,13 @@ export function ExpenseFrecencyChart({
               className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground"
               aria-label="Recency legend"
             >
-              {Object.entries(RECENCY_LABELS).map(([bucket, label]) => (
+              {ACTIVE_RECENCY_BUCKETS.map((bucket) => (
                 <span key={bucket} className="inline-flex items-center gap-1">
                   <span
                     className="size-2 rounded-full"
-                    style={{
-                      backgroundColor:
-                        RECENCY_COLORS[bucket as keyof typeof RECENCY_COLORS],
-                    }}
+                    style={{ backgroundColor: RECENCY_COLORS[bucket] }}
                   />
-                  {label}
+                  {RECENCY_LABELS[bucket]}
                 </span>
               ))}
             </div>
@@ -121,6 +110,13 @@ export function ExpenseFrecencyChart({
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            <ul className="sr-only" aria-label="Repeated expense details">
+              {chartData.map((datum) => (
+                <li key={datum.name}>
+                  {datum.name}: Frequency {datum.frequency}, Recency {RECENCY_LABELS[datum.recencyBucket]}
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </CardContent>
