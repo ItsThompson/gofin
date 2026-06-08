@@ -1,5 +1,6 @@
 import { formatCurrency, getCurrencySymbol } from "@gofin/core";
 import type { CumulativeSpendPoint } from "../../../../types";
+import { insertCrossoverPoints } from "../../../../lib/insertCrossoverPoints";
 import {
   Card,
   CardContent,
@@ -15,6 +16,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ComposedChart,
+  ReferenceDot,
 } from "recharts";
 
 interface CumulativeSpendChartProps {
@@ -23,20 +25,43 @@ interface CumulativeSpendChartProps {
 }
 
 export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
-  const chartData = data.map((point) => {
-    const actual = point.actual / 100;
-    const ideal = point.ideal / 100;
-    const underBudget = actual <= ideal;
+  const currentDay = new Date().getDate();
+
+  // Convert from cents to dollars and insert crossover interpolation points
+  const basePoints = data.map((point) => ({
+    day: point.day,
+    actual: point.actual / 100,
+    ideal: point.ideal / 100,
+  }));
+
+  const interpolatedPoints = insertCrossoverPoints(basePoints);
+
+  const chartData = interpolatedPoints.map((point) => {
+    const underBudget = point.actual <= point.ideal;
+
+    if (point.isCrossover) {
+      // At crossover, define both areas to terminate/start seamlessly
+      return {
+        day: point.day,
+        actual: point.actual,
+        ideal: point.ideal,
+        surplusTop: point.actual,
+        deficitTop: point.actual,
+      };
+    }
+
     return {
       day: point.day,
-      actual,
-      ideal,
-      surplusBase: underBudget ? actual : undefined,
-      surplusTop: underBudget ? ideal : undefined,
-      deficitBase: !underBudget ? ideal : undefined,
-      deficitTop: !underBudget ? actual : undefined,
+      actual: point.actual,
+      ideal: point.ideal,
+      surplusTop: underBudget ? point.ideal : undefined,
+      deficitTop: !underBudget ? point.actual : undefined,
     };
   });
+
+  const todayPoint = chartData.find(
+    (point) => point.day === currentDay && point.actual != null,
+  );
 
   return (
     <Card>
@@ -95,6 +120,24 @@ export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartPro
               dot={false}
               name="Actual"
             />
+            {todayPoint && (
+              <ReferenceDot
+                x={todayPoint.day}
+                y={todayPoint.actual}
+                shape={(props: { cx?: number; cy?: number }) => {
+                  const { cx = 0, cy = 0 } = props;
+                  const size = 6;
+                  return (
+                    <polygon
+                      points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
+                      fill="var(--primary)"
+                      stroke="var(--background)"
+                      strokeWidth={1.5}
+                    />
+                  );
+                }}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </CardContent>

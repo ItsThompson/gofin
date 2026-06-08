@@ -25,7 +25,7 @@ export function HistoricalComparisonWidget({
   const isOnlyOnePeriod = comparison.previousSpent === 0 && comparison.changePercent === 0;
 
   return (
-    <Card data-testid="historical-comparison">
+    <Card data-testid="historical-comparison" className="h-full">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <History className="size-4 text-muted-foreground" />

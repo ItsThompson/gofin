@@ -18,16 +18,16 @@ import {
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 import { BudgetSettingsEditor } from "./BudgetSettingsEditor";
-import { MonthlyTrendsSection } from "./MonthlyTrendsSection";
+import { TrendsSection } from "./TrendsSection";
+import { BreakdownSection } from "./BreakdownSection";
+import { DashboardOutline } from "./DashboardOutline";
 import { SummaryBar } from "./widgets/SummaryBar";
 import { CategoryGauges } from "./widgets/CategoryGauges";
 import { PacingIndicator } from "./widgets/PacingIndicator";
-import { TagSpendingChart } from "./widgets/TagSpendingChart";
 import { CumulativeSpendChart } from "./widgets/CumulativeSpendChart";
 import { RecentExpenses } from "./widgets/RecentExpenses";
 import { HistoricalComparisonWidget } from "./widgets/HistoricalComparisonWidget";
 import { UpcomingProRataSection } from "./widgets/UpcomingProRataSection";
-import { ExpenseFrecencyChart } from "./widgets/ExpenseFrecencyChart";
 
 export interface ActiveDashboardProps {
   period: BudgetPeriod;
@@ -108,111 +108,129 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
       )}
 
       {/* Summary Bar */}
-      <SectionErrorBoundary sectionName="Summary">
-        <SummaryBar
-          budgetAmount={currentPeriod.budgetAmount}
-          totalSpent={totalSpent}
-          remaining={remaining}
-          daysLeft={
-            data.summary
-              ? data.summary.daysInPeriod - data.summary.daysElapsed
-              : Math.max(
-                  0,
-                  new Date(currentPeriod.year, currentPeriod.month, 0).getDate() -
-                    new Date().getDate(),
-                )
-          }
-          currency={user.currency}
-        />
-      </SectionErrorBoundary>
+      <section id="summary">
+        <SectionErrorBoundary sectionName="Summary">
+          <SummaryBar
+            budgetAmount={currentPeriod.budgetAmount}
+            totalSpent={totalSpent}
+            remaining={remaining}
+            daysLeft={
+              data.summary
+                ? data.summary.daysInPeriod - data.summary.daysElapsed
+                : Math.max(
+                    0,
+                    new Date(currentPeriod.year, currentPeriod.month, 0).getDate() -
+                      new Date().getDate(),
+                  )
+            }
+            currency={user.currency}
+          />
+        </SectionErrorBoundary>
+      </section>
 
       {/* Category Gauges */}
-      <SectionErrorBoundary sectionName="Category Gauges">
-        {data.summary && <CategoryGauges summary={data.summary} currency={user.currency} />}
-      </SectionErrorBoundary>
+      <section id="budget-allocations">
+        <SectionErrorBoundary sectionName="Category Gauges">
+          {data.summary && <CategoryGauges summary={data.summary} currency={user.currency} />}
+        </SectionErrorBoundary>
+      </section>
 
-      {/* Pacing Indicator */}
-      <SectionErrorBoundary sectionName="Spending Pace">
-        {data.summary && <PacingIndicator summary={data.summary} currency={user.currency} />}
-      </SectionErrorBoundary>
+      {/* Spending Pace + Historical Comparison: side-by-side on desktop */}
+      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+        <section id="spending-pace">
+          <SectionErrorBoundary sectionName="Spending Pace">
+            {data.summary && <PacingIndicator summary={data.summary} currency={user.currency} />}
+          </SectionErrorBoundary>
+        </section>
+        <section id="historical-comparison">
+          <SectionErrorBoundary sectionName="Historical Comparison">
+            {data.comparison && (
+              <HistoricalComparisonWidget
+                comparison={data.comparison}
+                currency={user.currency}
+              />
+            )}
+          </SectionErrorBoundary>
+        </section>
+      </div>
 
       {/* Upcoming Pro-rata */}
       <SectionErrorBoundary sectionName="Upcoming Pro-rata">
         {data.upcomingProRata.length > 0 && (
-          <UpcomingProRataSection schedules={data.upcomingProRata} currency={user.currency} />
+          <section id="upcoming-prorata">
+            <UpcomingProRataSection schedules={data.upcomingProRata} currency={user.currency} />
+          </section>
         )}
       </SectionErrorBoundary>
 
       {/* Charts: hidden on mobile per US-DASH-09 */}
       <div className="hidden md:block space-y-6">
-        {/* Historical Comparison Widget */}
-        <SectionErrorBoundary sectionName="Historical Comparison">
-          {data.comparison && (
-            <HistoricalComparisonWidget
-              comparison={data.comparison}
+        {/* Trends Section */}
+        <section id="trends">
+          <SectionErrorBoundary sectionName="Monthly Trends">
+            {data.trendData && data.trendData.length > 0 && (
+              <TrendsSection
+                trendData={data.trendData}
+                trendMonths={trendMonths}
+                onToggle={setTrendMonths}
+                currency={user.currency}
+              />
+            )}
+          </SectionErrorBoundary>
+        </section>
+
+        {/* Breakdown Section */}
+        <section id="breakdown">
+          <SectionErrorBoundary sectionName="Breakdown">
+            <BreakdownSection
+              tagSpending={data.tagSpending}
+              expenseFrecencyData={expenseFrecencyData}
               currency={user.currency}
             />
-          )}
-        </SectionErrorBoundary>
-
-        {/* Monthly Trends Section */}
-        <SectionErrorBoundary sectionName="Monthly Trends">
-          {data.trendData && data.trendData.length > 0 && (
-            <MonthlyTrendsSection
-              trendData={data.trendData}
-              trendMonths={trendMonths}
-              onToggle={setTrendMonths}
-              currency={user.currency}
-            />
-          )}
-        </SectionErrorBoundary>
-
-        {/* Tag Spending Chart */}
-        <SectionErrorBoundary sectionName="Tag Spending">
-          {data.tagSpending.length > 0 && (
-            <TagSpendingChart tagSpending={data.tagSpending} currency={user.currency} />
-          )}
-        </SectionErrorBoundary>
-
-        {/* Repeated Expenses Chart */}
-        <SectionErrorBoundary sectionName="Repeated Expenses">
-          <ExpenseFrecencyChart {...expenseFrecencyData} />
-        </SectionErrorBoundary>
+          </SectionErrorBoundary>
+        </section>
 
         {/* Cumulative Spend Chart */}
-        <SectionErrorBoundary sectionName="Cumulative Spending">
-          {data.cumulativeData.length > 0 && (
-            <CumulativeSpendChart
-              data={data.cumulativeData}
-              currency={user.currency}
-            />
-          )}
-        </SectionErrorBoundary>
+        <section id="cumulative-spending">
+          <SectionErrorBoundary sectionName="Cumulative Spending">
+            {data.cumulativeData.length > 0 && (
+              <CumulativeSpendChart
+                data={data.cumulativeData}
+                currency={user.currency}
+              />
+            )}
+          </SectionErrorBoundary>
+        </section>
       </div>
 
       {/* Recent Expenses or Empty State */}
-      <SectionErrorBoundary sectionName="Recent Expenses">
-        {data.recentExpenses.length === 0 && !readOnly ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <Wallet className="mb-4 size-12 text-muted-foreground/50" />
-              <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
-              <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-                Start tracking your spending by logging your first expense for this
-                month.
-              </p>
-              <Button asChild>
-                <Link to="/expenses/new">
-                  <PlusCircle className="size-4" />
-                  Log your first expense
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : data.recentExpenses.length > 0 ? (
-          <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
-        ) : null}
-      </SectionErrorBoundary>
+      <section id="recent-expenses">
+        <SectionErrorBoundary sectionName="Recent Expenses">
+          {data.recentExpenses.length === 0 && !readOnly ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Wallet className="mb-4 size-12 text-muted-foreground/50" />
+                <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
+                <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+                  Start tracking your spending by logging your first expense for this
+                  month.
+                </p>
+                <Button asChild>
+                  <Link to="/expenses/new">
+                    <PlusCircle className="size-4" />
+                    Log your first expense
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : data.recentExpenses.length > 0 ? (
+            <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
+          ) : null}
+        </SectionErrorBoundary>
+      </section>
+
+      {/* Dashboard Outline (TOC) - fixed positioned, renders on xl+ viewports */}
+      <DashboardOutline />
     </div>
   );
 }

@@ -22,11 +22,22 @@ const emptyListResponse = {
   body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
 };
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function buildFutureRetryAfter(): string {
+  return new Date(Date.now() + ONE_DAY_MS).toISOString();
+}
+
+function formatDateOnly(isoDate: string): string {
+  return isoDate.slice(0, 10);
+}
+
 describe("ExportDataSection", () => {
   const originalFetch = global.fetch;
 
   afterEach(() => {
     global.fetch = originalFetch;
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -295,6 +306,7 @@ describe("ExportDataSection", () => {
 
     it("handles 429 rate limit gracefully and shows cooldown", async () => {
       const user = userEvent.setup();
+      const retryAfter = buildFutureRetryAfter();
 
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
@@ -305,8 +317,8 @@ describe("ExportDataSection", () => {
             status: 429,
             body: {
               code: "RATE_LIMITED",
-              message: "Export limit reached. You can request another export after 2026-06-08.",
-              retryAfter: "2026-06-08T14:30:00Z",
+              message: `Export limit reached. You can request another export after ${formatDateOnly(retryAfter)}.`,
+              retryAfter,
             },
           },
         ]),
@@ -563,6 +575,7 @@ describe("ExportDataSection", () => {
 
     it("handles 429 with full ISO datetime in message (includes time component)", async () => {
       const user = userEvent.setup();
+      const retryAfter = buildFutureRetryAfter();
 
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
@@ -573,8 +586,8 @@ describe("ExportDataSection", () => {
             status: 429,
             body: {
               code: "RATE_LIMITED",
-              message: "Export limit reached. Next available: 2026-06-08T14:30:00Z",
-              retryAfter: "2026-06-08T14:30:00Z",
+              message: `Export limit reached. Next available: ${retryAfter}`,
+              retryAfter,
             },
           },
         ]),

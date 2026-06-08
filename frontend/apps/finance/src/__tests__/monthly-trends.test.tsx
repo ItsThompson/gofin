@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MonthlyTrendsSection } from "@/features/dashboard";
+import { TrendsSection } from "@/features/dashboard";
 import type { TrendPoint } from "@/types";
 
 const mockTrendData: TrendPoint[] = [
@@ -79,30 +79,28 @@ const mockTrendData: TrendPoint[] = [
   },
 ];
 
-describe("MonthlyTrendsSection", () => {
-  it("renders section with heading and charts when data is provided", () => {
-    const onToggle = () => {};
+describe("TrendsSection", () => {
+  it("renders Select with Monthly Spending as default and the spending chart", () => {
     render(
-      <MonthlyTrendsSection
+      <TrendsSection
         trendData={mockTrendData}
         trendMonths={6}
-        onToggle={onToggle}
+        onToggle={() => {}}
         currency="USD"
       />,
     );
 
-    expect(screen.getByText("Monthly Trends")).toBeInTheDocument();
-    expect(screen.getByText("Monthly Spending")).toBeInTheDocument();
-    expect(screen.getByText("Category Split")).toBeInTheDocument();
+    expect(screen.getByLabelText("Select trend chart")).toBeInTheDocument();
+    // Monthly Spending appears in both the Select trigger and chart title
+    expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders nothing when data is empty", () => {
-    const onToggle = () => {};
     const { container } = render(
-      <MonthlyTrendsSection
+      <TrendsSection
         trendData={[]}
         trendMonths={6}
-        onToggle={onToggle}
+        onToggle={() => {}}
         currency="USD"
       />,
     );
@@ -111,12 +109,11 @@ describe("MonthlyTrendsSection", () => {
   });
 
   it("renders toggle group with 6M and 12M options", () => {
-    const onToggle = () => {};
     render(
-      <MonthlyTrendsSection
+      <TrendsSection
         trendData={mockTrendData}
         trendMonths={6}
-        onToggle={onToggle}
+        onToggle={() => {}}
         currency="USD"
       />,
     );
@@ -133,7 +130,7 @@ describe("MonthlyTrendsSection", () => {
     };
 
     render(
-      <MonthlyTrendsSection
+      <TrendsSection
         trendData={mockTrendData}
         trendMonths={6}
         onToggle={onToggle}
@@ -148,12 +145,11 @@ describe("MonthlyTrendsSection", () => {
   });
 
   it("marks current toggle value as active", () => {
-    const onToggle = () => {};
     render(
-      <MonthlyTrendsSection
+      <TrendsSection
         trendData={mockTrendData}
         trendMonths={12}
-        onToggle={onToggle}
+        onToggle={() => {}}
         currency="USD"
       />,
     );
@@ -163,5 +159,26 @@ describe("MonthlyTrendsSection", () => {
 
     const toggle6M = screen.getByRole("radio", { name: "6 months" });
     expect(toggle6M).toHaveAttribute("data-state", "off");
+  });
+
+  it("switches to Category Split chart when selected", async () => {
+    const user = userEvent.setup();
+    render(
+      <TrendsSection
+        trendData={mockTrendData}
+        trendMonths={6}
+        onToggle={() => {}}
+        currency="USD"
+      />,
+    );
+
+    // Open Select and choose Category Split
+    const trigger = screen.getByLabelText("Select trend chart");
+    await user.click(trigger);
+    const categorySplitOption = await screen.findByRole("option", { name: "Category Split" });
+    await user.click(categorySplitOption);
+
+    // Category Split appears in both Select trigger and chart title
+    expect(screen.getAllByText("Category Split").length).toBeGreaterThanOrEqual(2);
   });
 });

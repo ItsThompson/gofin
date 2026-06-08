@@ -247,11 +247,11 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     renderDashboard();
 
     await waitFor(() => {
-      expect(screen.getByText("Monthly Trends")).toBeInTheDocument();
+      expect(screen.getByLabelText("Select trend chart")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Monthly Spending")).toBeInTheDocument();
-    expect(screen.getByText("Category Split")).toBeInTheDocument();
+    // Default chart is "Monthly Spending" shown in Select trigger and chart title
+    expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows network error message when budget save has connection failure", async () => {
