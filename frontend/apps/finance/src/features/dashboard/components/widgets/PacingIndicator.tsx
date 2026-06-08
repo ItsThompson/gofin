@@ -23,7 +23,7 @@ export function PacingIndicator({ summary, currency }: PacingIndicatorProps) {
   const overAmount = isOverBudget ? summary.totalSpent - summary.totalBudget : 0;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Activity className="size-4 text-muted-foreground" />
