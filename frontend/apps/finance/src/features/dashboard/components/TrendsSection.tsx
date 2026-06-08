@@ -1,21 +1,33 @@
+import { useState } from "react";
 import type { TrendPoint } from "../../../types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@gofin/ui/components/select";
 import { ToggleGroup, ToggleGroupItem } from "@gofin/ui/components/toggle-group";
 import { SpendingTrendChart } from "./widgets/SpendingTrendChart";
 import { CategorySplitChart } from "./widgets/CategorySplitChart";
 
-interface MonthlyTrendsSectionProps {
+type TrendsChart = "monthly-spending" | "category-split";
+
+interface TrendsSectionProps {
   trendData: TrendPoint[];
   trendMonths: 6 | 12;
   onToggle: (months: 6 | 12) => void;
   currency: string;
 }
 
-export function MonthlyTrendsSection({
+export function TrendsSection({
   trendData,
   trendMonths,
   onToggle,
   currency,
-}: MonthlyTrendsSectionProps) {
+}: TrendsSectionProps) {
+  const [selectedChart, setSelectedChart] = useState<TrendsChart>("monthly-spending");
+
   if (trendData.length === 0) {
     return null;
   }
@@ -23,7 +35,18 @@ export function MonthlyTrendsSection({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Monthly Trends</h2>
+        <Select
+          value={selectedChart}
+          onValueChange={(value) => setSelectedChart(value as TrendsChart)}
+        >
+          <SelectTrigger aria-label="Select trend chart">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="monthly-spending">Monthly Spending</SelectItem>
+            <SelectItem value="category-split">Category Split</SelectItem>
+          </SelectContent>
+        </Select>
         <ToggleGroup
           type="single"
           value={String(trendMonths)}
@@ -42,8 +65,12 @@ export function MonthlyTrendsSection({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <SpendingTrendChart data={trendData} currency={currency} />
-      <CategorySplitChart data={trendData} />
+      {selectedChart === "monthly-spending" && (
+        <SpendingTrendChart data={trendData} currency={currency} />
+      )}
+      {selectedChart === "category-split" && (
+        <CategorySplitChart data={trendData} />
+      )}
     </div>
   );
 }
