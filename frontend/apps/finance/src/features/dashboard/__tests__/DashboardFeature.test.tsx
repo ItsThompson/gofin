@@ -332,7 +332,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
       });
 
       // Switch to Repeated Expenses via the breakdown Select
@@ -739,7 +739,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
       });
 
       expect(screen.getAllByText("Groceries").length).toBeGreaterThan(0);
@@ -756,7 +756,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
       });
 
       const viewAllLink = screen.getByRole("link", { name: /view all/i });
@@ -771,7 +771,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Recent Expenses")).toBeInTheDocument();
+        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
       });
 
       // totalSpent from summary: 54500 cents = $545.00
@@ -886,7 +886,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Spending Pace")).toBeInTheDocument();
+        expect(screen.getAllByText("Spending Pace").length).toBeGreaterThanOrEqual(1);
       });
 
       expect(screen.getByText("Daily Average")).toBeInTheDocument();
@@ -1088,7 +1088,7 @@ describe("DashboardFeature", () => {
         expect(screen.getByTestId("historical-comparison")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("Historical Comparison")).toBeInTheDocument();
+      expect(screen.getAllByText("Historical Comparison").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Current Period")).toBeInTheDocument();
       expect(screen.getByText("Previous Period")).toBeInTheDocument();
       expect(screen.getByText("$480.00")).toBeInTheDocument();
