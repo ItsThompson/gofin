@@ -162,6 +162,26 @@ describe("DashboardOutline", () => {
     expect(await screen.findByRole("link", { name: "Upcoming Pro-rata" })).toBeInTheDocument();
   });
 
+  it("updates outline nodes after observed attribute changes", async () => {
+    const rootRef = createDashboardRoot(<section id="summary" data-outline-title="Summary" />);
+
+    render(<DashboardOutline rootRef={rootRef} />);
+    await screen.findByRole("link", { name: "Summary" });
+
+    rootRef.current?.querySelector("#summary")?.setAttribute("data-outline-title", "Overview");
+    mutationObservers[0].callback([], mutationObservers[0] as unknown as MutationObserver);
+
+    expect(await screen.findByRole("link", { name: "Overview" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Summary" })).not.toBeInTheDocument();
+
+    rootRef.current?.querySelector("#summary")?.setAttribute("hidden", "");
+    mutationObservers[0].callback([], mutationObservers[0] as unknown as MutationObserver);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("navigation", { name: "Dashboard sections" })).not.toBeInTheDocument();
+    });
+  });
+
   it("preserves xl-only fixed positioning classes", async () => {
     const rootRef = createDashboardRoot(<section id="summary" data-outline-title="Summary" />);
 

@@ -25,11 +25,6 @@ export function useDashboardOutline(rootRef: RefObject<HTMLElement | null>): Das
   const outlineElementsRef = useRef<DashboardOutlineElement[]>([]);
   const intersectingIdsRef = useRef<Set<string>>(new Set());
 
-  const updateActiveId = useCallback((items: DashboardOutlineItem[]) => {
-    const activeId = chooseActiveDashboardOutlineItem(items, intersectingIdsRef.current);
-    setState((previousState) => ({ ...previousState, activeId }));
-  }, []);
-
   const recollect = useCallback(() => {
     const root = rootRef.current;
     if (!root) {
@@ -107,10 +102,6 @@ export function useDashboardOutline(rootRef: RefObject<HTMLElement | null>): Das
       intersectionObserver.disconnect();
     };
   }, [state.items]);
-
-  useEffect(() => {
-    updateActiveId(state.items);
-  }, [state.items, updateActiveId]);
 
   return state;
 }
