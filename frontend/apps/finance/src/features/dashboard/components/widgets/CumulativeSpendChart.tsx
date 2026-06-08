@@ -1,5 +1,6 @@
 import { formatCurrency, getCurrencySymbol } from "@gofin/core";
 import type { CumulativeSpendPoint } from "../../../../types";
+import { insertCrossoverPoints } from "../../../../lib/insertCrossoverPoints";
 import {
   Card,
   CardContent,
@@ -23,18 +24,35 @@ interface CumulativeSpendChartProps {
 }
 
 export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
-  const chartData = data.map((point) => {
-    const actual = point.actual / 100;
-    const ideal = point.ideal / 100;
-    const underBudget = actual <= ideal;
+  // Convert from cents to dollars and insert crossover interpolation points
+  const basePoints = data.map((point) => ({
+    day: point.day,
+    actual: point.actual / 100,
+    ideal: point.ideal / 100,
+  }));
+
+  const interpolatedPoints = insertCrossoverPoints(basePoints);
+
+  const chartData = interpolatedPoints.map((point) => {
+    const underBudget = point.actual <= point.ideal;
+
+    if (point.isCrossover) {
+      // At crossover, define both areas to terminate/start seamlessly
+      return {
+        day: point.day,
+        actual: point.actual,
+        ideal: point.ideal,
+        surplusTop: point.actual,
+        deficitTop: point.actual,
+      };
+    }
+
     return {
       day: point.day,
-      actual,
-      ideal,
-      surplusBase: underBudget ? actual : undefined,
-      surplusTop: underBudget ? ideal : undefined,
-      deficitBase: !underBudget ? ideal : undefined,
-      deficitTop: !underBudget ? actual : undefined,
+      actual: point.actual,
+      ideal: point.ideal,
+      surplusTop: underBudget ? point.ideal : undefined,
+      deficitTop: !underBudget ? point.actual : undefined,
     };
   });
 

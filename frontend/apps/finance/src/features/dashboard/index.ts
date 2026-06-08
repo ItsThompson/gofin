@@ -1,3 +1,4 @@
 export { DashboardFeature } from "./DashboardFeature";
 export { ActiveDashboard } from "./components/ActiveDashboard";
-export { MonthlyTrendsSection } from "./components/MonthlyTrendsSection";
+export { TrendsSection } from "./components/TrendsSection";
+export { BreakdownSection } from "./components/BreakdownSection";
