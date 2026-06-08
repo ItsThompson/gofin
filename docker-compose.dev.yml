@@ -5,6 +5,8 @@ services:
   mfe:
     environment:
       - COOKIE_SECURE=false
+      - NODE_ENV=development
+    command: sh -lc "cd /app && npm ci && npm run dev --workspace=@gofin/shell"
     volumes:
       - ./frontend:/app
       - /app/node_modules
