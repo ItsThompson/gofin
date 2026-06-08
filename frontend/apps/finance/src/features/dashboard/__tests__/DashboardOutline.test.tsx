@@ -236,6 +236,28 @@ describe("collectDashboardOutline", () => {
       { id: "trends", title: "Trends", children: [] },
     ]);
   });
+
+  it("excludes zero-size outline wrappers even when they have an offset parent", () => {
+    const root = document.createElement("div");
+    const emptySection = appendVisibleElement(root, "empty", "Empty");
+    emptySection.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      toJSON: () => ({}),
+    }));
+    Object.defineProperty(emptySection, "offsetParent", {
+      configurable: true,
+      value: document.body,
+    });
+
+    expect(toDashboardOutlineItems(collectDashboardOutline(root))).toEqual([]);
+  });
 });
 
 describe("chooseActiveDashboardOutlineItem", () => {

@@ -74,7 +74,5 @@ function isElementVisible(element: HTMLElement): boolean {
   if (style.display === "none" || style.visibility === "hidden") return false;
 
   const rect = element.getBoundingClientRect();
-  if (rect.width > 0 || rect.height > 0) return true;
-
-  return element.offsetParent !== null;
+  return rect.width > 0 || rect.height > 0;
 }

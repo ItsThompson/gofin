@@ -130,30 +130,36 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           </SectionErrorBoundary>
 
           {/* Category Gauges */}
-          <section id="budget-allocations" data-outline-title="Budget Allocations">
-            <SectionErrorBoundary sectionName="Category Gauges">
-              {data.summary && <CategoryGauges summary={data.summary} currency={user.currency} />}
-            </SectionErrorBoundary>
-          </section>
+          {data.summary && (
+            <section id="budget-allocations" data-outline-title="Budget Allocations">
+              <SectionErrorBoundary sectionName="Category Gauges">
+                <CategoryGauges summary={data.summary} currency={user.currency} />
+              </SectionErrorBoundary>
+            </section>
+          )}
 
           {/* Spending Pace + Historical Comparison: side-by-side on desktop */}
-          <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-            <section id="spending-pace" data-outline-title="Spending Pace">
-              <SectionErrorBoundary sectionName="Spending Pace">
-                {data.summary && <PacingIndicator summary={data.summary} currency={user.currency} />}
-              </SectionErrorBoundary>
-            </section>
-            <section id="historical-comparison" data-outline-title="Historical Comparison">
-              <SectionErrorBoundary sectionName="Historical Comparison">
-                {data.comparison && (
-                  <HistoricalComparisonWidget
-                    comparison={data.comparison}
-                    currency={user.currency}
-                  />
-                )}
-              </SectionErrorBoundary>
-            </section>
-          </div>
+          {(data.summary || data.comparison) && (
+            <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+              {data.summary && (
+                <section id="spending-pace" data-outline-title="Spending Pace">
+                  <SectionErrorBoundary sectionName="Spending Pace">
+                    <PacingIndicator summary={data.summary} currency={user.currency} />
+                  </SectionErrorBoundary>
+                </section>
+              )}
+              {data.comparison && (
+                <section id="historical-comparison" data-outline-title="Historical Comparison">
+                  <SectionErrorBoundary sectionName="Historical Comparison">
+                    <HistoricalComparisonWidget
+                      comparison={data.comparison}
+                      currency={user.currency}
+                    />
+                  </SectionErrorBoundary>
+                </section>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Upcoming Pro-rata */}
@@ -168,18 +174,18 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         {/* Charts: hidden on mobile per US-DASH-09 */}
         <div className="hidden md:block space-y-6">
           {/* Trends Section */}
-          <section id="trends" data-outline-title="Trends">
-            <SectionErrorBoundary sectionName="Monthly Trends">
-              {data.trendData && data.trendData.length > 0 && (
+          {data.trendData && data.trendData.length > 0 && (
+            <section id="trends" data-outline-title="Trends">
+              <SectionErrorBoundary sectionName="Monthly Trends">
                 <TrendsSection
                   trendData={data.trendData}
                   trendMonths={trendMonths}
                   onToggle={setTrendMonths}
                   currency={user.currency}
                 />
-              )}
-            </SectionErrorBoundary>
-          </section>
+              </SectionErrorBoundary>
+            </section>
+          )}
 
           {/* Breakdown Section */}
           <section id="breakdown" data-outline-title="Breakdown">
@@ -193,43 +199,45 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           </section>
 
           {/* Cumulative Spend Chart */}
-          <section id="cumulative-spending" data-outline-title="Cumulative Spending">
-            <SectionErrorBoundary sectionName="Cumulative Spending">
-              {data.cumulativeData.length > 0 && (
+          {data.cumulativeData.length > 0 && (
+            <section id="cumulative-spending" data-outline-title="Cumulative Spending">
+              <SectionErrorBoundary sectionName="Cumulative Spending">
                 <CumulativeSpendChart
                   data={data.cumulativeData}
                   currency={user.currency}
                 />
-              )}
-            </SectionErrorBoundary>
-          </section>
+              </SectionErrorBoundary>
+            </section>
+          )}
         </div>
 
         {/* Recent Expenses or Empty State */}
-        <section id="recent-expenses" data-outline-title="Recent Expenses">
-          <SectionErrorBoundary sectionName="Recent Expenses">
-            {data.recentExpenses.length === 0 && !readOnly ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <Wallet className="mb-4 size-12 text-muted-foreground/50" />
-                  <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
-                  <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-                    Start tracking your spending by logging your first expense for this
-                    month.
-                  </p>
-                  <Button asChild>
-                    <Link to="/expenses/new">
-                      <PlusCircle className="size-4" />
-                      Log your first expense
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : data.recentExpenses.length > 0 ? (
-              <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
-            ) : null}
-          </SectionErrorBoundary>
-        </section>
+        {(data.recentExpenses.length > 0 || !readOnly) && (
+          <section id="recent-expenses" data-outline-title="Recent Expenses">
+            <SectionErrorBoundary sectionName="Recent Expenses">
+              {data.recentExpenses.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                    <Wallet className="mb-4 size-12 text-muted-foreground/50" />
+                    <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
+                    <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+                      Start tracking your spending by logging your first expense for this
+                      month.
+                    </p>
+                    <Button asChild>
+                      <Link to="/expenses/new">
+                        <PlusCircle className="size-4" />
+                        Log your first expense
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
+              )}
+            </SectionErrorBoundary>
+          </section>
+        )}
       </div>
 
       {/* Dashboard Outline (TOC) - fixed positioned, renders on xl+ viewports */}

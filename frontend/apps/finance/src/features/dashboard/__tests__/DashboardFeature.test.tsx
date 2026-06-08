@@ -254,6 +254,22 @@ describe("DashboardFeature", () => {
       expect(ctaLink).toHaveAttribute("href", "/expenses/new");
     });
 
+    it("does not expose outline metadata for dashboard sections without rendered content", async () => {
+      globalThis.fetch = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+      }) as unknown as typeof fetch;
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("No expenses yet")).toBeInTheDocument();
+      });
+
+      expect(document.querySelector('[data-outline-title="Historical Comparison"]')).toBeNull();
+      expect(document.querySelector('[data-outline-title="Trends"]')).toBeNull();
+      expect(document.querySelector('[data-outline-title="Cumulative Spending"]')).toBeNull();
+    });
+
     it("renders repeated-expenses chart with frequency and recency context", async () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
