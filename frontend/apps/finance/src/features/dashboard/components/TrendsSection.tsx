@@ -39,12 +39,12 @@ export function TrendsSection({
           value={selectedChart}
           onValueChange={(value) => setSelectedChart(value as TrendsChart)}
         >
-          <SelectTrigger aria-label="Select trend chart">
+          <SelectTrigger aria-label="Select trend chart" className="text-base">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="monthly-spending">Monthly Spending</SelectItem>
-            <SelectItem value="category-split">Category Split</SelectItem>
+            <SelectItem value="monthly-spending" className="text-base">Monthly Spending</SelectItem>
+            <SelectItem value="category-split" className="text-base">Category Split</SelectItem>
           </SelectContent>
         </Select>
         <ToggleGroup

@@ -33,12 +33,12 @@ export function BreakdownSection({
           value={selectedChart}
           onValueChange={(value) => setSelectedChart(value as BreakdownChart)}
         >
-          <SelectTrigger aria-label="Select breakdown chart">
+          <SelectTrigger aria-label="Select breakdown chart" className="text-base">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tag-spending">Spending by Tag</SelectItem>
-            <SelectItem value="repeated-expenses">Repeated Expenses</SelectItem>
+            <SelectItem value="tag-spending" className="text-base">Spending by Tag</SelectItem>
+            <SelectItem value="repeated-expenses" className="text-base">Repeated Expenses</SelectItem>
           </SelectContent>
         </Select>
       </div>
