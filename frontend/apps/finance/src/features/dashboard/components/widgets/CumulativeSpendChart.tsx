@@ -59,6 +59,10 @@ export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartPro
     };
   });
 
+  const todayPoint = chartData.find(
+    (point) => point.day === currentDay && point.actual != null,
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -116,30 +120,24 @@ export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartPro
               dot={false}
               name="Actual"
             />
-            {(() => {
-              const todayPoint = chartData.find(
-                (point) => point.day === currentDay && point.actual != null,
-              );
-              if (!todayPoint) return null;
-              return (
-                <ReferenceDot
-                  x={todayPoint.day}
-                  y={todayPoint.actual}
-                  shape={(props: { cx?: number; cy?: number }) => {
-                    const { cx = 0, cy = 0 } = props;
-                    const size = 6;
-                    return (
-                      <polygon
-                        points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
-                        fill="var(--primary)"
-                        stroke="var(--background)"
-                        strokeWidth={1.5}
-                      />
-                    );
-                  }}
-                />
-              );
-            })()}
+            {todayPoint && (
+              <ReferenceDot
+                x={todayPoint.day}
+                y={todayPoint.actual}
+                shape={(props: { cx?: number; cy?: number }) => {
+                  const { cx = 0, cy = 0 } = props;
+                  const size = 6;
+                  return (
+                    <polygon
+                      points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
+                      fill="var(--primary)"
+                      stroke="var(--background)"
+                      strokeWidth={1.5}
+                    />
+                  );
+                }}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </CardContent>
