@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import type { User } from "@gofin/core";
 import type { BudgetPeriod } from "../../../types";
@@ -39,6 +39,7 @@ export interface ActiveDashboardProps {
 export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashboardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState(period);
+  const dashboardContentRef = useRef<HTMLDivElement | null>(null);
 
   const { data, loading, trendMonths, setTrendMonths, refresh } =
     useDashboardData(currentPeriod.year, currentPeriod.month);
@@ -107,130 +108,132 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         </SectionErrorBoundary>
       )}
 
-      {/* Summary Bar */}
-      <section id="summary">
-        <SectionErrorBoundary sectionName="Summary">
-          <SummaryBar
-            budgetAmount={currentPeriod.budgetAmount}
-            totalSpent={totalSpent}
-            remaining={remaining}
-            daysLeft={
-              data.summary
-                ? data.summary.daysInPeriod - data.summary.daysElapsed
-                : Math.max(
-                    0,
-                    new Date(currentPeriod.year, currentPeriod.month, 0).getDate() -
-                      new Date().getDate(),
-                  )
-            }
-            currency={user.currency}
-          />
-        </SectionErrorBoundary>
-      </section>
-
-      {/* Category Gauges */}
-      <section id="budget-allocations">
-        <SectionErrorBoundary sectionName="Category Gauges">
-          {data.summary && <CategoryGauges summary={data.summary} currency={user.currency} />}
-        </SectionErrorBoundary>
-      </section>
-
-      {/* Spending Pace + Historical Comparison: side-by-side on desktop */}
-      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-        <section id="spending-pace">
-          <SectionErrorBoundary sectionName="Spending Pace">
-            {data.summary && <PacingIndicator summary={data.summary} currency={user.currency} />}
-          </SectionErrorBoundary>
-        </section>
-        <section id="historical-comparison">
-          <SectionErrorBoundary sectionName="Historical Comparison">
-            {data.comparison && (
-              <HistoricalComparisonWidget
-                comparison={data.comparison}
-                currency={user.currency}
-              />
-            )}
-          </SectionErrorBoundary>
-        </section>
-      </div>
-
-      {/* Upcoming Pro-rata */}
-      <SectionErrorBoundary sectionName="Upcoming Pro-rata">
-        {data.upcomingProRata.length > 0 && (
-          <section id="upcoming-prorata">
-            <UpcomingProRataSection schedules={data.upcomingProRata} currency={user.currency} />
-          </section>
-        )}
-      </SectionErrorBoundary>
-
-      {/* Charts: hidden on mobile per US-DASH-09 */}
-      <div className="hidden md:block space-y-6">
-        {/* Trends Section */}
-        <section id="trends">
-          <SectionErrorBoundary sectionName="Monthly Trends">
-            {data.trendData && data.trendData.length > 0 && (
-              <TrendsSection
-                trendData={data.trendData}
-                trendMonths={trendMonths}
-                onToggle={setTrendMonths}
-                currency={user.currency}
-              />
-            )}
-          </SectionErrorBoundary>
-        </section>
-
-        {/* Breakdown Section */}
-        <section id="breakdown">
-          <SectionErrorBoundary sectionName="Breakdown">
-            <BreakdownSection
-              tagSpending={data.tagSpending}
-              expenseFrecencyData={expenseFrecencyData}
+      <div ref={dashboardContentRef} className="space-y-6">
+        {/* Summary Bar */}
+        <section id="summary" data-outline-title="Summary" className="space-y-6">
+          <SectionErrorBoundary sectionName="Summary">
+            <SummaryBar
+              budgetAmount={currentPeriod.budgetAmount}
+              totalSpent={totalSpent}
+              remaining={remaining}
+              daysLeft={
+                data.summary
+                  ? data.summary.daysInPeriod - data.summary.daysElapsed
+                  : Math.max(
+                      0,
+                      new Date(currentPeriod.year, currentPeriod.month, 0).getDate() -
+                        new Date().getDate(),
+                    )
+              }
               currency={user.currency}
             />
           </SectionErrorBoundary>
+
+          {/* Category Gauges */}
+          <section id="budget-allocations" data-outline-title="Budget Allocations">
+            <SectionErrorBoundary sectionName="Category Gauges">
+              {data.summary && <CategoryGauges summary={data.summary} currency={user.currency} />}
+            </SectionErrorBoundary>
+          </section>
+
+          {/* Spending Pace + Historical Comparison: side-by-side on desktop */}
+          <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+            <section id="spending-pace" data-outline-title="Spending Pace">
+              <SectionErrorBoundary sectionName="Spending Pace">
+                {data.summary && <PacingIndicator summary={data.summary} currency={user.currency} />}
+              </SectionErrorBoundary>
+            </section>
+            <section id="historical-comparison" data-outline-title="Historical Comparison">
+              <SectionErrorBoundary sectionName="Historical Comparison">
+                {data.comparison && (
+                  <HistoricalComparisonWidget
+                    comparison={data.comparison}
+                    currency={user.currency}
+                  />
+                )}
+              </SectionErrorBoundary>
+            </section>
+          </div>
         </section>
 
-        {/* Cumulative Spend Chart */}
-        <section id="cumulative-spending">
-          <SectionErrorBoundary sectionName="Cumulative Spending">
-            {data.cumulativeData.length > 0 && (
-              <CumulativeSpendChart
-                data={data.cumulativeData}
+        {/* Upcoming Pro-rata */}
+        <SectionErrorBoundary sectionName="Upcoming Pro-rata">
+          {data.upcomingProRata.length > 0 && (
+            <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
+              <UpcomingProRataSection schedules={data.upcomingProRata} currency={user.currency} />
+            </section>
+          )}
+        </SectionErrorBoundary>
+
+        {/* Charts: hidden on mobile per US-DASH-09 */}
+        <div className="hidden md:block space-y-6">
+          {/* Trends Section */}
+          <section id="trends" data-outline-title="Trends">
+            <SectionErrorBoundary sectionName="Monthly Trends">
+              {data.trendData && data.trendData.length > 0 && (
+                <TrendsSection
+                  trendData={data.trendData}
+                  trendMonths={trendMonths}
+                  onToggle={setTrendMonths}
+                  currency={user.currency}
+                />
+              )}
+            </SectionErrorBoundary>
+          </section>
+
+          {/* Breakdown Section */}
+          <section id="breakdown" data-outline-title="Breakdown">
+            <SectionErrorBoundary sectionName="Breakdown">
+              <BreakdownSection
+                tagSpending={data.tagSpending}
+                expenseFrecencyData={expenseFrecencyData}
                 currency={user.currency}
               />
-            )}
+            </SectionErrorBoundary>
+          </section>
+
+          {/* Cumulative Spend Chart */}
+          <section id="cumulative-spending" data-outline-title="Cumulative Spending">
+            <SectionErrorBoundary sectionName="Cumulative Spending">
+              {data.cumulativeData.length > 0 && (
+                <CumulativeSpendChart
+                  data={data.cumulativeData}
+                  currency={user.currency}
+                />
+              )}
+            </SectionErrorBoundary>
+          </section>
+        </div>
+
+        {/* Recent Expenses or Empty State */}
+        <section id="recent-expenses" data-outline-title="Recent Expenses">
+          <SectionErrorBoundary sectionName="Recent Expenses">
+            {data.recentExpenses.length === 0 && !readOnly ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <Wallet className="mb-4 size-12 text-muted-foreground/50" />
+                  <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
+                  <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+                    Start tracking your spending by logging your first expense for this
+                    month.
+                  </p>
+                  <Button asChild>
+                    <Link to="/expenses/new">
+                      <PlusCircle className="size-4" />
+                      Log your first expense
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : data.recentExpenses.length > 0 ? (
+              <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
+            ) : null}
           </SectionErrorBoundary>
         </section>
       </div>
 
-      {/* Recent Expenses or Empty State */}
-      <section id="recent-expenses">
-        <SectionErrorBoundary sectionName="Recent Expenses">
-          {data.recentExpenses.length === 0 && !readOnly ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <Wallet className="mb-4 size-12 text-muted-foreground/50" />
-                <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
-                <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-                  Start tracking your spending by logging your first expense for this
-                  month.
-                </p>
-                <Button asChild>
-                  <Link to="/expenses/new">
-                    <PlusCircle className="size-4" />
-                    Log your first expense
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ) : data.recentExpenses.length > 0 ? (
-            <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
-          ) : null}
-        </SectionErrorBoundary>
-      </section>
-
       {/* Dashboard Outline (TOC) - fixed positioned, renders on xl+ viewports */}
-      <DashboardOutline />
+      <DashboardOutline rootRef={dashboardContentRef} />
     </div>
   );
 }
