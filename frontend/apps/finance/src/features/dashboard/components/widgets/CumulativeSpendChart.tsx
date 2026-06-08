@@ -16,6 +16,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   ComposedChart,
+  ReferenceDot,
 } from "recharts";
 
 interface CumulativeSpendChartProps {
@@ -24,6 +25,8 @@ interface CumulativeSpendChartProps {
 }
 
 export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
+  const currentDay = new Date().getDate();
+
   // Convert from cents to dollars and insert crossover interpolation points
   const basePoints = data.map((point) => ({
     day: point.day,
@@ -113,6 +116,30 @@ export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartPro
               dot={false}
               name="Actual"
             />
+            {(() => {
+              const todayPoint = chartData.find(
+                (point) => point.day === currentDay && point.actual != null,
+              );
+              if (!todayPoint) return null;
+              return (
+                <ReferenceDot
+                  x={todayPoint.day}
+                  y={todayPoint.actual}
+                  shape={(props: { cx?: number; cy?: number }) => {
+                    const { cx = 0, cy = 0 } = props;
+                    const size = 6;
+                    return (
+                      <polygon
+                        points={`${cx},${cy - size} ${cx + size},${cy} ${cx},${cy + size} ${cx - size},${cy}`}
+                        fill="var(--primary)"
+                        stroke="var(--background)"
+                        strokeWidth={1.5}
+                      />
+                    );
+                  }}
+                />
+              );
+            })()}
           </ComposedChart>
         </ResponsiveContainer>
       </CardContent>
