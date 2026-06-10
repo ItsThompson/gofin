@@ -1,6 +1,10 @@
-import { formatCurrency, getCurrencySymbol } from "@gofin/core";
+import { getCurrencySymbol } from "@gofin/core";
 import type { CumulativeSpendPoint } from "../../../../types";
 import { insertCrossoverPoints } from "../../../../lib/insertCrossoverPoints";
+import {
+  tooltipFormatter,
+  tooltipLabelFormatter,
+} from "./cumulative-spend-chart-utils";
 import {
   Card,
   CardContent,
@@ -91,14 +95,8 @@ export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartPro
               tickFormatter={(value) => `${getCurrencySymbol(currency)}${value}`}
             />
             <Tooltip
-              formatter={(value, name) =>
-                Array.isArray(value)
-                  ? null
-                  : [formatCurrency((value as number) * 100, currency), name]
-              }
-              labelFormatter={(label) =>
-                Number.isInteger(label) ? `Day ${label}` : ""
-              }
+              formatter={(value, name) => tooltipFormatter(value, name as string, currency)}
+              labelFormatter={(label) => tooltipLabelFormatter(label)}
             />
             <Area
               type="monotone"
