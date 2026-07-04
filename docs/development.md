@@ -169,9 +169,9 @@ The first admin user must be created before the admin panel, identity assumption
 just seed-admin
 ```
 
-This runs the auth service's `seed-admin` CLI subcommand, which reads `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from environment variables. The command is idempotent: if an admin already exists, it exits successfully.
+This runs the auth service's `seed-admin` CLI subcommand, which reads `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from environment variables. The command is idempotent: if an admin already exists, it exits successfully. It also marks the admin's onboarding as complete server-side, so the operator does not go through the finance onboarding flow.
 
-The admin then logs in through the normal UI and completes onboarding like any other user.
+The admin is an operator-only identity: it owns no finance data and does not use the onboarding or budget flows (`POST /api/auth/onboarding-complete` is a `Personal` route and returns 403 to a direct admin). After logging in through the normal UI, a direct admin lands on `/admin` and is redirected off the personal finance routes.
 
 ## Datarights Service
 
