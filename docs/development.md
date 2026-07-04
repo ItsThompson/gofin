@@ -61,15 +61,15 @@ This starts the shell dev server with the `VITE_MOCK_API=true` flag, which activ
 
 The mock layer provides:
 
-- An authenticated admin user (auto-logged in)
+- An operator (admin) user, auto-logged in by default (lands on `/admin`; personal finance routes are not reachable as a direct admin)
+- A regular user (`alex`) available for identity assumption and for exercising the finance UI
 - A current-month budget period ($3,000, 50/30/20 split)
 - Seven sample expenses across different categories and tags
 - All eleven default tags plus one custom tag
 - Dashboard aggregation data (summary, pacing, tag spending, cumulative chart, historical comparison)
 - An upcoming pro-rata installment
-- A second user in the admin panel for identity assumption testing
 
-Mock data is defined in `frontend/apps/shell/mocks/data.ts`. Request handlers are in `frontend/apps/shell/mocks/handlers.ts`. To change the authenticated user (e.g., test as a non-admin), edit the `currentMockUser` export in `data.ts`.
+Mock data is defined in `frontend/apps/shell/mocks/data.ts`. Request handlers are in `frontend/apps/shell/mocks/handlers.ts`. The default mock user is the operator (admin), who lands on `/admin` and sees only the admin panel plus Settings (Profile and Password); a direct admin is redirected off the personal finance routes, so the budget/expenses/dashboard fixtures are not reachable while acting as the admin. To exercise the personal finance UI, set `currentMockUser` to the regular user (`regularUser`, "alex") in `data.ts`, or log in as the admin and assume that user from the admin panel.
 
 **How it works:**
 
