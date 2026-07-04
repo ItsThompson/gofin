@@ -154,6 +154,21 @@ class ValidateChangeManagementTest(unittest.TestCase):
         self.assertIn("Activity 2 has no matching Validation 2",
                       self._rule("001_example") or "")
 
+    def test_stray_validation_fails(self) -> None:
+        item = _write_valid_item(self.root, "001_example")
+        text = _av_block("Activity", 1) + _av_block("Validation", 1) \
+            + _av_block("Validation", 2)
+        (item / "preflight.md").write_text(text, encoding="utf-8")
+        self.assertIn("Validation 2 has no matching Activity 2",
+                      self._rule("001_example") or "")
+
+    def test_validation_only_file_fails(self) -> None:
+        item = _write_valid_item(self.root, "001_example")
+        text = _av_block("Validation", 1) + _av_block("Validation", 2)
+        (item / "steps.md").write_text(text, encoding="utf-8")
+        self.assertIn("no '# Activity N' block found",
+                      self._rule("001_example") or "")
+
     def test_block_missing_checklist_fails(self) -> None:
         item = _write_valid_item(self.root, "001_example")
         text = _av_block("Activity", 1).replace("## Checklist:", "## Tasks:") \
