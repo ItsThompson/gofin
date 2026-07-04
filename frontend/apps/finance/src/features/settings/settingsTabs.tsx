@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Wallet, UserRound, Lock, Tags } from "lucide-react";
 import type { User } from "@gofin/core";
 import { canUseFinanceFeatures } from "@gofin/core";
+import type { SettingsPageProps } from "../../types";
 import { DefaultBudgetSection } from "./components/DefaultBudgetSection";
 import { ProfileSection } from "./components/ProfileSection";
 import { PasswordSection } from "./components/PasswordSection";
@@ -10,17 +11,15 @@ import { ExportDataSection } from "./components/ExportDataSection";
 
 export type SettingsTabId = "budget" | "profile" | "password" | "tags";
 
-/** Props every section render receives; each render uses only what it needs. */
-export interface SettingsSectionProps {
-  user: User;
-  onUserUpdated?: () => void;
-}
-
+/**
+ * Props every section render receives; each render uses only what it needs.
+ * Reuses the canonical page-level props ({ user, onUserUpdated? }).
+ */
 export interface SettingsTabDefinition {
   id: SettingsTabId;
   label: string;
   icon: typeof Wallet;
-  render: (props: SettingsSectionProps) => ReactNode;
+  render: (props: SettingsPageProps) => ReactNode;
 }
 
 // Shared, finance-agnostic tabs. The Profile tab here renders ProfileSection
