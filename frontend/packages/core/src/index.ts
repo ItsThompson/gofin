@@ -13,3 +13,8 @@ export {
   validateUsername,
 } from "./validation";
 export { formatCurrency, getCurrencySymbol, toCents } from "./currency";
+export {
+  canUseFinanceFeatures,
+  canUseAdminFeatures,
+  getLandingPath,
+} from "./roles";
