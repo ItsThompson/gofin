@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
-import type { User } from "@gofin/core";
 
-import { NewExpenseFeature } from "../index";
 import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
-
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+import {
+  getSubmittedExpenseRequest,
+  jsonResponse,
+  mockFetch,
+  mockSuggestions,
+  mockTags,
+  renderNewExpense as renderNewExpenseFeature,
+} from "./test-utils";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -30,121 +32,17 @@ vi.mock("react-router", async () => {
   };
 });
 
-const mockUser: User = {
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  role: "user",
-  currency: "USD",
-  hasCompletedOnboarding: true,
-  createdAt: "2026-01-01T00:00:00Z",
-};
-
-const mockTags = [
-  {
-    id: "tag-bills",
-    name: "Bills",
-    isDefault: true,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "tag-food",
-    name: "Food",
-    isDefault: true,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-];
-
-const mockSuggestions: ExpenseSuggestionsResponse = {
-  data: [
-    {
-      name: "Coffee Shop",
-      amount: 450,
-      currency: "USD",
-      expenseType: "desires",
-      tagId: "tag-food",
-      frequency: 4,
-      lastUsedAt: "2026-05-25T00:00:00Z",
-      recencyBucket: "last_7_days",
-      frecencyScore: 42,
-    },
-    {
-      name: "Coffee Beans",
-      amount: 1200,
-      currency: "USD",
-      expenseType: "essentials",
-      tagId: "tag-food",
-      frequency: 2,
-      lastUsedAt: "2026-05-20T00:00:00Z",
-      recencyBucket: "last_30_days",
-      frecencyScore: 31,
-    },
-  ],
-  total: 2,
-  page: 1,
-  pageSize: 50,
-  hasMore: false,
-};
-
-function jsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(body),
-  });
-}
-
 function renderNewExpense(
   suggestions: ExpenseSuggestionsResponse = mockSuggestions,
   tags = mockTags,
 ) {
-  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-    if (url.includes("/api/finance/tags")) {
-      return jsonResponse({ tags });
-    }
-
-    if (url.includes("/api/expenses/suggestions")) {
-      return jsonResponse(suggestions);
-    }
-
-    if (url.includes("/api/expenses") && init?.method === "POST") {
-      return jsonResponse({ expense: { id: "exp-1", name: "Custom Coffee" } }, 201);
-    }
-
-    return jsonResponse({ message: "Unhandled request" }, 404);
-  });
-
-  return render(
-    <MemoryRouter>
-      <NewExpenseFeature user={mockUser} />
-    </MemoryRouter>,
-  );
+  return renderNewExpenseFeature({ suggestions, tags });
 }
 
 function renderNewExpenseWithFetchHandler(
   handler: (url: string, init?: RequestInit) => Promise<unknown>,
 ) {
-  mockFetch.mockImplementation(handler);
-
-  return render(
-    <MemoryRouter>
-      <NewExpenseFeature user={mockUser} />
-    </MemoryRouter>,
-  );
-}
-
-function getSubmittedExpenseRequest() {
-  const postCall = mockFetch.mock.calls.find(
-    (call) =>
-      typeof call[0] === "string" &&
-      call[0].includes("/api/expenses") &&
-      !call[0].includes("/api/expenses/suggestions") &&
-      call[1]?.method === "POST",
-  );
-
-  return JSON.parse(postCall?.[1]?.body as string);
+  return renderNewExpenseFeature({ fetchHandler: handler });
 }
 
 describe("NewExpenseFeature autocomplete integration", () => {

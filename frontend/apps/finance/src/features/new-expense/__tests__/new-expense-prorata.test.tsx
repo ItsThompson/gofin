@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
-import { NewExpenseFeature } from "../index";
-import type { User } from "@gofin/core";
 
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+import {
+  findProRataPostCall,
+  jsonResponse,
+  mockFetch,
+  mockTags,
+  renderNewExpense,
+  waitForFormBootstrap,
+} from "./test-utils";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -27,86 +30,6 @@ vi.mock("react-router", async () => {
     useNavigate: () => mockNavigate,
   };
 });
-
-const mockUser: User = {
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  role: "user",
-  currency: "USD",
-  hasCompletedOnboarding: true,
-  createdAt: "2026-01-01T00:00:00Z",
-};
-
-const mockTags = [
-  { id: "tag-bills", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-];
-
-function jsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(body),
-  });
-}
-
-function countFetchCalls(path: string): number {
-  return mockFetch.mock.calls.filter(
-    (call) => typeof call[0] === "string" && call[0].includes(path),
-  ).length;
-}
-
-function findProRataPostCall() {
-  return mockFetch.mock.calls.find(
-    (call) =>
-      typeof call[0] === "string" &&
-      call[0].includes("/api/finance/prorata") &&
-      call[1]?.method === "POST",
-  );
-}
-
-async function waitForFormBootstrap() {
-  await waitFor(() => {
-    expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
-    expect(countFetchCalls("/api/expenses/suggestions")).toBe(1);
-  });
-}
-
-function mockFormBootstrapResponses() {
-  mockFetch.mockImplementation((url: string) => {
-    if (url.includes("/api/finance/tags")) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ tags: mockTags }),
-      });
-    }
-
-    if (url.includes("/api/expenses/suggestions")) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 50, hasMore: false }),
-      });
-    }
-
-    return Promise.resolve({
-      ok: false,
-      status: 404,
-      json: () => Promise.resolve({ message: "Unhandled request" }),
-    });
-  });
-}
-
-function renderNewExpense() {
-  mockFormBootstrapResponses();
-  return render(
-    <MemoryRouter>
-      <NewExpenseFeature user={mockUser} />
-    </MemoryRouter>,
-  );
-}
 
 describe("NewExpenseFeature - Pro-rata flow", () => {
   beforeEach(() => {

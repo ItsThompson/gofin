@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
-import { NewExpenseFeature } from "../index";
-import type { User } from "@gofin/core";
 
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+import { toLocalISODate } from "../../../lib/date-utils";
+import {
+  countFetchCalls,
+  findExpensePostCall,
+  jsonResponse,
+  mockFetch,
+  mockUser,
+  renderNewExpense,
+  setNewExpenseFetchMock,
+  waitForFormBootstrap,
+} from "./test-utils";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -29,110 +35,12 @@ vi.mock("react-router", async () => {
   };
 });
 
-const mockUser: User = {
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  role: "user",
-  currency: "USD",
-  hasCompletedOnboarding: true,
-  createdAt: "2026-01-01T00:00:00Z",
-};
-
-const mockTags = [
-  { id: "tag-bills", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-];
-
-function jsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(body),
-  });
-}
-
-let expensePostResponse: () => Promise<unknown>;
-
-function setupFetchMocks() {
-  expensePostResponse = () =>
-    jsonResponse({
-      expense: {
-        id: "exp-123",
-        name: "Coffee",
-        amount: 450,
-        currency: "USD",
-        expenseType: "desires",
-        status: "active",
-      },
-    }, 201);
-
-  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-    if (url.includes("/api/expenses/suggestions")) {
-      return jsonResponse({
-        data: [],
-        total: 0,
-        page: 1,
-        pageSize: 50,
-        hasMore: false,
-      });
-    }
-
-    if (url.includes("/api/finance/tags")) {
-      return jsonResponse({ tags: mockTags });
-    }
-
-    if (url.includes("/api/expenses") && init?.method === "POST") {
-      return expensePostResponse();
-    }
-
-    return jsonResponse({ message: "Unhandled request" }, 404);
-  });
-}
-
-function renderNewExpense(user: User = mockUser) {
-  setupFetchMocks();
-  return render(
-    <MemoryRouter>
-      <NewExpenseFeature user={user} />
-    </MemoryRouter>,
-  );
-}
-
-function getTodayDate(): string {
-  const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-}
-
-function countFetchCalls(path: string): number {
-  return mockFetch.mock.calls.filter(
-    (call) => typeof call[0] === "string" && call[0].includes(path),
-  ).length;
-}
-
-function findExpensePostCall() {
-  return mockFetch.mock.calls.find(
-    (call) =>
-      typeof call[0] === "string" &&
-      call[0].includes("/api/expenses") &&
-      !call[0].includes("/api/expenses/suggestions") &&
-      call[1]?.method === "POST",
-  );
-}
-
-async function waitForFormBootstrap() {
-  await waitFor(() => {
-    expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
-    expect(countFetchCalls("/api/expenses/suggestions")).toBe(1);
-  });
-}
-
 function expectFormResetToFreshDefaults() {
   expect(screen.getByLabelText("Name")).toHaveValue("");
   expect(screen.getByLabelText("Amount")).toHaveValue(null);
   expect(screen.getByLabelText("essentials")).toBeChecked();
   expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
-  expect(screen.getByLabelText("Date")).toHaveValue(getTodayDate());
+  expect(screen.getByLabelText("Date")).toHaveValue(toLocalISODate());
 }
 
 describe("NewExpenseFeature", () => {
@@ -168,7 +76,7 @@ describe("NewExpenseFeature", () => {
     renderNewExpense();
     await waitForFormBootstrap();
 
-    expect(screen.getByLabelText("Date")).toHaveValue(getTodayDate());
+    expect(screen.getByLabelText("Date")).toHaveValue(toLocalISODate());
   });
 
   it("defaults expense type to essentials", async () => {
@@ -182,7 +90,7 @@ describe("NewExpenseFeature", () => {
   });
 
   it("displays currency symbol from user profile", async () => {
-    renderNewExpense({ ...mockUser, currency: "EUR" });
+    renderNewExpense({ user: { ...mockUser, currency: "EUR" } });
     await waitForFormBootstrap();
 
     expect(screen.getByText("€")).toBeInTheDocument();
@@ -259,10 +167,12 @@ describe("NewExpenseFeature", () => {
     const tagFetchCount = countFetchCalls("/api/finance/tags");
     const suggestionsFetchCount = countFetchCalls("/api/expenses/suggestions");
 
-    expensePostResponse = () =>
-      jsonResponse({
-        expense: { id: "exp-123", name: "Groceries", status: "active" },
-      }, 201);
+    setNewExpenseFetchMock({
+      expensePost: () =>
+        jsonResponse({
+          expense: { id: "exp-123", name: "Groceries", status: "active" },
+        }, 201),
+    });
 
     await user.type(screen.getByLabelText("Name"), "Groceries");
     await user.type(screen.getByLabelText("Amount"), "25.00");
@@ -291,14 +201,16 @@ describe("NewExpenseFeature", () => {
 
     await waitForFormBootstrap();
 
-    expensePostResponse = () =>
-      jsonResponse(
-        {
-          code: "VALIDATION_ERROR",
-          message: "amount must be positive",
-        },
-        400,
-      );
+    setNewExpenseFetchMock({
+      expensePost: () =>
+        jsonResponse(
+          {
+            code: "VALIDATION_ERROR",
+            message: "amount must be positive",
+          },
+          400,
+        ),
+    });
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "5.00");
@@ -321,7 +233,7 @@ describe("NewExpenseFeature", () => {
     await waitForFormBootstrap();
 
     // Never-resolving promise to keep the submitting state
-    expensePostResponse = () => new Promise(() => {});
+    setNewExpenseFetchMock({ expensePost: () => new Promise(() => {}) });
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.type(screen.getByLabelText("Amount"), "5.00");
