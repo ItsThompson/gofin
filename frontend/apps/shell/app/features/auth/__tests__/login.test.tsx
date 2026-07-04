@@ -40,6 +40,7 @@ async function renderLoginPage(options?: { route?: string; searchParams?: Record
     routeConfig: [
       { path: "/login", element: <LoginPage /> },
       { path: "/dashboard", element: <div>Dashboard page</div> },
+      { path: "/admin", element: <div>Admin page</div> },
       { path: "/onboarding", element: <div>Onboarding page</div> },
       { path: "/expenses", element: <div>Expenses page</div> },
     ],
@@ -126,6 +127,22 @@ describe("login page", () => {
       });
     });
 
+    it("redirects to /admin after an admin logs in", async () => {
+      const admin = buildUser({ role: "admin", hasCompletedOnboarding: true });
+      setupUnauthenticatedMock({
+        "/api/auth/login": { user: admin },
+      });
+      await renderLoginPage();
+
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "admin@example.com" } });
+      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Admin page")).toBeInTheDocument();
+      });
+    });
+
     it("redirects to /onboarding for non-onboarded user", async () => {
       const user = buildUser({ hasCompletedOnboarding: false });
       setupUnauthenticatedMock({
@@ -193,6 +210,22 @@ describe("login page", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard page")).toBeInTheDocument();
+      });
+    });
+
+    it("redirects to /admin when an admin is already authenticated", async () => {
+      const admin = buildUser({ role: "admin", hasCompletedOnboarding: true });
+      resetStore({ isLoading: false, isAuthenticated: true, user: admin });
+
+      const mockFetch = createMockApi({
+        "/api/auth/me": { user: admin },
+      });
+      global.fetch = mockFetch;
+
+      await renderLoginPage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Admin page")).toBeInTheDocument();
       });
     });
   });
