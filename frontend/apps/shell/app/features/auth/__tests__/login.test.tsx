@@ -43,6 +43,7 @@ async function renderLoginPage(options?: { route?: string; searchParams?: Record
       { path: "/admin", element: <div>Admin page</div> },
       { path: "/onboarding", element: <div>Onboarding page</div> },
       { path: "/expenses", element: <div>Expenses page</div> },
+      { path: "/settings", element: <div>Settings page</div> },
     ],
   });
 }
@@ -193,6 +194,35 @@ describe("login page", () => {
       await waitFor(() => {
         expect(screen.getByText("Expenses page")).toBeInTheDocument();
       });
+    });
+
+    it("honors a non-finance returnTo for an admin instead of the /admin landing path", async () => {
+      // Regression guard: after login, both the onSuccess handler (returnTo) and
+      // the getLandingPath effect (/admin for admins) can fire. onSuccess must
+      // win so the admin lands on their saved path, not the landing path.
+      // /settings is not a FINANCE_ROUTE, so the auth-layout guard would not
+      // otherwise correct an override back to the intended destination.
+      const admin = buildUser({ role: "admin", hasCompletedOnboarding: true });
+      setupUnauthenticatedMock({
+        "/api/auth/login": { user: admin },
+      });
+
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+        if (key === "gofin_return_to") return "/settings";
+        return null;
+      });
+      vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {});
+
+      await renderLoginPage();
+
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "admin@example.com" } });
+      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Settings page")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Admin page")).not.toBeInTheDocument();
     });
   });
 
