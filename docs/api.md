@@ -55,7 +55,7 @@ The canonical policy table (`services/gateway/internal/access/policy.go`) classi
 | `Authenticated` | (any) | `/api/auth/me` | Prefix |
 | `Authenticated` | POST | `/api/auth/logout` | Exact |
 | `Authenticated` | POST | `/api/auth/restore` | Exact |
-| `Authenticated` (default) | — | *(unmatched, e.g. bare `/api/auth`)* | Fallback |
+| `Authenticated` (default) | (any) | *(unmatched, e.g. bare `/api/auth`)* | Fallback |
 
 The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/exports*`, and `POST /api/auth/onboarding-complete`. A direct admin (`role=admin`) receives **403** on all of them; an assumed session carries `role=user` (with an `assumedBy` claim) and passes. `POST /api/auth/restore` is `Authenticated`, so an assumed session can always restore.
 
