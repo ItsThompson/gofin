@@ -39,6 +39,7 @@ class MockMutationObserver implements MutationObserver {
 class MockIntersectionObserver implements IntersectionObserver {
   readonly root = null;
   readonly rootMargin = "";
+  readonly scrollMargin = "";
   readonly thresholds = [];
   callback: IntersectionObserverCallback;
   observe = vi.fn();
@@ -350,7 +351,7 @@ function emitIntersection(id: string, isIntersecting: boolean): void {
   if (!observer) throw new Error("Missing IntersectionObserver");
 
   observer.callback(
-    [{ target: element, isIntersecting } as IntersectionObserverEntry],
+    [{ target: element, isIntersecting } as unknown as IntersectionObserverEntry],
     observer as unknown as IntersectionObserver,
   );
 }

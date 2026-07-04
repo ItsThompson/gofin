@@ -30,7 +30,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
   const [currency, setCurrency] = useState(user.currency);
   const [success, setSuccess] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mutation = useFormMutation<void>({
     onSuccess: () => {
