@@ -27,14 +27,14 @@ https://github.com/user-attachments/assets/44ed82d6-a7b6-499c-90ba-3655cedaf110
 
 ## Introduction
 
-gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, GDPR-compliant data export with email delivery, RBAC with admin identity assumption, and a full observability stack with Prometheus and Grafana.
+gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, GDPR-compliant data export with email delivery, role-based access control with an operator-only admin identity (used for operations and identity assumption, never personal finance), and a full observability stack with Prometheus and Grafana.
 
 ## Technology Stack
 
 - **Frontend:** React micro-frontends composed at runtime via Module Federation 2.0, with a Node.js SSR shell app
 - **Backend:** Go microservices (Gin framework) communicating over REST and gRPC
 - **Databases:** PostgreSQL (relational data), immudb (immutable expense ledger)
-- **Auth:** JWT with RBAC, Google OAuth, admin identity assumption
+- **Auth:** JWT with RBAC (operator-only admin), Google OAuth, admin identity assumption
 - **Observability:** Prometheus, Grafana, Alertmanager
 - **Infrastructure:** Docker Compose, Cloudflare Tunnels, single-VPS deployment
 - **CI/CD:** GitHub Actions with automated deployment on push to main
