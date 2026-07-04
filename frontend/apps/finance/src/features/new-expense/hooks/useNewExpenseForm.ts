@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, type SyntheticEvent } from "react";
 import { apiClient, useFormMutation } from "@gofin/api";
 import { toast } from "sonner";
 import { EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
@@ -15,12 +15,11 @@ import {
   createExpenseSuggestionPatch,
   type ExpenseSuggestion,
 } from "../../expense-autocomplete";
+import type { SubmittedExpenseKind } from "../types";
 import { useExpenseFields } from "./useExpenseFields";
 
 export { EXPENSE_TYPES };
 export type { ExpenseType, ExpenseFields };
-
-type SubmittedExpenseKind = "standard" | "proRata";
 
 const SUCCESS_TOAST_BY_KIND: Record<SubmittedExpenseKind, string> = {
   standard: "Expense saved",
@@ -48,7 +47,7 @@ export interface NewExpenseFormActions {
   setIsProRata: (checked: boolean) => void;
   setProRataMonths: (value: string) => void;
   applySuggestion: (suggestion: ExpenseSuggestion) => void;
-  handleSubmit: (event: FormEvent) => void;
+  handleSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }
 
 /**
@@ -129,7 +128,7 @@ export function useNewExpenseForm(currency: string): {
     }
   }
 
-  function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const isValid = expenseFields.validate({
@@ -139,11 +138,9 @@ export function useNewExpenseForm(currency: string): {
     if (!isValid) return;
 
     const { fields, amountCents } = expenseFields;
-    const submittedKind: SubmittedExpenseKind = isProRata ? "proRata" : "standard";
-    const submittedProRataMonths = proRataMonths;
 
     mutation.submit(async () => {
-      if (submittedKind === "proRata") {
+      if (isProRata) {
         const body: CreateProRataRequest = {
           name: fields.name.trim(),
           totalAmount: amountCents,
@@ -151,13 +148,13 @@ export function useNewExpenseForm(currency: string): {
           expenseType: fields.expenseType,
           tagId: fields.tagId,
           expenseDate: fields.expenseDate,
-          months: parseInt(submittedProRataMonths, 10),
+          months: parseInt(proRataMonths, 10),
         };
         await apiClient<ProRataResponse>("/api/finance/prorata", {
           method: "POST",
           body: JSON.stringify(body),
         });
-        return submittedKind;
+        return "proRata";
       }
 
       const body: CreateExpenseRequest = {
@@ -174,7 +171,7 @@ export function useNewExpenseForm(currency: string): {
         method: "POST",
         body: JSON.stringify(body),
       });
-      return submittedKind;
+      return "standard";
     });
   }
 
