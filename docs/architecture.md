@@ -78,18 +78,19 @@ The shell owns:
 - **Routing**: the complete route tree; remotes export page components, not routed applications
 - **Auth Context**: a Zustand store shared across all remotes via Module Federation's shared scope
 - **Layout**: persistent navbar, admin assumption banner, mobile navigation
-- **Auth Guards**: route protection (unauthenticated, authenticated, admin-only, onboarding)
+- **Auth Guards**: route protection (unauthenticated, authenticated, onboarding, and a direct-admin guard that redirects operators off personal finance routes to `/admin`)
 
 ### API Gateway (Node 2)
 
-A lightweight Go/Gin reverse proxy that validates auth and routes requests:
+A lightweight Go/Gin reverse proxy that validates auth and routes requests. A single centralized `AccessControl` middleware backed by an ordered policy table classifies every route into one of four access levels (Public / Authenticated / Personal / Admin) and enforces it:
 
-1. Extracts the `gofin_access` cookie from every request
-2. Calls Auth Service gRPC `ValidateToken` to verify the JWT
-3. On success: injects `X-User-ID` and `X-User-Role` headers, forwards to the downstream service
-4. On failure: returns 401 (expired/invalid token) or 403 (insufficient role)
+1. Strips client-supplied identity headers so they cannot be spoofed
+2. Resolves the route's access level from the policy table (exact match first, then longest prefix, else the fail-safe default of `Authenticated`)
+3. `Public` routes pass with no token read (e.g. `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/health`, `/metrics`)
+4. Otherwise verifies the `gofin_access` cookie via Auth Service gRPC `ValidateToken` (401 on failure) and injects `X-User-ID`, `X-User-Role`, and (when assuming) `X-Assumed-By`
+5. Enforces the level's role: `Personal` routes require `role == "user"` and `Admin` routes require `role == "admin"` (403 on mismatch)
 
-Unauthenticated exceptions: `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`.
+This one middleware replaced the former `unauthenticatedRoutes` allowlist, `RequireAdmin`, and `AdminRouteGuard`. Because the personal finance routes are `Personal`, a direct admin is refused there while an assumed regular-user session passes.
 
 ### Auth Service (Node 2)
 
@@ -99,7 +100,7 @@ Owns user identity, credentials, and token lifecycle:
 - JWT access/refresh token generation and validation
 - Refresh token rotation with blacklist-based revocation
 - Password change with bulk token invalidation (`tokens_revoked_at` timestamp)
-- RBAC enforcement (user/admin roles)
+- RBAC enforcement (user/admin roles; `admin` is operator-only and owns no finance data)
 - Admin identity assumption and restoration
 
 ### Expense Service (Node 2)
