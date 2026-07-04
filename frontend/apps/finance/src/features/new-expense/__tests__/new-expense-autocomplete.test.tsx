@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
+import { toast } from "sonner";
 import type { User } from "@gofin/core";
 
 import { NewExpenseFeature } from "../index";
@@ -9,6 +10,16 @@ import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+const mockToastSuccess = vi.mocked(toast.success);
+const mockToastError = vi.mocked(toast.error);
 
 const mockNavigate = vi.fn();
 vi.mock("react-router", async () => {
@@ -140,6 +151,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockNavigate.mockReset();
+    mockToastSuccess.mockReset();
+    mockToastError.mockReset();
   });
 
   it("updates only the name field when typing in the combobox", async () => {
@@ -325,7 +338,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Amount"), "5.00");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    expect(mockNavigate).not.toHaveBeenCalled();
 
     expect(getSubmittedExpenseRequest().name).toBe("Custom Coffee");
   });
@@ -355,7 +369,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Amount"), "8.25");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    expect(mockNavigate).not.toHaveBeenCalled();
     expect(getSubmittedExpenseRequest().name).toBe("Manual Expense");
   });
 
@@ -442,6 +457,22 @@ describe("NewExpenseFeature autocomplete integration", () => {
     expect(screen.getByLabelText("essentials")).toBeChecked();
     expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
 
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/expenses") && init?.method === "POST") {
+        return new Promise(() => {});
+      }
+
+      if (url.includes("/api/finance/tags")) {
+        return jsonResponse({ tags: mockTags });
+      }
+
+      if (url.includes("/api/expenses/suggestions")) {
+        return jsonResponse(mockSuggestions);
+      }
+
+      return jsonResponse({ message: "Unhandled request" }, 404);
+    });
+
     await user.clear(screen.getByLabelText("Name"));
     await user.type(screen.getByLabelText("Name"), "Plain Coffee{Enter}");
     await user.tab();
@@ -485,7 +516,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Date"), "2026-05-02");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    expect(mockNavigate).not.toHaveBeenCalled();
 
     expect(getSubmittedExpenseRequest()).toMatchObject({
       name: "Edited Coffee",
@@ -503,5 +535,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
     expect(screen.getByText("Name is required")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });
