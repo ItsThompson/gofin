@@ -349,6 +349,8 @@ describe("AuthLayout - mobile menu and actions", () => {
     expect(screen.getByText("Return to Admin")).toBeInTheDocument();
     // No operator Admin link while acting as a regular user.
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+    // FAB stays hidden during assumption (shares the corner with Return to Admin).
+    expect(screen.queryByLabelText("Log Expense")).not.toBeInTheDocument();
     // Logo targets getLandingPath(user) === /dashboard.
     expect(screen.getByText("GoFin").closest("a")).toHaveAttribute(
       "href",
