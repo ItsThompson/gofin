@@ -17,6 +17,8 @@ PostgreSQL runs as a single instance with separate schemas and connection creden
 
 Canonical source: `services/datarights/db/migrations/`
 
+> **Operator-only admin:** data export is a `Personal` operation, so `datarights.export_jobs` holds only regular-user rows and never admin-owned rows. The one-time cleanup (linked under Finance Schema) also removed any admin-owned export jobs.
+
 ### `datarights.export_jobs`
 
 Stores export job metadata. The service tracks job lifecycle but does not persist user data: collected data exists only transiently during ZIP assembly. Key design points:
@@ -59,7 +61,7 @@ Canonical source: `services/auth/db/migrations/`
 Stores user accounts with credentials and profile data. Key design points:
 
 - `password_hash`: bcrypt-hashed password
-- `role`: supports `'user'` and `'admin'` (checked via RBAC at every layer)
+- `role`: supports `'user'` and `'admin'` (checked via RBAC at every layer). `admin` is an operator-only identity and owns no finance data (see the Finance Schema note below).
 - `currency`: the user's display currency, returned by `GET /api/auth/me` for frontend formatting
 - `has_completed_onboarding`: gates the onboarding redirect flow
 - `tokens_revoked_at`: set on password change; any token with `iat` before this timestamp is rejected, forcing re-login on all other sessions
@@ -71,6 +73,8 @@ Tracks revoked refresh tokens by their `jti` claim. Entries include the token's 
 ## Finance Schema
 
 Canonical source: `services/finance/db/migrations/`
+
+> **Operator-only admin:** `admin` accounts own no rows in any finance table. Admin is an operator identity (authentication, admin panel, identity assumption, user deletion, Grafana) and never goes through the onboarding or budget flows. A one-time change-managed cleanup removed any pre-existing admin-owned finance rows; see [`change-management/001_admin-finance-cleanup`](../change-management/001_admin-finance-cleanup/description.md). Every table below is scoped per `user_id` and only ever holds regular-user (`role=user`) data.
 
 ### `finance.budget_periods`
 
