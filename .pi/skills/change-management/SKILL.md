@@ -103,7 +103,7 @@ Every item folder must contain `description.md`, `preflight.md`, and `steps.md`.
 The authoritative formats are the files in `change-management/000-template/`:
 read and copy those. Their roles and enforced shapes:
 
-### `description.md` — rationale and risk assessment
+### `description.md`: rationale and risk assessment
 
 A fixed section structure the validator enforces. It must contain these `##`
 sections, each with its `####` prompts (see `000-template/description.md` for
@@ -121,11 +121,11 @@ the full prompt wording):
 
 Do not add, remove, or rename these headings.
 
-### `preflight.md` — everything before execution
+### `preflight.md`: everything before execution
 
 Merge, deploy, dry-run, backups: the work done before the change is executed.
 
-### `steps.md` — the execution itself
+### `steps.md`: the execution itself
 
 The change action plus any repo housekeeping that finalizes the change
 (committing the execution log, renaming the folder with a status suffix).
