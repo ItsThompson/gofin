@@ -1,63 +1,22 @@
 import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@gofin/ui/components/card";
-import {
-  Settings,
-  Wallet,
-  UserRound,
-  Lock,
-  Tags,
-} from "lucide-react";
+import { Settings } from "lucide-react";
 import type { SettingsPageProps } from "../../types";
-import { DefaultBudgetSection } from "./components/DefaultBudgetSection";
-import { ProfileSection } from "./components/ProfileSection";
-import { PasswordSection } from "./components/PasswordSection";
-import { TagsSection } from "./components/TagsSection";
-import { ExportDataSection } from "./components/ExportDataSection";
-
-type SettingsTab = "budget" | "profile" | "password" | "tags";
-
-interface TabDefinition {
-  id: SettingsTab;
-  label: string;
-  icon: typeof Wallet;
-}
-
-const TABS: TabDefinition[] = [
-  { id: "budget", label: "Default Budget", icon: Wallet },
-  { id: "profile", label: "Profile", icon: UserRound },
-  { id: "password", label: "Password", icon: Lock },
-  { id: "tags", label: "Tags", icon: Tags },
-];
+import { getSettingsTabs, type SettingsTabId } from "./settingsTabs";
 
 export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("budget");
-  const [expandedAccordion, setExpandedAccordion] = useState<SettingsTab | null>("budget");
+  const tabList = getSettingsTabs(user);
+  const defaultTabId = tabList[0].id;
 
-  const toggleAccordion = useCallback((tab: SettingsTab) => {
+  const [activeTab, setActiveTab] = useState<SettingsTabId>(defaultTabId);
+  const [expandedAccordion, setExpandedAccordion] = useState<SettingsTabId | null>(defaultTabId);
+
+  const toggleAccordion = useCallback((tab: SettingsTabId) => {
     setExpandedAccordion((prev) => (prev === tab ? null : tab));
   }, []);
 
-  const renderSection = useCallback(
-    (tab: SettingsTab) => {
-      switch (tab) {
-        case "budget":
-          return <DefaultBudgetSection user={user} />;
-        case "profile":
-          return (
-            <>
-              <ProfileSection user={user} onUserUpdated={onUserUpdated} />
-              <hr className="my-6 border-border" />
-              <ExportDataSection />
-            </>
-          );
-        case "password":
-          return <PasswordSection onUserUpdated={onUserUpdated} />;
-        case "tags":
-          return <TagsSection />;
-      }
-    },
-    [user, onUserUpdated],
-  );
+  const sectionProps = { user, onUserUpdated };
+  const activeDefinition = tabList.find((tab) => tab.id === activeTab);
 
   return (
     <div className="space-y-4">
@@ -69,7 +28,7 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
       {/* Desktop: tabbed layout */}
       <div className="hidden md:flex gap-6">
         <div className="flex flex-col gap-1 min-w-[180px]">
-          {TABS.map((tab) => {
+          {tabList.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -92,15 +51,15 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
 
         <Card className="flex-1">
           <CardHeader>
-            <CardTitle>{TABS.find((tab) => tab.id === activeTab)?.label}</CardTitle>
+            <CardTitle>{activeDefinition?.label}</CardTitle>
           </CardHeader>
-          <CardContent>{renderSection(activeTab)}</CardContent>
+          <CardContent>{activeDefinition?.render(sectionProps)}</CardContent>
         </Card>
       </div>
 
       {/* Mobile: accordion sections */}
       <div className="flex flex-col gap-2 md:hidden">
-        {TABS.map((tab) => {
+        {tabList.map((tab) => {
           const Icon = tab.icon;
           const isExpanded = expandedAccordion === tab.id;
           return (
@@ -120,7 +79,7 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
               </button>
               {isExpanded && (
                 <CardContent className="border-t pt-4">
-                  {renderSection(tab.id)}
+                  {tab.render(sectionProps)}
                 </CardContent>
               )}
             </Card>
