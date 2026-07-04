@@ -1,27 +1,23 @@
 package middleware
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 )
 
-// TokenValidationResult holds the identity returned by the auth service
-// after a successful token validation.
-type TokenValidationResult struct {
-	UserID    string
-	Role      string
-	Username  string
-	AssumedBy string
-}
-
-// TokenValidator abstracts the gRPC call to the auth service's ValidateToken RPC.
-// This interface enables unit testing without a real gRPC connection.
-type TokenValidator interface {
-	ValidateToken(ctx context.Context, accessToken string) (*TokenValidationResult, error)
-}
+// TokenValidationResult and TokenValidator have moved to the access package,
+// their canonical home (they are consumed by access.AccessControl). These
+// aliases keep middleware.Auth, the gRPC client, and existing callers
+// compiling during the gateway access-control refactor; they are removed
+// together with this file in the router-cutover ticket.
+type (
+	TokenValidationResult = access.TokenValidationResult
+	TokenValidator        = access.TokenValidator
+)
 
 // unauthenticatedRoute defines a method+path pair that bypasses auth validation.
 type unauthenticatedRoute struct {
