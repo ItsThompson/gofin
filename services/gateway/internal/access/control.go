@@ -37,6 +37,9 @@ const (
 //  4. otherwise validates the gofin_access cookie (401 on missing/invalid),
 //  5. injects the validated identity as downstream headers, and
 //  6. enforces the per-level role check (403 when the role is wrong).
+//
+// The per-level switch is fail-safe: only Authenticated passes without a role
+// check, and any level that is not explicitly allowed is denied (403).
 func AccessControl(validator TokenValidator, policy Policy, logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		stripIdentityHeaders(c)
@@ -81,9 +84,14 @@ func AccessControl(validator TokenValidator, policy Policy, logger *slog.Logger)
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case Public, Authenticated:
-			// Public is short-circuited above; Authenticated needs only a valid
-			// token, which we now have. Neither enforces a role.
+		case Authenticated:
+			// Any valid token passes; no role check.
+		default:
+			// Fail-safe by construction: Public is short-circuited before token
+			// validation, so anything reaching here that is not explicitly
+			// allowed (including an unrecognized future Access value) is denied.
+			rejectForbidden(c, logger, result)
+			return
 		}
 
 		c.Next()

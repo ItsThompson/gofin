@@ -349,6 +349,32 @@ func TestAccessControl_Forbidden_LogsWarning(t *testing.T) {
 	assert.Equal(t, "user-1", entry["user_id"])
 }
 
+// --- Fail-safe: an unrecognized access level is denied by construction ---
+
+func TestAccessControl_UnknownLevel_DeniesByDefault(t *testing.T) {
+	validator := &fakeValidator{
+		result: &access.TokenValidationResult{UserID: "user-1", Role: "user"},
+	}
+
+	// A policy with no rules whose Default is an out-of-enum access level.
+	// resolve() returns this Default for every path, so a valid token reaches
+	// the middleware's switch with a level that matches none of the known
+	// cases and must fall through to the fail-safe deny.
+	policy := access.Policy{Default: access.Access(99)}
+
+	engine := gin.New()
+	engine.Use(access.AccessControl(validator, policy, silentLogger()))
+	engine.GET("/api/anything", okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/anything", nil)
+	req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code, "unknown access level must be denied")
+	assert.Contains(t, rec.Body.String(), "FORBIDDEN")
+}
+
 // bytesBuffer is a minimal io.Writer that also parses the last JSON log line.
 type bytesBuffer struct {
 	data []byte
