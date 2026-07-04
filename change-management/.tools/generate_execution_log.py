@@ -81,7 +81,7 @@ def parse_blocks(text: str) -> list[Block]:
         stripped = line.strip()
         if stripped.startswith("## "):
             # Any level-2 heading toggles checklist capture on only for Checklist:.
-            in_checklist = stripped.rstrip().lower().startswith("## checklist")
+            in_checklist = stripped.lower().startswith("## checklist")
             continue
 
         if in_checklist:
@@ -232,7 +232,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         output = generate(Path(args.item_folder), force=args.force)
-    except (FileNotFoundError, FileExistsError) as error:
+    except OSError as error:
+        # Covers missing folder/sources (FileNotFoundError), an existing log
+        # without --force (FileExistsError), and any other IO failure.
         print(f"error: {error}", file=sys.stderr)
         return 1
 

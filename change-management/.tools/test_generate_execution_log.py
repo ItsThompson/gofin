@@ -159,6 +159,16 @@ class RenderExecutionLogTest(unittest.TestCase):
         for status in ("completed", "completed-off-script", "failed", "aborted"):
             self.assertIn(status, self.log)
 
+    def test_missing_validation_renders_visible_marker(self):
+        log = gen.render_execution_log("001_demo", "# Activity 1: lonely\n\n## Checklist:\n1. do it\n", "")
+        self.assertIn("**Validation 1: (missing: add a Validation 1 block)**", log)
+        self.assertIn("- [ ] (no matching validation defined)", log)
+
+    def test_empty_checklist_renders_placeholder_checkbox(self):
+        # Activity with a title but no ## Checklist: items.
+        log = gen.render_execution_log("001_demo", "# Activity 1: no steps\n\n## Rollback Plan:\n1. undo\n", "")
+        self.assertIn("- [ ] (no checklist steps defined)", log)
+
 
 class GenerateIoTest(unittest.TestCase):
     def _make_item(self, root: Path) -> Path:
