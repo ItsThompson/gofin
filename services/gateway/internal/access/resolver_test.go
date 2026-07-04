@@ -55,6 +55,16 @@ func TestResolve_DefaultPolicy(t *testing.T) {
 		{"bare datarights falls to default", "GET", "/api/datarights", Authenticated},
 		{"unknown datarights subpath falls to default", "GET", "/api/datarights/unknown", Authenticated},
 		{"unknown api path falls to default", "GET", "/api/unknown", Authenticated},
+
+		// --- Segment-boundary: a prefix rule must match on a segment boundary,
+		// not as a leading substring. These sibling paths share a prefix rule's
+		// text but not its segment, so they fall through to the fail-safe
+		// Default rather than borrowing the sibling's level. ---
+		{"finance-summary is not the finance group", "GET", "/api/finance-summary", Authenticated},
+		{"expenses-report is not the expenses group", "GET", "/api/expenses-report", Authenticated},
+		{"admin-tools is not the admin group", "GET", "/api/admin-tools", Authenticated},
+		{"exports-admin does not borrow the Personal exports prefix", "POST", "/api/datarights/exports-admin", Authenticated},
+		{"deletions-log does not borrow the Admin deletions prefix", "DELETE", "/api/datarights/deletions-log", Authenticated},
 	}
 
 	for _, tc := range cases {
@@ -106,6 +116,45 @@ func TestResolve_LongestPrefixWins(t *testing.T) {
 	}
 	if got := policy.resolve("GET", "/api/datarights/other"); got != Personal {
 		t.Errorf("shorter prefix should apply when longer does not match: got %s, want %s", got, Personal)
+	}
+}
+
+// TestResolve_PrefixRequiresSegmentBoundary proves prefix rules match only on a
+// path-segment boundary, never as a leading substring. This is the property
+// that keeps a sibling path from silently borrowing a neighbor's access level.
+// The datarights case is the concrete footgun: without the boundary,
+// "/api/datarights/exports-admin" would match the Personal prefix
+// "/api/datarights/exports" and be under-restricted, even though this resolver
+// is the single authz gate.
+func TestResolve_PrefixRequiresSegmentBoundary(t *testing.T) {
+	policy := DefaultPolicy()
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		want   Access
+	}{
+		// Within the segment: the prefix rule applies.
+		{"bare group matches", "GET", "/api/finance", Personal},
+		{"subpath matches", "GET", "/api/finance/periods", Personal},
+		{"exports subpath matches", "GET", "/api/datarights/exports/job-1", Personal},
+		{"deletions subpath matches", "DELETE", "/api/datarights/deletions/abc", Admin},
+
+		// Substring, not a segment: the prefix rule must NOT apply, so the path
+		// falls through to the fail-safe Default.
+		{"finance sibling does not match", "GET", "/api/finance-summary", Authenticated},
+		{"admin sibling does not match", "GET", "/api/admin-tools", Authenticated},
+		{"personal exports sibling does not match", "POST", "/api/datarights/exports-admin", Authenticated},
+		{"admin deletions sibling does not match", "DELETE", "/api/datarights/deletions-log", Authenticated},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := policy.resolve(tc.method, tc.path); got != tc.want {
+				t.Errorf("resolve(%q, %q) = %s, want %s", tc.method, tc.path, got, tc.want)
+			}
+		})
 	}
 }
 
