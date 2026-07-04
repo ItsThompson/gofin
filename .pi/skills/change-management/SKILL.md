@@ -185,7 +185,9 @@ python change-management/.validation/validate_change_management.py --root change
 ```
 
 - Exit `0`: all validated items conform.
-- Exit `1`: a violation; it prints the item, file, and failing rule.
+- Exit `1`: at least one validated item has a violation; each is printed to
+  stderr (item, file, failing rule).
+- Exit `2`: a usage error, e.g. the `--root` or `--item` path does not exist.
 
 Run it before opening either PR (item creation and completion). CI runs the same
 command on every push/PR via the `validate-change-management` job in
