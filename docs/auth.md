@@ -37,18 +37,33 @@ exp  : Expiration timestamp
 
 | Role | Permissions |
 |------|-------------|
-| `user` | Full access to own financial data. No access to other users' data, admin panel, or Grafana. |
-| `admin` | Everything `user` has, plus: user list, identity assumption, Grafana access. Admins have their own finance data and go through the same onboarding/budget flows as regular users. |
+| `user` | Full access to own financial data. No access to other users' data, the admin panel, or Grafana. |
+| `admin` | Operator-only identity. Scope is authentication, the admin panel (user list), identity assumption, user deletion, and Grafana access. An admin owns no personal finance data and does not go through the onboarding or budget flows; the personal finance APIs return 403 to a direct admin. |
 
 ### Enforcement Points
 
 | Layer | Mechanism |
 |-------|-----------|
-| API Gateway | Validates JWT via Auth Service gRPC. Rejects invalid/expired with 401. Checks admin role for `/api/admin/*` routes (403 if not admin). Passes `X-User-ID` and `X-User-Role` to downstream services. |
+| API Gateway | Applies one centralized `AccessControl` middleware backed by an ordered policy table. Validates the JWT via Auth Service gRPC (401 on missing/invalid/expired), resolves each route to one of four access levels (Public / Authenticated / Personal / Admin), and enforces the role that level requires (403 on mismatch). Strips client-supplied identity headers, then passes `X-User-ID`, `X-User-Role`, and (when assuming) `X-Assumed-By` to downstream services. |
 | Auth Service | Validates signature, expiration, and revocation status. Checks `tokens_revoked_at` on the user record: tokens with `iat` before this timestamp are rejected (handles password change invalidation). |
 | Downstream Services | Trust the gateway. Scope all queries to the `user_id` from gateway headers. |
 | Shell App | Client-side route guards as defense in depth (not sole enforcement). Hides admin routes for non-admin users. |
 | Grafana Auth Proxy | Validates JWT locally using the shared signing secret. Checks `role === 'admin'`. Proxies to Grafana with `X-WEBAUTH-USER` header. |
+
+### Gateway Access Levels
+
+The gateway classifies every route into one of four access levels via a single ordered policy table (`services/gateway/internal/access`). A route is resolved by exact match first, then the longest matching prefix, else the fail-safe default of `Authenticated`:
+
+| Level | Meaning | Token required | Role check |
+|-------|---------|----------------|------------|
+| `Public` | Reachable with no token | No | None |
+| `Authenticated` | Any valid token | Yes | None |
+| `Personal` | Valid token acting as a regular user | Yes | `role == "user"` |
+| `Admin` | Valid token acting as an operator | Yes | `role == "admin"` |
+
+The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/exports*`, and `POST /api/auth/onboarding-complete`. A direct admin (`role=admin`) receives 403 on these routes; an assumed session carries `role=user` (plus an `assumedBy` claim), so it satisfies `Personal` and passes unchanged. `POST /api/auth/restore` is `Authenticated`, so an assumed session can always restore regardless of role.
+
+This single `AccessControl` middleware replaced the former trio of mechanisms, all now removed: the `unauthenticatedRoutes` allowlist, `RequireAdmin`, and `AdminRouteGuard` (with its `adminOnlyRoutes`/`adminOnlyPrefixes`).
 
 ## Auth Flows
 
