@@ -165,12 +165,17 @@ describe("AuthLayout - mobile menu and actions", () => {
     });
   });
 
-  it("shows admin nav link when user is admin", async () => {
+  it("redirects a direct admin off a finance route to /admin", async () => {
     resetStore({
       isLoading: false,
       isAuthenticated: true,
       isAdmin: true,
       user: adminUser,
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ user: adminUser }),
     });
     const AuthLayout = await importAuthLayout();
 
@@ -181,13 +186,174 @@ describe("AuthLayout - mobile menu and actions", () => {
           element: <AuthLayout />,
           children: [{ index: true, element: <div>Dashboard content</div> }],
         },
+        { path: "/admin", element: <div>Admin page</div> },
         { path: "/login", element: <div>Login redirect target</div> },
       ],
       { initialEntries: ["/dashboard"] },
     );
     render(<RouterProvider router={router} />);
 
-    expect(screen.getByText("Admin")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Admin page")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Dashboard content")).not.toBeInTheDocument();
+  });
+
+  it("runs the admin guard before the onboarding guard", async () => {
+    // An operator that is somehow not onboarded still lands on /admin, never /onboarding.
+    const unonboardedAdmin = { ...adminUser, hasCompletedOnboarding: false };
+    resetStore({
+      isLoading: false,
+      isAuthenticated: true,
+      isAdmin: true,
+      user: unonboardedAdmin,
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ user: unonboardedAdmin }),
+    });
+    const AuthLayout = await importAuthLayout();
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/dashboard",
+          element: <AuthLayout />,
+          children: [{ index: true, element: <div>Dashboard content</div> }],
+        },
+        { path: "/admin", element: <div>Admin page</div> },
+        {
+          path: "/onboarding",
+          element: <AuthLayout />,
+          children: [{ index: true, element: <div>Onboarding page</div> }],
+        },
+        { path: "/login", element: <div>Login redirect target</div> },
+      ],
+      { initialEntries: ["/dashboard"] },
+    );
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin page")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Onboarding page")).not.toBeInTheDocument();
+  });
+
+  it("does not run the admin guard while assuming a user", async () => {
+    // Even when the stored user is an admin, an assumed session must not redirect.
+    resetStore({
+      isLoading: false,
+      isAuthenticated: true,
+      isAdmin: true,
+      isAssuming: true,
+      user: adminUser,
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ user: adminUser }),
+    });
+    const AuthLayout = await importAuthLayout();
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/dashboard",
+          element: <AuthLayout />,
+          children: [{ index: true, element: <div>Dashboard content</div> }],
+        },
+        { path: "/admin", element: <div>Admin page</div> },
+        { path: "/login", element: <div>Login redirect target</div> },
+      ],
+      { initialEntries: ["/dashboard"] },
+    );
+    render(<RouterProvider router={router} />);
+
+    // Stays on the finance route; Return to Admin is shown instead of a redirect.
+    expect(await screen.findByText("Dashboard content")).toBeInTheDocument();
+    expect(screen.getByText("Return to Admin")).toBeInTheDocument();
+    expect(screen.queryByText("Admin page")).not.toBeInTheDocument();
+  });
+
+  it("shows only Admin and Settings nav for a direct admin (no finance links, no FAB)", async () => {
+    resetStore({
+      isLoading: false,
+      isAuthenticated: true,
+      isAdmin: true,
+      user: adminUser,
+    });
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ user: adminUser }),
+    });
+    const AuthLayout = await importAuthLayout();
+
+    // Mount on a non-finance route so the direct-admin guard does not redirect.
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/settings",
+          element: <AuthLayout />,
+          children: [{ index: true, element: <div>Settings content</div> }],
+        },
+        { path: "/admin", element: <div>Admin page</div> },
+        { path: "/login", element: <div>Login redirect target</div> },
+      ],
+      { initialEntries: ["/settings"] },
+    );
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByText("Admin")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Expenses")).not.toBeInTheDocument();
+    expect(screen.queryByText("History")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Log Expense")).not.toBeInTheDocument();
+
+    // Logo targets getLandingPath(admin) === /admin.
+    expect(screen.getByText("GoFin").closest("a")).toHaveAttribute(
+      "href",
+      "/admin",
+    );
+  });
+
+  it("keeps full user nav plus Return to Admin for an assumed session", async () => {
+    resetStore({
+      isLoading: false,
+      isAuthenticated: true,
+      isAssuming: true,
+      user: authenticatedUser,
+    });
+    const AuthLayout = await importAuthLayout();
+
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/dashboard",
+          element: <AuthLayout />,
+          children: [{ index: true, element: <div>Dashboard content</div> }],
+        },
+        { path: "/admin", element: <div>Admin page</div> },
+        { path: "/login", element: <div>Login redirect target</div> },
+      ],
+      { initialEntries: ["/dashboard"] },
+    );
+    render(<RouterProvider router={router} />);
+
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Expenses")).toBeInTheDocument();
+    expect(screen.getByText("History")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByText("Return to Admin")).toBeInTheDocument();
+    // No operator Admin link while acting as a regular user.
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+    // Logo targets getLandingPath(user) === /dashboard.
+    expect(screen.getByText("GoFin").closest("a")).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
   });
 
   it("shows Return to Admin button when assuming identity", async () => {
