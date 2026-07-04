@@ -55,15 +55,15 @@ export function useLoginForm(): { state: LoginFormState; actions: LoginFormActio
   );
 
   const mutation = useFormMutation<Awaited<ReturnType<typeof login>>>({
-    onSuccess: (user) => {
+    onSuccess: (loggedInUser) => {
       const returnTo = consumeReturnToPath();
 
-      if (!user.hasCompletedOnboarding) {
+      if (!loggedInUser.hasCompletedOnboarding) {
         navigate("/onboarding");
       } else if (returnTo && returnTo !== "/login" && returnTo !== "/register") {
         navigate(returnTo);
       } else {
-        navigate(getLandingPath(user));
+        navigate(getLandingPath(loggedInUser));
       }
     },
   });
