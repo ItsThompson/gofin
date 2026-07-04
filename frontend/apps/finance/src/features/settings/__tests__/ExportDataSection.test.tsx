@@ -344,7 +344,7 @@ describe("ExportDataSection", () => {
 
       // Use a fetch that delays the POST response
       let resolvePost: ((value: Response) => void) | undefined;
-      const mockFetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const mockFetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
         const method = init?.method ?? "GET";
         if (method === "POST") {
           return new Promise<Response>((resolve) => {

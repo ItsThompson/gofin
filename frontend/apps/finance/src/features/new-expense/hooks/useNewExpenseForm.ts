@@ -1,6 +1,6 @@
-import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect, type SyntheticEvent } from "react";
 import { apiClient, useFormMutation } from "@gofin/api";
+import { toast } from "sonner";
 import { EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
 import type {
@@ -15,10 +15,20 @@ import {
   createExpenseSuggestionPatch,
   type ExpenseSuggestion,
 } from "../../expense-autocomplete";
+import type { SubmittedExpenseKind } from "../types";
 import { useExpenseFields } from "./useExpenseFields";
 
 export { EXPENSE_TYPES };
 export type { ExpenseType, ExpenseFields };
+
+const SUCCESS_TOAST_BY_KIND: Record<SubmittedExpenseKind, string> = {
+  standard: "Expense saved",
+  proRata: "Expense schedule saved",
+};
+
+function getDefaultTagId(tags: Tag[]): string {
+  return tags[0]?.id ?? "";
+}
 
 export interface NewExpenseFormState {
   tags: Tag[];
@@ -37,7 +47,7 @@ export interface NewExpenseFormActions {
   setIsProRata: (checked: boolean) => void;
   setProRataMonths: (value: string) => void;
   applySuggestion: (suggestion: ExpenseSuggestion) => void;
-  handleSubmit: (event: FormEvent) => void;
+  handleSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }
 
 /**
@@ -52,7 +62,6 @@ export function useNewExpenseForm(currency: string): {
   state: NewExpenseFormState;
   actions: NewExpenseFormActions;
 } {
-  const navigate = useNavigate();
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
@@ -64,8 +73,20 @@ export function useNewExpenseForm(currency: string): {
   const [isProRata, setIsProRata] = useState(false);
   const [proRataMonths, setProRataMonths] = useState("");
 
-  const mutation = useFormMutation<void>({
-    onSuccess: () => navigate("/dashboard"),
+  const resetNewExpenseVisibleState = () => {
+    expenseFields.reset({ tagId: getDefaultTagId(tags) });
+    setIsProRata(false);
+    setProRataMonths("");
+  };
+
+  const mutation = useFormMutation<SubmittedExpenseKind>({
+    onSuccess: (submittedKind) => {
+      toast.success(SUCCESS_TOAST_BY_KIND[submittedKind]);
+      resetNewExpenseVisibleState();
+    },
+    onError: () => {
+      toast.error("Failed to save expense");
+    },
   });
 
   useEffect(() => {
@@ -73,8 +94,9 @@ export function useNewExpenseForm(currency: string): {
       try {
         const response = await apiClient<TagListResponse>("/api/finance/tags");
         setTags(response.tags);
-        if (response.tags.length > 0) {
-          expenseFields.setField("tagId", response.tags[0].id);
+        const defaultTagId = getDefaultTagId(response.tags);
+        if (defaultTagId) {
+          expenseFields.setField("tagId", defaultTagId);
         }
       } catch {
         // Tags fail silently: form will show empty dropdown
@@ -106,7 +128,7 @@ export function useNewExpenseForm(currency: string): {
     }
   }
 
-  function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const isValid = expenseFields.validate({
@@ -132,7 +154,7 @@ export function useNewExpenseForm(currency: string): {
           method: "POST",
           body: JSON.stringify(body),
         });
-        return;
+        return "proRata";
       }
 
       const body: CreateExpenseRequest = {
@@ -149,6 +171,7 @@ export function useNewExpenseForm(currency: string): {
         method: "POST",
         body: JSON.stringify(body),
       });
+      return "standard";
     });
   }
 

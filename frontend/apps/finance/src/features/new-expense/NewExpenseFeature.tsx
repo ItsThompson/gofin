@@ -22,7 +22,7 @@ import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
 /**
  * New expense form page. Allows users to log a standard expense.
  * Amount is entered in dollars (with decimals) and converted to cents
- * before submission. On success, redirects to /dashboard.
+ * before submission. On success, shows feedback and resets the form.
  */
 export function NewExpenseFeature({ user }: FinancePageProps) {
   const currencySymbol = getCurrencySymbol(user.currency);

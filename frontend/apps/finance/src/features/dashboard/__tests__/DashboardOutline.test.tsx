@@ -39,6 +39,7 @@ class MockMutationObserver implements MutationObserver {
 class MockIntersectionObserver implements IntersectionObserver {
   readonly root = null;
   readonly rootMargin = "";
+  readonly scrollMargin = "";
   readonly thresholds = [];
   callback: IntersectionObserverCallback;
   observe = vi.fn();
@@ -343,6 +344,22 @@ function mockVisibleMeasurements(root: HTMLElement): void {
   }
 }
 
+function buildIntersectionObserverEntry(
+  target: Element,
+  isIntersecting: boolean,
+): IntersectionObserverEntry {
+  const rect = target.getBoundingClientRect();
+  return {
+    target,
+    isIntersecting,
+    intersectionRatio: isIntersecting ? 1 : 0,
+    boundingClientRect: rect,
+    intersectionRect: rect,
+    rootBounds: null,
+    time: 0,
+  };
+}
+
 function emitIntersection(id: string, isIntersecting: boolean): void {
   const element = document.getElementById(id);
   if (!element) throw new Error(`Missing element ${id}`);
@@ -350,7 +367,7 @@ function emitIntersection(id: string, isIntersecting: boolean): void {
   if (!observer) throw new Error("Missing IntersectionObserver");
 
   observer.callback(
-    [{ target: element, isIntersecting } as IntersectionObserverEntry],
+    [buildIntersectionObserverEntry(element, isIntersecting)],
     observer as unknown as IntersectionObserver,
   );
 }

@@ -1,14 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
-import type { User } from "@gofin/core";
+import { toast } from "sonner";
 
-import { NewExpenseFeature } from "../index";
 import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
+import {
+  jsonResponse,
+  mockFetch,
+  mockSuggestions,
+  mockTags,
+} from "../__mocks__";
+import {
+  getSubmittedExpenseRequest,
+  renderNewExpense as renderNewExpenseFeature,
+} from "./test-utils";
 
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+const mockToastSuccess = vi.mocked(toast.success);
+const mockToastError = vi.mocked(toast.error);
 
 const mockNavigate = vi.fn();
 vi.mock("react-router", async () => {
@@ -19,127 +34,25 @@ vi.mock("react-router", async () => {
   };
 });
 
-const mockUser: User = {
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  role: "user",
-  currency: "USD",
-  hasCompletedOnboarding: true,
-  createdAt: "2026-01-01T00:00:00Z",
-};
-
-const mockTags = [
-  {
-    id: "tag-bills",
-    name: "Bills",
-    isDefault: true,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: "tag-food",
-    name: "Food",
-    isDefault: true,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  },
-];
-
-const mockSuggestions: ExpenseSuggestionsResponse = {
-  data: [
-    {
-      name: "Coffee Shop",
-      amount: 450,
-      currency: "USD",
-      expenseType: "desires",
-      tagId: "tag-food",
-      frequency: 4,
-      lastUsedAt: "2026-05-25T00:00:00Z",
-      recencyBucket: "last_7_days",
-      frecencyScore: 42,
-    },
-    {
-      name: "Coffee Beans",
-      amount: 1200,
-      currency: "USD",
-      expenseType: "essentials",
-      tagId: "tag-food",
-      frequency: 2,
-      lastUsedAt: "2026-05-20T00:00:00Z",
-      recencyBucket: "last_30_days",
-      frecencyScore: 31,
-    },
-  ],
-  total: 2,
-  page: 1,
-  pageSize: 50,
-  hasMore: false,
-};
-
-function jsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    json: () => Promise.resolve(body),
-  });
-}
-
 function renderNewExpense(
   suggestions: ExpenseSuggestionsResponse = mockSuggestions,
   tags = mockTags,
 ) {
-  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
-    if (url.includes("/api/finance/tags")) {
-      return jsonResponse({ tags });
-    }
-
-    if (url.includes("/api/expenses/suggestions")) {
-      return jsonResponse(suggestions);
-    }
-
-    if (url.includes("/api/expenses") && init?.method === "POST") {
-      return jsonResponse({ expense: { id: "exp-1", name: "Custom Coffee" } }, 201);
-    }
-
-    return jsonResponse({ message: "Unhandled request" }, 404);
-  });
-
-  return render(
-    <MemoryRouter>
-      <NewExpenseFeature user={mockUser} />
-    </MemoryRouter>,
-  );
+  return renderNewExpenseFeature({ suggestions, tags });
 }
 
 function renderNewExpenseWithFetchHandler(
   handler: (url: string, init?: RequestInit) => Promise<unknown>,
 ) {
-  mockFetch.mockImplementation(handler);
-
-  return render(
-    <MemoryRouter>
-      <NewExpenseFeature user={mockUser} />
-    </MemoryRouter>,
-  );
-}
-
-function getSubmittedExpenseRequest() {
-  const postCall = mockFetch.mock.calls.find(
-    (call) =>
-      typeof call[0] === "string" &&
-      call[0].includes("/api/expenses") &&
-      !call[0].includes("/api/expenses/suggestions") &&
-      call[1]?.method === "POST",
-  );
-
-  return JSON.parse(postCall?.[1]?.body as string);
+  return renderNewExpenseFeature({ fetchHandler: handler });
 }
 
 describe("NewExpenseFeature autocomplete integration", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockNavigate.mockReset();
+    mockToastSuccess.mockReset();
+    mockToastError.mockReset();
   });
 
   it("updates only the name field when typing in the combobox", async () => {
@@ -325,7 +238,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Amount"), "5.00");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    expect(mockNavigate).not.toHaveBeenCalled();
 
     expect(getSubmittedExpenseRequest().name).toBe("Custom Coffee");
   });
@@ -355,7 +269,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Amount"), "8.25");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    expect(mockNavigate).not.toHaveBeenCalled();
     expect(getSubmittedExpenseRequest().name).toBe("Manual Expense");
   });
 
@@ -442,6 +357,22 @@ describe("NewExpenseFeature autocomplete integration", () => {
     expect(screen.getByLabelText("essentials")).toBeChecked();
     expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
 
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/expenses") && init?.method === "POST") {
+        return new Promise(() => {});
+      }
+
+      if (url.includes("/api/finance/tags")) {
+        return jsonResponse({ tags: mockTags });
+      }
+
+      if (url.includes("/api/expenses/suggestions")) {
+        return jsonResponse(mockSuggestions);
+      }
+
+      return jsonResponse({ message: "Unhandled request" }, 404);
+    });
+
     await user.clear(screen.getByLabelText("Name"));
     await user.type(screen.getByLabelText("Name"), "Plain Coffee{Enter}");
     await user.tab();
@@ -485,7 +416,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Date"), "2026-05-02");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    expect(mockNavigate).not.toHaveBeenCalled();
 
     expect(getSubmittedExpenseRequest()).toMatchObject({
       name: "Edited Coffee",
@@ -503,5 +435,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
     expect(screen.getByText("Name is required")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

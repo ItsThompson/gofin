@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import type { ExpenseFields, ValidateExpenseOptions } from "../../../lib/validate-expense-fields";
 import { validateExpenseFields } from "../../../lib/validate-expense-fields";
+import { toLocalISODate } from "../../../lib/date-utils";
 
 /** Initial values for useExpenseFields. All fields optional: unset fields use defaults. */
 export interface ExpenseFieldsInit {
@@ -29,21 +30,13 @@ export interface UseExpenseFieldsResult {
   amountCents: number;
 }
 
-function todayISO(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function buildInitialFields(init?: ExpenseFieldsInit): ExpenseFields {
   return {
     name: init?.name ?? "",
     amountDollars: init?.amountDollars ?? "",
     expenseType: init?.expenseType ?? "essentials",
     tagId: init?.tagId ?? "",
-    expenseDate: init?.expenseDate ?? todayISO(),
+    expenseDate: init?.expenseDate ?? toLocalISODate(),
   };
 }
 

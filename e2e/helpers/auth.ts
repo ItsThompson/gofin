@@ -103,7 +103,9 @@ export async function confirmNewPeriod(page: Page) {
 /**
  * Log an expense via the /expenses/new form.
  * Browser should already be authenticated. Navigates to /expenses/new,
- * fills the form, and submits. Ends on /dashboard after redirect.
+ * fills the form, and submits. On success the form stays on /expenses/new
+ * and shows a success toast; callers that need to verify dashboard state
+ * must navigate to /dashboard themselves.
  */
 export async function logExpense(
   page: Page,
@@ -129,7 +131,11 @@ export async function logExpense(
   }
 
   await page.getByRole("button", { name: "Log Expense" }).click();
-  await page.waitForURL("**/dashboard");
+
+  const successToast = expense.proRata
+    ? "Expense schedule saved"
+    : "Expense saved";
+  await expect(page.getByText(successToast)).toBeVisible();
 }
 
 function capitalize(str: string): string {

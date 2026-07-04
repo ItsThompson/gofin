@@ -23,6 +23,7 @@ test.describe("Pro-rata Creation", () => {
 
     // Step 2: Verify current month shows $100 installment in recent expenses
     // The pro-rata splits $300 into 3 monthly installments of $100
+    await page.goto("/dashboard");
     await expect(page.getByText("Annual Subscription").first()).toBeVisible();
     await expect(page.getByText("$100.00").first()).toBeVisible();
 
