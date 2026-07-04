@@ -39,7 +39,7 @@ immediately before the deletion so the state can be restored if needed.
 
 ## Checklist:
 1. At `/opt/gofin`, dump the database, e.g.:
-   `docker compose exec -T postgresql pg_dump -U gofin -Fc gofin > backups/gofin-pre-001-$(date +%Y%m%d%H%M%S).dump`
+   `mkdir -p backups && docker compose exec -T postgresql pg_dump -U gofin -Fc gofin > backups/gofin-pre-001-$(date +%Y%m%d%H%M%S).dump`
 2. Record the backup artifact path and size.
 
 ## Rollback Plan:
