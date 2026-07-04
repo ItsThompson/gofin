@@ -3,11 +3,9 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
+import { jsonResponse, mockFetch, mockTags } from "../__mocks__";
 import {
   findProRataPostCall,
-  jsonResponse,
-  mockFetch,
-  mockTags,
   renderNewExpense,
   waitForFormBootstrap,
 } from "./test-utils";

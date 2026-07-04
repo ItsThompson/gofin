@@ -5,11 +5,13 @@ import { toast } from "sonner";
 
 import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
 import {
-  getSubmittedExpenseRequest,
   jsonResponse,
   mockFetch,
   mockSuggestions,
   mockTags,
+} from "../__mocks__";
+import {
+  getSubmittedExpenseRequest,
   renderNewExpense as renderNewExpenseFeature,
 } from "./test-utils";
 
