@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
+import { canUseAdminFeatures, getLandingPath } from "@gofin/core";
 import { useEffect, useState } from "react";
 import { Button } from "@gofin/ui/components/button";
 import {
@@ -15,11 +16,23 @@ import {
   PlusCircle,
 } from "lucide-react";
 
+/**
+ * Personal-finance routes an operator (direct admin) must never land on. The
+ * direct-admin guard bounces these to /admin; the gateway 403 is the real
+ * enforcement, this guard is defense-in-depth to avoid a flash of finance UI.
+ */
+const FINANCE_ROUTES = [
+  "/dashboard",
+  "/expenses",
+  "/expenses/new",
+  "/history",
+  "/onboarding",
+];
+
 export default function AuthLayout() {
   const {
     user,
     isAuthenticated,
-    isAdmin,
     isAssuming,
     isLoading,
     checkAuth,
@@ -40,19 +53,33 @@ export default function AuthLayout() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  // Onboarding redirect guards
+  // Redirect guards (precedence: direct-admin guard first, then onboarding).
   const location = useLocation();
   const isOnOnboarding = location.pathname === "/onboarding";
 
   useEffect(() => {
     if (isLoading || !isAuthenticated || !user) return;
 
-    if (!user.hasCompletedOnboarding && !isOnOnboarding) {
-      navigate("/onboarding");
-    } else if (user.hasCompletedOnboarding && isOnOnboarding) {
-      navigate("/dashboard");
+    const path = location.pathname;
+
+    // 1. Direct-admin guard (takes precedence): an operator is never routed to
+    //    a finance route or /onboarding. Skipped while assuming a user.
+    if (
+      canUseAdminFeatures(user) &&
+      !isAssuming &&
+      FINANCE_ROUTES.includes(path)
+    ) {
+      navigate("/admin");
+      return;
     }
-  }, [isLoading, isAuthenticated, user, isOnOnboarding, navigate]);
+
+    // 2. Onboarding guard (unchanged for users).
+    if (!user.hasCompletedOnboarding && path !== "/onboarding") {
+      navigate("/onboarding");
+    } else if (user.hasCompletedOnboarding && path === "/onboarding") {
+      navigate(getLandingPath(user));
+    }
+  }, [isLoading, isAuthenticated, user, isAssuming, location.pathname, navigate]);
 
   if (isLoading) {
     return (
@@ -62,12 +89,12 @@ export default function AuthLayout() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return null;
   }
 
   // Render onboarding page without the nav chrome
-  if (!user?.hasCompletedOnboarding && isOnOnboarding) {
+  if (!user.hasCompletedOnboarding && isOnOnboarding) {
     return <Outlet />;
   }
 
@@ -86,16 +113,26 @@ export default function AuthLayout() {
     }
   };
 
-  const navLinks = [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/expenses", label: "Expenses", icon: Receipt },
-    { to: "/history", label: "History", icon: History },
-    { to: "/settings", label: "Settings", icon: Settings },
-  ];
+  // A direct admin (operator, not assuming) gets an operator-only navbar and no
+  // Log Expense FAB. A regular user or an assumed session keeps the finance nav.
+  const isDirectAdmin = canUseAdminFeatures(user) && !isAssuming;
 
-  if (isAdmin) {
-    navLinks.push({ to: "/admin", label: "Admin", icon: Shield });
-  }
+  const navLinks = isDirectAdmin
+    ? [
+        { to: "/admin", label: "Admin", icon: Shield },
+        { to: "/settings", label: "Settings", icon: Settings },
+      ]
+    : [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/expenses", label: "Expenses", icon: Receipt },
+        { to: "/history", label: "History", icon: History },
+        { to: "/settings", label: "Settings", icon: Settings },
+      ];
+
+  // FAB is hidden for a direct admin and, as today, while assuming (the Return
+  // to Admin control occupies the same corner) and on the new-expense page.
+  const showLogExpenseFab =
+    !isDirectAdmin && !isAssuming && location.pathname !== "/expenses/new";
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,7 +140,10 @@ export default function AuthLayout() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
           {/* Logo */}
-          <NavLink to="/dashboard" className="mr-6 flex items-center gap-2">
+          <NavLink
+            to={getLandingPath(user)}
+            className="mr-6 flex items-center gap-2"
+          >
             <span className="text-lg font-bold">GoFin</span>
           </NavLink>
 
@@ -133,7 +173,7 @@ export default function AuthLayout() {
           {/* User menu (desktop) */}
           <div className="hidden items-center gap-3 md:flex">
             <span className="text-sm text-muted-foreground">
-              {user?.username}
+              {user.username}
             </span>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="size-4" />
@@ -180,7 +220,7 @@ export default function AuthLayout() {
               ))}
               <div className="mt-2 border-t pt-2">
                 <div className="px-3 py-1 text-sm text-muted-foreground">
-                  {user?.username}
+                  {user.username}
                 </div>
                 <button
                   onClick={handleLogout}
@@ -214,7 +254,7 @@ export default function AuthLayout() {
       {/* Mobile floating "Log Expense" FAB: visible on mobile, hidden when
           already on the new-expense page or when the admin return button is
           visible (to avoid overlap). */}
-      {!isAssuming && location.pathname !== "/expenses/new" && (
+      {showLogExpenseFab && (
         <div className="fixed bottom-6 right-6 z-40 md:hidden">
           <NavLink to="/expenses/new">
             <Button
