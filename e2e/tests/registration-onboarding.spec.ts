@@ -35,6 +35,7 @@ test.describe("Registration → Onboarding → First Expense", () => {
 
     // Step 5: Verify the dashboard reflects the new expense
     // Recent expenses section should show the expense
+    await page.goto("/dashboard");
     const recentExpenses = page
       .getByText("Recent Expenses")
       .locator('xpath=ancestor::*[@data-slot="card"][1]');

@@ -46,8 +46,9 @@ test.describe("Expense autocomplete smoke", () => {
 
     await page.getByLabel("Amount").fill("13.25");
     await page.getByRole("button", { name: "Log Expense" }).click();
-    await page.waitForURL("**/dashboard");
+    await expect(page.getByText("Expense saved")).toBeVisible();
 
+    await page.goto("/dashboard");
     await expect(page.getByText("Autocomplete Coffee").first()).toBeVisible();
     await expect(page.getByText("$13.25").first()).toBeVisible();
   });
@@ -69,8 +70,9 @@ test.describe("Expense autocomplete smoke", () => {
     await page.getByLabel("Amount").fill("8.25");
     await page.getByLabel("Essentials").check();
     await page.getByRole("button", { name: "Log Expense" }).click();
-    await page.waitForURL("**/dashboard");
+    await expect(page.getByText("Expense saved")).toBeVisible();
 
+    await page.goto("/dashboard");
     await expect(page.getByText("Manual Fallback Expense").first()).toBeVisible();
     await expect(page.getByText("$8.25").first()).toBeVisible();
   });

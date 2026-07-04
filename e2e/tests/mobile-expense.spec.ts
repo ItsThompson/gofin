@@ -36,9 +36,10 @@ test.describe("Mobile Expense Logging", () => {
     await page.getByLabel("Amount").fill("5.50");
     await page.getByLabel("Essentials").check();
     await page.getByRole("button", { name: "Log Expense" }).click();
-    await page.waitForURL("**/dashboard");
+    await expect(page.getByText("Expense saved")).toBeVisible();
 
     // Step 3: Verify the expense appears on the dashboard
+    await page.goto("/dashboard");
     const recentExpenses = page
       .getByText("Recent Expenses")
       .locator('xpath=ancestor::*[@data-slot="card"][1]');

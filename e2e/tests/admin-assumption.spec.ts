@@ -22,6 +22,7 @@ test.describe("Admin Identity Assumption", () => {
     });
 
     // Verify the expense is visible on the regular user's dashboard
+    await page.goto("/dashboard");
     const regularUserRecentExpenses = page
       .getByText("Recent Expenses")
       .locator('xpath=ancestor::*[@data-slot="card"][1]');
