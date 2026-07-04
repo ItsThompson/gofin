@@ -21,17 +21,17 @@ func (p Policy) resolve(method, path string) Access {
 	}
 
 	bestLen := -1
-	access := p.Default
+	level := p.Default
 	for _, rule := range p.rules {
 		if rule.Match != Prefix || !methodMatches(rule.Method, method) {
 			continue
 		}
 		if strings.HasPrefix(path, rule.Path) && len(rule.Path) > bestLen {
 			bestLen = len(rule.Path)
-			access = rule.Access
+			level = rule.Access
 		}
 	}
-	return access
+	return level
 }
 
 // methodMatches reports whether a rule's method constraint is satisfied by the
