@@ -15,23 +15,62 @@ Canonical sources for endpoint definitions:
 
 ## Gateway Routing
 
-| URL Prefix | Downstream Service | Auth Required |
-|------------|-------------------|---------------|
-| `/api/auth/*` | Auth Service | Varies (registration, login, and refresh are public) |
-| `/api/expenses/*` | Expense Service | Yes |
-| `/api/finance/*` | Finance Service | Yes |
-| `/api/datarights/*` | Datarights Service | Yes |
-| `/api/admin/*` | Auth Service | Yes (admin only) |
+The gateway applies one centralized access-control policy: every route resolves to exactly one of four access levels, enforced by the single `AccessControl` middleware. Resolution is exact match first, then the longest matching path prefix, else the fail-safe default of `Authenticated`.
+
+| Level | Meaning | Token required | Role check |
+|-------|---------|----------------|------------|
+| `Public` | Reachable with no token | No | None |
+| `Authenticated` | Any valid token | Yes | None |
+| `Personal` | Valid token acting as a regular user | Yes | `role == "user"` |
+| `Admin` | Valid token acting as an operator | Yes | `role == "admin"` |
+
+### Route Groups
+
+| URL Prefix | Downstream Service | Access Level |
+|------------|-------------------|--------------|
+| `/api/auth/*` | Auth Service | Mixed (see route-level table): Public login/register/refresh, Personal onboarding-complete, Admin assume, Authenticated for the rest |
+| `/api/expenses/*` | Expense Service | Personal |
+| `/api/finance/*` | Finance Service | Personal |
+| `/api/datarights/*` | Datarights Service | Mixed: `exports*` is Personal, `deletions*` is Admin |
+| `/api/admin/*` | Auth Service | Admin |
+
+### Route-Level Access
+
+The canonical policy table (`services/gateway/internal/access/policy.go`) classifies each route:
+
+| Access | Method | Path | Match |
+|--------|--------|------|-------|
+| `Public` | POST | `/api/auth/register` | Exact |
+| `Public` | POST | `/api/auth/login` | Exact |
+| `Public` | POST | `/api/auth/refresh` | Exact |
+| `Public` | GET | `/health` | Exact |
+| `Public` | GET | `/metrics` | Exact |
+| `Admin` | (any) | `/api/admin` | Prefix |
+| `Admin` | POST | `/api/auth/assume` | Exact |
+| `Admin` | (any) | `/api/datarights/deletions` | Prefix |
+| `Personal` | POST | `/api/auth/onboarding-complete` | Exact |
+| `Personal` | (any) | `/api/finance` | Prefix |
+| `Personal` | (any) | `/api/expenses` | Prefix |
+| `Personal` | (any) | `/api/datarights/exports` | Prefix |
+| `Authenticated` | (any) | `/api/auth/me` | Prefix |
+| `Authenticated` | POST | `/api/auth/logout` | Exact |
+| `Authenticated` | POST | `/api/auth/restore` | Exact |
+| `Authenticated` (default) | — | *(unmatched, e.g. bare `/api/auth`)* | Fallback |
+
+The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/exports*`, and `POST /api/auth/onboarding-complete`. A direct admin (`role=admin`) receives **403** on all of them; an assumed session carries `role=user` (with an `assumedBy` claim) and passes. `POST /api/auth/restore` is `Authenticated`, so an assumed session can always restore.
 
 ### Auth Middleware Behavior
 
-For every incoming request (except public routes):
+A single `AccessControl` middleware gates every request. For each one it:
 
-1. Extract the `gofin_access` cookie
-2. Call Auth Service gRPC `ValidateToken`
-3. On success: set `X-User-ID` and `X-User-Role` headers, forward to downstream service
-4. On 401: return 401 to the frontend (frontend handles refresh)
-5. Admin-only routes: additionally verify `X-User-Role == admin`, return 403 if not
+1. Strips client-supplied identity headers (`X-User-ID`, `X-User-Role`, `X-Assumed-By`) so they can never be spoofed
+2. Resolves the route's access level from the policy table: exact match first, then the longest matching prefix, else the default of `Authenticated`
+3. `Public` routes short-circuit here with no token read
+4. Otherwise extracts the `gofin_access` cookie and calls Auth Service gRPC `ValidateToken` (401 on a missing cookie or validation failure; the frontend then handles refresh)
+5. Sets `X-User-ID` and `X-User-Role` (and `X-Assumed-By` when the session is assumed) for the downstream service
+6. Enforces the level's role: `Authenticated` passes any valid token; `Personal` requires `role == "user"`; `Admin` requires `role == "admin"`. A role mismatch returns 403
+
+Because `Personal` requires `role == "user"`, a direct admin is refused (403) on the personal finance APIs, while an assumed `role=user` session passes.
 
 ## Endpoint Groups
 
@@ -142,7 +181,7 @@ All API errors follow a consistent shape:
 |-------------|---------|-------------------|
 | 400 | Validation failure | Missing fields, E/D/S percentages not summing to 100%, weak password |
 | 401 | Authentication failure | Invalid credentials, expired token, invalid token |
-| 403 | Authorization failure | Non-admin accessing admin routes, correcting an expense outside the current period |
+| 403 | Authorization failure | Non-admin accessing admin routes, direct admin accessing personal finance routes, correcting an expense outside the current period |
 | 404 | Resource not found | No budget period for the requested month |
 | 409 | Conflict | Duplicate email/username, expense already corrected, tag in use |
 | 429 | Rate limited | Data export requested within 30-day cooldown |
