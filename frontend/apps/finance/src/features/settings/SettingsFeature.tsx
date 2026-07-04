@@ -16,7 +16,13 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
   }, []);
 
   const sectionProps = { user, onUserUpdated };
-  const activeDefinition = tabList.find((tab) => tab.id === activeTab);
+  // Resolve to a concrete tab. activeTab is seeded from tabList[0] and the role
+  // is stable per mount, but the auth store can re-render this component with a
+  // new user (via onUserUpdated -> checkAuth) without remounting. If the role
+  // ever flips, a persisted activeTab could fall outside the new tabList; fall
+  // back to the first tab so the desktop view always renders a valid section.
+  const activeDefinition =
+    tabList.find((tab) => tab.id === activeTab) ?? tabList[0];
 
   return (
     <div className="space-y-4">
@@ -51,9 +57,9 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
 
         <Card className="flex-1">
           <CardHeader>
-            <CardTitle>{activeDefinition?.label}</CardTitle>
+            <CardTitle>{activeDefinition.label}</CardTitle>
           </CardHeader>
-          <CardContent>{activeDefinition?.render(sectionProps)}</CardContent>
+          <CardContent>{activeDefinition.render(sectionProps)}</CardContent>
         </Card>
       </div>
 
