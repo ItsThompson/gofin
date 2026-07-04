@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
+	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
 )
 
@@ -19,13 +19,13 @@ func newSilentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// mockValidator implements middleware.TokenValidator for router tests.
+// mockValidator implements access.TokenValidator for router tests.
 type mockValidator struct {
-	result *middleware.TokenValidationResult
+	result *access.TokenValidationResult
 	err    error
 }
 
-func (m *mockValidator) ValidateToken(_ context.Context, _ string) (*middleware.TokenValidationResult, error) {
+func (m *mockValidator) ValidateToken(_ context.Context, _ string) (*access.TokenValidationResult, error) {
 	return m.result, m.err
 }
 
@@ -35,7 +35,7 @@ func validCookie() *http.Cookie {
 
 func adminValidator() *mockValidator {
 	return &mockValidator{
-		result: &middleware.TokenValidationResult{
+		result: &access.TokenValidationResult{
 			UserID:   "admin-1",
 			Role:     "admin",
 			Username: "admin",
@@ -45,7 +45,7 @@ func adminValidator() *mockValidator {
 
 func userValidator() *mockValidator {
 	return &mockValidator{
-		result: &middleware.TokenValidationResult{
+		result: &access.TokenValidationResult{
 			UserID:   "user-1",
 			Role:     "user",
 			Username: "alice",
@@ -55,7 +55,7 @@ func userValidator() *mockValidator {
 
 // setupGateway creates a full gateway test server backed by downstream httptest servers.
 // It returns a doRequest helper and cleans up all servers on test completion.
-func setupGateway(t *testing.T, validator middleware.TokenValidator) func(method, path string, cookie *http.Cookie) (*http.Response, string) {
+func setupGateway(t *testing.T, validator access.TokenValidator) func(method, path string, cookie *http.Cookie) (*http.Response, string) {
 	t.Helper()
 
 	// Each downstream echoes its service name in a header so tests can verify routing.
@@ -211,7 +211,7 @@ func TestRouter_DatarightsRoutes_RouteToDatarightsService(t *testing.T) {
 	}
 }
 
-func TestRouter_AdminRoutes_RequireAdminRole(t *testing.T) {
+func TestRouter_AdminRoutes_AdminRolePasses(t *testing.T) {
 	doRequest := setupGateway(t, adminValidator())
 
 	resp, _ := doRequest(http.MethodGet, "/api/admin/users", validCookie())
@@ -224,6 +224,34 @@ func TestRouter_AdminRoutes_RejectNonAdmin(t *testing.T) {
 
 	resp, _ := doRequest(http.MethodGet, "/api/admin/users", validCookie())
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+// TestRouter_PersonalRoutes_RejectDirectAdmin is the observable cutover: a
+// direct admin (role=="admin", not an assumed session) is now forbidden from
+// Personal APIs, where the old admin-as-superset model let them through. The
+// request is denied at the gateway and never reaches the downstream service.
+func TestRouter_PersonalRoutes_RejectDirectAdmin(t *testing.T) {
+	doRequest := setupGateway(t, adminValidator())
+
+	personalRoutes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/finance/periods/current"},
+		{http.MethodGet, "/api/expenses/"},
+		{http.MethodPost, "/api/datarights/exports"},
+		{http.MethodPost, "/api/auth/onboarding-complete"},
+	}
+
+	for _, tt := range personalRoutes {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, body := doRequest(tt.method, tt.path, validCookie())
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+			assert.Contains(t, body, "FORBIDDEN")
+			assert.Empty(t, resp.Header.Get("X-Downstream"),
+				"denied request must not reach a downstream service")
+		})
+	}
 }
 
 func TestRouter_AssumeEndpoint_RequiresAdmin(t *testing.T) {

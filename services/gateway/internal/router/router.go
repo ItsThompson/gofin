@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
 	"github.com/ItsThompson/gofin/services/metrics"
@@ -23,7 +24,7 @@ type ServiceURLs struct {
 // New creates a configured Gin engine with all gateway routes, middleware,
 // and reverse proxy handlers wired up.
 func New(
-	validator middleware.TokenValidator,
+	validator access.TokenValidator,
 	serviceURLs *ServiceURLs,
 	logger *slog.Logger,
 	isProduction bool,
@@ -37,12 +38,15 @@ func New(
 	engine.Use(gin.Recovery())
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
-	engine.Use(middleware.Auth(validator, logger))
+	// AccessControl is the single global gate: it resolves each route against the
+	// canonical policy table and enforces Public/Authenticated/Personal/Admin,
+	// replacing the former per-request auth + per-group admin guards.
+	engine.Use(access.AccessControl(validator, access.DefaultPolicy(), logger))
 
-	// Prometheus metrics endpoint (excluded from auth middleware via exception list).
+	// Prometheus metrics endpoint (Public in the policy table).
 	metrics.Register(engine)
 
-	// Health check endpoint: auth middleware skips it via the exception list.
+	// Health check endpoint (Public in the policy table).
 	engine.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -53,20 +57,18 @@ func New(
 	financeProxy := proxy.NewServiceProxy(serviceURLs.FinanceREST, logger)
 	datarightsProxy := proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger)
 
+	// Route groups are pure proxy wiring: access is enforced globally by
+	// AccessControl against the policy table, not per group.
+
 	// /api/auth/* → Auth service (REST)
-	// Some auth routes are unauthenticated (register, login, refresh) and
-	// bypass the auth middleware via the exception list in auth.go.
-	// POST /api/auth/assume requires admin role via AdminRouteGuard.
 	authGroup := engine.Group("/api/auth")
-	authGroup.Use(middleware.AdminRouteGuard(logger))
 	{
 		authGroup.Any("", ginWrapHandler(authProxy))
 		authGroup.Any("/*path", ginWrapHandler(authProxy))
 	}
 
-	// /api/admin/* → Auth service (REST), admin-only
+	// /api/admin/* → Auth service (REST)
 	adminGroup := engine.Group("/api/admin")
-	adminGroup.Use(middleware.RequireAdmin(logger))
 	{
 		adminGroup.Any("", ginWrapHandler(authProxy))
 		adminGroup.Any("/*path", ginWrapHandler(authProxy))
@@ -87,10 +89,7 @@ func New(
 	}
 
 	// /api/datarights/* → Datarights service (REST)
-	// AdminRouteGuard enforces admin role on /api/datarights/deletions* paths.
-	// Export routes (/api/datarights/exports*) remain accessible to all authenticated users.
 	datarightsGroup := engine.Group("/api/datarights")
-	datarightsGroup.Use(middleware.AdminRouteGuard(logger))
 	{
 		datarightsGroup.Any("", ginWrapHandler(datarightsProxy))
 		datarightsGroup.Any("/*path", ginWrapHandler(datarightsProxy))
