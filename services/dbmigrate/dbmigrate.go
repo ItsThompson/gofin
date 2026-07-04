@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -68,23 +69,16 @@ func Run(dbURL, migrationsPath string) error {
 // because the postgres driver fails with "no schema" if search_path references
 // a non-existent schema.
 func ensureSchema(dbURL string) error {
-	parsed, err := url.Parse(dbURL)
+	searchPath, connURL, err := rawConnectionURL(dbURL)
 	if err != nil {
 		return fmt.Errorf("parsing database URL: %w", err)
 	}
 
-	searchPath := parsed.Query().Get("search_path")
 	if searchPath == "" {
 		return nil
 	}
 
-	// Connect without search_path so the connection succeeds even if the schema
-	// doesn't exist yet.
-	q := parsed.Query()
-	q.Del("search_path")
-	parsed.RawQuery = q.Encode()
-
-	db, err := sql.Open("postgres", parsed.String())
+	db, err := sql.Open("postgres", connURL)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
 	}
@@ -97,4 +91,30 @@ func ensureSchema(dbURL string) error {
 
 	slog.Info("dbmigrate: schema ensured", slog.String("schema", searchPath))
 	return nil
+}
+
+// rawConnectionURL returns the search_path from dbURL along with a connection
+// URL suitable for a plain lib/pq connection. It strips both the search_path
+// (so the connection succeeds even if the schema doesn't exist yet) and any
+// golang-migrate driver params (the x-* family, e.g. x-migrations-table). Those
+// x-* params are consumed by golang-migrate's own connection, not by a raw
+// lib/pq connection, which would otherwise reject them as unknown server
+// configuration parameters.
+func rawConnectionURL(dbURL string) (searchPath, connURL string, err error) {
+	parsed, err := url.Parse(dbURL)
+	if err != nil {
+		return "", "", err
+	}
+
+	q := parsed.Query()
+	searchPath = q.Get("search_path")
+	q.Del("search_path")
+	for key := range q {
+		if strings.HasPrefix(key, "x-") {
+			q.Del(key)
+		}
+	}
+	parsed.RawQuery = q.Encode()
+
+	return searchPath, parsed.String(), nil
 }
