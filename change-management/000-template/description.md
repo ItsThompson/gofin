@@ -1,4 +1,4 @@
-# Description — <NNN>_<kebab-title>
+# Description: <NNN>_<kebab-title>
 
 > Copy this template with `cp -r 000-template <NNN>_<kebab-title>` and answer every
 > prompt below. Do not add, remove, or rename the `##`/`####` headings: the validator

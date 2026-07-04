@@ -1,4 +1,4 @@
-# Preflight — <NNN>_<kebab-title>
+# Preflight: <NNN>_<kebab-title>
 
 > Everything done *before* the change is executed (merge, deploy, dry-run, backups).
 > Every `# Activity N` MUST be followed by a matching `# Validation N` with the same

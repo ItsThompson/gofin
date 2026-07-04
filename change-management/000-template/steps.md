@@ -1,4 +1,4 @@
-# Steps — <NNN>_<kebab-title>
+# Steps: <NNN>_<kebab-title>
 
 > The execution itself, plus any repo housekeeping that finalizes the change (e.g.
 > committing the execution log and renaming the folder with a status suffix).
