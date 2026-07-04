@@ -127,8 +127,10 @@ func abortUnauthorized(c *gin.Context, message string) {
 	})
 }
 
-// rejectForbidden ends the request with the unchanged 403 contract, preserving
-// the role-denied warn log formerly emitted by middleware.rejectNonAdmin.
+// rejectForbidden ends the request with the unchanged 403 code contract (the
+// machine-readable "FORBIDDEN" code is preserved; the human-facing message text
+// was consolidated to a generic "Access denied"), preserving the role-denied
+// warn log formerly emitted by middleware.rejectNonAdmin.
 func rejectForbidden(c *gin.Context, logger *slog.Logger, result *TokenValidationResult) {
 	logger.Warn("access denied",
 		slog.String("method", c.Request.Method),
