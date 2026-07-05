@@ -46,8 +46,12 @@ export function useAuthLayoutGuards({
   isLoading,
 }: AuthLayoutState): AuthLayoutGuard {
   const matches = useMatches();
-  const { pathname } = useLocation();
   const access = deepestAccess(matches);
+  // Access comes from route metadata (the deepest matched handle.access); the
+  // current path comes from useLocation. These are intentionally distinct
+  // sources: one is the route's declared classification, the other is the live
+  // URL, read only to tell whether we are on the onboarding route.
+  const { pathname } = useLocation();
 
   if (isLoading) {
     return { status: "loading" };

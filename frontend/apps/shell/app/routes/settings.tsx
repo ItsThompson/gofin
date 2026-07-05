@@ -2,6 +2,7 @@ import { lazy, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { RemoteBoundary } from "@/components/remote-boundary";
 import { SettingsSkeleton } from "@gofin/ui/components/skeletons";
+import { accessHandle } from "@/lib/route-access";
 
 /**
  * Lazy-load the SettingsFeature from the finance remote package.
@@ -12,7 +13,7 @@ const SettingsPage = lazy(() =>
   })),
 );
 
-export const handle = { access: "authenticated" as const };
+export const handle = accessHandle("authenticated");
 
 export default function SettingsRoute() {
   const { user, checkAuth } = useAuthStore();

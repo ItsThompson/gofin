@@ -2,6 +2,7 @@ import { lazy } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { RemoteBoundary } from "@/components/remote-boundary";
 import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
+import { accessHandle } from "@/lib/route-access";
 
 /**
  * Lazy-load the DashboardFeature from the finance remote package.
@@ -14,7 +15,7 @@ const DashboardFeature = lazy(() =>
   })),
 );
 
-export const handle = { access: "personal" as const };
+export const handle = accessHandle("personal");
 
 export default function DashboardRoute() {
   const { user } = useAuthStore();

@@ -14,6 +14,16 @@ import { canUseAdminFeatures, canUseFinanceFeatures, type User } from "@gofin/co
 export type RouteAccess = "public" | "authenticated" | "personal" | "admin";
 
 /**
+ * Builds a route `handle` carrying its access level. Route modules use this
+ * instead of an inline object literal so the access value is type-checked
+ * against RouteAccess at the call site: a typo (e.g. "personl") fails to
+ * compile rather than silently resolving to a forbidden route at runtime.
+ */
+export function accessHandle(access: RouteAccess): { access: RouteAccess } {
+  return { access };
+}
+
+/**
  * canAccess is the single predicate the auth-layout guard applies to a route's
  * `handle.access`. It generalizes the old FINANCE_ROUTES check into one rule
  * built on the shared role helpers, so adding a new access level never means

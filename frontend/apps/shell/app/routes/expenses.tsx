@@ -2,6 +2,7 @@ import { lazy } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { RemoteBoundary } from "@/components/remote-boundary";
 import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
+import { accessHandle } from "@/lib/route-access";
 
 /**
  * Lazy-load the ExpenseLogFeature from the finance remote package.
@@ -12,7 +13,7 @@ const ExpenseLogFeature = lazy(() =>
   })),
 );
 
-export const handle = { access: "personal" as const };
+export const handle = accessHandle("personal");
 
 export default function ExpensesRoute() {
   const { user } = useAuthStore();
