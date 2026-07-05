@@ -58,6 +58,8 @@ function AdminSkeleton() {
   );
 }
 
+export const handle = { access: "admin" as const };
+
 export default function AdminPage() {
   const { user, isAdmin, isLoading, assumeIdentity } = useAuthStore();
   const navigate = useNavigate();

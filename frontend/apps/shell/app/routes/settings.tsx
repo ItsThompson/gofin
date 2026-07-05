@@ -12,6 +12,8 @@ const SettingsPage = lazy(() =>
   })),
 );
 
+export const handle = { access: "authenticated" as const };
+
 export default function SettingsRoute() {
   const { user, checkAuth } = useAuthStore();
 

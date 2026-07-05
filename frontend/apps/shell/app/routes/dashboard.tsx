@@ -14,6 +14,8 @@ const DashboardFeature = lazy(() =>
   })),
 );
 
+export const handle = { access: "personal" as const };
+
 export default function DashboardRoute() {
   const { user } = useAuthStore();
 

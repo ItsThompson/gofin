@@ -12,6 +12,8 @@ const ExpenseLogFeature = lazy(() =>
   })),
 );
 
+export const handle = { access: "personal" as const };
+
 export default function ExpensesRoute() {
   const { user } = useAuthStore();
 

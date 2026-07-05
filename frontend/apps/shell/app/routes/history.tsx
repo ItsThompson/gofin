@@ -28,6 +28,8 @@ function HistoryLoadingSkeleton() {
   );
 }
 
+export const handle = { access: "personal" as const };
+
 export default function HistoryRoute() {
   const { user } = useAuthStore();
 
