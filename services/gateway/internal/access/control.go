@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/ItsThompson/gofin/services/access"
 )
 
 // Identity headers the gateway sets for downstream services after a successful
@@ -30,9 +32,14 @@ const (
 // AccessControl is the single gin middleware that enforces the gateway access
 // policy, replacing the former Auth + RequireAdmin + AdminRouteGuard trio.
 //
+// It takes an injected resolve func rather than a policy value so the shared
+// services/access module stays ignorant of gateway-native routes: the gateway
+// composes GatewayResolve (health/metrics -> Public, else access.Resolve) and
+// passes it in ("inject strategy, don't branch on context").
+//
 // For every request it:
 //  1. strips the spoofable identity headers,
-//  2. resolves the route's access level from the policy,
+//  2. resolves the route's access level via the injected resolver,
 //  3. short-circuits Public routes with no token read,
 //  4. otherwise validates the gofin_access cookie (401 on missing/invalid),
 //  5. injects the validated identity as downstream headers, and
@@ -40,12 +47,12 @@ const (
 //
 // The per-level switch is fail-safe: only Authenticated passes without a role
 // check, and any level that is not explicitly allowed is denied (403).
-func AccessControl(validator TokenValidator, policy Policy, logger *slog.Logger) gin.HandlerFunc {
+func AccessControl(validator TokenValidator, resolve func(method, path string) access.Access, logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		stripIdentityHeaders(c)
 
-		level := policy.resolve(c.Request.Method, c.Request.URL.Path)
-		if level == Public {
+		level := resolve(c.Request.Method, c.Request.URL.Path)
+		if level == access.Public {
 			c.Next()
 			return
 		}
@@ -74,17 +81,17 @@ func AccessControl(validator TokenValidator, policy Policy, logger *slog.Logger)
 		setIdentityHeaders(c, result)
 
 		switch level {
-		case Personal:
+		case access.Personal:
 			if result.Role != roleUser {
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case Admin:
+		case access.Admin:
 			if result.Role != roleAdmin {
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case Authenticated:
+		case access.Authenticated:
 			// Any valid token passes; no role check.
 		default:
 			// Fail-safe by construction: Public is short-circuited before token
@@ -96,6 +103,18 @@ func AccessControl(validator TokenValidator, policy Policy, logger *slog.Logger)
 
 		c.Next()
 	}
+}
+
+// GatewayResolve is the resolver the gateway injects into AccessControl. It
+// classifies the two gateway-native endpoints (/health, /metrics) as Public
+// and delegates every /api route to the shared registry resolver. Keeping this
+// composition in the gateway is why services/access never needs to know about
+// gateway-owned routes.
+func GatewayResolve(method, path string) access.Access {
+	if path == "/health" || path == "/metrics" {
+		return access.Public
+	}
+	return access.Resolve(method, path)
 }
 
 // stripIdentityHeaders removes client-supplied identity headers before

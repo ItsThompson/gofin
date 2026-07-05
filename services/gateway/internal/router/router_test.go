@@ -230,6 +230,9 @@ func TestRouter_AdminRoutes_RejectNonAdmin(t *testing.T) {
 // direct admin (role=="admin", not an assumed session) is now forbidden from
 // Personal APIs, where the old admin-as-superset model let them through. The
 // request is denied at the gateway and never reaches the downstream service.
+// Every path here is a concrete registered route (the resolver classifies exact
+// gin patterns, so a non-real trailing-slash path like "/api/expenses/" would
+// 404 downstream and falls to the Authenticated default instead).
 func TestRouter_PersonalRoutes_RejectDirectAdmin(t *testing.T) {
 	doRequest := setupGateway(t, adminValidator())
 
@@ -238,7 +241,7 @@ func TestRouter_PersonalRoutes_RejectDirectAdmin(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/api/finance/periods/current"},
-		{http.MethodGet, "/api/expenses/"},
+		{http.MethodGet, "/api/expenses"},
 		{http.MethodPost, "/api/datarights/exports"},
 		{http.MethodPost, "/api/auth/onboarding-complete"},
 	}

@@ -39,14 +39,16 @@ func New(
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
 	// AccessControl is the single global gate: it resolves each route against the
-	// canonical policy table and enforces Public/Authenticated/Personal/Admin,
-	// replacing the former per-request auth + per-group admin guards.
-	engine.Use(access.AccessControl(validator, access.DefaultPolicy(), logger))
+	// shared services/access registry (via GatewayResolve, which also classifies
+	// the gateway-native /health and /metrics as Public) and enforces
+	// Public/Authenticated/Personal/Admin, replacing the former per-request auth +
+	// per-group admin guards.
+	engine.Use(access.AccessControl(validator, access.GatewayResolve, logger))
 
-	// Prometheus metrics endpoint (Public in the policy table).
+	// Prometheus metrics endpoint (Public via GatewayResolve).
 	metrics.Register(engine)
 
-	// Health check endpoint (Public in the policy table).
+	// Health check endpoint (Public via GatewayResolve).
 	engine.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})

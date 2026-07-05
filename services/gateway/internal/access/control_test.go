@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 )
 
@@ -47,11 +48,12 @@ func captureLogger() (*slog.Logger, *bytesBuffer) {
 	return logger, buf
 }
 
-// buildEngine wires AccessControl (with the canonical DefaultPolicy) in front
-// of a single handler registered for method+path.
+// buildEngine wires AccessControl (with the gateway's GatewayResolve, which
+// classifies every route via the shared services/access registry) in front of
+// a single handler registered for method+path.
 func buildEngine(validator access.TokenValidator, logger *slog.Logger, method, path string, handler gin.HandlerFunc) *gin.Engine {
 	engine := gin.New()
-	engine.Use(access.AccessControl(validator, access.DefaultPolicy(), logger))
+	engine.Use(access.AccessControl(validator, access.GatewayResolve, logger))
 	engine.Handle(method, path, handler)
 	return engine
 }
@@ -356,14 +358,13 @@ func TestAccessControl_UnknownLevel_DeniesByDefault(t *testing.T) {
 		result: &access.TokenValidationResult{UserID: "user-1", Role: "user"},
 	}
 
-	// A policy with no rules whose Default is an out-of-enum access level.
-	// resolve() returns this Default for every path, so a valid token reaches
-	// the middleware's switch with a level that matches none of the known
-	// cases and must fall through to the fail-safe deny.
-	policy := access.Policy{Default: access.Access(99)}
+	// A resolve func that returns an out-of-enum access level for every path.
+	// A valid token reaches the middleware's switch with a level that matches
+	// none of the known cases and must fall through to the fail-safe deny.
+	resolve := func(_, _ string) sharedaccess.Access { return sharedaccess.Access(99) }
 
 	engine := gin.New()
-	engine.Use(access.AccessControl(validator, policy, silentLogger()))
+	engine.Use(access.AccessControl(validator, resolve, silentLogger()))
 	engine.GET("/api/anything", okHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/anything", nil)
@@ -373,6 +374,36 @@ func TestAccessControl_UnknownLevel_DeniesByDefault(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rec.Code, "unknown access level must be denied")
 	assert.Contains(t, rec.Body.String(), "FORBIDDEN")
+}
+
+// --- Gateway-native classification: /health, /metrics, and unknown paths ---
+
+// TestGatewayResolve covers the gateway-owned classification that services/access
+// intentionally does not know about: the gateway-native /health and /metrics
+// endpoints are Public, while every other path is delegated to the shared
+// registry resolver (a real route keeps its level; an unknown path falls to the
+// fail-safe Authenticated default).
+func TestGatewayResolve(t *testing.T) {
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		want   sharedaccess.Access
+	}{
+		{"health is public", http.MethodGet, "/health", sharedaccess.Public},
+		{"metrics is public", http.MethodGet, "/metrics", sharedaccess.Public},
+		{"a real personal route keeps its level", http.MethodGet, "/api/finance/periods", sharedaccess.Personal},
+		{"a real admin route keeps its level", http.MethodGet, "/api/admin/users", sharedaccess.Admin},
+		{"an unknown path falls to authenticated", http.MethodGet, "/api/unknown", sharedaccess.Authenticated},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := access.GatewayResolve(tc.method, tc.path); got != tc.want {
+				t.Errorf("GatewayResolve(%q, %q) = %s, want %s", tc.method, tc.path, got, tc.want)
+			}
+		})
+	}
 }
 
 // bytesBuffer is a minimal io.Writer that also parses the last JSON log line.
