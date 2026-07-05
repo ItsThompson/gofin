@@ -376,13 +376,31 @@ func TestAccessControl_UnknownLevel_DeniesByDefault(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "FORBIDDEN")
 }
 
+// TestAccessControl_Deny_NoCookie_Returns403 proves the deny-by-default
+// short-circuit: an unclassified /api path (no Registry entry) resolves to Deny
+// via GatewayResolve, and the middleware must 403 before any cookie is read.
+// An unclassified route is not a real route, so no identity is required and the
+// token validator must not be called.
+func TestAccessControl_Deny_NoCookie_Returns403(t *testing.T) {
+	validator := &fakeValidator{err: errors.New("validate must not be called for a denied route")}
+	engine := buildEngine(validator, silentLogger(), http.MethodGet, "/api/unclassified", okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/unclassified", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code, "an unclassified route must be denied")
+	assert.Contains(t, rec.Body.String(), "FORBIDDEN")
+	assert.Equal(t, 0, validator.calls, "a denied route must not read the cookie or validate a token")
+}
+
 // --- Gateway-native classification: /health, /metrics, and unknown paths ---
 
 // TestGatewayResolve covers the gateway-owned classification that services/access
 // intentionally does not know about: the gateway-native /health and /metrics
 // endpoints are Public, while every other path is delegated to the shared
 // registry resolver (a real route keeps its level; an unknown path falls to the
-// fail-safe Authenticated default).
+// fail-safe Deny default).
 func TestGatewayResolve(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -394,7 +412,7 @@ func TestGatewayResolve(t *testing.T) {
 		{"metrics is public", http.MethodGet, "/metrics", sharedaccess.Public},
 		{"a real personal route keeps its level", http.MethodGet, "/api/finance/periods", sharedaccess.Personal},
 		{"a real admin route keeps its level", http.MethodGet, "/api/admin/users", sharedaccess.Admin},
-		{"an unknown path falls to authenticated", http.MethodGet, "/api/unknown", sharedaccess.Authenticated},
+		{"an unknown path falls to deny", http.MethodGet, "/api/unknown", sharedaccess.Deny},
 	}
 
 	for _, tc := range cases {

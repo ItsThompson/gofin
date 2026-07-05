@@ -8,14 +8,17 @@ import "strings"
 // dispatch to (see moreSpecific), so the gateway classifies exactly the route
 // that will handle the request.
 //
-// Unmatched requests fall back to Authenticated, the fail-safe default: an
-// unclassified path still requires a valid token, and (since it corresponds to
-// no real route) 404s downstream. Because every Registry pattern is a concrete
-// route with exact static segments, a sibling path like
-// "/api/datarights/exports-admin" cannot borrow "/api/datarights/exports"'s
-// level: static segments must match byte-for-byte. This makes the
-// leading-substring bug that segment-boundary prefix matching guarded against
-// (commit ca37e4c) impossible by construction.
+// Unmatched requests fall back to Deny, the fail-safe default: a path that no
+// Registry entry classifies is denied (403), not allowed. This makes route
+// classification self-enforcing across services as well as routes: a new or
+// unclassified route (or a whole new proxied prefix) is dead on arrival until
+// it is added to the Registry with an access level, extending the existing
+// "can't ship an unclassified route" guarantee to new services by
+// construction. Because every Registry pattern is a concrete route with exact
+// static segments, a sibling path like "/api/datarights/exports-admin" cannot
+// borrow "/api/datarights/exports"'s level: static segments must match
+// byte-for-byte. This makes the leading-substring bug that segment-boundary
+// prefix matching guarded against (commit ca37e4c) impossible by construction.
 func Resolve(method, path string) Access {
 	var best *Route
 	for i := range Registry {
@@ -28,7 +31,7 @@ func Resolve(method, path string) Access {
 		}
 	}
 	if best == nil {
-		return Authenticated
+		return Deny
 	}
 	return best.Access
 }

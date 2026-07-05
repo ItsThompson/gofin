@@ -41,9 +41,10 @@ const (
 //  1. strips the spoofable identity headers,
 //  2. resolves the route's access level via the injected resolver,
 //  3. short-circuits Public routes with no token read,
-//  4. otherwise validates the gofin_access cookie (401 on missing/invalid),
-//  5. injects the validated identity as downstream headers, and
-//  6. enforces the per-level role check (403 when the role is wrong).
+//  4. short-circuits Deny (an unclassified route) with a 403 and no token read,
+//  5. otherwise validates the gofin_access cookie (401 on missing/invalid),
+//  6. injects the validated identity as downstream headers, and
+//  7. enforces the per-level role check (403 when the role is wrong).
 //
 // The per-level switch is fail-safe: only Authenticated passes without a role
 // check, and any level that is not explicitly allowed is denied (403).
@@ -54,6 +55,12 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 		level := resolve(c.Request.Method, c.Request.URL.Path)
 		if level == access.Public {
 			c.Next()
+			return
+		}
+		if level == access.Deny {
+			// An unclassified path is not a real route, so no identity is
+			// needed: refuse it with a 403 before the cookie is read.
+			abortForbidden(c, logger)
 			return
 		}
 
@@ -94,9 +101,10 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 		case access.Authenticated:
 			// Any valid token passes; no role check.
 		default:
-			// Fail-safe by construction: Public is short-circuited before token
-			// validation, so anything reaching here that is not explicitly
-			// allowed (including an unrecognized future Access value) is denied.
+			// Fail-safe by construction: Public and Deny are short-circuited
+			// before token validation, so anything reaching here that is not
+			// explicitly allowed (including an unrecognized future Access value)
+			// is denied.
 			rejectForbidden(c, logger, result)
 			return
 		}
@@ -157,6 +165,23 @@ func rejectForbidden(c *gin.Context, logger *slog.Logger, result *TokenValidatio
 		slog.String("role", result.Role),
 		slog.String("user_id", result.UserID),
 	)
+	writeForbidden(c)
+}
+
+// abortForbidden ends the request with the same 403 FORBIDDEN/"Access denied"
+// contract for a Deny (unclassified) route. No token was read, so there is no
+// validated identity to log; only the method and path are recorded.
+func abortForbidden(c *gin.Context, logger *slog.Logger) {
+	logger.Warn("access denied for unclassified route",
+		slog.String("method", c.Request.Method),
+		slog.String("path", c.Request.URL.Path),
+	)
+	writeForbidden(c)
+}
+
+// writeForbidden emits the shared 403 body contract (FORBIDDEN / "Access
+// denied") used by both the role-denied and unclassified-route paths.
+func writeForbidden(c *gin.Context) {
 	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 		"code":    "FORBIDDEN",
 		"message": "Access denied",

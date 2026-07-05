@@ -24,6 +24,11 @@ const (
 	Personal
 	// Admin routes require a valid token acting as an operator (role == "admin").
 	Admin
+	// Deny is the fail-safe the resolver returns for a path that no Registry
+	// entry classifies. It is not a level a route may declare: an unclassified
+	// path is refused (403) rather than reachable, so onboarding a route (or a
+	// whole new proxied prefix) is dead until it is added to the Registry.
+	Deny
 )
 
 // String returns the level name, used for readable logs and test diagnostics.
@@ -37,6 +42,8 @@ func (a Access) String() string {
 		return "Personal"
 	case Admin:
 		return "Admin"
+	case Deny:
+		return "Deny"
 	default:
 		return "Unknown"
 	}

@@ -151,8 +151,8 @@ func TestRouter_ExpenseRoutes_RouteToExpenseService(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodPost, "/api/expenses/"},
-		{http.MethodGet, "/api/expenses/?year=2026&month=5"},
+		{http.MethodPost, "/api/expenses"},
+		{http.MethodGet, "/api/expenses?year=2026&month=5"},
 		{http.MethodGet, "/api/expenses/suggestions?page=1&pageSize=50"},
 		{http.MethodGet, "/api/expenses/abc-123"},
 		{http.MethodPost, "/api/expenses/abc-123/correct"},
@@ -175,10 +175,10 @@ func TestRouter_FinanceRoutes_RouteToFinanceService(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/api/finance/periods/current?year=2026&month=5"},
-		{http.MethodPost, "/api/finance/periods/"},
-		{http.MethodGet, "/api/finance/tags/"},
-		{http.MethodPost, "/api/finance/prorata/"},
-		{http.MethodGet, "/api/finance/summary/?year=2026&month=5"},
+		{http.MethodPost, "/api/finance/periods"},
+		{http.MethodGet, "/api/finance/tags"},
+		{http.MethodPost, "/api/finance/prorata"},
+		{http.MethodGet, "/api/finance/summary?year=2026&month=5"},
 	}
 
 	for _, tt := range tests {
@@ -294,10 +294,14 @@ func TestRouter_UnauthenticatedRoutes_NoCookieNeeded(t *testing.T) {
 	}
 }
 
+// TestRouter_AuthenticatedRoute_NoCookie_Returns401 targets a real Authenticated
+// route: with no cookie the gateway must 401 (identity required) before any
+// proxying. (A non-real path like "/api/expenses/" is now Deny -> 403, so it
+// would no longer exercise the missing-cookie 401 path.)
 func TestRouter_AuthenticatedRoute_NoCookie_Returns401(t *testing.T) {
 	doRequest := setupGateway(t, userValidator())
 
-	resp, _ := doRequest(http.MethodGet, "/api/expenses/", nil)
+	resp, _ := doRequest(http.MethodGet, "/api/auth/me", nil)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 

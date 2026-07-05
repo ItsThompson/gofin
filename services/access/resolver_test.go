@@ -44,10 +44,11 @@ func TestResolve_WorkedExamples(t *testing.T) {
 	}
 }
 
-// TestResolve_FallsBackToAuthenticated covers every way a request misses the
-// Registry: wrong method, sibling substrings that must not borrow a neighbor's
-// level, bare groups with no exact route, and wholly unknown paths.
-func TestResolve_FallsBackToAuthenticated(t *testing.T) {
+// TestResolve_FallsBackToDeny covers every way a request misses the Registry:
+// wrong method, sibling substrings that must not borrow a neighbor's level,
+// bare groups with no exact route, and wholly unknown paths. Each now resolves
+// to the deny-by-default fail-safe (403 at the gateway), not Authenticated.
+func TestResolve_FallsBackToDeny(t *testing.T) {
 	cases := []struct {
 		name   string
 		method string
@@ -69,8 +70,8 @@ func TestResolve_FallsBackToAuthenticated(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Resolve(tc.method, tc.path); got != Authenticated {
-				t.Errorf("Resolve(%q, %q) = %s, want Authenticated", tc.method, tc.path, got)
+			if got := Resolve(tc.method, tc.path); got != Deny {
+				t.Errorf("Resolve(%q, %q) = %s, want Deny", tc.method, tc.path, got)
 			}
 		})
 	}

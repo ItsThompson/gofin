@@ -68,7 +68,8 @@ func TestRoutesFor_UnknownServiceIsEmpty(t *testing.T) {
 
 // TestClassifies_UnknownRoutesAreUnclassified is the failure-mode guardrail: a
 // route with no Registry entry, or a real path under the wrong method, is not
-// classified, so Resolve returns the fail-safe Authenticated default.
+// classified, so Resolve returns the fail-safe Deny default (403 at the
+// gateway).
 func TestClassifies_UnknownRoutesAreUnclassified(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -86,8 +87,8 @@ func TestClassifies_UnknownRoutesAreUnclassified(t *testing.T) {
 			if Classifies(tc.method, tc.path) {
 				t.Errorf("Classifies(%q, %q) = true, want false", tc.method, tc.path)
 			}
-			if got := Resolve(tc.method, tc.path); got != Authenticated {
-				t.Errorf("Resolve(%q, %q) = %s, want Authenticated (fail-safe default)", tc.method, tc.path, got)
+			if got := Resolve(tc.method, tc.path); got != Deny {
+				t.Errorf("Resolve(%q, %q) = %s, want Deny (fail-safe default)", tc.method, tc.path, got)
 			}
 		})
 	}

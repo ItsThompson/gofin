@@ -98,8 +98,8 @@ func RoutesFor(service string) []Route {
 }
 
 // Classifies reports whether method+path is matched by an explicit Registry
-// entry, as opposed to falling through to the fail-safe Authenticated default
-// in Resolve. Services use it as a defense-in-depth check that every route they
+// entry, as opposed to falling through to the fail-safe Deny default in
+// Resolve. Services use it as a defense-in-depth check that every route they
 // register is classified by the Registry.
 func Classifies(method, path string) bool {
 	for _, r := range Registry {
