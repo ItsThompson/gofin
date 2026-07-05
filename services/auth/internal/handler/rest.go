@@ -291,7 +291,8 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 
 // ListUsers handles GET /api/admin/users.
 // Returns all registered users. The gateway enforces admin (operator) access
-// via its centralized access-control policy (the /api/admin prefix is Admin-only).
+// via its centralized access-control middleware (GET /api/admin/users is
+// classified Admin in the shared services/access registry).
 func (h *RESTHandler) ListUsers(c *gin.Context) {
 	start := time.Now()
 
@@ -323,7 +324,8 @@ func (h *RESTHandler) ListUsers(c *gin.Context) {
 // AssumeIdentity handles POST /api/auth/assume.
 // Generates a new JWT for the target user with the assumedBy claim.
 // The gateway enforces admin (operator) access via its centralized
-// access-control policy (POST /api/auth/assume is Admin-only).
+// access-control middleware (POST /api/auth/assume is classified Admin in the
+// shared services/access registry).
 func (h *RESTHandler) AssumeIdentity(c *gin.Context) {
 	start := time.Now()
 

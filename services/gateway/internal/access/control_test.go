@@ -255,10 +255,10 @@ func TestAccessControl_AssumedUser_PassesPersonalRoutesAndRestore(t *testing.T) 
 		method string
 		path   string
 	}{
-		{http.MethodPost, "/api/auth/onboarding-complete"}, // Personal (exact)
-		{http.MethodGet, "/api/finance/periods"},           // Personal (prefix)
-		{http.MethodPost, "/api/expenses"},                 // Personal (prefix)
-		{http.MethodPost, "/api/datarights/exports"},       // Personal (prefix)
+		{http.MethodPost, "/api/auth/onboarding-complete"}, // Personal
+		{http.MethodGet, "/api/finance/periods"},           // Personal
+		{http.MethodPost, "/api/expenses"},                 // Personal
+		{http.MethodPost, "/api/datarights/exports"},       // Personal
 		{http.MethodPost, "/api/auth/restore"},             // Authenticated
 	}
 
