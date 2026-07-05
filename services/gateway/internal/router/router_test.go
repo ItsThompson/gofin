@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,7 +11,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
 )
@@ -311,4 +314,31 @@ func TestRouter_HealthEndpoint(t *testing.T) {
 	resp, body := doRequest(http.MethodGet, "/health", nil)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, body, `"status":"ok"`)
+}
+
+// TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's
+// fail-fast contract: because router.New derives its proxy groups from
+// sharedaccess.ProxyPrefixes, a prefix naming a service with no proxy handler
+// is a wiring bug that must panic at construction rather than silently drop the
+// prefix. The bad prefix is appended and restored so other tests are unaffected.
+func TestRouter_New_PanicsOnPrefixWithNoProxy(t *testing.T) {
+	original := sharedaccess.ProxyPrefixes
+	sharedaccess.ProxyPrefixes = append(append([]sharedaccess.ProxyPrefix{}, original...),
+		sharedaccess.ProxyPrefix{Prefix: "/api/ghost", Service: "ghost"})
+	t.Cleanup(func() { sharedaccess.ProxyPrefixes = original })
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "New must panic when a ProxyPrefix names a service with no proxy handler")
+		assert.Contains(t, fmt.Sprintf("%v", r), "ghost",
+			"panic message must name the offending service")
+	}()
+
+	u, _ := url.Parse("http://127.0.0.1:1")
+	router.New(userValidator(), &router.ServiceURLs{
+		AuthREST:       u,
+		ExpenseREST:    u,
+		FinanceREST:    u,
+		DatarightsREST: u,
+	}, newSilentLogger(), false)
 }

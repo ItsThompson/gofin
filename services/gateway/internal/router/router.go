@@ -1,12 +1,14 @@
 package router
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/gin-gonic/gin"
 
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
@@ -53,48 +55,31 @@ func New(
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Build reverse proxy handlers for each downstream service.
-	authProxy := proxy.NewServiceProxy(serviceURLs.AuthREST, logger)
-	expenseProxy := proxy.NewServiceProxy(serviceURLs.ExpenseREST, logger)
-	financeProxy := proxy.NewServiceProxy(serviceURLs.FinanceREST, logger)
-	datarightsProxy := proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger)
-
-	// Route groups are pure proxy wiring: access is enforced globally by
-	// AccessControl against the policy table, not per group.
-
-	// /api/auth/* → Auth service (REST)
-	authGroup := engine.Group("/api/auth")
-	{
-		authGroup.Any("", ginWrapHandler(authProxy))
-		authGroup.Any("/*path", ginWrapHandler(authProxy))
+	// Build one reverse-proxy handler per downstream service, keyed by the
+	// service name used in the shared Registry and ProxyPrefixes.
+	proxies := map[string]http.Handler{
+		"auth":       proxy.NewServiceProxy(serviceURLs.AuthREST, logger),
+		"expense":    proxy.NewServiceProxy(serviceURLs.ExpenseREST, logger),
+		"finance":    proxy.NewServiceProxy(serviceURLs.FinanceREST, logger),
+		"datarights": proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger),
 	}
 
-	// /api/admin/* → Auth service (REST)
-	adminGroup := engine.Group("/api/admin")
-	{
-		adminGroup.Any("", ginWrapHandler(authProxy))
-		adminGroup.Any("/*path", ginWrapHandler(authProxy))
-	}
-
-	// /api/expenses/* → Expense service (REST)
-	expenseGroup := engine.Group("/api/expenses")
-	{
-		expenseGroup.Any("", ginWrapHandler(expenseProxy))
-		expenseGroup.Any("/*path", ginWrapHandler(expenseProxy))
-	}
-
-	// /api/finance/* → Finance service (REST)
-	financeGroup := engine.Group("/api/finance")
-	{
-		financeGroup.Any("", ginWrapHandler(financeProxy))
-		financeGroup.Any("/*path", ginWrapHandler(financeProxy))
-	}
-
-	// /api/datarights/* → Datarights service (REST)
-	datarightsGroup := engine.Group("/api/datarights")
-	{
-		datarightsGroup.Any("", ginWrapHandler(datarightsProxy))
-		datarightsGroup.Any("/*path", ginWrapHandler(datarightsProxy))
+	// Derive the proxy wiring from the shared prefix inventory so onboarding a
+	// service is a single edit to services/access.ProxyPrefixes (which the
+	// cross-check test pins to the Registry). Access is enforced globally by
+	// AccessControl against the Registry, not per group. Fail fast if a prefix
+	// names a service with no proxy handler.
+	for _, p := range sharedaccess.ProxyPrefixes {
+		handler, ok := proxies[p.Service]
+		if !ok {
+			panic(fmt.Sprintf(
+				"ProxyPrefix %q names service %q, which has no proxy handler; add its ServiceURL and proxy to router.New",
+				p.Prefix, p.Service,
+			))
+		}
+		group := engine.Group(p.Prefix)
+		group.Any("", ginWrapHandler(handler))
+		group.Any("/*path", ginWrapHandler(handler))
 	}
 
 	return engine
