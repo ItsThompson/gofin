@@ -15,7 +15,7 @@ Canonical sources for endpoint definitions:
 
 ## Gateway Routing
 
-The gateway applies one centralized access-control policy: every route resolves to exactly one of four access levels, enforced by the single `AccessControl` middleware. Resolution is exact match first, then the longest matching path prefix, else the fail-safe default of `Authenticated`.
+The gateway applies one centralized access-control policy: every route resolves to exactly one of four access levels, enforced by the single `AccessControl` middleware. Resolution matches the concrete route gin will dispatch to; a path that no registry entry classifies falls to the deny-by-default fail-safe and is refused with **403** (an unclassified `/api/*` path is not a real route).
 
 | Level | Meaning | Token required | Role check |
 |-------|---------|----------------|------------|
@@ -25,6 +25,8 @@ The gateway applies one centralized access-control policy: every route resolves 
 | `Admin` | Valid token acting as an operator | Yes | `role == "admin"` |
 
 ### Route Groups
+
+This prefix→service mapping is the single source of truth in `services/access.ProxyPrefixes`, from which the gateway derives its reverse-proxy wiring (a cross-check test pins it against the route registry).
 
 | URL Prefix | Downstream Service | Access Level |
 |------------|-------------------|--------------|
@@ -55,7 +57,7 @@ The canonical route registry (`services/access/registry.go`) classifies each rou
 | `Authenticated` | (any) | `/api/auth/me`, `/api/auth/me/password` |
 | `Authenticated` | POST | `/api/auth/logout` |
 | `Authenticated` | POST | `/api/auth/restore` |
-| `Authenticated` (default) | (any) | *(any path with no registry entry, e.g. bare `/api/auth`)* |
+| `Deny` (default) | (any) | *(any `/api/*` path with no registry entry, e.g. bare `/api/auth`); refused with **403** before any token read* |
 
 The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/exports*`, and `POST /api/auth/onboarding-complete`. A direct admin (`role=admin`) receives **403** on all of them; an assumed session carries `role=user` (with an `assumedBy` claim) and passes. `POST /api/auth/restore` is `Authenticated`, so an assumed session can always restore.
 
@@ -64,8 +66,8 @@ The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/
 A single `AccessControl` middleware gates every request. For each one it:
 
 1. Strips client-supplied identity headers (`X-User-ID`, `X-User-Role`, `X-Assumed-By`) so they can never be spoofed
-2. Resolves the route's access level from the policy table: exact match first, then the longest matching prefix, else the default of `Authenticated`
-3. `Public` routes short-circuit here with no token read
+2. Resolves the route's access level from the registry, matching the concrete route gin dispatches; a path with no registry entry falls to the deny-by-default fail-safe (**403**)
+3. `Public` routes short-circuit here with no token read; a `Deny` (unclassified) path short-circuits with a **403**, also with no token read
 4. Otherwise extracts the `gofin_access` cookie and calls Auth Service gRPC `ValidateToken` (401 on a missing cookie or validation failure; the frontend then handles refresh)
 5. Sets `X-User-ID` and `X-User-Role` (and `X-Assumed-By` when the session is assumed) for the downstream service
 6. Enforces the level's role: `Authenticated` passes any valid token; `Personal` requires `role == "user"`; `Admin` requires `role == "admin"`. A role mismatch returns 403

@@ -52,7 +52,7 @@ exp  : Expiration timestamp
 
 ### Gateway Access Levels
 
-The gateway classifies every route into one of four access levels via a single ordered policy table (`services/gateway/internal/access`). A route is resolved by exact match first, then the longest matching prefix, else the fail-safe default of `Authenticated`:
+The gateway classifies every route into one of four access levels via the shared `services/access` route registry. A route is resolved to the concrete route gin dispatches; a path that no registry entry classifies falls to the deny-by-default fail-safe and is refused with **403**:
 
 | Level | Meaning | Token required | Role check |
 |-------|---------|----------------|------------|

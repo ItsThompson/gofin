@@ -104,8 +104,8 @@ func TestExpenseRepository_Integration(t *testing.T) {
 | Finance: pro-rata scheduling | High | Installment math, remainder handling, year rollover, application at period creation |
 | Auth: token lifecycle | High | Generation, validation, refresh rotation, blacklisting, `tokens_revoked_at` |
 | Auth: RBAC | High | Role checking, identity assumption, audit claims |
-| Access registry + resolver (`services/access`) | High | Every `Registry` route resolves to its declared level; unique IDs; gin-priority matching (static > param > wildcard) on real overlaps; unknown/wrong-method paths fall to the `Authenticated` default |
-| Gateway: `AccessControl` middleware | High | Per-level/per-role outcomes (pass/401/403), direct admin vs assumed `role=user` on Personal routes, header stripping, `X-Assumed-By` forwarding |
+| Access registry + resolver (`services/access`) | High | Every `Registry` route resolves to its declared level; unique IDs; gin-priority matching (static > param > wildcard) on real overlaps; unknown/wrong-method paths fall to the deny-by-default fail-safe (403); `ProxyPrefixes` cross-checks the Registry (every classified route sits under a proxied prefix and every proxied prefix is classified) |
+| Gateway: `AccessControl` middleware | High | Per-level/per-role outcomes (pass/401/403), a `Deny` (unclassified) path 403s with no token read, direct admin vs assumed `role=user` on Personal routes, header stripping, `X-Assumed-By` forwarding |
 | Finance: aggregations | Medium | Category sums, tag spending, cumulative spend |
 | Auth: password handling | Medium | Hashing, verification, strength validation |
 | Service route coverage (registry-driven) | Medium | Each service registers routes from the `services/access` Registry; a per-service test asserts `engine.Routes()` matches the Registry both ways, so adding an unclassified route fails that service's own `go test` in CI |

@@ -85,12 +85,14 @@ The shell owns:
 A lightweight Go/Gin reverse proxy that validates auth and routes requests. A single centralized `AccessControl` middleware backed by the shared `services/access` route registry classifies every route into one of four access levels (Public / Authenticated / Personal / Admin) and enforces it:
 
 1. Strips client-supplied identity headers so they cannot be spoofed
-2. Resolves the route's access level from the shared registry, matching the concrete route gin will dispatch to (else the fail-safe default of `Authenticated`)
+2. Resolves the route's access level from the shared registry, matching the concrete route gin will dispatch to (else the deny-by-default fail-safe: an unclassified path is refused with **403**, so a route or whole prefix is dead until it is added to the registry with an access level)
 3. `Public` routes pass with no token read (e.g. `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/health`, `/metrics`)
 4. Otherwise verifies the `gofin_access` cookie via Auth Service gRPC `ValidateToken` (401 on failure) and injects `X-User-ID`, `X-User-Role`, and (when assuming) `X-Assumed-By`
 5. Enforces the level's role: `Personal` routes require `role == "user"` and `Admin` routes require `role == "admin"` (403 on mismatch)
 
 This one middleware replaced the former `unauthenticatedRoutes` allowlist, `RequireAdmin`, and `AdminRouteGuard`. Because the personal finance routes are `Personal`, a direct admin is refused there while an assumed regular-user session passes.
+
+The set of proxied prefixes and their downstream services is itself a single source of truth (`services/access.ProxyPrefixes`), from which the gateway derives its proxy wiring; a cross-check test pins it to the registry so every classified route sits under a proxied prefix and every proxied prefix has at least one classified route.
 
 ### Auth Service (Node 2)
 
