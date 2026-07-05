@@ -96,10 +96,11 @@ func setupTestRouter(repo repository.JobRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	svc := service.NewExportService(repo, logger)
-	h := NewRESTHandler(svc, logger)
+	rest := NewRESTHandler(svc, logger)
+	deletion := NewDeletionHandler(nil, logger)
 
 	router := gin.New()
-	h.RegisterRoutes(router)
+	RegisterRoutes(router, rest, deletion)
 	return router
 }
 

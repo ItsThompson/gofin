@@ -24,12 +24,11 @@ func NewDeletionHandler(deletionService *service.DeletionService, logger *slog.L
 	}
 }
 
-// RegisterRoutes sets up the Gin routes for deletion endpoints.
-func (h *DeletionHandler) RegisterRoutes(r *gin.Engine) {
-	deletions := r.Group("/api/datarights/deletions")
-	{
-		deletions.POST("", h.CreateDeletion)
-		deletions.GET("/:id", h.GetDeletion)
+// handlers maps the datarights deletion Registry route IDs to gin handlers.
+func (h *DeletionHandler) handlers() map[string]gin.HandlerFunc {
+	return map[string]gin.HandlerFunc{
+		"datarights.deletions.create": h.CreateDeletion,
+		"datarights.deletions.get":    h.GetDeletion,
 	}
 }
 

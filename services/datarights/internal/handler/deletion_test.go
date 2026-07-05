@@ -222,10 +222,11 @@ func setupDeletionTestRouter(
 	}
 
 	svc := service.NewDeletionService(repo, logger, opts...)
-	h := NewDeletionHandler(svc, logger)
+	deletion := NewDeletionHandler(svc, logger)
+	rest := NewRESTHandler(nil, logger)
 
 	router := gin.New()
-	h.RegisterRoutes(router)
+	RegisterRoutes(router, rest, deletion)
 	return router
 }
 

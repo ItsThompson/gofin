@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	"github.com/ItsThompson/gofin/services/metrics"
@@ -30,25 +31,32 @@ func NewRESTHandler(authService *service.AuthService, logger *slog.Logger, cooki
 	}
 }
 
-// RegisterRoutes sets up the Gin routes for auth endpoints.
+// RegisterRoutes registers every auth-owned route from the shared access
+// Registry, binding each handler by ID. It is the single registration entry
+// point shared by main.go and the registration coverage test, so a route can
+// never be served without a Registry entry (which carries its access level).
 func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
-	auth := r.Group("/api/auth")
-	{
-		auth.POST("/register", h.Register)
-		auth.POST("/login", h.Login)
-		auth.POST("/refresh", h.Refresh)
-		auth.POST("/logout", h.Logout)
-		auth.GET("/me", h.Me)
-		auth.PUT("/me", h.UpdateProfile)
-		auth.POST("/me/password", h.ChangePassword)
-		auth.POST("/onboarding-complete", h.CompleteOnboarding)
-		auth.POST("/assume", h.AssumeIdentity)
-		auth.POST("/restore", h.RestoreIdentity)
-	}
+	access.BindRoutes("auth", h.handlers(), func(method, path string, handler gin.HandlerFunc) {
+		r.Handle(method, path, handler)
+	})
+}
 
-	admin := r.Group("/api/admin")
-	{
-		admin.GET("/users", h.ListUsers)
+// handlers maps each auth Registry route ID to its gin handler. A Registry
+// entry with no handler here (or a handler with no entry) is caught by
+// BindRoutes at startup and by the registration coverage test.
+func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
+	return map[string]gin.HandlerFunc{
+		"auth.register":            h.Register,
+		"auth.login":               h.Login,
+		"auth.refresh":             h.Refresh,
+		"auth.logout":              h.Logout,
+		"auth.me.get":              h.Me,
+		"auth.me.update":           h.UpdateProfile,
+		"auth.me.password":         h.ChangePassword,
+		"auth.onboarding_complete": h.CompleteOnboarding,
+		"auth.assume":              h.AssumeIdentity,
+		"auth.restore":             h.RestoreIdentity,
+		"admin.users.list":         h.ListUsers,
 	}
 }
 

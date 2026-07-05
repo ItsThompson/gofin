@@ -8,6 +8,7 @@ WORKDIR /app
 
 # Copy module files for dependency caching.
 COPY expense/go.mod expense/go.sum* ./expense/
+COPY access/go.mod access/go.sum* ./access/
 COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -15,6 +16,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Copy source.
 COPY expense/ ./expense/
+COPY access/ ./access/
 COPY healthcheck/ ./healthcheck/
 COPY metrics/ ./metrics/
 

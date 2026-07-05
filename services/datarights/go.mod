@@ -3,6 +3,7 @@ module github.com/ItsThompson/gofin/services/datarights
 go 1.26
 
 require (
+	github.com/ItsThompson/gofin/services/access v0.0.0
 	github.com/ItsThompson/gofin/services/auth v0.0.0
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0
@@ -15,6 +16,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
 )
+
+replace github.com/ItsThompson/gofin/services/access => ../access
 
 replace github.com/ItsThompson/gofin/services/auth => ../auth
 

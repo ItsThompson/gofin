@@ -8,6 +8,7 @@ WORKDIR /app
 
 # Copy module files for dependency caching.
 COPY datarights/go.mod datarights/go.sum* ./datarights/
+COPY access/go.mod access/go.sum* ./access/
 COPY auth/go.mod auth/go.sum* ./auth/
 COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
 COPY expense/go.mod expense/go.sum* ./expense/
@@ -19,6 +20,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Copy source.
 COPY datarights/ ./datarights/
+COPY access/ ./access/
 COPY auth/ ./auth/
 COPY dbmigrate/ ./dbmigrate/
 COPY expense/ ./expense/
