@@ -104,11 +104,11 @@ func TestExpenseRepository_Integration(t *testing.T) {
 | Finance: pro-rata scheduling | High | Installment math, remainder handling, year rollover, application at period creation |
 | Auth: token lifecycle | High | Generation, validation, refresh rotation, blacklisting, `tokens_revoked_at` |
 | Auth: RBAC | High | Role checking, identity assumption, audit claims |
-| Gateway: access policy resolver | High | `resolve` precedence (exact > longest prefix > default), every access level, per-route classification |
+| Access registry + resolver (`services/access`) | High | Every `Registry` route resolves to its declared level; unique IDs; gin-priority matching (static > param > wildcard) on real overlaps; unknown/wrong-method paths fall to the `Authenticated` default |
 | Gateway: `AccessControl` middleware | High | Per-level/per-role outcomes (pass/401/403), direct admin vs assumed `role=user` on Personal routes, header stripping, `X-Assumed-By` forwarding |
 | Finance: aggregations | Medium | Category sums, tag spending, cumulative spend |
 | Auth: password handling | Medium | Hashing, verification, strength validation |
-| Gateway: route coverage | Medium | Every known route prefix resolves to an explicit (non-default) access level |
+| Service route coverage (registry-driven) | Medium | Each service registers routes from the `services/access` Registry; a per-service test asserts `engine.Routes()` matches the Registry both ways, so adding an unclassified route fails that service's own `go test` in CI |
 
 ### Frontend
 
@@ -117,7 +117,7 @@ func TestExpenseRepository_Integration(t *testing.T) {
 | Auth store | High | Login, logout, refresh, assumption state transitions |
 | Role helpers (`core/roles.ts`) | High | `canUseFinanceFeatures`, `canUseAdminFeatures`, `getLandingPath` truth table across both roles |
 | Auth flow (login/register) | High | Form validation, error messages, role-based landing (`getLandingPath`) |
-| Shell nav + route guards | High | Role-derived nav, direct-admin finance-route guard (redirect to `/admin`), assumed-user nav + Return to Admin |
+| Shell nav + route guards | High | Role-derived nav; the route `handle.access` guard renders a 403 page for a direct admin on a personal route (and, symmetrically, a regular user on an admin route); assumed-user nav + Return to Admin |
 | ExpenseForm | High | Validation, pro-rata toggle, submission |
 | ExpenseLog (TanStack Table) | Medium | Sorting, filtering, pagination |
 | Dashboard gauges | Medium | Percentage display, color coding |

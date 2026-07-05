@@ -17,7 +17,7 @@ PostgreSQL runs as a single instance with separate schemas and connection creden
 
 Canonical source: `services/datarights/db/migrations/`
 
-> **Operator-only admin:** data export is a `Personal` operation, so `datarights.export_jobs` holds only regular-user rows and never admin-owned rows. The one-time cleanup (linked under Finance Schema) also removed any admin-owned export jobs.
+> **Operator-only admin:** data export is a `Personal` operation, so `datarights.export_jobs` holds only regular-user rows and never admin-owned rows.
 
 ### `datarights.export_jobs`
 
@@ -74,7 +74,7 @@ Tracks revoked refresh tokens by their `jti` claim. Entries include the token's 
 
 Canonical source: `services/finance/db/migrations/`
 
-> **Operator-only admin:** `admin` accounts own no rows in any finance table. Admin is an operator identity (authentication, admin panel, identity assumption, user deletion, Grafana) and never goes through the onboarding or budget flows. A one-time change-managed cleanup removed any pre-existing admin-owned finance rows; see [`change-management/001_admin-finance-cleanup`](../change-management/001_admin-finance-cleanup/description.md). Every table below is scoped per `user_id` and only ever holds regular-user (`role=user`) data.
+> **Operator-only admin:** `admin` accounts own no rows in any finance table. Admin is an operator identity (authentication, admin panel, identity assumption, user deletion, Grafana) and never goes through the onboarding or budget flows. Every table below is scoped per `user_id` and only ever holds regular-user (`role=user`) data.
 
 ### `finance.budget_periods`
 

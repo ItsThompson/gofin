@@ -36,26 +36,26 @@ The gateway applies one centralized access-control policy: every route resolves 
 
 ### Route-Level Access
 
-The canonical policy table (`services/gateway/internal/access/policy.go`) classifies each route:
+The canonical route registry (`services/access/registry.go`) classifies each route, and the gateway resolves each request to the concrete route gin dispatches. Access levels by route:
 
-| Access | Method | Path | Match |
-|--------|--------|------|-------|
-| `Public` | POST | `/api/auth/register` | Exact |
-| `Public` | POST | `/api/auth/login` | Exact |
-| `Public` | POST | `/api/auth/refresh` | Exact |
-| `Public` | GET | `/health` | Exact |
-| `Public` | GET | `/metrics` | Exact |
-| `Admin` | (any) | `/api/admin` | Prefix |
-| `Admin` | POST | `/api/auth/assume` | Exact |
-| `Admin` | (any) | `/api/datarights/deletions` | Prefix |
-| `Personal` | POST | `/api/auth/onboarding-complete` | Exact |
-| `Personal` | (any) | `/api/finance` | Prefix |
-| `Personal` | (any) | `/api/expenses` | Prefix |
-| `Personal` | (any) | `/api/datarights/exports` | Prefix |
-| `Authenticated` | (any) | `/api/auth/me` | Prefix |
-| `Authenticated` | POST | `/api/auth/logout` | Exact |
-| `Authenticated` | POST | `/api/auth/restore` | Exact |
-| `Authenticated` (default) | (any) | *(unmatched, e.g. bare `/api/auth`)* | Fallback |
+| Access | Method | Path |
+|--------|--------|------|
+| `Public` | POST | `/api/auth/register` |
+| `Public` | POST | `/api/auth/login` |
+| `Public` | POST | `/api/auth/refresh` |
+| `Public` | GET | `/health` |
+| `Public` | GET | `/metrics` |
+| `Admin` | GET | `/api/admin/users` |
+| `Admin` | POST | `/api/auth/assume` |
+| `Admin` | (any) | `/api/datarights/deletions/*` |
+| `Personal` | POST | `/api/auth/onboarding-complete` |
+| `Personal` | (any) | `/api/finance/*` |
+| `Personal` | (any) | `/api/expenses/*` |
+| `Personal` | (any) | `/api/datarights/exports/*` |
+| `Authenticated` | (any) | `/api/auth/me`, `/api/auth/me/password` |
+| `Authenticated` | POST | `/api/auth/logout` |
+| `Authenticated` | POST | `/api/auth/restore` |
+| `Authenticated` (default) | (any) | *(any path with no registry entry, e.g. bare `/api/auth`)* |
 
 The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/exports*`, and `POST /api/auth/onboarding-complete`. A direct admin (`role=admin`) receives **403** on all of them; an assumed session carries `role=user` (with an `assumedBy` claim) and passes. `POST /api/auth/restore` is `Authenticated`, so an assumed session can always restore.
 

@@ -82,10 +82,10 @@ The shell owns:
 
 ### API Gateway (Node 2)
 
-A lightweight Go/Gin reverse proxy that validates auth and routes requests. A single centralized `AccessControl` middleware backed by an ordered policy table classifies every route into one of four access levels (Public / Authenticated / Personal / Admin) and enforces it:
+A lightweight Go/Gin reverse proxy that validates auth and routes requests. A single centralized `AccessControl` middleware backed by the shared `services/access` route registry classifies every route into one of four access levels (Public / Authenticated / Personal / Admin) and enforces it:
 
 1. Strips client-supplied identity headers so they cannot be spoofed
-2. Resolves the route's access level from the policy table (exact match first, then longest prefix, else the fail-safe default of `Authenticated`)
+2. Resolves the route's access level from the shared registry, matching the concrete route gin will dispatch to (else the fail-safe default of `Authenticated`)
 3. `Public` routes pass with no token read (e.g. `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh`, `/health`, `/metrics`)
 4. Otherwise verifies the `gofin_access` cookie via Auth Service gRPC `ValidateToken` (401 on failure) and injects `X-User-ID`, `X-User-Role`, and (when assuming) `X-Assumed-By`
 5. Enforces the level's role: `Personal` routes require `role == "user"` and `Admin` routes require `role == "admin"` (403 on mismatch)
