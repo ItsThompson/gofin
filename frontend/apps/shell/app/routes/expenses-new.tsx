@@ -3,6 +3,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { RemoteBoundary } from "@/components/remote-boundary";
 import { Skeleton } from "@gofin/ui/components/skeleton";
 import { Card, CardContent, CardHeader } from "@gofin/ui/components/card";
+import { accessHandle } from "@/lib/route-access";
 
 /**
  * Lazy-load the NewExpenseFeature from the finance remote package.
@@ -37,6 +38,8 @@ function ExpenseFormSkeleton() {
     </div>
   );
 }
+
+export const handle = accessHandle("personal");
 
 export default function NewExpenseRoute() {
   const { user } = useAuthStore();

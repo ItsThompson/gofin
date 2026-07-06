@@ -1,14 +1,16 @@
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
-import { useEffect, lazy } from "react";
+import { lazy } from "react";
 import { RemoteBoundary } from "@/components/remote-boundary";
 import { Skeleton } from "@gofin/ui/components/skeleton";
 import { Card, CardContent, CardHeader } from "@gofin/ui/components/card";
+import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the AdminPanelPage from the admin remote package.
- * This creates a code-split chunk: non-admin users never download this code
- * because the admin route guard redirects them before rendering.
+ * Lazy-load the AdminPanelPage from the admin remote package. This creates a
+ * code-split chunk: the auth-layout guard renders a 403 for any non-admin
+ * identity (see route-access `canAccess`), so this page only ever mounts for a
+ * direct admin and non-admins never download the remote chunk.
  */
 const AdminPanelPage = lazy(() =>
   import("@gofin/admin/src/pages/AdminPanelPage").then((mod) => ({
@@ -58,17 +60,16 @@ function AdminSkeleton() {
   );
 }
 
+export const handle = accessHandle("admin");
+
 export default function AdminPage() {
-  const { user, isAdmin, isLoading, assumeIdentity } = useAuthStore();
+  const { user, assumeIdentity } = useAuthStore();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!isLoading && !isAdmin) {
-      navigate("/dashboard");
-    }
-  }, [isLoading, isAdmin, navigate]);
-
-  if (isLoading || !isAdmin) {
+  // The auth-layout guard renders <Forbidden/> for any non-direct-admin before
+  // this route mounts, so no in-component role guard is needed; user is
+  // guaranteed present in the layout's "ready" state.
+  if (!user) {
     return null;
   }
 

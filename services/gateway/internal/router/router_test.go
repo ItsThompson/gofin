@@ -2,6 +2,7 @@ package router_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,8 +11,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
 )
 
@@ -19,13 +22,13 @@ func newSilentLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-// mockValidator implements middleware.TokenValidator for router tests.
+// mockValidator implements access.TokenValidator for router tests.
 type mockValidator struct {
-	result *middleware.TokenValidationResult
+	result *access.TokenValidationResult
 	err    error
 }
 
-func (m *mockValidator) ValidateToken(_ context.Context, _ string) (*middleware.TokenValidationResult, error) {
+func (m *mockValidator) ValidateToken(_ context.Context, _ string) (*access.TokenValidationResult, error) {
 	return m.result, m.err
 }
 
@@ -35,7 +38,7 @@ func validCookie() *http.Cookie {
 
 func adminValidator() *mockValidator {
 	return &mockValidator{
-		result: &middleware.TokenValidationResult{
+		result: &access.TokenValidationResult{
 			UserID:   "admin-1",
 			Role:     "admin",
 			Username: "admin",
@@ -45,7 +48,7 @@ func adminValidator() *mockValidator {
 
 func userValidator() *mockValidator {
 	return &mockValidator{
-		result: &middleware.TokenValidationResult{
+		result: &access.TokenValidationResult{
 			UserID:   "user-1",
 			Role:     "user",
 			Username: "alice",
@@ -55,7 +58,7 @@ func userValidator() *mockValidator {
 
 // setupGateway creates a full gateway test server backed by downstream httptest servers.
 // It returns a doRequest helper and cleans up all servers on test completion.
-func setupGateway(t *testing.T, validator middleware.TokenValidator) func(method, path string, cookie *http.Cookie) (*http.Response, string) {
+func setupGateway(t *testing.T, validator access.TokenValidator) func(method, path string, cookie *http.Cookie) (*http.Response, string) {
 	t.Helper()
 
 	// Each downstream echoes its service name in a header so tests can verify routing.
@@ -151,8 +154,8 @@ func TestRouter_ExpenseRoutes_RouteToExpenseService(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodPost, "/api/expenses/"},
-		{http.MethodGet, "/api/expenses/?year=2026&month=5"},
+		{http.MethodPost, "/api/expenses"},
+		{http.MethodGet, "/api/expenses?year=2026&month=5"},
 		{http.MethodGet, "/api/expenses/suggestions?page=1&pageSize=50"},
 		{http.MethodGet, "/api/expenses/abc-123"},
 		{http.MethodPost, "/api/expenses/abc-123/correct"},
@@ -175,10 +178,10 @@ func TestRouter_FinanceRoutes_RouteToFinanceService(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/api/finance/periods/current?year=2026&month=5"},
-		{http.MethodPost, "/api/finance/periods/"},
-		{http.MethodGet, "/api/finance/tags/"},
-		{http.MethodPost, "/api/finance/prorata/"},
-		{http.MethodGet, "/api/finance/summary/?year=2026&month=5"},
+		{http.MethodPost, "/api/finance/periods"},
+		{http.MethodGet, "/api/finance/tags"},
+		{http.MethodPost, "/api/finance/prorata"},
+		{http.MethodGet, "/api/finance/summary?year=2026&month=5"},
 	}
 
 	for _, tt := range tests {
@@ -211,7 +214,7 @@ func TestRouter_DatarightsRoutes_RouteToDatarightsService(t *testing.T) {
 	}
 }
 
-func TestRouter_AdminRoutes_RequireAdminRole(t *testing.T) {
+func TestRouter_AdminRoutes_AdminRolePasses(t *testing.T) {
 	doRequest := setupGateway(t, adminValidator())
 
 	resp, _ := doRequest(http.MethodGet, "/api/admin/users", validCookie())
@@ -224,6 +227,37 @@ func TestRouter_AdminRoutes_RejectNonAdmin(t *testing.T) {
 
 	resp, _ := doRequest(http.MethodGet, "/api/admin/users", validCookie())
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+// TestRouter_PersonalRoutes_RejectDirectAdmin is the observable cutover: a
+// direct admin (role=="admin", not an assumed session) is now forbidden from
+// Personal APIs, where the old admin-as-superset model let them through. The
+// request is denied at the gateway and never reaches the downstream service.
+// Every path here is a concrete registered route (the resolver classifies exact
+// gin patterns, so a non-real trailing-slash path like "/api/expenses/" would
+// 404 downstream and falls to the Authenticated default instead).
+func TestRouter_PersonalRoutes_RejectDirectAdmin(t *testing.T) {
+	doRequest := setupGateway(t, adminValidator())
+
+	personalRoutes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/finance/periods/current"},
+		{http.MethodGet, "/api/expenses"},
+		{http.MethodPost, "/api/datarights/exports"},
+		{http.MethodPost, "/api/auth/onboarding-complete"},
+	}
+
+	for _, tt := range personalRoutes {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			resp, body := doRequest(tt.method, tt.path, validCookie())
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+			assert.Contains(t, body, "FORBIDDEN")
+			assert.Empty(t, resp.Header.Get("X-Downstream"),
+				"denied request must not reach a downstream service")
+		})
+	}
 }
 
 func TestRouter_AssumeEndpoint_RequiresAdmin(t *testing.T) {
@@ -263,10 +297,14 @@ func TestRouter_UnauthenticatedRoutes_NoCookieNeeded(t *testing.T) {
 	}
 }
 
+// TestRouter_AuthenticatedRoute_NoCookie_Returns401 targets a real Authenticated
+// route: with no cookie the gateway must 401 (identity required) before any
+// proxying. (A non-real path like "/api/expenses/" is now Deny -> 403, so it
+// would no longer exercise the missing-cookie 401 path.)
 func TestRouter_AuthenticatedRoute_NoCookie_Returns401(t *testing.T) {
 	doRequest := setupGateway(t, userValidator())
 
-	resp, _ := doRequest(http.MethodGet, "/api/expenses/", nil)
+	resp, _ := doRequest(http.MethodGet, "/api/auth/me", nil)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
@@ -276,4 +314,31 @@ func TestRouter_HealthEndpoint(t *testing.T) {
 	resp, body := doRequest(http.MethodGet, "/health", nil)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, body, `"status":"ok"`)
+}
+
+// TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's
+// fail-fast contract: because router.New derives its proxy groups from
+// sharedaccess.ProxyPrefixes, a prefix naming a service with no proxy handler
+// is a wiring bug that must panic at construction rather than silently drop the
+// prefix. The bad prefix is appended and restored so other tests are unaffected.
+func TestRouter_New_PanicsOnPrefixWithNoProxy(t *testing.T) {
+	original := sharedaccess.ProxyPrefixes
+	sharedaccess.ProxyPrefixes = append(append([]sharedaccess.ProxyPrefix{}, original...),
+		sharedaccess.ProxyPrefix{Prefix: "/api/ghost", Service: "ghost"})
+	t.Cleanup(func() { sharedaccess.ProxyPrefixes = original })
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r, "New must panic when a ProxyPrefix names a service with no proxy handler")
+		assert.Contains(t, fmt.Sprintf("%v", r), "ghost",
+			"panic message must name the offending service")
+	}()
+
+	u, _ := url.Parse("http://127.0.0.1:1")
+	router.New(userValidator(), &router.ServiceURLs{
+		AuthREST:       u,
+		ExpenseREST:    u,
+		FinanceREST:    u,
+		DatarightsREST: u,
+	}, newSilentLogger(), false)
 }

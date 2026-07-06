@@ -202,10 +202,8 @@ func run() error {
 	metrics.Register(router)
 
 	restHandler := handler.NewRESTHandler(exportSvc, logger)
-	restHandler.RegisterRoutes(router)
-
 	deletionHandler := handler.NewDeletionHandler(deletionSvc, logger)
-	deletionHandler.RegisterRoutes(router)
+	handler.RegisterRoutes(router, restHandler, deletionHandler)
 
 	httpServer := &http.Server{
 		Addr:    ":" + cfg.RESTPort,

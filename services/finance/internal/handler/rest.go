@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 )
@@ -25,32 +26,39 @@ func NewRESTHandler(financeService *service.FinanceService, logger *slog.Logger)
 	}
 }
 
-// RegisterRoutes sets up the Gin routes for finance endpoints.
+// RegisterRoutes registers every finance-owned route from the shared access
+// Registry, binding each handler by ID. It is the single registration entry
+// point shared by main.go and the registration coverage test, so a route can
+// never be served without a Registry entry (which carries its access level).
 func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
-	finance := r.Group("/api/finance")
-	{
-		finance.POST("/onboarding", h.CompleteOnboarding)
-		finance.GET("/defaults", h.GetDefaults)
-		finance.PUT("/defaults", h.UpdateDefaults)
-		finance.GET("/periods/current", h.GetCurrentPeriod)
-		finance.GET("/periods", h.ListPeriods)
-		finance.POST("/periods", h.CreatePeriod)
-		finance.PUT("/periods/:id", h.UpdatePeriod)
-		finance.GET("/tags", h.ListTags)
-		finance.POST("/tags", h.CreateTag)
-		finance.PUT("/tags/:id", h.UpdateTag)
-		finance.DELETE("/tags/:id", h.DeleteTag)
+	access.BindRoutes("finance", h.handlers(), func(method, path string, handler gin.HandlerFunc) {
+		r.Handle(method, path, handler)
+	})
+}
 
-		// Dashboard aggregation endpoints
-		finance.GET("/summary", h.GetPeriodSummary)
-		finance.GET("/spending/by-tag", h.GetSpendingByTag)
-		finance.GET("/spending/cumulative", h.GetCumulativeSpend)
-		finance.GET("/spending/comparison", h.GetHistoricalComparison)
-		finance.GET("/spending/trends", h.GetSpendingTrends)
-
-		// Pro-rata endpoints
-		finance.POST("/prorata", h.CreateProRataExpense)
-		finance.GET("/prorata/upcoming", h.GetUpcomingProRata)
+// handlers maps each finance Registry route ID to its gin handler. A Registry
+// entry with no handler here (or a handler with no entry) is caught by
+// BindRoutes at startup and by the registration coverage test.
+func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
+	return map[string]gin.HandlerFunc{
+		"finance.onboarding":          h.CompleteOnboarding,
+		"finance.defaults.get":        h.GetDefaults,
+		"finance.defaults.update":     h.UpdateDefaults,
+		"finance.periods.current":     h.GetCurrentPeriod,
+		"finance.periods.list":        h.ListPeriods,
+		"finance.periods.create":      h.CreatePeriod,
+		"finance.periods.update":      h.UpdatePeriod,
+		"finance.tags.list":           h.ListTags,
+		"finance.tags.create":         h.CreateTag,
+		"finance.tags.update":         h.UpdateTag,
+		"finance.tags.delete":         h.DeleteTag,
+		"finance.summary":             h.GetPeriodSummary,
+		"finance.spending.by_tag":     h.GetSpendingByTag,
+		"finance.spending.cumulative": h.GetCumulativeSpend,
+		"finance.spending.comparison": h.GetHistoricalComparison,
+		"finance.spending.trends":     h.GetSpendingTrends,
+		"finance.prorata.create":      h.CreateProRataExpense,
+		"finance.prorata.upcoming":    h.GetUpcomingProRata,
 	}
 }
 

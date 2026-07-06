@@ -61,15 +61,15 @@ This starts the shell dev server with the `VITE_MOCK_API=true` flag, which activ
 
 The mock layer provides:
 
-- An authenticated admin user (auto-logged in)
+- An operator (admin) user, auto-logged in by default (lands on `/admin`; personal finance routes are not reachable as a direct admin)
+- A regular user (`alex`) available for identity assumption and for exercising the finance UI
 - A current-month budget period ($3,000, 50/30/20 split)
 - Seven sample expenses across different categories and tags
 - All eleven default tags plus one custom tag
 - Dashboard aggregation data (summary, pacing, tag spending, cumulative chart, historical comparison)
 - An upcoming pro-rata installment
-- A second user in the admin panel for identity assumption testing
 
-Mock data is defined in `frontend/apps/shell/mocks/data.ts`. Request handlers are in `frontend/apps/shell/mocks/handlers.ts`. To change the authenticated user (e.g., test as a non-admin), edit the `currentMockUser` export in `data.ts`.
+Mock data is defined in `frontend/apps/shell/mocks/data.ts`. Request handlers are in `frontend/apps/shell/mocks/handlers.ts`. The default mock user is the operator (admin), who lands on `/admin` and sees only the admin panel plus Settings (Profile and Password); a direct admin who opens a personal finance route by URL gets a 403 page, so the budget/expenses/dashboard fixtures are not reachable while acting as the admin. To exercise the personal finance UI, set `currentMockUser` to the regular user (`regularUser`, "alex") in `data.ts`, or log in as the admin and assume that user from the admin panel.
 
 **How it works:**
 
@@ -169,9 +169,9 @@ The first admin user must be created before the admin panel, identity assumption
 just seed-admin
 ```
 
-This runs the auth service's `seed-admin` CLI subcommand, which reads `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from environment variables. The command is idempotent: if an admin already exists, it exits successfully.
+This runs the auth service's `seed-admin` CLI subcommand, which reads `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from environment variables. The command is idempotent: if an admin already exists, it exits successfully. It also marks the admin's onboarding complete server-side for data consistency, but that flag is not the exemption mechanism: admins are structurally exempt from onboarding via their role and the route access metadata (see below), not because the flag is set.
 
-The admin then logs in through the normal UI and completes onboarding like any other user.
+The admin is an operator-only identity: it owns no finance data and does not use the onboarding or budget flows (`POST /api/auth/onboarding-complete` is a `Personal` route and returns 403 to a direct admin). After logging in through the normal UI, a direct admin lands on `/admin`; opening a personal finance route by URL renders a 403 page, because the route's access metadata rejects a direct operator.
 
 ## Datarights Service
 

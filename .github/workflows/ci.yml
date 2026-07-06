@@ -54,6 +54,19 @@ jobs:
       - run: npx turbo lint
         working-directory: frontend
 
+  validate-change-management:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate change-management items
+        run: python change-management/.validation/validate_change_management.py
+
   test-backend:
     needs: [lint-backend, lint-frontend]
     runs-on: ubuntu-latest

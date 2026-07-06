@@ -2,6 +2,7 @@ import { lazy } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { RemoteBoundary } from "@/components/remote-boundary";
 import { Skeleton } from "@gofin/ui/components/skeleton";
+import { accessHandle } from "@/lib/route-access";
 
 /**
  * Lazy-load the HistoryFeature from the finance remote package.
@@ -27,6 +28,8 @@ function HistoryLoadingSkeleton() {
     </div>
   );
 }
+
+export const handle = accessHandle("personal");
 
 export default function HistoryRoute() {
   const { user } = useAuthStore();

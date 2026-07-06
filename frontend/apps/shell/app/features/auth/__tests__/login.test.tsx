@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { buildUser, createMockApi, renderWithRouter } from "@gofin/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -40,8 +41,10 @@ async function renderLoginPage(options?: { route?: string; searchParams?: Record
     routeConfig: [
       { path: "/login", element: <LoginPage /> },
       { path: "/dashboard", element: <div>Dashboard page</div> },
+      { path: "/admin", element: <div>Admin page</div> },
       { path: "/onboarding", element: <div>Onboarding page</div> },
       { path: "/expenses", element: <div>Expenses page</div> },
+      { path: "/settings", element: <div>Settings page</div> },
     ],
   });
 }
@@ -52,6 +55,12 @@ describe("login page", () => {
     vi.restoreAllMocks();
   });
 
+  // These cases submit an empty or malformed form to exercise the submit
+  // handler's own validation. They use fireEvent.submit to dispatch the submit
+  // event directly: a real userEvent click would trip the inputs' native
+  // required/type=email constraints first, so the browser would block
+  // submission and the handler's messages would never render. Interaction
+  // tests below use userEvent.
   describe("form validation", () => {
     it("shows 'Email is required' when submitting with empty email", async () => {
       setupUnauthenticatedMock();
@@ -94,14 +103,15 @@ describe("login page", () => {
 
   describe("API error handling", () => {
     it("displays the server error message on wrong credentials", async () => {
+      const user = userEvent.setup();
       setupUnauthenticatedMock({
         "/api/auth/login": { status: 401, body: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } },
       });
       await renderLoginPage();
 
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "WrongPass1" } });
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      await user.type(screen.getByLabelText("Email"), "user@example.com");
+      await user.type(screen.getByLabelText("Password"), "WrongPass1");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       await waitFor(() => {
         expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
@@ -111,31 +121,50 @@ describe("login page", () => {
 
   describe("successful login", () => {
     it("redirects to /dashboard after login", async () => {
-      const user = buildUser({ hasCompletedOnboarding: true });
+      const user = userEvent.setup();
+      const loginUser = buildUser({ hasCompletedOnboarding: true });
       setupUnauthenticatedMock({
-        "/api/auth/login": { user },
+        "/api/auth/login": { user: loginUser },
       });
       await renderLoginPage();
 
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      await user.type(screen.getByLabelText("Email"), "user@example.com");
+      await user.type(screen.getByLabelText("Password"), "Password1");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard page")).toBeInTheDocument();
       });
     });
 
-    it("redirects to /onboarding for non-onboarded user", async () => {
-      const user = buildUser({ hasCompletedOnboarding: false });
+    it("redirects to /admin after an admin logs in", async () => {
+      const user = userEvent.setup();
+      const admin = buildUser({ role: "admin", hasCompletedOnboarding: true });
       setupUnauthenticatedMock({
-        "/api/auth/login": { user },
+        "/api/auth/login": { user: admin },
       });
       await renderLoginPage();
 
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      await user.type(screen.getByLabelText("Email"), "admin@example.com");
+      await user.type(screen.getByLabelText("Password"), "Password1");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Admin page")).toBeInTheDocument();
+      });
+    });
+
+    it("redirects to /onboarding for non-onboarded user", async () => {
+      const user = userEvent.setup();
+      const loginUser = buildUser({ hasCompletedOnboarding: false });
+      setupUnauthenticatedMock({
+        "/api/auth/login": { user: loginUser },
+      });
+      await renderLoginPage();
+
+      await user.type(screen.getByLabelText("Email"), "user@example.com");
+      await user.type(screen.getByLabelText("Password"), "Password1");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       await waitFor(() => {
         expect(screen.getByText("Onboarding page")).toBeInTheDocument();
@@ -156,9 +185,10 @@ describe("login page", () => {
 
   describe("consumeReturnToPath redirect", () => {
     it("redirects to saved path from sessionStorage after login", async () => {
-      const user = buildUser({ hasCompletedOnboarding: true });
+      const user = userEvent.setup();
+      const loginUser = buildUser({ hasCompletedOnboarding: true });
       setupUnauthenticatedMock({
-        "/api/auth/login": { user },
+        "/api/auth/login": { user: loginUser },
       });
 
       vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
@@ -169,13 +199,43 @@ describe("login page", () => {
 
       await renderLoginPage();
 
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      await user.type(screen.getByLabelText("Email"), "user@example.com");
+      await user.type(screen.getByLabelText("Password"), "Password1");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       await waitFor(() => {
         expect(screen.getByText("Expenses page")).toBeInTheDocument();
       });
+    });
+
+    it("honors a non-finance returnTo for an admin instead of the /admin landing path", async () => {
+      // Regression guard: after login, both the onSuccess handler (returnTo) and
+      // the getLandingPath effect (/admin for admins) can fire. onSuccess must
+      // win so the admin lands on their saved path, not the landing path.
+      // /settings is an "authenticated" route (reachable by an admin), so the
+      // auth-layout access guard does not bounce the admin off it.
+      const user = userEvent.setup();
+      const admin = buildUser({ role: "admin", hasCompletedOnboarding: true });
+      setupUnauthenticatedMock({
+        "/api/auth/login": { user: admin },
+      });
+
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+        if (key === "gofin_return_to") return "/settings";
+        return null;
+      });
+      vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {});
+
+      await renderLoginPage();
+
+      await user.type(screen.getByLabelText("Email"), "admin@example.com");
+      await user.type(screen.getByLabelText("Password"), "Password1");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Settings page")).toBeInTheDocument();
+      });
+      expect(screen.queryByText("Admin page")).not.toBeInTheDocument();
     });
   });
 
@@ -193,6 +253,22 @@ describe("login page", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Dashboard page")).toBeInTheDocument();
+      });
+    });
+
+    it("redirects to /admin when an admin is already authenticated", async () => {
+      const admin = buildUser({ role: "admin", hasCompletedOnboarding: true });
+      resetStore({ isLoading: false, isAuthenticated: true, user: admin });
+
+      const mockFetch = createMockApi({
+        "/api/auth/me": { user: admin },
+      });
+      global.fetch = mockFetch;
+
+      await renderLoginPage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Admin page")).toBeInTheDocument();
       });
     });
   });

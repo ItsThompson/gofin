@@ -1,12 +1,15 @@
 package router
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/gin-gonic/gin"
 
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
 	"github.com/ItsThompson/gofin/services/metrics"
@@ -23,7 +26,7 @@ type ServiceURLs struct {
 // New creates a configured Gin engine with all gateway routes, middleware,
 // and reverse proxy handlers wired up.
 func New(
-	validator middleware.TokenValidator,
+	validator access.TokenValidator,
 	serviceURLs *ServiceURLs,
 	logger *slog.Logger,
 	isProduction bool,
@@ -37,63 +40,46 @@ func New(
 	engine.Use(gin.Recovery())
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
-	engine.Use(middleware.Auth(validator, logger))
+	// AccessControl is the single global gate: it resolves each route against the
+	// shared services/access registry (via GatewayResolve, which also classifies
+	// the gateway-native /health and /metrics as Public) and enforces
+	// Public/Authenticated/Personal/Admin, replacing the former per-request auth +
+	// per-group admin guards.
+	engine.Use(access.AccessControl(validator, access.GatewayResolve, logger))
 
-	// Prometheus metrics endpoint (excluded from auth middleware via exception list).
+	// Prometheus metrics endpoint (Public via GatewayResolve).
 	metrics.Register(engine)
 
-	// Health check endpoint: auth middleware skips it via the exception list.
+	// Health check endpoint (Public via GatewayResolve).
 	engine.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// Build reverse proxy handlers for each downstream service.
-	authProxy := proxy.NewServiceProxy(serviceURLs.AuthREST, logger)
-	expenseProxy := proxy.NewServiceProxy(serviceURLs.ExpenseREST, logger)
-	financeProxy := proxy.NewServiceProxy(serviceURLs.FinanceREST, logger)
-	datarightsProxy := proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger)
-
-	// /api/auth/* → Auth service (REST)
-	// Some auth routes are unauthenticated (register, login, refresh) and
-	// bypass the auth middleware via the exception list in auth.go.
-	// POST /api/auth/assume requires admin role via AdminRouteGuard.
-	authGroup := engine.Group("/api/auth")
-	authGroup.Use(middleware.AdminRouteGuard(logger))
-	{
-		authGroup.Any("", ginWrapHandler(authProxy))
-		authGroup.Any("/*path", ginWrapHandler(authProxy))
+	// Build one reverse-proxy handler per downstream service, keyed by the
+	// service name used in the shared Registry and ProxyPrefixes.
+	proxies := map[string]http.Handler{
+		"auth":       proxy.NewServiceProxy(serviceURLs.AuthREST, logger),
+		"expense":    proxy.NewServiceProxy(serviceURLs.ExpenseREST, logger),
+		"finance":    proxy.NewServiceProxy(serviceURLs.FinanceREST, logger),
+		"datarights": proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger),
 	}
 
-	// /api/admin/* → Auth service (REST), admin-only
-	adminGroup := engine.Group("/api/admin")
-	adminGroup.Use(middleware.RequireAdmin(logger))
-	{
-		adminGroup.Any("", ginWrapHandler(authProxy))
-		adminGroup.Any("/*path", ginWrapHandler(authProxy))
-	}
-
-	// /api/expenses/* → Expense service (REST)
-	expenseGroup := engine.Group("/api/expenses")
-	{
-		expenseGroup.Any("", ginWrapHandler(expenseProxy))
-		expenseGroup.Any("/*path", ginWrapHandler(expenseProxy))
-	}
-
-	// /api/finance/* → Finance service (REST)
-	financeGroup := engine.Group("/api/finance")
-	{
-		financeGroup.Any("", ginWrapHandler(financeProxy))
-		financeGroup.Any("/*path", ginWrapHandler(financeProxy))
-	}
-
-	// /api/datarights/* → Datarights service (REST)
-	// AdminRouteGuard enforces admin role on /api/datarights/deletions* paths.
-	// Export routes (/api/datarights/exports*) remain accessible to all authenticated users.
-	datarightsGroup := engine.Group("/api/datarights")
-	datarightsGroup.Use(middleware.AdminRouteGuard(logger))
-	{
-		datarightsGroup.Any("", ginWrapHandler(datarightsProxy))
-		datarightsGroup.Any("/*path", ginWrapHandler(datarightsProxy))
+	// Derive the proxy wiring from the shared prefix inventory so onboarding a
+	// service is a single edit to services/access.ProxyPrefixes (which the
+	// cross-check test pins to the Registry). Access is enforced globally by
+	// AccessControl against the Registry, not per group. Fail fast if a prefix
+	// names a service with no proxy handler.
+	for _, p := range sharedaccess.ProxyPrefixes {
+		handler, ok := proxies[p.Service]
+		if !ok {
+			panic(fmt.Sprintf(
+				"ProxyPrefix %q names service %q, which has no proxy handler; add its ServiceURL and proxy to router.New",
+				p.Prefix, p.Service,
+			))
+		}
+		group := engine.Group(p.Prefix)
+		group.Any("", ginWrapHandler(handler))
+		group.Any("/*path", ginWrapHandler(handler))
 	}
 
 	return engine

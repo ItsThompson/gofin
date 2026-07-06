@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { consumeReturnToPath, useFormMutation } from "@gofin/api";
-import { validateEmail } from "@gofin/core";
+import { getLandingPath, validateEmail } from "@gofin/core";
 
 /** Grouped login credential fields. */
 export interface LoginCredentials {
@@ -28,7 +28,7 @@ const INITIAL_CREDENTIALS: LoginCredentials = {
 };
 
 export function useLoginForm(): { state: LoginFormState; actions: LoginFormActions } {
-  const { login, isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { login, isAuthenticated, isLoading, checkAuth, user } = useAuthStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -42,10 +42,10 @@ export function useLoginForm(): { state: LoginFormState; actions: LoginFormActio
   }, [checkAuth]);
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate("/dashboard");
+    if (!isLoading && isAuthenticated && user) {
+      navigate(getLandingPath(user));
     }
-  }, [isLoading, isAuthenticated, navigate]);
+  }, [isLoading, isAuthenticated, user, navigate]);
 
   const setField = useCallback(
     (key: keyof LoginCredentials, value: string) => {
@@ -55,15 +55,15 @@ export function useLoginForm(): { state: LoginFormState; actions: LoginFormActio
   );
 
   const mutation = useFormMutation<Awaited<ReturnType<typeof login>>>({
-    onSuccess: (user) => {
+    onSuccess: (loggedInUser) => {
       const returnTo = consumeReturnToPath();
 
-      if (!user.hasCompletedOnboarding) {
+      if (!loggedInUser.hasCompletedOnboarding) {
         navigate("/onboarding");
       } else if (returnTo && returnTo !== "/login" && returnTo !== "/register") {
         navigate(returnTo);
       } else {
-        navigate("/dashboard");
+        navigate(getLandingPath(loggedInUser));
       }
     },
   });

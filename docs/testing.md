@@ -104,22 +104,25 @@ func TestExpenseRepository_Integration(t *testing.T) {
 | Finance: pro-rata scheduling | High | Installment math, remainder handling, year rollover, application at period creation |
 | Auth: token lifecycle | High | Generation, validation, refresh rotation, blacklisting, `tokens_revoked_at` |
 | Auth: RBAC | High | Role checking, identity assumption, audit claims |
-| Gateway: auth middleware | High | Valid token pass-through, expired token rejection |
+| Access registry + resolver (`services/access`) | High | Every `Registry` route resolves to its declared level; unique IDs; gin-priority matching (static > param > wildcard) on real overlaps; unknown/wrong-method paths fall to the deny-by-default fail-safe (403); `ProxyPrefixes` cross-checks the Registry (every classified route sits under a proxied prefix and every proxied prefix is classified) |
+| Gateway: `AccessControl` middleware | High | Per-level/per-role outcomes (pass/401/403), a `Deny` (unclassified) path 403s with no token read, direct admin vs assumed `role=user` on Personal routes, header stripping, `X-Assumed-By` forwarding |
 | Finance: aggregations | Medium | Category sums, tag spending, cumulative spend |
 | Auth: password handling | Medium | Hashing, verification, strength validation |
-| Gateway: routing | Medium | Route matching, header forwarding |
+| Service route coverage (registry-driven) | Medium | Each service registers routes from the `services/access` Registry; a per-service test asserts `engine.Routes()` matches the Registry both ways, so adding an unclassified route fails that service's own `go test` in CI |
 
 ### Frontend
 
 | Component | Priority | Focus |
 |-----------|----------|-------|
 | Auth store | High | Login, logout, refresh, assumption state transitions |
-| Auth flow (login/register) | High | Form validation, error messages, redirect |
+| Role helpers (`core/roles.ts`) | High | `canUseFinanceFeatures`, `canUseAdminFeatures`, `getLandingPath` truth table across both roles |
+| Auth flow (login/register) | High | Form validation, error messages, role-based landing (`getLandingPath`) |
+| Shell nav + route guards | High | Role-derived nav; the route `handle.access` guard renders a 403 page for a direct admin on a personal route (and, symmetrically, a regular user on an admin route); assumed-user nav + Return to Admin |
 | ExpenseForm | High | Validation, pro-rata toggle, submission |
 | ExpenseLog (TanStack Table) | Medium | Sorting, filtering, pagination |
 | Dashboard gauges | Medium | Percentage display, color coding |
 | Onboarding flow | Medium | Step progression, skip behavior |
-| Settings page | Medium | E/D/S sum validation, tag CRUD |
+| Settings composition | Medium | Role-derived tabs (admin: Profile+Password; user: Budget/Profile/Password/Tags), default tab = first, finance sections absent for admin |
 | Admin panel | Medium | User list, assume action, role gating |
 
 ## Frontend Testing Patterns

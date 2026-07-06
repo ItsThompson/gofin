@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { buildUser, createMockApi, renderWithRouter } from "@gofin/test-utils";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -43,9 +44,29 @@ async function renderRegisterPage() {
   });
 }
 
-function submitForm() {
-  const form = screen.getByRole("button", { name: "Create account" }).closest("form")!;
-  fireEvent.submit(form);
+function submitButton() {
+  return screen.getByRole("button", { name: "Create account" });
+}
+
+/**
+ * Fill every required field with valid values so a real submit click clears the
+ * inputs' native required/type=email constraints and reaches the submit handler.
+ * Callers override individual fields to exercise a specific field-level error.
+ */
+async function fillValidForm(
+  user: ReturnType<typeof userEvent.setup>,
+  overrides: Partial<Record<"username" | "email" | "password", string>> = {},
+) {
+  const values = {
+    username: "newuser",
+    email: "new@example.com",
+    password: "Password1",
+    ...overrides,
+  };
+  await user.type(screen.getByLabelText("Username"), values.username);
+  await user.type(screen.getByLabelText("Email"), values.email);
+  await user.type(screen.getByLabelText("Password"), values.password);
+  await user.type(screen.getByLabelText("Confirm Password"), values.password);
 }
 
 describe("register page", () => {
@@ -59,7 +80,10 @@ describe("register page", () => {
       setupUnauthenticatedMock();
       await renderRegisterPage();
 
-      submitForm();
+      // Submitted empty to exercise the handler's own guard; a real click would
+      // be blocked by the inputs' native required constraints first.
+      const form = submitButton().closest("form")!;
+      fireEvent.submit(form);
 
       await waitFor(() => {
         expect(screen.getByText("Username is required")).toBeInTheDocument();
@@ -67,11 +91,12 @@ describe("register page", () => {
     });
 
     it("shows 'Username must be at least 2 characters' for short username", async () => {
+      const user = userEvent.setup();
       setupUnauthenticatedMock();
       await renderRegisterPage();
 
-      fireEvent.change(screen.getByLabelText("Username"), { target: { value: "a" } });
-      submitForm();
+      await fillValidForm(user, { username: "a" });
+      await user.click(submitButton());
 
       await waitFor(() => {
         expect(screen.getByText("Username must be at least 2 characters")).toBeInTheDocument();
@@ -79,19 +104,16 @@ describe("register page", () => {
     });
 
     it("shows password strength error for weak password", async () => {
+      const user = userEvent.setup();
       setupUnauthenticatedMock();
       await renderRegisterPage();
 
-      fireEvent.change(screen.getByLabelText("Username"), { target: { value: "validuser" } });
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "weak" } });
-      submitForm();
+      await fillValidForm(user, { password: "weak" });
+      await user.click(submitButton());
 
       await waitFor(() => {
         expect(
-          screen.getByText(
-            "Password must be at least 8 characters",
-          ),
+          screen.getByText("Password must be at least 8 characters"),
         ).toBeInTheDocument();
       });
     });
@@ -99,6 +121,7 @@ describe("register page", () => {
 
   describe("API error handling", () => {
     it("displays server message when username is already taken", async () => {
+      const user = userEvent.setup();
       setupUnauthenticatedMock({
         "/api/auth/register": {
           status: 409,
@@ -107,10 +130,8 @@ describe("register page", () => {
       });
       await renderRegisterPage();
 
-      fireEvent.change(screen.getByLabelText("Username"), { target: { value: "taken" } });
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
-      submitForm();
+      await fillValidForm(user, { username: "taken" });
+      await user.click(submitButton());
 
       await waitFor(() => {
         expect(screen.getByText("Username is already taken")).toBeInTheDocument();
@@ -121,6 +142,7 @@ describe("register page", () => {
     });
 
     it("does not navigate when email is already taken", async () => {
+      const user = userEvent.setup();
       setupUnauthenticatedMock({
         "/api/auth/register": {
           status: 409,
@@ -129,10 +151,8 @@ describe("register page", () => {
       });
       await renderRegisterPage();
 
-      fireEvent.change(screen.getByLabelText("Username"), { target: { value: "newuser" } });
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "taken@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
-      submitForm();
+      await fillValidForm(user, { email: "taken@example.com" });
+      await user.click(submitButton());
 
       await waitFor(() => {
         expect(screen.getByText("Email is already in use")).toBeInTheDocument();
@@ -145,16 +165,15 @@ describe("register page", () => {
 
   describe("successful registration", () => {
     it("auto-logs in and redirects to /onboarding", async () => {
-      const user = buildUser({ hasCompletedOnboarding: false });
+      const user = userEvent.setup();
+      const newUser = buildUser({ hasCompletedOnboarding: false });
       setupUnauthenticatedMock({
-        "/api/auth/register": { user },
+        "/api/auth/register": { user: newUser },
       });
       await renderRegisterPage();
 
-      fireEvent.change(screen.getByLabelText("Username"), { target: { value: "newuser" } });
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Password1" } });
-      submitForm();
+      await fillValidForm(user);
+      await user.click(submitButton());
 
       await waitFor(() => {
         expect(screen.getByText("Onboarding page")).toBeInTheDocument();
@@ -163,7 +182,7 @@ describe("register page", () => {
       // Verify user is now in the auth store (auto-logged in)
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(true);
-      expect(state.user?.id).toBe(user.id);
+      expect(state.user?.id).toBe(newUser.id);
     });
   });
 });

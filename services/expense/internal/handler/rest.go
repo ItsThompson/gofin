@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 )
@@ -25,17 +26,28 @@ func NewRESTHandler(expenseService *service.ExpenseService, logger *slog.Logger)
 	}
 }
 
-// RegisterRoutes sets up the Gin routes for expense endpoints.
+// RegisterRoutes registers every expense-owned route from the shared access
+// Registry, binding each handler by ID. It is the single registration entry
+// point shared by main.go and the registration coverage test, so a route can
+// never be served without a Registry entry (which carries its access level).
 func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
-	expenses := r.Group("/api/expenses")
-	{
-		expenses.POST("", h.CreateExpense)
-		expenses.GET("", h.GetExpenses)
-		expenses.GET("/suggestions", h.GetExpenseSuggestions)
-		expenses.GET("/prorata/:groupId", h.GetProRataGroup)
-		expenses.GET("/:id", h.GetExpense)
-		expenses.POST("/:id/correct", h.CorrectExpense)
-		expenses.GET("/:id/history", h.GetCorrectionHistory)
+	access.BindRoutes("expense", h.handlers(), func(method, path string, handler gin.HandlerFunc) {
+		r.Handle(method, path, handler)
+	})
+}
+
+// handlers maps each expense Registry route ID to its gin handler. A Registry
+// entry with no handler here (or a handler with no entry) is caught by
+// BindRoutes at startup and by the registration coverage test.
+func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
+	return map[string]gin.HandlerFunc{
+		"expense.create":        h.CreateExpense,
+		"expense.list":          h.GetExpenses,
+		"expense.suggestions":   h.GetExpenseSuggestions,
+		"expense.prorata.group": h.GetProRataGroup,
+		"expense.get":           h.GetExpense,
+		"expense.correct":       h.CorrectExpense,
+		"expense.history":       h.GetCorrectionHistory,
 	}
 }
 

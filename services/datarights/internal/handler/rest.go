@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ItsThompson/gofin/services/access"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
@@ -26,13 +27,32 @@ func NewRESTHandler(exportService *service.ExportService, logger *slog.Logger) *
 	}
 }
 
-// RegisterRoutes sets up the Gin routes for datarights endpoints.
-func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
-	exports := r.Group("/api/datarights/exports")
-	{
-		exports.POST("", h.CreateExport)
-		exports.GET("", h.ListExports)
-		exports.GET("/:id", h.GetExport)
+// RegisterRoutes registers every datarights-owned route from the shared access
+// Registry, binding handlers from both the export and deletion handlers by ID.
+// It is the single registration entry point shared by main.go and the
+// registration coverage test. datarights is the one service whose routes span
+// two handlers, so it merges both ID->handler maps before binding; a route can
+// never be served without a Registry entry (which carries its access level).
+func RegisterRoutes(r *gin.Engine, rest *RESTHandler, deletion *DeletionHandler) {
+	handlers := make(map[string]gin.HandlerFunc)
+	for id, fn := range rest.handlers() {
+		handlers[id] = fn
+	}
+	for id, fn := range deletion.handlers() {
+		handlers[id] = fn
+	}
+
+	access.BindRoutes("datarights", handlers, func(method, path string, handler gin.HandlerFunc) {
+		r.Handle(method, path, handler)
+	})
+}
+
+// handlers maps the datarights export Registry route IDs to gin handlers.
+func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
+	return map[string]gin.HandlerFunc{
+		"datarights.exports.create": h.CreateExport,
+		"datarights.exports.list":   h.ListExports,
+		"datarights.exports.get":    h.GetExport,
 	}
 }
 
