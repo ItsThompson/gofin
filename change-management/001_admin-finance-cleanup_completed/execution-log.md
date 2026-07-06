@@ -222,8 +222,8 @@ WARNING:  database "gofin" has no actual collation version, but a version was re
 - [x] `git mv change-management/001_admin-finance-cleanup change-management/001_admin-finance-cleanup_completed`.
 - [x] Open the completion PR with the rename and the filled `execution-log.md`.
 **Validation 5: CI green including validate-change-management**
-- [ ] CI on the completion PR is green.
-- [ ] The `validate-change-management` job passes for
+- [x] CI on the completion PR is green.
+- [x] The `validate-change-management` job passes for
 > Comments: Repo finalization prepared on branch `chore/complete-001-cleanup`: execution log filled, temporary safety test removed, folder renamed with `_completed` status. Local validation passed.
 
 ```text
@@ -234,7 +234,13 @@ $ cd services/dbmigrate && go test ./...
 ok  	github.com/ItsThompson/gofin/services/dbmigrate	0.269s
 ```
 
-No `docs/data-model.md` link to `001_admin-finance-cleanup/description.md` was present in the current tree, so no doc-link update was needed. Completion PR opened: https://github.com/ItsThompson/gofin/pull/36.
+No `docs/data-model.md` link to `001_admin-finance-cleanup/description.md` was present in the current tree, so no doc-link update was needed. Completion PR opened: https://github.com/ItsThompson/gofin/pull/36. PR checks passed, including `validate-change-management`.
+
+```text
+$ gh pr checks 36 --repo ItsThompson/gofin --watch
+All checks were successful
+0 cancelled, 0 failing, 6 successful, 0 skipped, and 0 pending checks
+```
 
 ## Outcome
 - [x] Production cleanup activities and validations completed
