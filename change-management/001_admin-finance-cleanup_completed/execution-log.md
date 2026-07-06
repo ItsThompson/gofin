@@ -220,7 +220,7 @@ WARNING:  database "gofin" has no actual collation version, but a version was re
 - [x] Generate and fill in `execution-log.md`
 - [x] Remove the temporary safety test
 - [x] `git mv change-management/001_admin-finance-cleanup change-management/001_admin-finance-cleanup_completed`.
-- [ ] Open the completion PR with the rename and the filled `execution-log.md`.
+- [x] Open the completion PR with the rename and the filled `execution-log.md`.
 **Validation 5: CI green including validate-change-management**
 - [ ] CI on the completion PR is green.
 - [ ] The `validate-change-management` job passes for
@@ -234,7 +234,7 @@ $ cd services/dbmigrate && go test ./...
 ok  	github.com/ItsThompson/gofin/services/dbmigrate	0.269s
 ```
 
-No `docs/data-model.md` link to `001_admin-finance-cleanup/description.md` was present in the current tree, so no doc-link update was needed.
+No `docs/data-model.md` link to `001_admin-finance-cleanup/description.md` was present in the current tree, so no doc-link update was needed. Completion PR opened: https://github.com/ItsThompson/gofin/pull/36.
 
 ## Outcome
 - [x] Production cleanup activities and validations completed
