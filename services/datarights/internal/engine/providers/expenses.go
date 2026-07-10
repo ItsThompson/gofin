@@ -113,6 +113,14 @@ func (p *ExpensesProvider) streamExpenses(
 	tagMap map[string]string,
 	emit func(row []string) error,
 ) error {
+	// Derive a cancellable context and cancel on every return path so the gRPC
+	// client stream is torn down deterministically, including an early
+	// emit-error return. Without this, a caller whose own context outlives the
+	// call (e.g. context.Background()) would leak the stream. Mirrors the #7
+	// server-side teardown and the streaming-correctness single-owner contract.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	stream, err := p.expenseClient.StreamAllUserExpenses(ctx, &expensepb.StreamAllUserExpensesRequest{
 		UserId:   userID,
 		PageSize: expensesPageSize,

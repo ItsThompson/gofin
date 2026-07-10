@@ -12,11 +12,19 @@ date: 2026-07-10
 #   Recv() loop and emits each formatted row to a sink as it arrives. Given a sink
 #   that writes each row onward (an incremental CSV/ZIP writer) the consumer
 #   retains nothing -> peak memory O(pageSize).
+#
+# SCOPE OF THE BOUND: the O(pageSize) result below is a property of the
+#   streamExpenses primitive + a non-buffering sink. Production Collect adapts
+#   that primitive with an append sink to satisfy the DataProvider [][]string
+#   contract, and the export engine buffers each provider's rows before BuildZIP,
+#   so END-TO-END export memory stays O(total rows) until a follow-up engine-level
+#   streaming cutover. This ticket bounds and proves the *consumer primitive*;
+#   the metric must not be read as an end-to-end production figure.
 
 # Environment-independent structural signal (gated in test-backend CI):
-#   Peak *retained* heap of the streamed consumer stays flat as total rows grow
-#   50x; the buffered shape grows linearly. Enforced by
-#   TestExpensesProvider_StreamedConsumptionIsMemoryBounded in
+#   Peak *retained* heap of the streamExpenses primitive (with a non-buffering
+#   sink) stays flat as total rows grow 50x; the buffered shape grows linearly.
+#   Enforced by TestExpensesProvider_StreamedConsumptionIsMemoryBounded in
 #   internal/engine/providers (bounded-allocation growth-ratio, -race clean).
 #
 # Retained heap bytes (discarding CSV sink; GC-fenced HeapAlloc delta):

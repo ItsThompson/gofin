@@ -102,11 +102,18 @@ func retainedHeapBytes(build func() any) uint64 {
 }
 
 // TestExpensesProvider_StreamedConsumptionIsMemoryBounded is the US-RD-03
-// bounded-allocation growth-ratio regression. The streamed consumer, given a
-// sink that writes each row onward (an incremental ZIP writer), retains nothing,
-// so its peak memory stays O(pageSize) as the row count grows 50x. The buffered
-// contrast (append every formatted row, as the pre-cutover consumer did) retains
-// O(N) and blows past the bound, so reverting the cutover fails this test.
+// bounded-allocation growth-ratio regression. It measures the streamExpenses
+// primitive paired with a non-buffering sink: given a sink that writes each row
+// onward (an incremental ZIP writer), the primitive retains nothing, so its peak
+// memory stays O(pageSize) as the row count grows 50x. The buffered contrast
+// (append every formatted row, as the pre-cutover consumer did) retains O(N) and
+// blows past the bound, so reverting the cutover fails this test.
+//
+// This bound is a property of the primitive + sink, NOT of production Collect:
+// Collect adapts the primitive with an append sink to satisfy the DataProvider
+// [][]string contract, so it (and thus the export engine, which buffers each
+// provider before BuildZIP) stays O(total) until the follow-up engine-level
+// streaming cutover. See perf/baseline/stream-consumer.txt.
 func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 	const (
 		smallRows           = 1000
