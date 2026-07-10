@@ -41,9 +41,10 @@ func exportViaKeyset(b *testing.B, repo *ImmudbExpenseRepository, pageSize int32
 // Keyset issues P queries (one data query per page, zero COUNT) and never
 // rescans (O(P) rows scanned), versus the removed OFFSET path's 2*P queries and
 // O(P^2) rows scanned (recorded in perf/baseline/read.txt). The rows-scanned
-// shape is an execution property of the real database, verified against real
-// immudb in the integration test; the recording mock reproduces query
-// shape/count, not scan cost.
+// shape is an execution property of the real database; it is analytical (immudb
+// 1.11.0 exposes no EXPLAIN to assert it directly). The integration test
+// confirms keyset ordering and the absence of OFFSET against real immudb; the
+// recording mock reproduces query shape/count, not scan cost.
 func BenchmarkExportExpenseRead(b *testing.B) {
 	const pageSize = int32(50)
 	for _, pages := range []int{1, 10, 50, 100} {
@@ -56,11 +57,14 @@ func BenchmarkExportExpenseRead(b *testing.B) {
 			counts := float64(probe.countQueriesContaining("COUNT(*)"))
 
 			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				exportViaKeyset(b, newBenchRepo(newRecordingImmudbClient(rows...)), pageSize)
+			for b.Loop() {
+				// A fresh client per iteration starts each run from an empty query
+				// log; bracket that setup out so only the keyset walk is timed.
+				b.StopTimer()
+				repo := newBenchRepo(newRecordingImmudbClient(rows...))
+				b.StartTimer()
+				exportViaKeyset(b, repo, pageSize)
 			}
-			// Report after the timed loop: ResetTimer clears custom metrics (b.extra).
 			b.ReportMetric(queries, "queries/export")
 			b.ReportMetric(counts, "counts/export")
 		})
