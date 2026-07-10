@@ -2,12 +2,19 @@ package engine_test
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
+	"github.com/ItsThompson/gofin/services/datarights/internal/model"
+	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/perf"
@@ -152,4 +159,86 @@ func cannedExpensePages() []*expensepb.ExpenseListResponse {
 			HasMore: false,
 		},
 	}
+}
+
+// newExportEngine wires the real export providers through the per-job factory,
+// with the finance spy as the raw client the engine wraps in a
+// MemoizedFinanceClient per job. Used by the dedup regression test.
+func newExportEngine(finance financepb.FinanceServiceClient, repo repository.JobRepository) *engine.Engine {
+	auth := &stubAuthClient{user: cannedUser()}
+	expense := &stubExpenseClient{pages: cannedExpensePages()}
+	return engine.NewEngine(
+		func(fc financepb.FinanceServiceClient) []engine.DataProvider {
+			return buildRealProviders(auth, expense, fc)
+		},
+		finance, repo, noopSender{}, 5, 30*time.Second, discardLogger(),
+	)
+}
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// noopSender is an email.Sender that accepts every send.
+type noopSender struct{}
+
+var _ email.Sender = noopSender{}
+
+func (noopSender) SendExportEmail(_ context.Context, _ string, _ []byte) error { return nil }
+
+// recordingRepo is a JobRepository that records terminal transitions so tests
+// can wait for job completion. Only the methods engine.execute calls do work.
+type recordingRepo struct {
+	mu        sync.Mutex
+	completed int
+	failed    []string
+}
+
+func newRecordingRepo() *recordingRepo { return &recordingRepo{} }
+
+func (r *recordingRepo) UpdateStatus(_ context.Context, _, _ string) error { return nil }
+
+func (r *recordingRepo) CompleteJob(_ context.Context, _ string, _ int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.completed++
+	return nil
+}
+
+func (r *recordingRepo) FailJob(_ context.Context, _ string, errMsg string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failed = append(r.failed, errMsg)
+	return nil
+}
+
+func (r *recordingRepo) completedCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.completed
+}
+
+func (r *recordingRepo) failures() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.failed...)
+}
+
+func (r *recordingRepo) CreateJob(_ context.Context, _ string) (*model.ExportJob, error) {
+	return nil, nil
+}
+func (r *recordingRepo) GetJob(_ context.Context, _ string) (*model.ExportJob, error) {
+	return nil, nil
+}
+func (r *recordingRepo) ListJobsByUser(_ context.Context, _ string, _, _ int) ([]*model.ExportJob, int64, error) {
+	return nil, 0, nil
+}
+func (r *recordingRepo) GetInProgressJob(_ context.Context, _ string) (*model.ExportJob, error) {
+	return nil, nil
+}
+func (r *recordingRepo) GetLatestNonFailedJob(_ context.Context, _ string) (*model.ExportJob, error) {
+	return nil, nil
+}
+func (r *recordingRepo) GetNonTerminalJobs(_ context.Context) ([]model.RecoverableJob, error) {
+	return nil, nil
 }
