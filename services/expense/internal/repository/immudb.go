@@ -406,49 +406,6 @@ func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID s
 	return expenses, nil
 }
 
-// GetAllExpensesByUser returns all expenses (active + corrected) for a user,
-// ordered by created_at ASC with LIMIT/OFFSET pagination. No status filter
-// is applied: GDPR export requires the full correction chain.
-func (r *ImmudbExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error) {
-	// Count query for pagination metadata
-	countQuery := `SELECT COUNT(*) FROM expenses WHERE user_id = @user_id;`
-
-	countResult, err := r.client.SQLQuery(ctx, countQuery, map[string]interface{}{
-		"user_id": userID,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("counting all user expenses: %w", err)
-	}
-
-	var total int64
-	if len(countResult.Rows) > 0 && len(countResult.Rows[0].Values) > 0 {
-		total = countResult.Rows[0].Values[0].GetInt()
-	}
-
-	// Data query with pagination, ordered by created_at ASC (chronological for export)
-	offset := (page - 1) * pageSize
-	dataQuery := fmt.Sprintf(`SELECT %s FROM expenses
-		WHERE user_id = @user_id
-		ORDER BY created_at ASC
-		LIMIT @limit OFFSET @offset;`, expenseSelectColumns)
-
-	result, err := r.client.SQLQuery(ctx, dataQuery, map[string]interface{}{
-		"user_id": userID,
-		"limit":   pageSize,
-		"offset":  offset,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("querying all user expenses: %w", err)
-	}
-
-	expenses := make([]*model.Expense, 0, len(result.Rows))
-	for _, row := range result.Rows {
-		expenses = append(expenses, rowToExpense(row))
-	}
-
-	return expenses, total, nil
-}
-
 // GetExpensesByUserAfter returns one keyset page of expenses (active +
 // corrected) for a user past the given cursor, ordered by
 // (created_at ASC, id ASC). It seeks with the expanded-OR (created_at, id)

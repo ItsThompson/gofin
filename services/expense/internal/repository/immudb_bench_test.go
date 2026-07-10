@@ -14,23 +14,6 @@ func newBenchRepo(client ImmudbClient) *ImmudbExpenseRepository {
 	return NewImmudbExpenseRepository(client, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 }
 
-// exportViaOffset walks the full export using the OLD page-number/OFFSET path
-// (GetAllExpensesByUser): a per-page COUNT plus an OFFSET data query per page.
-func exportViaOffset(b *testing.B, repo *ImmudbExpenseRepository, pageSize int32) {
-	b.Helper()
-	page := int32(1)
-	for {
-		rows, total, err := repo.GetAllExpensesByUser(context.Background(), benchUser, page, pageSize)
-		if err != nil {
-			b.Fatalf("offset export failed: %v", err)
-		}
-		if len(rows) == 0 || int64(page)*int64(pageSize) >= total {
-			return
-		}
-		page++
-	}
-}
-
 // exportViaKeyset walks the full export using the NEW keyset cursor path
 // (GetExpensesByUserAfter): no OFFSET, no per-page COUNT.
 func exportViaKeyset(b *testing.B, repo *ImmudbExpenseRepository, pageSize int32) {
@@ -48,38 +31,23 @@ func exportViaKeyset(b *testing.B, repo *ImmudbExpenseRepository, pageSize int32
 	}
 }
 
-// BenchmarkExportExpenseRead compares the OLD OFFSET export path against the NEW
-// keyset path at increasing page counts P. Alongside wall-clock ns/op (a
-// same-machine reference only), it reports the portable structural signals:
+// BenchmarkExportExpenseRead characterizes the keyset export path
+// (GetExpensesByUserAfter) at increasing page counts P. Alongside wall-clock
+// ns/op (a same-machine reference only), it reports the portable structural
+// signals:
 //   - queries/export: total queries issued for a full export
 //   - counts/export:  COUNT(*) queries issued for a full export
 //
-// OFFSET issues 2*P queries (a COUNT + a data query per page) and rescans prior
-// pages (O(P^2) rows scanned). Keyset issues P queries (one data query per page,
-// zero COUNT) and never rescans (O(P) rows scanned). The rows-scanned shape is
-// an execution property of the real database, verified against real immudb in
-// the integration test; the recording mock reproduces query shape/count, not
-// scan cost.
+// Keyset issues P queries (one data query per page, zero COUNT) and never
+// rescans (O(P) rows scanned), versus the removed OFFSET path's 2*P queries and
+// O(P^2) rows scanned (recorded in perf/baseline/read.txt). The rows-scanned
+// shape is an execution property of the real database, verified against real
+// immudb in the integration test; the recording mock reproduces query
+// shape/count, not scan cost.
 func BenchmarkExportExpenseRead(b *testing.B) {
 	const pageSize = int32(50)
 	for _, pages := range []int{1, 10, 50, 100} {
 		rows := seedExportRows(benchUser, pages*int(pageSize))
-
-		b.Run(fmt.Sprintf("OFFSET/P=%d", pages), func(b *testing.B) {
-			probe := newRecordingImmudbClient(rows...)
-			exportViaOffset(b, newBenchRepo(probe), pageSize)
-			queries := float64(len(probe.Queries()))
-			counts := float64(probe.countQueriesContaining("COUNT(*)"))
-
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				exportViaOffset(b, newBenchRepo(newRecordingImmudbClient(rows...)), pageSize)
-			}
-			// Report after the timed loop: ResetTimer clears custom metrics (b.extra).
-			b.ReportMetric(queries, "queries/export")
-			b.ReportMetric(counts, "counts/export")
-		})
 
 		b.Run(fmt.Sprintf("Keyset/P=%d", pages), func(b *testing.B) {
 			probe := newRecordingImmudbClient(rows...)

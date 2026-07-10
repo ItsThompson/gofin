@@ -39,11 +39,6 @@ type ExpenseRepository interface {
 	// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
 	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
 
-	// GetAllExpensesByUser returns all expenses (active + corrected) for a user,
-	// ordered by created_at ASC, with LIMIT/OFFSET pagination.
-	// Used by the datarights service for data export (GDPR compliance).
-	GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error)
-
 	// GetExpensesByUserAfter returns one keyset page of expenses (active +
 	// corrected) for a user past the given cursor, ordered by
 	// (created_at ASC, id ASC). It seeks with a (created_at, id) cursor instead

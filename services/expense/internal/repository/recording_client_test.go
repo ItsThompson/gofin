@@ -19,9 +19,9 @@ type recordedQuery struct {
 
 // recordingImmudbClient is a faithful in-memory simulation of the immudb SQL
 // surface used by the expense repository. It records every query and answers
-// COUNT(*), keyset (expanded-OR cursor), and OFFSET data queries over seeded
-// rows, so the same client backs both the keyset unit tests and the baseline
-// OFFSET benchmark. It is safe for concurrent use.
+// COUNT(*) and keyset (expanded-OR cursor) data queries over seeded rows, so the
+// same client backs the keyset unit tests and the export benchmark. It is safe
+// for concurrent use.
 type recordingImmudbClient struct {
 	mu      sync.Mutex
 	rows    []*model.Expense
@@ -114,15 +114,7 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 		matched = seeked
 	}
 
-	// OFFSET (old paged path).
-	start := 0
-	if offset, ok := params["offset"]; ok {
-		start = int(toInt64(offset))
-	}
-	if start > len(matched) {
-		start = len(matched)
-	}
-	page := matched[start:]
+	page := matched
 
 	// LIMIT.
 	if limit, ok := params["limit"]; ok {
