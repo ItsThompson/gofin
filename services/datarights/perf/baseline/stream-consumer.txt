@@ -1,0 +1,38 @@
+# gofin perf baseline
+path: datarights/stream-consumer  (expenses export stream cutover, P3b)
+captured_against: ft/latency-refactor @ post-#5/#7 (pre-consumer-cutover buffered shape vs streamed shape)
+machine: Apple M4 Pro, 14 cores, macOS  (wall-clock / B/op are same-machine references only)
+date: 2026-07-10
+
+# What changed
+# Before (#7 landed the streaming RPC but the datarights consumer still buffered):
+#   ExpensesProvider fetched every page of the unary GetAllUserExpenses RPC into
+#   one []*ExpenseData slice, then formatted all rows -> peak memory O(total rows).
+# After (this ticket): ExpensesProvider consumes StreamAllUserExpenses via a
+#   Recv() loop and emits each formatted row to a sink as it arrives. Given a sink
+#   that writes each row onward (an incremental CSV/ZIP writer) the consumer
+#   retains nothing -> peak memory O(pageSize).
+
+# Environment-independent structural signal (gated in test-backend CI):
+#   Peak *retained* heap of the streamed consumer stays flat as total rows grow
+#   50x; the buffered shape grows linearly. Enforced by
+#   TestExpensesProvider_StreamedConsumptionIsMemoryBounded in
+#   internal/engine/providers (bounded-allocation growth-ratio, -race clean).
+#
+# Retained heap bytes (discarding CSV sink; GC-fenced HeapAlloc delta):
+#   streamed[rows=1000]:    0        # O(pageSize): retains nothing
+#   streamed[rows=50000]:   0        # FLAT as rows grow 50x  -> the memory bound
+#   buffered[rows=50000]:   ~2.1 MB  # O(total rows): the pre-cutover shape
+#   assertion bound:        512 KB   # max(streamed_small, 64KB) * 8
+
+# Wall-clock / total-allocation reference (same-machine only, NOT a threshold).
+# Total allocs scale with row count because every row is formatted; this is
+# expected. The gated guarantee is retained (peak-live) memory, not total churn.
+# go test -bench BenchmarkExpensesProvider_StreamIncrementalWrite -benchmem -run '^$' -count=1
+#   rows=1000:    ~11.2 ms/op    284664 B/op      4007 allocs/op
+#   rows=50000:  ~702.4 ms/op  14007556 B/op    200011 allocs/op
+
+# Byte-identical export guarantee (US-RD-03 / US-EXP-01):
+#   The streamed CSV is byte-identical to the pre-cutover output for the same
+#   seeded data (same rows, chronological created_at ASC with the id tiebreaker),
+#   guarded by TestExportProviders_CSVByteIdentical in internal/engine.

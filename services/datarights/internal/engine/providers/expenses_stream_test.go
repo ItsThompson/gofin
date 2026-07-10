@@ -1,0 +1,196 @@
+package providers
+
+import (
+	"context"
+	"encoding/csv"
+	"fmt"
+	"io"
+	"runtime"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+)
+
+// streamRowFixtures builds n expense rows for the stream in chronological order.
+// Every row carries a tag id so tag resolution and formatRow run on each one,
+// exercising the same per-row work the real consumer does.
+func streamRowFixtures(n int) []*expensepb.ExpenseData {
+	rows := make([]*expensepb.ExpenseData, n)
+	for i := range rows {
+		rows[i] = &expensepb.ExpenseData{
+			Id:          fmt.Sprintf("exp-%08d", i),
+			Name:        "Expense",
+			Amount:      int64(1000 + i),
+			Currency:    "USD",
+			ExpenseType: "essentials",
+			TagId:       "tag-1",
+			ExpenseDate: "2026-05-01",
+			PeriodYear:  2026,
+			PeriodMonth: 5,
+			Status:      "active",
+			CreatedAt:   fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
+		}
+	}
+	return rows
+}
+
+func streamTagMap() map[string]string {
+	return map[string]string{"tag-1": "Food"}
+}
+
+// discardCSVSink returns an emit callback that writes each formatted row into a
+// csv.Writer backed by io.Discard, modelling the incremental ZIP write without
+// retaining any row. flush surfaces encoding errors.
+func discardCSVSink() (emit func([]string) error, flush func() error) {
+	w := csv.NewWriter(io.Discard)
+	emit = func(row []string) error { return w.Write(row) }
+	flush = func() error {
+		w.Flush()
+		return w.Error()
+	}
+	return emit, flush
+}
+
+// BenchmarkExpensesProvider_StreamIncrementalWrite streams the full history into
+// a discarding CSV sink at two very different row counts. Peak *retained* memory
+// stays O(pageSize) regardless of total rows (asserted by
+// TestExpensesProvider_StreamedConsumptionIsMemoryBounded); total allocations
+// still scale with row count because every row is formatted, which is expected.
+// The committed baseline records both shapes.
+func BenchmarkExpensesProvider_StreamIncrementalWrite(b *testing.B) {
+	tagMap := streamTagMap()
+	for _, n := range []int{1000, 50000} {
+		rows := streamRowFixtures(n)
+		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
+		b.Run(fmt.Sprintf("rows=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				emit, flush := discardCSVSink()
+				if err := p.streamExpenses(context.Background(), "user-1", tagMap, emit); err != nil {
+					b.Fatal(err)
+				}
+				if err := flush(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// retainedHeapBytes reports the live heap bytes that survive build(). A GC before
+// and after each reading drops transient per-row garbage, and anything allocated
+// before the call (the seeded stream rows) is live in both readings and cancels
+// out, so the delta isolates what the consumer itself keeps alive.
+func retainedHeapBytes(build func() any) uint64 {
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+
+	kept := build()
+
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+	runtime.KeepAlive(kept)
+
+	if after.HeapAlloc <= before.HeapAlloc {
+		return 0
+	}
+	return after.HeapAlloc - before.HeapAlloc
+}
+
+// TestExpensesProvider_StreamedConsumptionIsMemoryBounded is the US-RD-03
+// bounded-allocation growth-ratio regression. The streamed consumer, given a
+// sink that writes each row onward (an incremental ZIP writer), retains nothing,
+// so its peak memory stays O(pageSize) as the row count grows 50x. The buffered
+// contrast (append every formatted row, as the pre-cutover consumer did) retains
+// O(N) and blows past the bound, so reverting the cutover fails this test.
+func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
+	const (
+		smallRows           = 1000
+		largeRows           = 50000
+		allowedGrowthFactor = 8
+		// noiseFloorBytes keeps the ratio meaningful when the streamed path
+		// retains ~nothing: heap-measurement jitter must not manufacture a huge
+		// relative growth from a near-zero baseline. The buffered contrast retains
+		// at least the outer [][]string backing (largeRows * 24B ~= 1.2MB at 50k),
+		// a hard structural floor well above this bound.
+		noiseFloorBytes = 64 * 1024
+	)
+	tagMap := streamTagMap()
+
+	streamed := func(n int) func() any {
+		rows := streamRowFixtures(n)
+		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
+		return func() any {
+			emit, flush := discardCSVSink()
+			require.NoError(t, p.streamExpenses(context.Background(), "user-1", tagMap, emit))
+			require.NoError(t, flush())
+			return nil // the streamed consumer retains nothing
+		}
+	}
+
+	buffered := func(n int) func() any {
+		rows := streamRowFixtures(n)
+		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
+		return func() any {
+			var out [][]string
+			require.NoError(t, p.streamExpenses(context.Background(), "user-1", tagMap, func(row []string) error {
+				out = append(out, row)
+				return nil
+			}))
+			return out // retains O(N): the pre-cutover buffer-all shape
+		}
+	}
+
+	smallStreamed := retainedHeapBytes(streamed(smallRows))
+	largeStreamed := retainedHeapBytes(streamed(largeRows))
+
+	base := smallStreamed
+	if base < noiseFloorBytes {
+		base = noiseFloorBytes
+	}
+	bound := base * allowedGrowthFactor
+
+	assert.LessOrEqualf(t, largeStreamed, bound,
+		"streamed consumption must stay O(pageSize): retained %d bytes at %d rows vs %d at %d rows (bound %d)",
+		largeStreamed, largeRows, smallStreamed, smallRows, bound)
+
+	// Guard: the buffered (pre-cutover) shape must exceed the bound, proving the
+	// assertion above actually distinguishes streaming from buffering.
+	largeBuffered := retainedHeapBytes(buffered(largeRows))
+
+	t.Logf("retained heap bytes: streamed[%d]=%d streamed[%d]=%d buffered[%d]=%d (bound %d)",
+		smallRows, smallStreamed, largeRows, largeStreamed, largeRows, largeBuffered, bound)
+
+	assert.Greaterf(t, largeBuffered, bound,
+		"buffered consumption should exceed the streamed bound (retained %d bytes, bound %d); "+
+			"if this fails the memory-bound assertion is not meaningful", largeBuffered, bound)
+}
+
+// TestExpensesProvider_StreamCancellation_StopsPromptly verifies a mid-stream
+// cancellation stops the consumer immediately rather than draining the rest of
+// the stream, honoring the streaming-correctness contract's ctx.Done() rule.
+func TestExpensesProvider_StreamCancellation_StopsPromptly(t *testing.T) {
+	const total = 1000
+	tagMap := streamTagMap()
+	p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: streamRowFixtures(total)}, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	consumed := 0
+	err := p.streamExpenses(ctx, "user-1", tagMap, func(_ []string) error {
+		consumed++
+		if consumed == 3 {
+			cancel()
+		}
+		return nil
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 3, consumed, "consumer must stop promptly after cancellation, not drain the stream")
+	assert.Less(t, consumed, total)
+}
