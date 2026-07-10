@@ -49,12 +49,29 @@ func TestCallCounter_TotalSumsAllOperations(t *testing.T) {
 
 // TestCallCounter_ConcurrentRecord exercises the mutex under the race detector:
 // run with `go test -race`. Spies embed CallCounter and are invoked from
-// errgroup fan-out goroutines, so concurrent Record must not race.
+// errgroup fan-out goroutines, so concurrent Record must not race. A reader
+// goroutine hits Count/Total during the writes so -race also covers reads
+// concurrent with writes, backing the "all methods are safe" claim.
 func TestCallCounter_ConcurrentRecord(t *testing.T) {
 	c := perf.NewCallCounter()
 
 	const goroutines = 50
 	const recordsPerGoroutine = 100
+
+	stop := make(chan struct{})
+	readerDone := make(chan struct{})
+	go func() {
+		defer close(readerDone)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = c.Count("fanout")
+				_ = c.Total()
+			}
+		}
+	}()
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
@@ -67,6 +84,8 @@ func TestCallCounter_ConcurrentRecord(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	close(stop)
+	<-readerDone
 
 	want := goroutines * recordsPerGoroutine
 	if got := c.Count("fanout"); got != want {

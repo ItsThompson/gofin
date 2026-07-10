@@ -11,7 +11,8 @@ import "sync"
 // implementations of gRPC clients and repository interfaces embed a
 // *CallCounter so efficiency tests can assert bounds such as "GetAllUserData
 // called at most once". All methods are safe for concurrent use, so spies may
-// be called from errgroup fan-out goroutines (P2/P4).
+// be called from concurrent errgroup fan-out goroutines in the datarights and
+// finance services.
 type CallCounter struct {
 	mu     sync.Mutex
 	counts map[string]int
