@@ -136,7 +136,11 @@ func TestGetAllUserData_ListTagsError(t *testing.T) {
 	repo := new(mockRepo)
 	svc := newAllUserDataTestService(repo)
 
+	// The fan-out issues all three reads concurrently (no serial short-circuit),
+	// so the sibling reads must be stubbed even though ListTags is the one failing.
 	repo.On("ListTags", mock.Anything, "user-1").Return(nil, fmt.Errorf("db connection failed"))
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{}, nil)
+	repo.On("GetDefaults", mock.Anything, "user-1").Return((*model.DefaultSettings)(nil), nil)
 
 	result, err := svc.GetAllUserData(context.Background(), "user-1")
 	assert.Nil(t, result)
@@ -148,8 +152,10 @@ func TestGetAllUserData_ListPeriodsError(t *testing.T) {
 	repo := new(mockRepo)
 	svc := newAllUserDataTestService(repo)
 
+	// All three reads fire concurrently; ListPeriods is the failing one.
 	repo.On("ListTags", mock.Anything, "user-1").Return([]*model.Tag{}, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").Return(nil, fmt.Errorf("db connection failed"))
+	repo.On("GetDefaults", mock.Anything, "user-1").Return((*model.DefaultSettings)(nil), nil)
 
 	result, err := svc.GetAllUserData(context.Background(), "user-1")
 	assert.Nil(t, result)
