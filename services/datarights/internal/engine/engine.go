@@ -145,10 +145,10 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 			exportmetrics.ExportDataCollectionDurationSeconds.WithLabelValues(provider.Name()).Observe(providerDuration)
 
 			if err != nil {
-				// Bake the provider name into the error before errgroup captures
-				// it: Wait surfaces only the first error, and humanCollectMessage
-				// relies on this "collect <name>: ..." shape.
-				return fmt.Errorf("collect %s: %w", provider.Name(), err)
+				// Attach the provider name before errgroup captures the error:
+				// Wait surfaces only the first error, and the post-Wait switch
+				// recovers the name via errors.As on *collectError.
+				return &collectError{provider: provider.Name(), err: err}
 			}
 
 			e.logger.Info("provider collection complete",
@@ -173,14 +173,18 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	// Fan-in barrier: the first error wins and cancels the siblings via gctx.
 	// Recheck the job context afterward so a deadline still maps to "Export timed
 	// out" while a genuine provider failure maps to "Failed to collect X data".
+	var ce *collectError
 	switch err := g.Wait(); {
 	case err == nil:
 		// all providers succeeded; fall through to ZIP assembly
 	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
 		e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
 		return
+	case errors.As(err, &ce):
+		e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), "collection", jobStart)
+		return
 	default:
-		e.failJob(ctx, jobID, userID, humanCollectMessage(err), "collection", jobStart)
+		e.failJob(ctx, jobID, userID, "Failed to collect export data", "collection", jobStart)
 		return
 	}
 
@@ -267,20 +271,18 @@ func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg, stage string,
 	}
 }
 
-// humanCollectMessage maps a wrapped provider-collection error, which the
-// fan-out shapes as "collect <name>: <cause>", to the user-facing
-// "Failed to collect <name> data" message without exposing the underlying
-// cause. Provider names never contain a colon, so the first one delimits the
-// name.
-func humanCollectMessage(err error) string {
-	name := "export"
-	if rest, ok := strings.CutPrefix(err.Error(), "collect "); ok {
-		if idx := strings.IndexByte(rest, ':'); idx != -1 {
-			name = rest[:idx]
-		}
-	}
-	return fmt.Sprintf("Failed to collect %s data", name)
+// collectError carries the failing provider's name alongside the underlying
+// cause, so the post-Wait switch recovers the name via errors.As instead of
+// round-tripping structured data through the error string. It unwraps to the
+// cause so errors.Is(err, context.DeadlineExceeded) still classifies timeouts.
+type collectError struct {
+	provider string
+	err      error
 }
+
+func (e *collectError) Error() string { return "collect " + e.provider + ": " + e.err.Error() }
+
+func (e *collectError) Unwrap() error { return e.err }
 
 // sanitizeError extracts a human-readable reason from an error without exposing internals.
 func sanitizeError(err error) string {

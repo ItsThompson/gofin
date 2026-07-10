@@ -201,22 +201,3 @@ func TestEngine_FanOut_FailurePersistsViaBackgroundContext(t *testing.T) {
 	assert.True(t, ctxLive, "failJob must use a fresh context that survives the expired job context")
 	assert.Equal(t, "Export timed out", msg)
 }
-
-// TestHumanCollectMessage covers the wrapped-error parsing directly, including
-// the defensive fallback when the error does not carry the expected prefix.
-func TestHumanCollectMessage(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want string
-	}{
-		{"wrapped provider error", fmt.Errorf("collect tags: %w", fmt.Errorf("boom")), "Failed to collect tags data"},
-		{"multi-word cause", fmt.Errorf("collect budget_periods: %w", context.DeadlineExceeded), "Failed to collect budget_periods data"},
-		{"no prefix falls back", fmt.Errorf("some other error"), "Failed to collect export data"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, humanCollectMessage(tt.err))
-		})
-	}
-}
