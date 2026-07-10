@@ -1,0 +1,47 @@
+# Baseline: Gateway ValidateToken validation path (P1)
+
+Captured on `main` **before** the bounded-timeout change (spec §05, ticket #2).
+
+## Happy-path allocations
+
+Benchmark: `BenchmarkValidateHappyPath`
+(`services/gateway/internal/access/bench_test.go`) exercises the full
+`AccessControl` validation path (strip headers → resolve → read cookie →
+`ValidateToken` → set identity headers → role check) on an Authenticated route
+with a valid token, via `gin` `ServeHTTP`.
+
+```
+$ cd services/gateway && go test -run '^$' -bench '^BenchmarkValidateHappyPath$' -benchmem -count=3 ./internal/access/
+goos: darwin
+goarch: arm64
+cpu: Apple M4 Pro
+BenchmarkValidateHappyPath-14    447820    2652 ns/op    8467 B/op    59 allocs/op
+BenchmarkValidateHappyPath-14    455296    2680 ns/op    8466 B/op    59 allocs/op
+BenchmarkValidateHappyPath-14    447896    2678 ns/op    8467 B/op    59 allocs/op
+```
+
+**Reference figure: ~59 allocs/op, ~8467 B/op.**
+
+Per the `services/perf` README, wall-clock ns/op and absolute allocs/op are
+same-machine references (arm64 dev here vs amd64 CI), not a CI gate. This path's
+regression guard is **behavioral** (see below), not an allocation count, so no
+`AssertMaxAllocs` bound is asserted for it.
+
+## The meaningful "before": no upper latency bound
+
+Before this change, `GRPCTokenValidator.ValidateToken` called
+`client.ValidateToken(ctx, …)` with **no `context.WithTimeout`**. The incoming
+request context carries no deadline of its own, so:
+
+- If the auth service **hangs** (as opposed to being down, which returns a fast
+  connection error), the gateway worker blocks on the validation RPC
+  **indefinitely** — it would never return until the client disconnects.
+- There was therefore **no upper bound** on validation latency on the hottest
+  path (every authenticated request). This is unbounded tail latency and a real
+  availability risk under the VPS's modest worker limits.
+
+There is no pre-change wall-clock number for a hang because a hang never
+returns. The "before" is the **absence of a bound**; the regression guard added
+with this change is the behavioral test asserting a hung/slow validator now
+returns `503` within `GATEWAY_VALIDATE_TIMEOUT` (default `3s`) plus a small
+margin, and that reverting the timeout wrap makes that test hang/fail.
