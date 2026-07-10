@@ -2,13 +2,16 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
@@ -582,36 +585,73 @@ func periodKey(year, month int32) [2]int32 { return [2]int32{year, month} }
 // monthOp is the CallCounter operation name for a period read.
 func monthOp(year, month int32) string { return fmt.Sprintf("%d-%02d", year, month) }
 
-// countingExpenseClient is a fake ExpenseClient shared by the dashboard fan-out
-// regression tests and benchmarks. It records one call per (year, month) through
-// an embedded *perf.CallCounter and can simulate per-read latency so benchmarks
-// show fan-out (max) rather than serial (sum) wall-clock. The regression tests
-// extend it with concurrency tracking and error injection.
+// countingExpenseClient is a concurrency-aware fake ExpenseClient shared by the
+// dashboard fan-out regression tests and benchmarks. It records one call per
+// (year, month) through an embedded *perf.CallCounter, tracks the maximum number
+// of reads in flight simultaneously (so the SetLimit bound can be asserted), can
+// inject per-period errors (exercising the goroutine error-wrapping path), and
+// can simulate per-read latency so benchmarks show fan-out (max) rather than
+// serial (sum) wall-clock. All methods are safe for concurrent use.
 type countingExpenseClient struct {
 	counter *perf.CallCounter
 	delay   time.Duration
 	byMonth map[[2]int32][]ExpenseData
+	errs    map[[2]int32]error
+
+	mu          sync.Mutex
+	inFlight    int
+	maxInFlight int
 }
 
 func newCountingExpenseClient() *countingExpenseClient {
 	return &countingExpenseClient{
 		counter: perf.NewCallCounter(),
 		byMonth: make(map[[2]int32][]ExpenseData),
+		errs:    make(map[[2]int32]error),
 	}
 }
 
 // set seeds the expenses returned for a period. Call before the fan-out runs;
-// the map is read-only during concurrent reads.
+// the maps are read-only during concurrent reads.
 func (c *countingExpenseClient) set(year, month int32, expenses []ExpenseData) {
 	c.byMonth[periodKey(year, month)] = expenses
 }
 
+// failOn makes the read for a period return err, exercising the goroutine
+// error-wrapping path. Call before the fan-out runs.
+func (c *countingExpenseClient) failOn(year, month int32, err error) {
+	c.errs[periodKey(year, month)] = err
+}
+
 func (c *countingExpenseClient) GetExpensesForPeriod(_ context.Context, _ string, year, month int32) ([]ExpenseData, error) {
 	c.counter.Record(monthOp(year, month))
+
+	c.mu.Lock()
+	c.inFlight++
+	if c.inFlight > c.maxInFlight {
+		c.maxInFlight = c.inFlight
+	}
+	c.mu.Unlock()
+
 	if c.delay > 0 {
 		time.Sleep(c.delay)
 	}
+
+	c.mu.Lock()
+	c.inFlight--
+	c.mu.Unlock()
+
+	if err := c.errs[periodKey(year, month)]; err != nil {
+		return nil, err
+	}
 	return c.byMonth[periodKey(year, month)], nil
+}
+
+// maxConcurrent reports the peak number of reads observed in flight at once.
+func (c *countingExpenseClient) maxConcurrent() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.maxInFlight
 }
 
 // CountExpensesByTag and CreateExpense are not used by the dashboard read paths;
@@ -647,4 +687,173 @@ func (r *fakeFanoutRepo) GetCurrentPeriod(_ context.Context, _ string, year, mon
 func newFanoutService(repo repository.FinanceRepository, exp ExpenseClient) *FinanceService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	return NewFinanceService(repo, nil, logger).WithExpenseClient(exp)
+}
+
+// --- GetSpendingTrends fan-out regression tests ---
+
+// TestGetSpendingTrends_FanOutByteIdentical seeds a full 2026 window with two
+// gaps (no period for April/September) and asserts the fan-out produces the
+// serial result: chronological order preserved, per-month aggregation correct,
+// gaps left as zero slots, exactly one read per non-nil period, and no read for
+// the gaps.
+func TestGetSpendingTrends_FanOutByteIdentical(t *testing.T) {
+	exp := newCountingExpenseClient()
+	var periods []*model.BudgetPeriod
+	nonNil := 0
+	for m := int32(12); m >= 1; m-- {
+		if m == 4 || m == 9 {
+			continue // gap: no BudgetPeriod for this month
+		}
+		nonNil++
+		periods = append(periods, &model.BudgetPeriod{
+			ID:                fmt.Sprintf("p-2026-%02d", m),
+			UserID:            "user-1",
+			Year:              2026,
+			Month:             m,
+			BudgetAmount:      300000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+		})
+		exp.set(2026, m, []ExpenseData{
+			{Amount: int64(m) * 1000, ExpenseType: "essentials"},
+			{Amount: int64(m) * 500, ExpenseType: "desires"},
+		})
+	}
+	svc := newFanoutService(&fakeFanoutRepo{periods: periods}, exp)
+
+	result, err := svc.GetSpendingTrends(context.Background(), "user-1", 2026, 12, 12)
+	require.NoError(t, err)
+	require.Len(t, result, 12)
+
+	for i := 0; i < 12; i++ {
+		month := int32(i + 1)
+		assert.Equal(t, int32(2026), result[i].Year)
+		assert.Equal(t, month, result[i].Month, "results must stay in chronological (index) order")
+		if month == 4 || month == 9 {
+			assert.Equal(t, int64(0), result[i].TotalSpent)
+			assert.Equal(t, int64(0), result[i].BudgetAmount)
+			assert.Equal(t, 0, exp.counter.Count(monthOp(2026, month)), "gap month must issue no read")
+			continue
+		}
+		assert.Equal(t, int64(month)*1500, result[i].TotalSpent)
+		assert.Equal(t, int64(month)*1000, result[i].EssentialsSpent)
+		assert.Equal(t, int64(month)*500, result[i].DesiresSpent)
+		assert.Equal(t, int64(300000), result[i].BudgetAmount)
+		assert.Equal(t, 1, exp.counter.Count(monthOp(2026, month)), "one read per non-nil period")
+	}
+	assert.Equal(t, nonNil, exp.counter.Total(), "total reads must equal the non-nil period count")
+}
+
+// TestGetSpendingTrends_FanOutRespectsLimit confirms the 12-wide window overlaps
+// reads (not serial) while never exceeding SetLimit(dashboardFanoutLimit).
+func TestGetSpendingTrends_FanOutRespectsLimit(t *testing.T) {
+	exp := newCountingExpenseClient()
+	exp.delay = 5 * time.Millisecond
+	svc := newFanoutService(&fakeFanoutRepo{periods: seedYearPeriods(exp)}, exp)
+
+	_, err := svc.GetSpendingTrends(context.Background(), "user-1", 2026, 12, 12)
+	require.NoError(t, err)
+
+	assert.LessOrEqual(t, exp.maxConcurrent(), dashboardFanoutLimit,
+		"in-flight reads must not exceed SetLimit(dashboardFanoutLimit)")
+	assert.Greater(t, exp.maxConcurrent(), 1, "reads should overlap (fan-out), not run serially")
+}
+
+// TestGetSpendingTrends_FanOutWrapsError confirms a per-month read failure is
+// surfaced with the period baked into the error (wrapped inside the goroutine).
+func TestGetSpendingTrends_FanOutWrapsError(t *testing.T) {
+	exp := newCountingExpenseClient()
+	exp.failOn(2026, 7, errors.New("boom"))
+	svc := newFanoutService(&fakeFanoutRepo{periods: seedYearPeriods(exp)}, exp)
+
+	_, err := svc.GetSpendingTrends(context.Background(), "user-1", 2026, 12, 12)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "2026-07", "error must name the failing period")
+	assert.Contains(t, err.Error(), "boom")
+}
+
+// --- GetHistoricalComparison fan-out regression tests ---
+
+func historicalRepo(periods []*model.BudgetPeriod) *fakeFanoutRepo {
+	return &fakeFanoutRepo{
+		periods: periods,
+		current: map[[2]int32]*model.BudgetPeriod{periodKey(periods[0].Year, periods[0].Month): periods[0]},
+	}
+}
+
+// TestGetHistoricalComparison_FanOutByteIdentical asserts the fan-out yields the
+// serial values (current/previous/change/rolling) while reading each distinct
+// needed period exactly once. The serial path read priorPeriods[0] twice; the
+// fan-out reads it once, and the unused 4th prior is never read.
+func TestGetHistoricalComparison_FanOutByteIdentical(t *testing.T) {
+	exp := newCountingExpenseClient()
+	periods := []*model.BudgetPeriod{
+		makePeriod("p12", 2026, 12),
+		makePeriod("p11", 2026, 11),
+		makePeriod("p10", 2026, 10),
+		makePeriod("p09", 2026, 9),
+		makePeriod("p08", 2026, 8),
+	}
+	exp.set(2026, 12, []ExpenseData{{Amount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{Amount: 70000}})
+	exp.set(2026, 10, []ExpenseData{{Amount: 60000}})
+	exp.set(2026, 9, []ExpenseData{{Amount: 50000}})
+	exp.set(2026, 8, []ExpenseData{{Amount: 40000}})
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.Equal(t, int64(80000), result.CurrentSpent)
+	assert.Equal(t, int64(70000), result.PreviousSpent)
+	require.NotNil(t, result.RollingAverage)
+	assert.Equal(t, int64(60000), *result.RollingAverage) // (70000+60000+50000)/3
+	assert.InDelta(t, 14.29, result.ChangePercent, 0.01)  // (80000-70000)/70000
+
+	assert.Equal(t, 1, exp.counter.Count(monthOp(2026, 12)))
+	assert.Equal(t, 1, exp.counter.Count(monthOp(2026, 11)), "priorPeriods[0] read once, not twice")
+	assert.Equal(t, 1, exp.counter.Count(monthOp(2026, 10)))
+	assert.Equal(t, 1, exp.counter.Count(monthOp(2026, 9)))
+	assert.Equal(t, 0, exp.counter.Count(monthOp(2026, 8)), "4th prior is never needed, never read")
+	assert.Equal(t, 4, exp.counter.Total(), "at most 4 distinct period reads")
+}
+
+// TestGetHistoricalComparison_FanOutRunsConcurrently confirms the current and
+// prior reads overlap while staying within the SetLimit bound.
+func TestGetHistoricalComparison_FanOutRunsConcurrently(t *testing.T) {
+	exp := newCountingExpenseClient()
+	exp.delay = 5 * time.Millisecond
+	periods := []*model.BudgetPeriod{
+		makePeriod("p12", 2026, 12), makePeriod("p11", 2026, 11),
+		makePeriod("p10", 2026, 10), makePeriod("p09", 2026, 9),
+	}
+	for m := int32(9); m <= 12; m++ {
+		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000}})
+	}
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	_, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.LessOrEqual(t, exp.maxConcurrent(), dashboardFanoutLimit)
+	assert.Greater(t, exp.maxConcurrent(), 1, "prior reads should overlap the current read")
+}
+
+// TestGetHistoricalComparison_FanOutWrapsError confirms a prior-period read
+// failure is surfaced with the period named (wrapped inside the goroutine).
+func TestGetHistoricalComparison_FanOutWrapsError(t *testing.T) {
+	exp := newCountingExpenseClient()
+	periods := []*model.BudgetPeriod{
+		makePeriod("p12", 2026, 12), makePeriod("p11", 2026, 11),
+		makePeriod("p10", 2026, 10), makePeriod("p09", 2026, 9),
+	}
+	for m := int32(9); m <= 12; m++ {
+		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000}})
+	}
+	exp.failOn(2026, 10, errors.New("upstream down"))
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	_, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "2026-10", "error must name the failing period")
+	assert.Contains(t, err.Error(), "upstream down")
 }
