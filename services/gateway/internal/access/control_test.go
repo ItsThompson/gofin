@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
@@ -306,6 +309,79 @@ func TestAccessControl_ValidationError_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 	assert.Contains(t, rec.Body.String(), "UNAUTHORIZED")
+}
+
+// --- 503 timeout mapping: a bounded-validation deadline is not a bad token ---
+
+// TestAccessControl_ValidationTimeout_Returns503 pins the key semantic split:
+// a ValidateToken error that is (or wraps) context.DeadlineExceeded, or that
+// carries a gRPC DeadlineExceeded status, maps to 503 SERVICE_UNAVAILABLE (the
+// auth dependency is unhealthy), distinct from the 401 for a genuine rejection.
+// Both detection prongs and the fmt.Errorf %w wrap the concrete validator adds
+// are covered.
+func TestAccessControl_ValidationTimeout_Returns503(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"raw context deadline", context.DeadlineExceeded},
+		{"wrapped context deadline", fmt.Errorf("auth service validation failed: %w", context.DeadlineExceeded)},
+		{"grpc deadline status", status.Error(codes.DeadlineExceeded, "context deadline exceeded")},
+		{"wrapped grpc deadline status", fmt.Errorf("auth service validation failed: %w", status.Error(codes.DeadlineExceeded, "context deadline exceeded"))},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			validator := &fakeValidator{err: tc.err}
+			engine := buildEngine(validator, silentLogger(), http.MethodGet, "/api/finance/periods", okHandler)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+			req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+			rec := httptest.NewRecorder()
+			engine.ServeHTTP(rec, req)
+
+			assert.Equal(t, http.StatusServiceUnavailable, rec.Code, "a validation deadline must map to 503")
+			assert.Contains(t, rec.Body.String(), "SERVICE_UNAVAILABLE")
+			assert.NotContains(t, rec.Body.String(), "UNAUTHORIZED", "a timeout must not be reported as an invalid token")
+		})
+	}
+}
+
+// TestAccessControl_NonDeadlineGRPCError_Returns401 proves only the deadline is
+// special-cased: every other gRPC status (here Unauthenticated) still returns
+// the unchanged 401 contract.
+func TestAccessControl_NonDeadlineGRPCError_Returns401(t *testing.T) {
+	validator := &fakeValidator{err: status.Error(codes.Unauthenticated, "invalid token")}
+	engine := buildEngine(validator, silentLogger(), http.MethodGet, "/api/finance/periods", okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+	req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "UNAUTHORIZED")
+}
+
+// TestAccessControl_ValidationTimeout_LogsWarningNamingAuth asserts the 503 path
+// emits a distinct warn log that names the auth dependency as the cause, so the
+// timeout is diagnosable separately from a 401.
+func TestAccessControl_ValidationTimeout_LogsWarningNamingAuth(t *testing.T) {
+	logger, buf := captureLogger()
+	validator := &fakeValidator{err: status.Error(codes.DeadlineExceeded, "context deadline exceeded")}
+	engine := buildEngine(validator, logger, http.MethodGet, "/api/finance/periods", okHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+	req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	entry := buf.lastEntry(t)
+	assert.Equal(t, "WARN", entry["level"])
+	assert.Equal(t, "auth validation timed out", entry["msg"])
+	assert.Equal(t, "auth", entry["dependency"])
+	assert.Equal(t, "/api/finance/periods", entry["path"])
 }
 
 // --- Warn logging on 401 and 403 ---

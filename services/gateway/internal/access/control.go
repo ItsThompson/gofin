@@ -1,10 +1,14 @@
 package access
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/access"
 )
@@ -76,6 +80,19 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 
 		result, err := validator.ValidateToken(c.Request.Context(), cookie.Value)
 		if err != nil {
+			// A bounded-timeout deadline means the auth dependency is unhealthy,
+			// not that the client's token is invalid: fail fast with 503 so the
+			// worker is freed, distinct from the 401 for a genuine rejection.
+			if isValidationTimeout(err) {
+				logger.Warn("auth validation timed out",
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+					slog.String("dependency", "auth"),
+					slog.String("error", err.Error()),
+				)
+				abortUnavailable(c)
+				return
+			}
 			logger.Warn("token validation failed",
 				slog.String("method", c.Request.Method),
 				slog.String("path", c.Request.URL.Path),
@@ -151,6 +168,33 @@ func abortUnauthorized(c *gin.Context, message string) {
 	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 		"code":    "UNAUTHORIZED",
 		"message": message,
+	})
+}
+
+// isValidationTimeout reports whether a ValidateToken error is the bounded
+// timeout tripping (a hung auth dependency) rather than a genuine auth
+// rejection. The gateway bounds the RPC with context.WithTimeout in the
+// concrete validator; a deadline surfaces either as a wrapped
+// context.DeadlineExceeded or as a gRPC DeadlineExceeded status, so both prongs
+// are checked. status.FromError unwraps the validator's fmt.Errorf %w wrap.
+// Every other error (including all other gRPC codes) stays a 401.
+func isValidationTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if st, ok := status.FromError(err); ok && st.Code() == codes.DeadlineExceeded {
+		return true
+	}
+	return false
+}
+
+// abortUnavailable ends the request with 503 SERVICE_UNAVAILABLE, used when the
+// auth dependency is unhealthy (validation timed out) rather than the client's
+// token being invalid.
+func abortUnavailable(c *gin.Context) {
+	c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
+		"code":    "SERVICE_UNAVAILABLE",
+		"message": "Authentication service unavailable",
 	})
 }
 

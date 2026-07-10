@@ -178,6 +178,21 @@ func (h *GRPCHandler) GetAllUserExpenses(ctx context.Context, req *pb.GetAllUser
 	}, nil
 }
 
+func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest, stream pb.ExpenseService_StreamAllUserExpensesServer) error {
+	err := h.expenseService.StreamAllUserExpenses(stream.Context(), req.GetUserId(), req.GetPageSize(), func(expense *model.Expense) error {
+		return stream.Send(expenseToProto(expense))
+	})
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(*service.ServiceError); ok {
+		return mapServiceError(err)
+	}
+	// Context cancellation and stream-send failures are already gRPC-meaningful;
+	// surface them directly rather than masking them as Internal.
+	return err
+}
+
 func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.AnonymizeRequest) (*pb.AnonymizeResponse, error) {
 	userID := req.GetUserId()
 	if userID == "" {
