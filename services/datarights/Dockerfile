@@ -15,6 +15,7 @@ COPY expense/go.mod expense/go.sum* ./expense/
 COPY finance/go.mod finance/go.sum* ./finance/
 COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
+COPY perf/go.mod ./perf/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd datarights && GOWORK=off go mod download
 
@@ -27,6 +28,7 @@ COPY expense/ ./expense/
 COPY finance/ ./finance/
 COPY healthcheck/ ./healthcheck/
 COPY metrics/ ./metrics/
+COPY perf/ ./perf/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
