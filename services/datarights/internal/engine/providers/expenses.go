@@ -2,7 +2,9 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
@@ -13,6 +15,10 @@ import (
 // Compile-time check that ExpensesProvider implements DataProvider.
 var _ engine.DataProvider = (*ExpensesProvider)(nil)
 
+// expensesPageSize is the server-side keyset page size requested from the
+// StreamAllUserExpenses RPC. It caps how many rows the server materializes per
+// page, so consuming the stream incrementally keeps peak memory at
+// O(expensesPageSize) instead of O(total rows).
 const expensesPageSize = 100
 
 // ExpensesProvider fetches all user expenses with pagination and resolves tag names.
@@ -47,21 +53,26 @@ func (p *ExpensesProvider) Headers() []string {
 	}
 }
 
-// Collect fetches all expenses for the user, resolves tag names, and returns formatted rows.
+// Collect streams every expense for the user in chronological order, resolves
+// tag names, and returns the formatted CSV rows.
+//
+// It consumes the StreamAllUserExpenses server stream and formats each row as it
+// arrives (see streamExpenses) rather than buffering the whole raw-proto history
+// first. The returned [][]string is the DataProvider contract the export engine
+// collects and hands to BuildZIP; a sink that writes each row onward keeps the
+// consumer itself at O(pageSize) (see the bounded-memory benchmark).
 func (p *ExpensesProvider) Collect(ctx context.Context, userID string) ([][]string, error) {
 	tagMap, err := p.buildTagMap(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching tags for name resolution: %w", err)
 	}
 
-	expenses, err := p.fetchAllExpenses(ctx, userID)
-	if err != nil {
+	var rows [][]string
+	if err := p.streamExpenses(ctx, userID, tagMap, func(row []string) error {
+		rows = append(rows, row)
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("fetching expenses: %w", err)
-	}
-
-	rows := make([][]string, 0, len(expenses))
-	for _, exp := range expenses {
-		rows = append(rows, p.formatRow(exp, tagMap))
 	}
 
 	return rows, nil
@@ -87,30 +98,46 @@ func (p *ExpensesProvider) buildTagMap(ctx context.Context, userID string) (map[
 	return tagMap, nil
 }
 
-// fetchAllExpenses paginates through all expenses for the user.
-func (p *ExpensesProvider) fetchAllExpenses(ctx context.Context, userID string) ([]*expensepb.ExpenseData, error) {
-	var allExpenses []*expensepb.ExpenseData
-	page := int32(1)
-
-	for {
-		resp, err := p.expenseClient.GetAllUserExpenses(ctx, &expensepb.GetAllUserExpensesRequest{
-			UserId:   userID,
-			Page:     page,
-			PageSize: expensesPageSize,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		allExpenses = append(allExpenses, resp.GetData()...)
-
-		if !resp.GetHasMore() {
-			break
-		}
-		page++
+// streamExpenses consumes the StreamAllUserExpenses server stream and invokes
+// emit once per expense, formatted into a CSV row via formatRow, in the order
+// the server sends them (chronological: created_at ASC, id ASC). It holds at
+// most one row in flight, so a sink that writes each row onward (an incremental
+// CSV/ZIP writer) keeps peak memory at O(pageSize) regardless of history size.
+//
+// The context is checked before each receive so a client disconnect or job
+// timeout stops the walk promptly; io.EOF ends the stream cleanly and any other
+// receive or emit error is propagated.
+func (p *ExpensesProvider) streamExpenses(
+	ctx context.Context,
+	userID string,
+	tagMap map[string]string,
+	emit func(row []string) error,
+) error {
+	stream, err := p.expenseClient.StreamAllUserExpenses(ctx, &expensepb.StreamAllUserExpensesRequest{
+		UserId:   userID,
+		PageSize: expensesPageSize,
+	})
+	if err != nil {
+		return err
 	}
 
-	return allExpenses, nil
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		exp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		if err := emit(p.formatRow(exp, tagMap)); err != nil {
+			return err
+		}
+	}
 }
 
 // formatRow converts a single expense into a CSV row with all transformations applied.

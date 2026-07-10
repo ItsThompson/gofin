@@ -64,7 +64,11 @@ func (s *stubAuthClient) GetUser(_ context.Context, _ *authpb.GetUserRequest, _ 
 	return s.user, nil
 }
 
-// stubExpenseClient serves canned expense pages for the expenses provider.
+// stubExpenseClient serves canned expenses to the expenses provider. The
+// provider consumes StreamAllUserExpenses, so the canned pages are flattened
+// into a single ordered server stream (the byte-identical fixture relies on the
+// stream preserving the pages' chronological order). GetAllUserExpenses is kept
+// only to satisfy the interface; it is no longer called.
 type stubExpenseClient struct {
 	expensepb.ExpenseServiceClient
 	pages []*expensepb.ExpenseListResponse
@@ -78,6 +82,32 @@ func (s *stubExpenseClient) GetAllUserExpenses(_ context.Context, _ *expensepb.G
 	resp := s.pages[s.calls]
 	s.calls++
 	return resp, nil
+}
+
+func (s *stubExpenseClient) StreamAllUserExpenses(_ context.Context, _ *expensepb.StreamAllUserExpensesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[expensepb.ExpenseData], error) {
+	var rows []*expensepb.ExpenseData
+	for _, page := range s.pages {
+		rows = append(rows, page.GetData()...)
+	}
+	return &fakeExpenseStream{rows: rows}, nil
+}
+
+// fakeExpenseStream is the client side of a StreamAllUserExpenses server stream.
+// The embedded nil grpc.ClientStream supplies the methods the consumer never
+// calls; only Recv is exercised.
+type fakeExpenseStream struct {
+	grpc.ClientStream
+	rows []*expensepb.ExpenseData
+	idx  int
+}
+
+func (f *fakeExpenseStream) Recv() (*expensepb.ExpenseData, error) {
+	if f.idx >= len(f.rows) {
+		return nil, io.EOF
+	}
+	row := f.rows[f.idx]
+	f.idx++
+	return row, nil
 }
 
 // buildRealProviders returns the export provider set in registration/ZIP order:
