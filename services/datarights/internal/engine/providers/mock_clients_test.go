@@ -131,12 +131,6 @@ func (m *mockExpenseServiceClient) StreamAllUserExpenses(_ context.Context, req 
 	return &fakeExpenseStream{rows: m.streamRows, recvErr: m.recvErr, recvErrAt: m.recvErrAt}, nil
 }
 
-// GetAllUserExpenses is retained only to satisfy the ExpenseServiceClient
-// interface; the expenses provider no longer calls the paged unary RPC.
-func (m *mockExpenseServiceClient) GetAllUserExpenses(_ context.Context, _ *expensepb.GetAllUserExpensesRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	return &expensepb.ExpenseListResponse{}, nil
-}
-
 // Implement remaining interface methods as no-ops.
 func (m *mockExpenseServiceClient) CreateExpense(_ context.Context, _ *expensepb.CreateExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil

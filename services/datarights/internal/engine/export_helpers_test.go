@@ -67,21 +67,10 @@ func (s *stubAuthClient) GetUser(_ context.Context, _ *authpb.GetUserRequest, _ 
 // stubExpenseClient serves canned expenses to the expenses provider. The
 // provider consumes StreamAllUserExpenses, so the canned pages are flattened
 // into a single ordered server stream (the byte-identical fixture relies on the
-// stream preserving the pages' chronological order). GetAllUserExpenses is kept
-// only to satisfy the interface; it is no longer called.
+// stream preserving the pages' chronological order).
 type stubExpenseClient struct {
 	expensepb.ExpenseServiceClient
 	pages []*expensepb.ExpenseListResponse
-	calls int
-}
-
-func (s *stubExpenseClient) GetAllUserExpenses(_ context.Context, _ *expensepb.GetAllUserExpensesRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	if s.calls >= len(s.pages) {
-		return &expensepb.ExpenseListResponse{}, nil
-	}
-	resp := s.pages[s.calls]
-	s.calls++
-	return resp, nil
 }
 
 func (s *stubExpenseClient) StreamAllUserExpenses(_ context.Context, _ *expensepb.StreamAllUserExpensesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[expensepb.ExpenseData], error) {

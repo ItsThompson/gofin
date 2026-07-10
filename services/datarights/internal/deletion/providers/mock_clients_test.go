@@ -116,9 +116,6 @@ func (m *mockExpenseClient) GetExpense(_ context.Context, _ *expensepb.GetExpens
 func (m *mockExpenseClient) CountExpensesByTag(_ context.Context, _ *expensepb.CountExpensesByTagRequest, _ ...grpc.CallOption) (*expensepb.CountExpensesByTagResponse, error) {
 	return nil, nil
 }
-func (m *mockExpenseClient) GetAllUserExpenses(_ context.Context, _ *expensepb.GetAllUserExpensesRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	return nil, nil
-}
 func (m *mockExpenseClient) CorrectExpense(_ context.Context, _ *expensepb.CorrectExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil
 }
