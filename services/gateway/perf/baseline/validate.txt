@@ -45,3 +45,39 @@ returns. The "before" is the **absence of a bound**; the regression guard added
 with this change is the behavioral test asserting a hung/slow validator now
 returns `503` within `GATEWAY_VALIDATE_TIMEOUT` (default `3s`) plus a small
 margin, and that reverting the timeout wrap makes that test hang/fail.
+
+## Scope of the bound: a hang backstop, not p99 tail control
+
+`GATEWAY_VALIDATE_TIMEOUT` (default `3s`, `internal/config/config.go`) is a
+hung-dependency / availability **backstop**. It bounds the catastrophic-hang
+tail: a healthy `ValidateToken` runs in low single-digit milliseconds, so at
+`3s` the bound never trips in normal operation and only fires when the auth
+dependency is effectively hung.
+
+This is deliberately NOT p99/tail-latency control in the "Tail at Scale" sense.
+Trimming the p99 tail toward the auth service's measured P99 (research §D.1
+suggests a 100-300 ms starting point, near the auth P99) is explicitly OUT OF
+SCOPE for P1 and left as possible future work once that percentile is measured
+against `04-measurement-and-baselining.md`. The earlier "audit's 2-5s band"
+framing is superseded: `3s` is a hang backstop, not a percentile-derived bound.
+The default value is left unchanged by this review: tightening an
+auth-validation timeout is a production behavioral change that risks spurious
+fail-closed 503s and needs measured auth P99 data first.
+
+The knob is validated to be positive (non-positive is rejected). There is no
+hard upper clamp, but a value above `maxRecommendedValidateTimeout` (`30s`)
+defeats the backstop's purpose (it re-introduces the near-unbounded tail) and is
+logged as a warning at load, so a `1h`-style typo is visible.
+
+## Metrics on the 503 timeout path: deliberately deferred
+
+The fail-closed timeout path (`internal/access/control.go`, the `503` warn) is
+log-only. It emits a distinct `dependency=auth` warn ("auth validation timed
+out") and no counter/metric, so the timeout is diagnosable via that log event,
+which names auth as the cause and is separable from the `401` warn.
+
+Adding a metric for the `DeadlineExceeded` failure class (research §D.3 calls for
+distinguishing `DeadlineExceeded` (auth slow) from `Unauthenticated` (auth said
+no) in metrics) is a deliberate OUT-OF-SCOPE deferral per spec §04/§12: this epic
+adds no new metrics, and the `access` middleware emits none today, so this is a
+pre-existing convention rather than a P1 regression. No metric code is added.
