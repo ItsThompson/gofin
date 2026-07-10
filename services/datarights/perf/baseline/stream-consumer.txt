@@ -1,14 +1,14 @@
 # gofin perf baseline
-path: datarights/stream-consumer  (expenses export stream cutover, P3b)
-captured_against: ft/latency-refactor @ post-#5/#7 (pre-consumer-cutover buffered shape vs streamed shape)
+path: datarights/stream-consumer  (expenses export stream cutover)
+captured_against: ft/latency-refactor (buffered shape vs streamed shape)
 machine: Apple M4 Pro, 14 cores, macOS  (wall-clock / B/op are same-machine references only)
 date: 2026-07-10
 
 # What changed
-# Before (#7 landed the streaming RPC but the datarights consumer still buffered):
+# Before (StreamAllUserExpenses RPC existed but the datarights consumer still buffered):
 #   ExpensesProvider fetched every page of the unary GetAllUserExpenses RPC into
 #   one []*ExpenseData slice, then formatted all rows -> peak memory O(total rows).
-# After (this ticket): ExpensesProvider consumes StreamAllUserExpenses via a
+# After: ExpensesProvider consumes StreamAllUserExpenses via a
 #   Recv() loop and emits each formatted row to a sink as it arrives. Given a sink
 #   that writes each row onward (an incremental CSV/ZIP writer) the consumer
 #   retains nothing -> peak memory O(pageSize).
@@ -18,7 +18,7 @@ date: 2026-07-10
 #   that primitive with an append sink to satisfy the DataProvider [][]string
 #   contract, and the export engine buffers each provider's rows before BuildZIP,
 #   so END-TO-END export memory stays O(total rows) until a follow-up engine-level
-#   streaming cutover. This ticket bounds and proves the *consumer primitive*;
+#   streaming cutover. This baseline bounds and proves the *consumer primitive*;
 #   the metric must not be read as an end-to-end production figure.
 
 # Environment-independent structural signal (gated in test-backend CI):
@@ -30,7 +30,7 @@ date: 2026-07-10
 # Retained heap bytes (discarding CSV sink; GC-fenced HeapAlloc delta):
 #   streamed[rows=1000]:    0        # O(pageSize): retains nothing
 #   streamed[rows=50000]:   0        # FLAT as rows grow 50x  -> the memory bound
-#   buffered[rows=50000]:   ~2.1 MB  # O(total rows): the pre-cutover shape
+#   buffered[rows=50000]:   ~2.1 MB  # O(total rows): the old buffered shape
 #   assertion bound:        512 KB   # max(streamed_small, 64KB) * 8
 
 # Wall-clock / total-allocation reference (same-machine only, NOT a threshold).
@@ -40,7 +40,7 @@ date: 2026-07-10
 #   rows=1000:    ~11.2 ms/op    284664 B/op      4007 allocs/op
 #   rows=50000:  ~702.4 ms/op  14007556 B/op    200011 allocs/op
 
-# Byte-identical export guarantee (US-RD-03 / US-EXP-01):
-#   The streamed CSV is byte-identical to the pre-cutover output for the same
+# Byte-identical export guarantee:
+#   The streamed CSV is byte-identical to the buffered-consumer output for the same
 #   seeded data (same rows, chronological created_at ASC with the id tiebreaker),
 #   guarded by TestExportProviders_CSVByteIdentical in internal/engine.

@@ -123,8 +123,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	// Collect from every provider concurrently. The providers are independent
 	// and read-only, so each goroutine writes only its own pre-assigned index in
 	// csvFiles; this makes collection latency max(providers) instead of sum while
-	// keeping ZIP order deterministic (the factory's slice order). See spec §09
-	// for the shared fan-out contract.
+	// keeping ZIP order deterministic (the factory's slice order).
 	csvFiles := make([]CSVFile, len(providerSet))
 	g, gctx := errgroup.WithContext(ctx)
 	for i, provider := range providerSet {

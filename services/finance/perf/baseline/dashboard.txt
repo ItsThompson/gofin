@@ -1,5 +1,5 @@
 # gofin perf baseline
-path: finance/dashboard  (GetSpendingTrends + GetHistoricalComparison, P4a fan-out)
+path: finance/dashboard  (GetSpendingTrends + GetHistoricalComparison, fan-out)
 captured_against: main @ 8baca69  (pre-optimization: serial GetExpensesForPeriod reads)
 machine: Apple M4 Pro, 14 cores, macOS 26.3.1  (wall-clock reference only, arm64)
 go: go1.26.2

@@ -116,7 +116,7 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 
 	// Fetch expenses for each month and build input arrays for the pure function.
 	// The per-month reads are independent and write only their own index slot, so
-	// they fan out under a bounded errgroup (see spec §09); the pure
+	// they fan out under a bounded errgroup; the pure
 	// ComputeSpendingTrends aggregation runs after the g.Wait() barrier.
 	periodSlice := make([]*model.BudgetPeriod, len(window))
 	expenseSlice := make([][]ExpenseData, len(window))

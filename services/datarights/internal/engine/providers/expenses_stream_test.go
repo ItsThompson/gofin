@@ -101,19 +101,19 @@ func retainedHeapBytes(build func() any) uint64 {
 	return after.HeapAlloc - before.HeapAlloc
 }
 
-// TestExpensesProvider_StreamedConsumptionIsMemoryBounded is the US-RD-03
-// bounded-allocation growth-ratio regression. It measures the streamExpenses
+// TestExpensesProvider_StreamedConsumptionIsMemoryBounded is the bounded-allocation
+// growth-ratio regression. It measures the streamExpenses
 // primitive paired with a non-buffering sink: given a sink that writes each row
 // onward (an incremental ZIP writer), the primitive retains nothing, so its peak
 // memory stays O(pageSize) as the row count grows 50x. The buffered contrast
-// (append every formatted row, as the pre-cutover consumer did) retains O(N) and
-// blows past the bound, so reverting the cutover fails this test.
+// (append every formatted row, as the old buffered consumer did) retains O(N) and
+// blows past the bound, so reverting to buffered collection fails this test.
 //
 // This bound is a property of the primitive + sink, NOT of production Collect:
 // Collect adapts the primitive with an append sink to satisfy the DataProvider
 // [][]string contract, so it (and thus the export engine, which buffers each
-// provider before BuildZIP) stays O(total) until the follow-up engine-level
-// streaming cutover. See perf/baseline/stream-consumer.txt.
+// provider before BuildZIP) stays O(total) until the export engine is changed
+// to stream directly to the ZIP writer. See perf/baseline/stream-consumer.txt.
 func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 	const (
 		smallRows           = 1000
@@ -148,7 +148,7 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 				out = append(out, row)
 				return nil
 			}))
-			return out // retains O(N): the pre-cutover buffer-all shape
+			return out // retains O(N): the old buffer-all shape
 		}
 	}
 
@@ -165,7 +165,7 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 		"streamed consumption must stay O(pageSize): retained %d bytes at %d rows vs %d at %d rows (bound %d)",
 		largeStreamed, largeRows, smallStreamed, smallRows, bound)
 
-	// Guard: the buffered (pre-cutover) shape must exceed the bound, proving the
+	// Guard: the old buffered shape must exceed the bound, proving the
 	// assertion above actually distinguishes streaming from buffering.
 	largeBuffered := retainedHeapBytes(buffered(largeRows))
 
@@ -179,7 +179,7 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 
 // TestExpensesProvider_StreamCancellation_StopsPromptly verifies a mid-stream
 // cancellation stops the consumer immediately rather than draining the rest of
-// the stream, honoring the streaming-correctness contract's ctx.Done() rule.
+// the stream.
 func TestExpensesProvider_StreamCancellation_StopsPromptly(t *testing.T) {
 	const total = 1000
 	tagMap := streamTagMap()

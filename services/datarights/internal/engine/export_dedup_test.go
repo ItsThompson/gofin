@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestExport_DedupesFinanceCalls is the P2a efficiency regression assertion: a
+// TestExport_DedupesFinanceCalls is the export finance-call deduplication regression: a
 // full export must hit finance for GetAllUserData at most once and never call
 // ListTags. It runs the real provider set through the engine with a finance spy
 // as the raw client; the engine wraps it in a per-job MemoizedFinanceClient.

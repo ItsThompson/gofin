@@ -42,8 +42,8 @@ func providerCSV(t testing.TB, p engine.DataProvider) []byte {
 	return content
 }
 
-// TestExportProviders_CSVByteIdentical guards the US-EXP-01 byte-identical
-// guarantee: every provider's CSV output (headers + rows) for a fixed input
+// TestExportProviders_CSVByteIdentical guards the byte-identical export guarantee:
+// every provider's CSV output (headers + rows) for a fixed input
 // must match the committed pre-dedup fixture. Regenerate with `-update`.
 func TestExportProviders_CSVByteIdentical(t *testing.T) {
 	auth := &stubAuthClient{user: cannedUser()}
@@ -67,8 +67,9 @@ func TestExportProviders_CSVByteIdentical(t *testing.T) {
 }
 
 // BenchmarkExportCollection measures serial collection across the full provider
-// set and logs the finance call shape per export. Collection is serial in this
-// ticket (the errgroup fan-out is a later slice). The finance client is wrapped
+// set and logs the finance call shape per export. Collection runs serially here
+// to isolate the deduplication shape; BenchmarkEngineCollectionFanout measures
+// fan-out latency. The finance client is wrapped
 // in a per-job MemoizedFinanceClient exactly as engine.execute does, so this
 // records the deduped shape: GetAllUserData=1, ListTags=0 (down from the
 // committed pre-dedup baseline of GetAllUserData=3 + ListTags=1).

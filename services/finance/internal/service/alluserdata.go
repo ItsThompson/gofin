@@ -14,7 +14,7 @@ import (
 // Used by the datarights service for GDPR data export.
 //
 // The three repository reads are independent, so they run concurrently under a
-// bounded errgroup (see spec §09); each goroutine writes its own distinct
+// bounded errgroup; each goroutine writes its own distinct
 // variable (the writes are disjoint by construction, not shared slice slots).
 // Nil-slice normalization and result assembly run after the g.Wait() barrier, so
 // the output is identical to the serial version. The bound (dashboardFanoutLimit,

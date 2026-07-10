@@ -127,9 +127,9 @@ func cannedUser() *authpb.UserResponse {
 	}
 }
 
-// cannedTags is the shared tag set. The byte-identical guarantee (US-EXP-01)
-// rests on ListTags and GetAllUserData().GetTags() returning this same set, so
-// both canned responses are built from it.
+// cannedTags is the shared tag set. The byte-identical export guarantee rests on
+// ListTags and GetAllUserData().GetTags() returning this same set, so both
+// canned responses are built from it.
 func cannedTags() []*financepb.TagData {
 	return []*financepb.TagData{
 		{Id: "tag-1", Name: "Food", IsDefault: true, CreatedAt: "2025-06-01T10:00:00Z"},
