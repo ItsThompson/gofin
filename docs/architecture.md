@@ -270,8 +270,8 @@ sequenceDiagram
     DR->>P: UPDATE status=running
     DR->>A: gRPC: GetUser (profile + email)
     A-->>DR: user profile
-    DR->>E: gRPC: GetAllUserExpenses (paginated)
-    E-->>DR: expense data
+    DR->>E: gRPC: StreamAllUserExpenses (server-streaming)
+    E-->>DR: stream expense rows (Recv loop, written incrementally)
     DR->>F: gRPC: GetAllUserData (tags, periods, defaults)
     F-->>DR: finance data
     DR->>DR: Generate CSVs + ZIP
