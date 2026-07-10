@@ -67,15 +67,20 @@ func (p *ExpensesProvider) Collect(ctx context.Context, userID string) ([][]stri
 	return rows, nil
 }
 
-// buildTagMap fetches all tags for the user and returns a map of tag ID to tag name.
+// buildTagMap fetches the user's tags and returns a map of tag ID to tag name.
+// It derives the tag map from GetAllUserData().GetTags() (shared with the tags,
+// budget_periods, and default_settings providers via the per-job memoized
+// finance client) instead of a separate ListTags call, so the export hits
+// finance once for this data.
 func (p *ExpensesProvider) buildTagMap(ctx context.Context, userID string) (map[string]string, error) {
-	resp, err := p.financeClient.ListTags(ctx, &financepb.ListTagsRequest{UserId: userID})
+	resp, err := p.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
 	if err != nil {
 		return nil, err
 	}
 
-	tagMap := make(map[string]string, len(resp.GetTags()))
-	for _, tag := range resp.GetTags() {
+	tags := resp.GetTags()
+	tagMap := make(map[string]string, len(tags))
+	for _, tag := range tags {
 		tagMap[tag.GetId()] = tag.GetName()
 	}
 

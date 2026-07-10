@@ -68,15 +68,16 @@ func TestExportProviders_CSVByteIdentical(t *testing.T) {
 
 // BenchmarkExportCollection measures serial collection across the full provider
 // set and logs the finance call shape per export. Collection is serial in this
-// ticket (the errgroup fan-out is a later slice), so this records the dedup
-// story: pre-dedup the finance client is hit GetAllUserData=3 + ListTags=1;
-// post-dedup, wrapping the client in a MemoizedFinanceClient collapses that to
-// GetAllUserData=1 + ListTags=0.
+// ticket (the errgroup fan-out is a later slice). The finance client is wrapped
+// in a per-job MemoizedFinanceClient exactly as engine.execute does, so this
+// records the deduped shape: GetAllUserData=1, ListTags=0 (down from the
+// committed pre-dedup baseline of GetAllUserData=3 + ListTags=1).
 func BenchmarkExportCollection(b *testing.B) {
 	auth := &stubAuthClient{user: cannedUser()}
 
 	observed := newFinanceSpy(cannedAllUserData(), cannedTagList())
-	collectAll(b, buildRealProviders(auth, &stubExpenseClient{pages: cannedExpensePages()}, observed))
+	observedFC := engine.NewMemoizedFinanceClient(observed)
+	collectAll(b, buildRealProviders(auth, &stubExpenseClient{pages: cannedExpensePages()}, observedFC))
 	b.Logf("finance calls per export: GetAllUserData=%d ListTags=%d total=%d",
 		observed.Count("GetAllUserData"), observed.Count("ListTags"), observed.Total())
 
@@ -84,8 +85,9 @@ func BenchmarkExportCollection(b *testing.B) {
 	b.ResetTimer()
 	for b.Loop() {
 		finance := newFinanceSpy(cannedAllUserData(), cannedTagList())
+		fc := engine.NewMemoizedFinanceClient(finance)
 		expense := &stubExpenseClient{pages: cannedExpensePages()}
-		collectAll(b, buildRealProviders(auth, expense, finance))
+		collectAll(b, buildRealProviders(auth, expense, fc))
 	}
 }
 

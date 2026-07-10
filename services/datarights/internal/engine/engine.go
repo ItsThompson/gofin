@@ -10,21 +10,32 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
+	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
+
+// ProviderFactory builds a fresh set of data providers for a single export job,
+// injecting the finance client the finance-backed providers should share. The
+// factory closes over the non-finance clients (auth, expense) at startup; the
+// finance client is supplied per job so each job gets its own memoized instance.
+type ProviderFactory func(finance financepb.FinanceServiceClient) []DataProvider
 
 // Engine manages a bounded pool of export workers.
 type Engine struct {
-	registry *ProviderRegistry
-	repo     repository.JobRepository
-	sender   email.Sender
-	sem      chan struct{}
-	logger   *slog.Logger
-	timeout  time.Duration
+	newProviders  ProviderFactory
+	financeClient financepb.FinanceServiceClient
+	repo          repository.JobRepository
+	sender        email.Sender
+	sem           chan struct{}
+	logger        *slog.Logger
+	timeout       time.Duration
 }
 
-// NewEngine creates an export engine with bounded concurrency.
+// NewEngine creates an export engine with bounded concurrency. newProviders
+// builds a fresh provider set per job; financeClient is the raw finance client
+// wrapped in a per-job MemoizedFinanceClient before being handed to the factory.
 func NewEngine(
-	registry *ProviderRegistry,
+	newProviders ProviderFactory,
+	financeClient financepb.FinanceServiceClient,
 	repo repository.JobRepository,
 	sender email.Sender,
 	maxConcurrent int,
@@ -32,12 +43,13 @@ func NewEngine(
 	logger *slog.Logger,
 ) *Engine {
 	return &Engine{
-		registry: registry,
-		repo:     repo,
-		sender:   sender,
-		sem:      make(chan struct{}, maxConcurrent),
-		logger:   logger,
-		timeout:  timeout,
+		newProviders:  newProviders,
+		financeClient: financeClient,
+		repo:          repo,
+		sender:        sender,
+		sem:           make(chan struct{}, maxConcurrent),
+		logger:        logger,
+		timeout:       timeout,
 	}
 }
 
@@ -99,9 +111,16 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 		return
 	}
 
-	// Collect data from all providers
+	// Build a fresh provider set for this job. The finance-backed providers
+	// share one per-job MemoizedFinanceClient, so GetAllUserData is fetched at
+	// most once; a fresh instance per job prevents cross-user data leakage.
+	fc := NewMemoizedFinanceClient(e.financeClient)
+	providerSet := e.newProviders(fc)
+
+	// Collect data from all providers. Collection is serial in this slice; the
+	// registration/ZIP order is the factory's slice order.
 	var csvFiles []CSVFile
-	for _, provider := range e.registry.All() {
+	for _, provider := range providerSet {
 		// Check context before each provider
 		if err := ctx.Err(); err != nil {
 			e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)

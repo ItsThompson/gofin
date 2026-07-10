@@ -31,7 +31,7 @@ func TestExpensesProvider_Headers(t *testing.T) {
 
 func TestExpensesProvider_Collect_Success(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{
+		getAllUserDataResp: &financepb.AllUserDataResponse{
 			Tags: []*financepb.TagData{
 				{Id: "tag-1", Name: "Food"},
 				{Id: "tag-2", Name: "Transport"},
@@ -79,7 +79,7 @@ func TestExpensesProvider_Collect_Success(t *testing.T) {
 
 func TestExpensesProvider_Collect_ProRataExpense(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{
+		getAllUserDataResp: &financepb.AllUserDataResponse{
 			Tags: []*financepb.TagData{
 				{Id: "tag-1", Name: "Rent"},
 			},
@@ -129,7 +129,7 @@ func TestExpensesProvider_Collect_ProRataExpense(t *testing.T) {
 
 func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{
+		getAllUserDataResp: &financepb.AllUserDataResponse{
 			Tags: []*financepb.TagData{}, // No tags
 		},
 	}
@@ -167,7 +167,7 @@ func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
 
 func TestExpensesProvider_Collect_Pagination(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{
+		getAllUserDataResp: &financepb.AllUserDataResponse{
 			Tags: []*financepb.TagData{
 				{Id: "tag-1", Name: "Food"},
 			},
@@ -205,7 +205,7 @@ func TestExpensesProvider_Collect_Pagination(t *testing.T) {
 
 func TestExpensesProvider_Collect_EmptyData(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{Tags: []*financepb.TagData{}},
+		getAllUserDataResp: &financepb.AllUserDataResponse{Tags: []*financepb.TagData{}},
 	}
 
 	expenseClient := &mockExpenseServiceClient{
@@ -223,7 +223,7 @@ func TestExpensesProvider_Collect_EmptyData(t *testing.T) {
 
 func TestExpensesProvider_Collect_ExpenseServiceError(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{Tags: []*financepb.TagData{}},
+		getAllUserDataResp: &financepb.AllUserDataResponse{Tags: []*financepb.TagData{}},
 	}
 
 	expenseClient := &mockExpenseServiceClient{
@@ -240,7 +240,7 @@ func TestExpensesProvider_Collect_ExpenseServiceError(t *testing.T) {
 
 func TestExpensesProvider_Collect_TagServiceError(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsErr: fmt.Errorf("service unavailable"),
+		getAllUserDataErr: fmt.Errorf("service unavailable"),
 	}
 
 	expenseClient := &mockExpenseServiceClient{}
@@ -255,7 +255,7 @@ func TestExpensesProvider_Collect_TagServiceError(t *testing.T) {
 
 func TestExpensesProvider_Collect_CorrectedExpense(t *testing.T) {
 	financeClient := &mockFinanceServiceClient{
-		listTagsResp: &financepb.TagListResponse{
+		getAllUserDataResp: &financepb.AllUserDataResponse{
 			Tags: []*financepb.TagData{{Id: "tag-1", Name: "Food"}},
 		},
 	}
