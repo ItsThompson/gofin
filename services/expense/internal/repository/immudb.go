@@ -54,7 +54,10 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_prorata_group ON expenses (pro_rata_group);`,
-		`CREATE INDEX IF NOT EXISTS idx_expenses_user_created ON expenses (user_id, created_at);`,
+		// Covers the keyset export seek: the (created_at, id) tiebreaker column is
+		// included so the index matches the full ORDER BY created_at ASC, id ASC
+		// tuple and rows tied on created_at seek instead of scanning+sorting.
+		`CREATE INDEX IF NOT EXISTS idx_expenses_user_created_id ON expenses (user_id, created_at, id);`,
 	}
 
 	for _, idx := range indexes {
