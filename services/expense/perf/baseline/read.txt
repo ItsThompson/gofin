@@ -22,9 +22,22 @@ data_queries_per_export:   OFFSET = P     |   keyset = P   (one data query per p
 uses_OFFSET:               OFFSET = yes   |   keyset = no
 
 # rows scanned across a full export (execution property of the real database;
-# analytical, confirmed against real immudb by the integration test):
+# analytical -- see the EXPLAIN note below):
 rows_scanned_total:        OFFSET = O(P^2 * pageSize)   (each page rescans+discards prior pages)
                            keyset = O(P   * pageSize)   (seek past cursor, no rescan)
+#
+# The keyset seek is index-backed by idx_expenses_user_created_id
+# (user_id, created_at, id), which matches the full ORDER BY created_at ASC,
+# id ASC tuple so rows tied on created_at seek rather than scan+sort.
+#
+# EXPLAIN note: immudb 1.11.0 exposes no EXPLAIN / query-plan statement (its
+# 1.11.0 verification helpers are immudb_state / immudb_verify_row /
+# immudb_verify_tx / immudb_history -- none surface a plan), so the O(P)
+# rows-scanned property cannot be asserted via a range-seek EXPLAIN on the
+# pinned version. It is therefore analytical, backed by the covering index
+# above. The integration test (keyset_integration_test.go, -tags integration)
+# confirms what IS observable against real immudb: keyset ordering across a
+# shared-created_at boundary and the absence of OFFSET -- not scan cost.
 
 # ---------------------------------------------------------------------------
 # Structural scaling curve  (portable: query/count shape, not wall-clock)
@@ -42,25 +55,27 @@ rows_scanned_total:        OFFSET = O(P^2 * pageSize)   (each page rescans+disca
 # (hasMore comes from the pageSize+1 overflow row) and never rescans -> O(P).
 
 # ---------------------------------------------------------------------------
-# Wall-clock reference (same-machine only, NOT a threshold, NOT the scan curve)
+# Wall-clock: intentionally NOT committed
 #
-# CAUTION: these ns/op and allocs are from the recording-mock harness (Go-side
-# loop overhead + mock row materialization). The mock returns canned rows and
-# CANNOT reproduce OFFSET's real O(P^2) disk-scan cost, so it is NOT evidence of
-# the DB-level win. The real O(P^2) -> O(P) wall-clock curve is captured against
-# the pinned codenotary/immudb:1.11.0 container by the integration test
-# (internal/repository/keyset_integration_test.go, `-tags integration`), which
-# also confirms keyset ordering and the absence of OFFSET.
+# The recording-mock harness (BenchmarkExportExpenseRead) returns canned rows
+# and re-sorts/filters the whole dataset per page, so its ns/op showed keyset
+# SLOWER than the OFFSET path -- the wrong direction. It cannot reproduce
+# OFFSET's real O(P^2) disk-scan cost, so mock wall-clock is not DB-level
+# evidence and is deliberately omitted (a wrong-direction number is worse than
+# none). The durable regression signals are the query-shape/count assertions
+# above; CI asserts those (linear query-count growth, zero COUNT, no OFFSET),
+# never absolute ns/op or allocs.
 #
-#  BenchmarkExportExpenseRead/OFFSET/P=1     ~17.6 us/op
-#  BenchmarkExportExpenseRead/OFFSET/P=10    ~229  us/op
-#  BenchmarkExportExpenseRead/OFFSET/P=50    ~2.63 ms/op
-#  BenchmarkExportExpenseRead/OFFSET/P=100   ~8.95 ms/op
-#  BenchmarkExportExpenseRead/Keyset/P=1     ~17.1 us/op
-#  BenchmarkExportExpenseRead/Keyset/P=10    ~251  us/op
-#  BenchmarkExportExpenseRead/Keyset/P=50    ~3.04 ms/op
-#  BenchmarkExportExpenseRead/Keyset/P=100   ~11.4 ms/op
+# The real O(P^2) -> O(P) timing curve is only observable against the pinned
+# codenotary/immudb:1.11.0 container; capture it there if a wall-clock
+# reference is needed (the mock cannot stand in for it).
 #
-# (arm64 dev vs amd64 CI: committed absolute allocs/ns are documentation only;
-#  CI asserts query-shape/count and linear query-count growth, never these
-#  absolutes -- see §04 architecture caveat.)
+# Memory (O(pageSize) retained heap): the portable corroboration is the
+# datarights streaming-consumer growth-ratio test
+# (services/datarights/internal/engine/providers/expenses_stream_test.go, with
+# baseline services/datarights/perf/baseline/stream-consumer.txt), which fences
+# peak retained heap across two row counts. An -alloc_space pprof of the mock
+# keyset walk is NOT committed: it is dominated (>90%) by the mock's own
+# SQLQuery/row-materialization allocations, not the production streaming path,
+# so it would mislead the same way the mock wall-clock does. A real pprof
+# requires the live immudb transport path.
