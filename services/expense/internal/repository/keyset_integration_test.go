@@ -92,7 +92,7 @@ type realSQLValue struct {
 
 func (v realSQLValue) GetString() string { return v.val }
 func (v realSQLValue) GetInt() int64     { return v.num }
-func (v realSQLValue) GetBool() bool      { return v.b }
+func (v realSQLValue) GetBool() bool     { return v.b }
 
 func connectRealImmudb(t *testing.T) *recordingRealClient {
 	t.Helper()
