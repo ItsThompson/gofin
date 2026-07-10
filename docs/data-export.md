@@ -114,7 +114,7 @@ Single row with current budget defaults (empty if not configured).
 
 ## Adding a Data Provider
 
-The export engine uses a provider registry pattern. Each provider is responsible for one CSV file.
+The export engine builds a fresh set of providers for each export job. Each provider is responsible for one CSV file.
 
 ### 1. Implement the `DataProvider` interface
 
@@ -150,13 +150,20 @@ func (p *MyProvider) Collect(ctx context.Context, userID string) ([][]string, er
 }
 ```
 
-### 3. Register in `cmd/main.go`
+### 3. Add it to the per-job provider factory in `cmd/main.go`
+
+Export providers are built fresh for each job by a `ProviderFactory` (a `func(finance financepb.FinanceServiceClient) []engine.DataProvider`) passed to `engine.NewEngine`. Add your provider to the slice it returns; the slice order is the ZIP order:
 
 ```go
-registry.Register(providers.NewMyProvider(myClient))
+newExportProviders := func(finance financepb.FinanceServiceClient) []engine.DataProvider {
+    return []engine.DataProvider{
+        // ...existing providers...
+        providers.NewMyProvider(myClient),
+    }
+}
 ```
 
-The engine handles everything else: CSV writing, ZIP assembly, email delivery, error handling, and metrics emission per provider.
+A finance-backed provider takes the `finance` parameter: a per-job `MemoizedFinanceClient` that collapses `GetAllUserData` to a single call per export and is never shared across jobs. The engine handles everything else: concurrent collection (`errgroup` fan-out), CSV writing, ZIP assembly, email delivery, error handling, and metrics emission per provider.
 
 ### Formatting helpers
 
