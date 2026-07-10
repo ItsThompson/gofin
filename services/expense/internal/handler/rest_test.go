@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 )
 
@@ -97,6 +98,15 @@ func (m *mockExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID
 func (m *mockExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
 	args := m.Called(ctx, userID)
 	return args.Error(0)
+}
+
+func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, userID string, cursor repository.ExpenseCursor, pageSize int32) ([]*model.Expense, repository.ExpenseCursor, bool, error) {
+	args := m.Called(ctx, userID, cursor, pageSize)
+	var rows []*model.Expense
+	if args.Get(0) != nil {
+		rows = args.Get(0).([]*model.Expense)
+	}
+	return rows, args.Get(1).(repository.ExpenseCursor), args.Bool(2), args.Error(3)
 }
 
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {

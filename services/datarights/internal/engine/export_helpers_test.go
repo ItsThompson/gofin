@@ -21,8 +21,9 @@ import (
 type financeSpy struct {
 	financepb.FinanceServiceClient
 	*perf.CallCounter
-	data *financepb.AllUserDataResponse
-	tags *financepb.TagListResponse
+	data    *financepb.AllUserDataResponse
+	dataErr error
+	tags    *financepb.TagListResponse
 }
 
 func newFinanceSpy(data *financepb.AllUserDataResponse, tags *financepb.TagListResponse) *financeSpy {
@@ -35,6 +36,9 @@ func newFinanceSpy(data *financepb.AllUserDataResponse, tags *financepb.TagListR
 
 func (s *financeSpy) GetAllUserData(_ context.Context, _ *financepb.GetAllUserDataRequest, _ ...grpc.CallOption) (*financepb.AllUserDataResponse, error) {
 	s.Record("GetAllUserData")
+	if s.dataErr != nil {
+		return nil, s.dataErr
+	}
 	return s.data, nil
 }
 
