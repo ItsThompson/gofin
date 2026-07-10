@@ -247,7 +247,7 @@ sequenceDiagram
 
 ## Data Flow: Data Export
 
-When a user requests a data export, the datarights service collects data from all upstream services asynchronously and delivers the result via email:
+When a user requests a data export, the datarights service collects data from all upstream services concurrently in a background goroutine (an `errgroup` fan-out, with ZIP assembly as the fan-in barrier) and delivers the result via email:
 
 ```mermaid
 sequenceDiagram
@@ -268,12 +268,17 @@ sequenceDiagram
 
     Note over DR: Async goroutine starts
     DR->>P: UPDATE status=running
-    DR->>A: gRPC: GetUser (profile + email)
-    A-->>DR: user profile
-    DR->>E: gRPC: StreamAllUserExpenses (server-streaming)
-    E-->>DR: stream expense rows (Recv loop, written incrementally)
-    DR->>F: gRPC: GetAllUserData (tags, periods, defaults)
-    F-->>DR: finance data
+    par Providers collect concurrently (errgroup fan-out)
+        DR->>A: gRPC: GetUser (profile + email)
+        A-->>DR: user profile
+    and
+        DR->>E: gRPC: StreamAllUserExpenses (server-streaming)
+        E-->>DR: stream expense rows (Recv loop, written incrementally)
+    and
+        DR->>F: gRPC: GetAllUserData (tags, periods, defaults)
+        F-->>DR: finance data
+    end
+    Note over DR: Fan-in barrier: all providers complete → assemble ZIP
     DR->>DR: Generate CSVs + ZIP
     DR->>R: Send email with ZIP attachment
     R-->>DR: delivery confirmed
