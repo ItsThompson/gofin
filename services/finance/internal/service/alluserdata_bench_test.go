@@ -60,8 +60,7 @@ func BenchmarkGetAllUserData(b *testing.B) {
 	svc := newFanoutService(repo, nil)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := svc.GetAllUserData(context.Background(), "user-1"); err != nil {
 			b.Fatal(err)
 		}

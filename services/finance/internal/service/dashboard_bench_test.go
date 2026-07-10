@@ -51,8 +51,7 @@ func BenchmarkGetSpendingTrends(b *testing.B) {
 			svc := newFanoutService(repo, exp)
 
 			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				if _, err := svc.GetSpendingTrends(context.Background(), "user-1", 2026, 12, months); err != nil {
 					b.Fatal(err)
 				}
@@ -74,8 +73,7 @@ func BenchmarkGetHistoricalComparison(b *testing.B) {
 	svc := newFanoutService(repo, exp)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12); err != nil {
 			b.Fatal(err)
 		}
