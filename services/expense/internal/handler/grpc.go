@@ -166,7 +166,8 @@ func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest
 	if err == nil {
 		return nil
 	}
-	if _, ok := err.(*service.ServiceError); ok {
+	var svcErr *service.ServiceError
+	if errors.As(err, &svcErr) {
 		return mapServiceError(err)
 	}
 	// Normalize context cancellation / deadline so gRPC reports codes.Canceled /
@@ -216,7 +217,8 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 
 // mapServiceError converts a service-layer error to a gRPC status error.
 func mapServiceError(err error) error {
-	if svcErr, ok := err.(*service.ServiceError); ok {
+	var svcErr *service.ServiceError
+	if errors.As(err, &svcErr) {
 		switch svcErr.Code {
 		case model.ErrValidationError:
 			return status.Error(codes.InvalidArgument, svcErr.Message)
