@@ -45,8 +45,13 @@ allocs_op:                 58
 #   ns_op:     154835733   (~155ms  ~= sum)
 #   bytes_op:  143614
 #   allocs_op: 181
-# after  (errgroup fan-out, this ticket): recorded below once implemented.
-#   ns_op:     TBD
+# after  (errgroup fan-out, this ticket):
+#   ns_op:     51121856    (~51ms  ~= max)
+#   bytes_op:  416401
+#   allocs_op: 202
+# Net: collection dropped from ~155ms (sum) to ~51ms (max), a ~3x reduction that
+# matches max/sum = 50/150. Extra bytes/allocs are the five goroutines' stacks
+# plus errgroup bookkeeping; expected and bounded by the fixed provider count.
 #
 # The fan-out is additionally proven structurally (not by wall-clock) in
 # test-backend: TestEngine_FanOut_RunsProvidersConcurrently asserts all five

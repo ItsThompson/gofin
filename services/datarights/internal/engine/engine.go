@@ -2,10 +2,13 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
@@ -117,52 +120,69 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	fc := NewMemoizedFinanceClient(e.financeClient)
 	providerSet := e.newProviders(fc)
 
-	// Collect data from all providers. Collection is serial in this slice; the
-	// registration/ZIP order is the factory's slice order.
-	var csvFiles []CSVFile
-	for _, provider := range providerSet {
-		// Check context before each provider
-		if err := ctx.Err(); err != nil {
-			e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
-			return
-		}
+	// Collect from every provider concurrently. The providers are independent
+	// and read-only, so each goroutine writes only its own pre-assigned index in
+	// csvFiles; this makes collection latency max(providers) instead of sum while
+	// keeping ZIP order deterministic (the factory's slice order). See spec §09
+	// for the shared fan-out contract.
+	csvFiles := make([]CSVFile, len(providerSet))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, provider := range providerSet {
+		i, provider := i, provider
+		g.Go(func() error {
+			e.logger.Debug("provider collection started",
+				slog.String("job_id", jobID),
+				slog.String("user_id", userID),
+				slog.String("provider", provider.Name()),
+				slog.String("method", "engine.execute"),
+			)
 
-		e.logger.Debug("provider collection started",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("provider", provider.Name()),
-			slog.String("method", "engine.execute"),
-		)
+			providerStart := time.Now()
+			rows, err := provider.Collect(gctx, userID)
+			providerDuration := time.Since(providerStart).Seconds()
 
-		providerStart := time.Now()
-		rows, err := provider.Collect(ctx, userID)
-		providerDuration := time.Since(providerStart).Seconds()
+			// HistogramVec is goroutine-safe, so the per-provider observation
+			// stays inside the goroutine.
+			exportmetrics.ExportDataCollectionDurationSeconds.WithLabelValues(provider.Name()).Observe(providerDuration)
 
-		exportmetrics.ExportDataCollectionDurationSeconds.WithLabelValues(provider.Name()).Observe(providerDuration)
-
-		if err != nil {
-			if ctx.Err() != nil {
-				e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
-				return
+			if err != nil {
+				// Wrap the provider name in before errgroup captures it: Wait
+				// surfaces only the first error, and humanCollectMessage relies
+				// on this "collect <name>: ..." shape.
+				return fmt.Errorf("collect %s: %w", provider.Name(), err)
 			}
-			e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", provider.Name()), "collection", jobStart)
-			return
-		}
 
-		e.logger.Info("provider collection complete",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("provider", provider.Name()),
-			slog.Int("row_count", len(rows)),
-			slog.Float64("duration_seconds", providerDuration),
-			slog.String("method", "engine.execute"),
-		)
+			e.logger.Info("provider collection complete",
+				slog.String("job_id", jobID),
+				slog.String("user_id", userID),
+				slog.String("provider", provider.Name()),
+				slog.Int("row_count", len(rows)),
+				slog.Float64("duration_seconds", providerDuration),
+				slog.String("method", "engine.execute"),
+			)
 
-		csvFiles = append(csvFiles, CSVFile{
-			Name:    provider.Name() + ".csv",
-			Headers: provider.Headers(),
-			Rows:    rows,
+			// Write only this goroutine's own slot; never append (data race).
+			csvFiles[i] = CSVFile{
+				Name:    provider.Name() + ".csv",
+				Headers: provider.Headers(),
+				Rows:    rows,
+			}
+			return nil
 		})
+	}
+
+	// Fan-in barrier: the first error wins and cancels the siblings via gctx.
+	// Recheck the job context afterward so a deadline still maps to "Export timed
+	// out" while a genuine provider failure maps to "Failed to collect X data".
+	switch err := g.Wait(); {
+	case err == nil:
+		// all providers succeeded; fall through to ZIP assembly
+	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
+		e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
+		return
+	default:
+		e.failJob(ctx, jobID, userID, humanCollectMessage(err), "collection", jobStart)
+		return
 	}
 
 	// Build ZIP
@@ -246,6 +266,21 @@ func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg, stage string,
 			slog.String("error", err.Error()),
 		)
 	}
+}
+
+// humanCollectMessage maps a wrapped provider-collection error, which the
+// fan-out shapes as "collect <name>: <cause>", to the user-facing
+// "Failed to collect <name> data" message without exposing the underlying
+// cause. Provider names never contain a colon, so the first one delimits the
+// name.
+func humanCollectMessage(err error) string {
+	name := "export"
+	if rest, ok := strings.CutPrefix(err.Error(), "collect "); ok {
+		if idx := strings.IndexByte(rest, ':'); idx != -1 {
+			name = rest[:idx]
+		}
+	}
+	return fmt.Sprintf("Failed to collect %s data", name)
 }
 
 // sanitizeError extracts a human-readable reason from an error without exposing internals.
