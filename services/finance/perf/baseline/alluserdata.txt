@@ -1,0 +1,33 @@
+# gofin perf baseline
+path: finance/alluserdata  (GetAllUserData, P4b 3-read fan-out)
+captured_against: ft/latency-refactor (pre-change: serial ListTags -> ListPeriods -> GetDefaults reads)
+machine: Apple M4 Pro, 14 cores, macOS 26.3.1  (wall-clock reference only, arm64)
+go: go1.26.2
+date: 2026-07-10
+benchmark_note: reads use a synthetic 200µs per-read latency (allUserDataReadLatency
+                in alluserdata_bench_test.go) so wall-clock reflects serial sum (3
+                reads) vs fan-out max (~1 read); absolute ns/op is a same-machine
+                reference, never a CI threshold.
+
+# Environment-independent (portable; the durable signal, gated by regression tests)
+#   GetAllUserData issues exactly one read each of tags, periods, and defaults,
+#   regardless of serial vs fan-out (the export contract is unchanged):
+repo_calls@GetAllUserData(ListTags):    1
+repo_calls@GetAllUserData(ListPeriods): 1
+repo_calls@GetAllUserData(GetDefaults): 1
+total_reads@GetAllUserData:             3
+max_reads_in_flight(serial): 1   (fully sequential)
+
+# Wall-clock reference (same-machine only, NOT a threshold; count=5 mean)
+#   serial ~= sum of the three reads (~3 * 200µs + assembly overhead):
+ns_op@GetAllUserData(serial): ~700,000   (4 allocs/op, 112 B/op)
+
+# Expected post-change shape (bounded errgroup, dashboardFanoutLimit=5):
+#   - call counts unchanged (1 each of tags, periods, defaults; total 3)
+#   - assembled AllUserData byte-identical to the serial version
+#   - wall-clock ~ max of the three reads (~200µs) since limit=5 >= 3 reads all
+#     overlap: ~3x faster on this synthetic profile
+#   - max_reads_in_flight rises to 3 (all three reads overlap; asserted <= 5 and
+#     > 1 in the fan-out regression tests)
+#   - allocs rise modestly (errgroup + goroutine bookkeeping); not gated
+#   Re-capture on the same machine after the change; diff via benchstat old.txt new.txt.

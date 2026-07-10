@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/finance/internal/repository"
+	"github.com/ItsThompson/gofin/services/perf"
 )
 
 func newAllUserDataTestService(repo *mockRepo) *FinanceService {
@@ -166,4 +169,67 @@ func TestGetAllUserData_GetDefaultsError(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting defaults for export")
+}
+
+// --- Fan-out test infrastructure ---
+
+// countingAllUserDataRepo is a concurrency-aware fake FinanceRepository for the
+// GetAllUserData fan-out regression tests and benchmark. It records one call per
+// read through an embedded *perf.CallCounter, tracks the maximum number of reads
+// in flight simultaneously (so both the SetLimit bound and real overlap can be
+// asserted), and can simulate per-read latency so the benchmark shows fan-out
+// (max) rather than serial (sum) wall-clock. Only the three methods
+// GetAllUserData reads are implemented; the embedded interface is nil, so any
+// other repo call panics and surfaces an accidental extra read. All methods are
+// safe for concurrent use.
+type countingAllUserDataRepo struct {
+	repository.FinanceRepository
+	counter  *perf.CallCounter
+	delay    time.Duration
+	tags     []*model.Tag
+	periods  []*model.BudgetPeriod
+	defaults *model.DefaultSettings
+
+	mu          sync.Mutex
+	inFlight    int
+	maxInFlight int
+}
+
+func newCountingAllUserDataRepo() *countingAllUserDataRepo {
+	return &countingAllUserDataRepo{counter: perf.NewCallCounter()}
+}
+
+// enter records the call, bumps the in-flight gauge (tracking the peak), and
+// simulates per-read latency. It returns the teardown func the caller defers.
+func (r *countingAllUserDataRepo) enter(op string) func() {
+	r.counter.Record(op)
+	r.mu.Lock()
+	r.inFlight++
+	if r.inFlight > r.maxInFlight {
+		r.maxInFlight = r.inFlight
+	}
+	r.mu.Unlock()
+	if r.delay > 0 {
+		time.Sleep(r.delay)
+	}
+	return func() {
+		r.mu.Lock()
+		r.inFlight--
+		r.mu.Unlock()
+	}
+}
+
+func (r *countingAllUserDataRepo) ListTags(context.Context, string) ([]*model.Tag, error) {
+	defer r.enter("ListTags")()
+	return r.tags, nil
+}
+
+func (r *countingAllUserDataRepo) ListPeriods(context.Context, string) ([]*model.BudgetPeriod, error) {
+	defer r.enter("ListPeriods")()
+	return r.periods, nil
+}
+
+func (r *countingAllUserDataRepo) GetDefaults(context.Context, string) (*model.DefaultSettings, error) {
+	defer r.enter("GetDefaults")()
+	return r.defaults, nil
 }
