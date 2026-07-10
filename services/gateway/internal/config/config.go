@@ -2,17 +2,32 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 )
 
-// defaultValidateTimeout bounds the gateway's ValidateToken gRPC call so a hung
+// defaultValidateTimeout is a hung-dependency / availability BACKSTOP: it bounds
+// the catastrophic-hang tail of the gateway's ValidateToken gRPC call so a hung
 // auth service returns a fast error instead of blocking the worker
-// indefinitely. The default sits in the audit's suggested 2-5s band: it must
-// comfortably exceed a healthy ValidateToken (a JWT check plus a DB lookup, low
-// milliseconds) so it never trips in normal operation, while capping a hang
-// well under a human's patience. Override with GATEWAY_VALIDATE_TIMEOUT.
+// indefinitely. It is deliberately generous: it must comfortably exceed a
+// healthy ValidateToken (a JWT check plus a DB lookup, low milliseconds) so it
+// never trips in normal operation, and only fires when the dependency is
+// effectively hung.
+//
+// This is NOT p99/tail-latency control in the "Tail at Scale" sense. Trimming
+// the p99 tail toward the auth service's measured P99 (a 100-300 ms starting
+// point near the auth P99) is explicitly out of scope for P1 and left as
+// possible future work once that percentile is measured. The earlier "2-5s
+// band" framing is superseded: 3s is a hang backstop, not a percentile-derived
+// bound. Override with GATEWAY_VALIDATE_TIMEOUT.
 const defaultValidateTimeout = 3 * time.Second
+
+// maxRecommendedValidateTimeout is the largest GATEWAY_VALIDATE_TIMEOUT that
+// still serves as a hang backstop. Larger values are accepted (there is no hard
+// clamp) but warned about at load: a "1h" typo would silently re-introduce the
+// near-unbounded tail this bound exists to prevent.
+const maxRecommendedValidateTimeout = 30 * time.Second
 
 // Config holds all configuration for the API gateway, loaded from environment variables.
 type Config struct {
@@ -78,6 +93,12 @@ func Load() (*Config, error) {
 		}
 		if parsed <= 0 {
 			return nil, fmt.Errorf("GATEWAY_VALIDATE_TIMEOUT must be positive, got %q", raw)
+		}
+		if parsed > maxRecommendedValidateTimeout {
+			slog.Warn("GATEWAY_VALIDATE_TIMEOUT is unusually large; it is a hung-dependency backstop, not a normal latency bound",
+				slog.Duration("configured", parsed),
+				slog.Duration("recommended_ceiling", maxRecommendedValidateTimeout),
+			)
 		}
 		validateTimeout = parsed
 	}

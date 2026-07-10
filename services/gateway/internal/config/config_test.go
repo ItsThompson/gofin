@@ -1,6 +1,8 @@
 package config
 
 import (
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 )
@@ -56,5 +58,52 @@ func TestLoad_ValidateTimeout_RejectsNonPositive(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want error for non-positive GATEWAY_VALIDATE_TIMEOUT")
+	}
+}
+
+// captureDefaultLogger swaps slog's default logger for one writing to the
+// returned buffer (Load emits its oversized-value warning through slog.Warn,
+// i.e. the default logger) and restores it on cleanup.
+func captureDefaultLogger(t *testing.T) *strings.Builder {
+	t.Helper()
+	buf := &strings.Builder{}
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return buf
+}
+
+// TestLoad_ValidateTimeout_WarnsAboveCeiling proves the GW-4 soft bound: a value
+// above the recommended ceiling is accepted unchanged (no hard clamp) but logs
+// a visible warning so a "1h"-style typo that defeats the backstop is caught.
+func TestLoad_ValidateTimeout_WarnsAboveCeiling(t *testing.T) {
+	setGatewayEnv(t)
+	t.Setenv("GATEWAY_VALIDATE_TIMEOUT", "45s")
+	buf := captureDefaultLogger(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.ValidateTimeout != 45*time.Second {
+		t.Errorf("ValidateTimeout = %v, want 45s (accepted, no hard clamp)", cfg.ValidateTimeout)
+	}
+	if !strings.Contains(buf.String(), "unusually large") {
+		t.Errorf("expected a warning for a value above the ceiling, got %q", buf.String())
+	}
+}
+
+// TestLoad_ValidateTimeout_NoWarnAtCeiling confirms the warning does not fire at
+// or below the recommended ceiling.
+func TestLoad_ValidateTimeout_NoWarnAtCeiling(t *testing.T) {
+	setGatewayEnv(t)
+	t.Setenv("GATEWAY_VALIDATE_TIMEOUT", "30s")
+	buf := captureDefaultLogger(t)
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if strings.Contains(buf.String(), "unusually large") {
+		t.Errorf("did not expect a warning at the recommended ceiling, got %q", buf.String())
 	}
 }
