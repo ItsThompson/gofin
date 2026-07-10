@@ -13,8 +13,6 @@ import (
 type mockFinanceServiceClient struct {
 	getAllUserDataResp *financepb.AllUserDataResponse
 	getAllUserDataErr  error
-	listTagsResp      *financepb.TagListResponse
-	listTagsErr       error
 }
 
 func (m *mockFinanceServiceClient) GetAllUserData(_ context.Context, _ *financepb.GetAllUserDataRequest, _ ...grpc.CallOption) (*financepb.AllUserDataResponse, error) {
@@ -25,10 +23,7 @@ func (m *mockFinanceServiceClient) GetAllUserData(_ context.Context, _ *financep
 }
 
 func (m *mockFinanceServiceClient) ListTags(_ context.Context, _ *financepb.ListTagsRequest, _ ...grpc.CallOption) (*financepb.TagListResponse, error) {
-	if m.listTagsErr != nil {
-		return nil, m.listTagsErr
-	}
-	return m.listTagsResp, nil
+	return nil, nil
 }
 
 // Implement remaining interface methods as no-ops.
