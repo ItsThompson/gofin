@@ -177,7 +177,7 @@ func TestGetExpensesByUserAfter_FullExportNoOffsetNoPerPageCount(t *testing.T) {
 	// 55 rows / 10 per page = 6 pages (5 full + 1 partial).
 	assert.Equal(t, 6, calls)
 	assert.Zero(t, client.countQueriesContaining("OFFSET"), "keyset export must never use OFFSET")
-	assert.LessOrEqual(t, client.countQueriesContaining("COUNT(*)"), 1, "at most one COUNT(*) per full export")
+	assert.Zero(t, client.countQueriesContaining("COUNT(*)"), "keyset export must never issue COUNT(*)")
 	// Exactly one data query per page, no extra scans.
 	assert.Equal(t, calls, len(client.Queries()))
 }
