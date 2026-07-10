@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"google.golang.org/grpc/codes"
@@ -188,8 +189,12 @@ func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest
 	if _, ok := err.(*service.ServiceError); ok {
 		return mapServiceError(err)
 	}
-	// Context cancellation and stream-send failures are already gRPC-meaningful;
-	// surface them directly rather than masking them as Internal.
+	// Normalize context cancellation / deadline so gRPC reports codes.Canceled /
+	// codes.DeadlineExceeded rather than codes.Unknown.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return status.FromContextError(err).Err()
+	}
+	// Stream-send failures are already gRPC-meaningful; surface them directly.
 	return err
 }
 

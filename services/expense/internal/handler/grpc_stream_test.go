@@ -110,3 +110,24 @@ func TestGRPC_StreamAllUserExpenses_PropagatesSendError(t *testing.T) {
 	require.ErrorIs(t, err, sendErr)
 	assert.Empty(t, stream.sent)
 }
+
+func TestGRPC_StreamAllUserExpenses_CancelledContextMapsToCanceled(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler := newTestGRPCHandler(repo)
+
+	// hasMore stays true; the pre-cancelled context stops the walk. The handler
+	// must normalize context.Canceled to codes.Canceled (not codes.Unknown).
+	page := []*model.Expense{streamRow("exp-1", "2026-05-01T00:00:00Z")}
+	repo.On("GetExpensesByUserAfter", mock.Anything, "user-1", mock.Anything, mock.Anything).
+		Return(page, repository.ExpenseCursor{CreatedAt: "2026-05-01T00:00:00Z", ID: "exp-1"}, true, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	stream := &fakeStreamServer{ctx: ctx}
+	err := handler.StreamAllUserExpenses(&pb.StreamAllUserExpensesRequest{UserId: "user-1", PageSize: 2}, stream)
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Canceled, st.Code())
+}
