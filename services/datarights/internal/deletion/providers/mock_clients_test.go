@@ -128,6 +128,9 @@ func (m *mockExpenseClient) GetCorrectionHistory(_ context.Context, _ *expensepb
 func (m *mockExpenseClient) GetProRataGroup(_ context.Context, _ *expensepb.GetProRataGroupRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
 	return nil, nil
 }
+func (m *mockExpenseClient) StreamAllUserExpenses(_ context.Context, _ *expensepb.StreamAllUserExpensesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[expensepb.ExpenseData], error) {
+	return nil, nil
+}
 
 // ---------------------------------------------------------------------------
 // Mock auth client

@@ -13,8 +13,16 @@ service ExpenseService {
   // Tag usage check (called by finance service during tag deletion)
   rpc CountExpensesByTag(CountExpensesByTagRequest) returns (CountExpensesByTagResponse);
 
-  // Data export: returns all expenses (active + corrected) for a user, paginated
+  // Data export: returns all expenses (active + corrected) for a user, paginated.
+  // Page-number/OFFSET based; retained for backwards compatibility during the
+  // streaming migration (superseded by StreamAllUserExpenses).
   rpc GetAllUserExpenses(GetAllUserExpensesRequest) returns (ExpenseListResponse);
+
+  // Data export streaming: the server streams every expense (active + corrected)
+  // for a user in chronological order (created_at ASC, id ASC). The server pages
+  // internally with a keyset cursor, bounding server memory to O(page_size); the
+  // client writes rows incrementally. Additive replacement for GetAllUserExpenses.
+  rpc StreamAllUserExpenses(StreamAllUserExpensesRequest) returns (stream ExpenseData);
 
   // GDPR: anonymize all expenses for a user (field redaction, not deletion)
   rpc AnonymizeAllUserExpenses(AnonymizeRequest) returns (AnonymizeResponse);
@@ -136,6 +144,15 @@ message GetAllUserExpensesRequest {
   string user_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+}
+
+// ---------------------------------------------------------------------------
+// StreamAllUserExpenses (data export, server-streaming)
+// ---------------------------------------------------------------------------
+
+message StreamAllUserExpensesRequest {
+  string user_id = 1;
+  int32 page_size = 2; // internal server-side keyset page size; 0 = server default
 }
 
 // ---------------------------------------------------------------------------

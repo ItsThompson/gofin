@@ -132,3 +132,6 @@ func (m *mockExpenseServiceClient) GetProRataGroup(_ context.Context, _ *expense
 func (m *mockExpenseServiceClient) AnonymizeAllUserExpenses(_ context.Context, _ *expensepb.AnonymizeRequest, _ ...grpc.CallOption) (*expensepb.AnonymizeResponse, error) {
 	return nil, nil
 }
+func (m *mockExpenseServiceClient) StreamAllUserExpenses(_ context.Context, _ *expensepb.StreamAllUserExpensesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[expensepb.ExpenseData], error) {
+	return nil, nil
+}
