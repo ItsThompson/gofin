@@ -7,6 +7,8 @@ import (
 	"sort"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
@@ -112,24 +114,37 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 		window[i], window[j] = window[j], window[i]
 	}
 
-	// Fetch expenses for each month and build input arrays for the pure function
+	// Fetch expenses for each month and build input arrays for the pure function.
+	// The per-month reads are independent and write only their own index slot, so
+	// they fan out under a bounded errgroup (see spec §09); the pure
+	// ComputeSpendingTrends aggregation runs after the g.Wait() barrier.
 	periodSlice := make([]*model.BudgetPeriod, len(window))
 	expenseSlice := make([][]ExpenseData, len(window))
 	yearSlice := make([]int32, len(window))
 	monthSlice := make([]int32, len(window))
 
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(dashboardFanoutLimit)
 	for i, ym := range window {
+		i, ym := i, ym
 		yearSlice[i] = ym.year
 		monthSlice[i] = ym.month
 		p := periodMap[[2]int32{ym.year, ym.month}]
 		periodSlice[i] = p
-		if p != nil {
-			var err error
-			expenseSlice[i], err = s.expenseClient.GetExpensesForPeriod(ctx, userID, ym.year, ym.month)
-			if err != nil {
-				return nil, fmt.Errorf("fetching expenses for %d-%02d: %w", ym.year, ym.month, err)
-			}
+		if p == nil {
+			continue // no read for missing periods; slot stays empty
 		}
+		g.Go(func() error {
+			exps, err := s.expenseClient.GetExpensesForPeriod(gctx, userID, ym.year, ym.month)
+			if err != nil {
+				return fmt.Errorf("fetching expenses for %d-%02d: %w", ym.year, ym.month, err)
+			}
+			expenseSlice[i] = exps // own slot only
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	return ComputeSpendingTrends(periodSlice, expenseSlice, yearSlice, monthSlice), nil
@@ -213,49 +228,67 @@ func (s *FinanceService) computeHistoricalComparison(
 		return nil, fmt.Errorf("requested period not found in list")
 	}
 
-	// Get current period's total spent
-	currentSpent, err := s.getTotalSpentForPeriod(ctx, userID, periods[requestedIdx])
-	if err != nil {
-		return nil, err
-	}
-
 	// Collect up to 3 prior periods (the ones after requestedIdx in DESC order)
 	var priorPeriods []*model.BudgetPeriod
 	for i := requestedIdx + 1; i < len(periods) && len(priorPeriods) < 3; i++ {
 		priorPeriods = append(priorPeriods, periods[i])
 	}
 
+	// Build the distinct set of periods whose spend the result actually needs,
+	// mirroring the serial reads: the current period always; priorPeriods[0] when
+	// any prior exists (it feeds both "previous" and the first rolling-average
+	// term); priorPeriods[1..2] only when a full 3-period rolling average is
+	// possible. Each period is therefore read exactly once (the serial code read
+	// priorPeriods[0] twice). These reads are independent, so they fan out under a
+	// bounded errgroup with index-addressed result slots; the change-percent and
+	// rolling-average math runs after the g.Wait() barrier, unchanged.
+	hasRollingAverage := len(priorPeriods) >= 3
+	targets := []*model.BudgetPeriod{periods[requestedIdx]}
+	if len(priorPeriods) > 0 {
+		targets = append(targets, priorPeriods[0])
+	}
+	if hasRollingAverage {
+		targets = append(targets, priorPeriods[1], priorPeriods[2])
+	}
+
+	spent := make([]int64, len(targets))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(dashboardFanoutLimit)
+	for i, p := range targets {
+		i, p := i, p
+		g.Go(func() error {
+			v, err := s.getTotalSpentForPeriod(gctx, userID, p)
+			if err != nil {
+				return err // already wrapped with the period by getTotalSpentForPeriod
+			}
+			spent[i] = v // own slot only
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
 	result := &model.HistoricalComparison{
-		CurrentSpent: currentSpent,
+		CurrentSpent: spent[0],
 	}
 
 	// Previous period spent
 	if len(priorPeriods) > 0 {
-		prevSpent, err := s.getTotalSpentForPeriod(ctx, userID, priorPeriods[0])
-		if err != nil {
-			return nil, err
-		}
+		prevSpent := spent[1]
 		result.PreviousSpent = prevSpent
 
 		// Change percent
 		if prevSpent > 0 {
-			result.ChangePercent = math.Round(float64(currentSpent-prevSpent)/float64(prevSpent)*10000) / 100
-		} else if currentSpent > 0 {
+			result.ChangePercent = math.Round(float64(spent[0]-prevSpent)/float64(prevSpent)*10000) / 100
+		} else if spent[0] > 0 {
 			result.ChangePercent = 100.0
 		}
 	}
 
 	// Rolling average: need at least 3 prior periods
-	if len(priorPeriods) >= 3 {
-		var totalForAvg int64
-		for _, p := range priorPeriods[:3] {
-			spent, err := s.getTotalSpentForPeriod(ctx, userID, p)
-			if err != nil {
-				return nil, err
-			}
-			totalForAvg += spent
-		}
-		avg := totalForAvg / 3
+	if hasRollingAverage {
+		avg := (spent[1] + spent[2] + spent[3]) / 3
 		result.RollingAverage = &avg
 	}
 
