@@ -1,13 +1,18 @@
 package service
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/finance/internal/repository"
+	"github.com/ItsThompson/gofin/services/perf"
 )
 
 // historicalNow is a fixed time far in the future, ensuring any test month
@@ -567,4 +572,79 @@ func TestComputeSpendingTrends_NilPeriodReturnsZeros(t *testing.T) {
 	assert.Equal(t, float64(0), result[0].EssentialsPercent)
 	assert.Equal(t, float64(0), result[0].DesiresPercent)
 	assert.Equal(t, float64(0), result[0].SavingsPercent)
+}
+
+// --- Fan-out test infrastructure (shared by regression tests and benchmarks) ---
+
+// periodKey is the {year, month} lookup key used across the fan-out fakes.
+func periodKey(year, month int32) [2]int32 { return [2]int32{year, month} }
+
+// monthOp is the CallCounter operation name for a period read.
+func monthOp(year, month int32) string { return fmt.Sprintf("%d-%02d", year, month) }
+
+// countingExpenseClient is a fake ExpenseClient shared by the dashboard fan-out
+// regression tests and benchmarks. It records one call per (year, month) through
+// an embedded *perf.CallCounter and can simulate per-read latency so benchmarks
+// show fan-out (max) rather than serial (sum) wall-clock. The regression tests
+// extend it with concurrency tracking and error injection.
+type countingExpenseClient struct {
+	counter *perf.CallCounter
+	delay   time.Duration
+	byMonth map[[2]int32][]ExpenseData
+}
+
+func newCountingExpenseClient() *countingExpenseClient {
+	return &countingExpenseClient{
+		counter: perf.NewCallCounter(),
+		byMonth: make(map[[2]int32][]ExpenseData),
+	}
+}
+
+// set seeds the expenses returned for a period. Call before the fan-out runs;
+// the map is read-only during concurrent reads.
+func (c *countingExpenseClient) set(year, month int32, expenses []ExpenseData) {
+	c.byMonth[periodKey(year, month)] = expenses
+}
+
+func (c *countingExpenseClient) GetExpensesForPeriod(_ context.Context, _ string, year, month int32) ([]ExpenseData, error) {
+	c.counter.Record(monthOp(year, month))
+	if c.delay > 0 {
+		time.Sleep(c.delay)
+	}
+	return c.byMonth[periodKey(year, month)], nil
+}
+
+// CountExpensesByTag and CreateExpense are not used by the dashboard read paths;
+// they fail loudly if a path unexpectedly calls them.
+func (c *countingExpenseClient) CountExpensesByTag(context.Context, string, string) (int64, error) {
+	return 0, fmt.Errorf("CountExpensesByTag not expected in dashboard fan-out tests")
+}
+
+func (c *countingExpenseClient) CreateExpense(context.Context, CreateExpenseInput) (*CreatedExpenseData, error) {
+	return nil, fmt.Errorf("CreateExpense not expected in dashboard fan-out tests")
+}
+
+// fakeFanoutRepo returns canned periods for the dashboard read paths. Only the
+// two methods those paths call (ListPeriods, GetCurrentPeriod) are implemented;
+// the embedded interface is nil, so any other repo call panics and surfaces an
+// accidental extra read.
+type fakeFanoutRepo struct {
+	repository.FinanceRepository
+	periods []*model.BudgetPeriod
+	current map[[2]int32]*model.BudgetPeriod
+}
+
+func (r *fakeFanoutRepo) ListPeriods(context.Context, string) ([]*model.BudgetPeriod, error) {
+	return r.periods, nil
+}
+
+func (r *fakeFanoutRepo) GetCurrentPeriod(_ context.Context, _ string, year, month int32) (*model.BudgetPeriod, error) {
+	return r.current[periodKey(year, month)], nil
+}
+
+// newFanoutService wires a FinanceService for fan-out tests/benchmarks with a
+// discarded logger and no transaction beginner (the read paths never open a tx).
+func newFanoutService(repo repository.FinanceRepository, exp ExpenseClient) *FinanceService {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return NewFinanceService(repo, nil, logger).WithExpenseClient(exp)
 }
