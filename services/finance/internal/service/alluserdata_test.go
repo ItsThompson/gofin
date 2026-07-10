@@ -177,6 +177,66 @@ func TestGetAllUserData_GetDefaultsError(t *testing.T) {
 	assert.Contains(t, err.Error(), "getting defaults for export")
 }
 
+// --- Fan-out regression tests ---
+
+// TestGetAllUserData_FanOutByteIdentical asserts the fan-out assembles exactly
+// the serial result over seeded fixtures while reading each source exactly once
+// (tags, periods, defaults). It fails if the fan-out drops, duplicates, or
+// reorders a read, or diverges from the serial assembly.
+func TestGetAllUserData_FanOutByteIdentical(t *testing.T) {
+	repo := seedAllUserData(0)
+	svc := newFanoutService(repo, nil)
+
+	result, err := svc.GetAllUserData(context.Background(), "user-1")
+	require.NoError(t, err)
+
+	expected := &model.AllUserData{
+		Tags:     repo.tags,
+		Periods:  repo.periods,
+		Defaults: repo.defaults,
+	}
+	assert.Equal(t, expected, result, "fan-out output must be identical to the serial assembly")
+
+	assert.Equal(t, 1, repo.counter.Count("ListTags"), "tags read exactly once")
+	assert.Equal(t, 1, repo.counter.Count("ListPeriods"), "periods read exactly once")
+	assert.Equal(t, 1, repo.counter.Count("GetDefaults"), "defaults read exactly once")
+	assert.Equal(t, 3, repo.counter.Total(), "exactly three reads total")
+}
+
+// TestGetAllUserData_FanOutNormalizesNilSlicesAfterBarrier confirms the nil ->
+// empty-slice normalization (and nil defaults passthrough) runs after g.Wait(),
+// matching the serial version, when every read returns nil. Each source is still
+// read exactly once.
+func TestGetAllUserData_FanOutNormalizesNilSlicesAfterBarrier(t *testing.T) {
+	repo := newCountingAllUserDataRepo() // tags/periods nil, defaults nil
+	svc := newFanoutService(repo, nil)
+
+	result, err := svc.GetAllUserData(context.Background(), "user-1")
+	require.NoError(t, err)
+	assert.NotNil(t, result.Tags)
+	assert.Empty(t, result.Tags)
+	assert.NotNil(t, result.Periods)
+	assert.Empty(t, result.Periods)
+	assert.Nil(t, result.Defaults)
+
+	assert.Equal(t, 1, repo.counter.Count("ListTags"))
+	assert.Equal(t, 1, repo.counter.Count("ListPeriods"))
+	assert.Equal(t, 1, repo.counter.Count("GetDefaults"))
+}
+
+// TestGetAllUserData_FanOutRunsConcurrently confirms the three reads overlap
+// (fan-out, not serial) while staying within SetLimit(dashboardFanoutLimit).
+func TestGetAllUserData_FanOutRunsConcurrently(t *testing.T) {
+	repo := seedAllUserData(5 * time.Millisecond)
+	svc := newFanoutService(repo, nil)
+
+	_, err := svc.GetAllUserData(context.Background(), "user-1")
+	require.NoError(t, err)
+	assert.LessOrEqual(t, repo.maxConcurrent(), dashboardFanoutLimit,
+		"in-flight reads must not exceed SetLimit(dashboardFanoutLimit)")
+	assert.Greater(t, repo.maxConcurrent(), 1, "reads should overlap (fan-out), not run serially")
+}
+
 // --- Fan-out test infrastructure ---
 
 // countingAllUserDataRepo is a concurrency-aware fake FinanceRepository for the
@@ -238,4 +298,11 @@ func (r *countingAllUserDataRepo) ListPeriods(context.Context, string) ([]*model
 func (r *countingAllUserDataRepo) GetDefaults(context.Context, string) (*model.DefaultSettings, error) {
 	defer r.enter("GetDefaults")()
 	return r.defaults, nil
+}
+
+// maxConcurrent reports the peak number of reads observed in flight at once.
+func (r *countingAllUserDataRepo) maxConcurrent() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.maxInFlight
 }
