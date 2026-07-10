@@ -70,6 +70,10 @@ services:
       - EXPENSE_SERVICE_REST=http://expense-service:8082
       - FINANCE_SERVICE_REST=http://finance-service:8083
       - DATARIGHTS_SERVICE_REST=http://datarights-service:8084
+      # Upper bound on the auth ValidateToken gRPC call (parsed as a Go
+      # duration, default 3s). Caps tail latency if the auth service hangs;
+      # must comfortably exceed a healthy validation (low milliseconds).
+      - GATEWAY_VALIDATE_TIMEOUT=${GATEWAY_VALIDATE_TIMEOUT:-3s}
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}

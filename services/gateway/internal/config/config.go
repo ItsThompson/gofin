@@ -3,7 +3,16 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 )
+
+// defaultValidateTimeout bounds the gateway's ValidateToken gRPC call so a hung
+// auth service returns a fast error instead of blocking the worker
+// indefinitely. The default sits in the audit's suggested 2-5s band: it must
+// comfortably exceed a healthy ValidateToken (a JWT check plus a DB lookup, low
+// milliseconds) so it never trips in normal operation, while capping a hang
+// well under a human's patience. Override with GATEWAY_VALIDATE_TIMEOUT.
+const defaultValidateTimeout = 3 * time.Second
 
 // Config holds all configuration for the API gateway, loaded from environment variables.
 type Config struct {
@@ -15,6 +24,7 @@ type Config struct {
 	LogLevel              string
 	Environment           string
 	Port                  string
+	ValidateTimeout       time.Duration // upper bound on the ValidateToken gRPC call (GATEWAY_VALIDATE_TIMEOUT, default 3s)
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -60,6 +70,18 @@ func Load() (*Config, error) {
 		port = "8080"
 	}
 
+	validateTimeout := defaultValidateTimeout
+	if raw := os.Getenv("GATEWAY_VALIDATE_TIMEOUT"); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parsing GATEWAY_VALIDATE_TIMEOUT %q: %w", raw, err)
+		}
+		if parsed <= 0 {
+			return nil, fmt.Errorf("GATEWAY_VALIDATE_TIMEOUT must be positive, got %q", raw)
+		}
+		validateTimeout = parsed
+	}
+
 	return &Config{
 		AuthServiceAddr:       authAddr,
 		AuthServiceREST:       authREST,
@@ -69,6 +91,7 @@ func Load() (*Config, error) {
 		LogLevel:              logLevel,
 		Environment:           environment,
 		Port:                  port,
+		ValidateTimeout:       validateTimeout,
 	}, nil
 }
 

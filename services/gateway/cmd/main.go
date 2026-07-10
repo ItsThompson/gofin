@@ -66,10 +66,12 @@ func run() error {
 
 	logger.Info("gRPC client configured",
 		slog.String("auth_service_addr", cfg.AuthServiceAddr),
+		slog.Duration("validate_timeout", cfg.ValidateTimeout),
 	)
 
-	// Create the token validator wrapping the gRPC client.
-	validator := NewGRPCTokenValidator(grpcConn)
+	// Create the token validator wrapping the gRPC client. Its per-call timeout
+	// bounds ValidateToken so a hung auth service cannot block a worker.
+	validator := NewGRPCTokenValidator(grpcConn, cfg.ValidateTimeout)
 
 	// Parse downstream service URLs.
 	authURL, err := url.Parse(cfg.AuthServiceREST)
