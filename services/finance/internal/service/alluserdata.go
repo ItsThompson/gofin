@@ -14,12 +14,11 @@ import (
 // Used by the datarights service for GDPR data export.
 //
 // The three repository reads are independent, so they run concurrently under a
-// bounded errgroup; each goroutine writes its own distinct
-// variable (the writes are disjoint by construction, not shared slice slots).
-// Nil-slice normalization and result assembly run after the g.Wait() barrier, so
-// the output is identical to the serial version. The bound (dashboardFanoutLimit,
-// shared with the dashboard fan-out) protects the pgxpool, since each in-flight
-// pg read checks out one connection.
+// bounded errgroup; each goroutine writes its own distinct variable (the writes
+// are disjoint by construction, not shared slice slots). Nil-slice normalization
+// and result assembly run after the g.Wait() barrier, so the output is identical
+// to the serial version. The bound is dashboardFanoutLimit, shared with the
+// dashboard fan-out for a uniform cap; this fixed 3-read fan-out never reaches it.
 func (s *FinanceService) GetAllUserData(ctx context.Context, userID string) (*model.AllUserData, error) {
 	var (
 		tags     []*model.Tag
