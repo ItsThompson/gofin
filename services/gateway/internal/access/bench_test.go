@@ -24,8 +24,7 @@ func BenchmarkValidateHappyPath(b *testing.B) {
 	engine := buildEngine(validator, silentLogger(), http.MethodPost, "/api/auth/restore", okHandler)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		req := httptest.NewRequest(http.MethodPost, "/api/auth/restore", nil)
 		req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
 		rec := httptest.NewRecorder()
