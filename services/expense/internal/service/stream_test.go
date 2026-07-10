@@ -3,6 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -182,4 +186,75 @@ func TestStreamAllUserExpenses_DefaultsPageSizeWhenNonPositive(t *testing.T) {
 
 	require.NoError(t, err)
 	repo.AssertExpectations(t)
+}
+
+// countingStreamRepo answers GetExpensesByUserAfter with a fixed page and an
+// always-more cursor (up to a large finite guard), counting how many pages the
+// producer fetched. All other repository methods are inherited unused.
+type countingStreamRepo struct {
+	mockExpenseRepository
+	page  []*model.Expense
+	next  repository.ExpenseCursor
+	pages atomic.Int64
+}
+
+func (r *countingStreamRepo) GetExpensesByUserAfter(_ context.Context, _ string, _ repository.ExpenseCursor, _ int32) ([]*model.Expense, repository.ExpenseCursor, bool, error) {
+	n := r.pages.Add(1)
+	// hasMore stays true until a large finite guard so a correctly back-pressured
+	// producer blocks on the full buffer, while a regressed unbounded producer
+	// still terminates (and trips the assertion) instead of looping forever.
+	return r.page, r.next, n < 1000, nil
+}
+
+func TestStreamAllUserExpenses_ProducerLookAheadBoundedToOnePage(t *testing.T) {
+	// When the consumer stops draining, the producer must block once the
+	// pageSize-buffered rows channel fills, retaining O(pageSize) rows rather
+	// than eagerly fetching the whole history. A regression that unbounds the
+	// buffer (or drops back-pressure) would fetch far more pages before blocking.
+	const pageSize = int32(10)
+	page := make([]*model.Expense, pageSize)
+	for i := range page {
+		page[i] = streamExpense(fmt.Sprintf("exp-%d", i), "2026-05-01T00:00:00Z")
+	}
+	repo := &countingStreamRepo{
+		page: page,
+		next: repository.ExpenseCursor{CreatedAt: "2026-05-01T00:00:00Z", ID: "exp-9"},
+	}
+	svc := NewExpenseService(repo, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	firstRow := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		received := 0
+		done <- svc.StreamAllUserExpenses(ctx, "user-1", pageSize, func(*model.Expense) error {
+			received++
+			if received == 1 {
+				close(firstRow)
+				<-release // block after the first row so the buffer fills up
+			}
+			return nil
+		})
+	}()
+
+	<-firstRow
+	// Let the producer reach its blocked steady state (buffer full). The
+	// assertion is an upper bound, so an over-short settle only lowers the
+	// observed count; it never yields a false failure.
+	time.Sleep(50 * time.Millisecond)
+	pagesFetched := repo.pages.Load()
+
+	cancel()
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("StreamAllUserExpenses did not return after cancellation")
+	}
+
+	assert.LessOrEqual(t, pagesFetched, int64(3),
+		"producer must block after buffering ~one page, not drain the full history (fetched %d pages)", pagesFetched)
 }
