@@ -234,7 +234,8 @@ func TestGetAllUserData_FanOutRunsConcurrently(t *testing.T) {
 	require.NoError(t, err)
 	assert.LessOrEqual(t, repo.maxConcurrent(), dashboardFanoutLimit,
 		"in-flight reads must not exceed SetLimit(dashboardFanoutLimit)")
-	assert.Greater(t, repo.maxConcurrent(), 1, "reads should overlap (fan-out), not run serially")
+	assert.Equal(t, 3, repo.maxConcurrent(),
+		"all three reads must overlap under SetLimit(dashboardFanoutLimit>=3)")
 }
 
 // --- Fan-out test infrastructure ---

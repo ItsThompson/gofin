@@ -588,10 +588,13 @@ func monthOp(year, month int32) string { return fmt.Sprintf("%d-%02d", year, mon
 // countingExpenseClient is a concurrency-aware fake ExpenseClient shared by the
 // dashboard fan-out regression tests and benchmarks. It records one call per
 // (year, month) through an embedded *perf.CallCounter, tracks the maximum number
-// of reads in flight simultaneously (so the SetLimit bound can be asserted), can
-// inject per-period errors (exercising the goroutine error-wrapping path), and
-// can simulate per-read latency so benchmarks show fan-out (max) rather than
-// serial (sum) wall-clock. All methods are safe for concurrent use.
+// of reads in flight simultaneously (so the SetLimit bound can be asserted),
+// checks its context on entry so a read launched after a sibling failure returns
+// without recording (exercising first-error cancellation alongside the goroutine
+// error-wrapping path), and can simulate per-read latency so benchmarks show
+// fan-out (max) rather than serial (sum) wall-clock. The latency uses a plain
+// time.Sleep so it does not allocate, keeping the benchmark's allocs/op a clean
+// measure of the production fan-out cost. All methods are safe for concurrent use.
 type countingExpenseClient struct {
 	counter *perf.CallCounter
 	delay   time.Duration
@@ -623,7 +626,15 @@ func (c *countingExpenseClient) failOn(year, month int32, err error) {
 	c.errs[periodKey(year, month)] = err
 }
 
-func (c *countingExpenseClient) GetExpensesForPeriod(_ context.Context, _ string, year, month int32) ([]ExpenseData, error) {
+func (c *countingExpenseClient) GetExpensesForPeriod(ctx context.Context, _ string, year, month int32) ([]ExpenseData, error) {
+	// Check cancellation before recording: a read launched after a sibling has
+	// already failed (and cancelled the errgroup's derived context) returns
+	// without recording, so tests can assert siblings were cancelled via the
+	// call count. A goroutine handed the parent ctx instead of gctx would not
+	// see this cancellation.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	c.counter.Record(monthOp(year, month))
 
 	c.mu.Lock()
@@ -632,17 +643,20 @@ func (c *countingExpenseClient) GetExpensesForPeriod(_ context.Context, _ string
 		c.maxInFlight = c.inFlight
 	}
 	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.inFlight--
+		c.mu.Unlock()
+	}()
+
+	// Fail fast, before the synthetic delay, so an injected error cancels the
+	// group while sibling reads are still in flight.
+	if err := c.errs[periodKey(year, month)]; err != nil {
+		return nil, err
+	}
 
 	if c.delay > 0 {
 		time.Sleep(c.delay)
-	}
-
-	c.mu.Lock()
-	c.inFlight--
-	c.mu.Unlock()
-
-	if err := c.errs[periodKey(year, month)]; err != nil {
-		return nil, err
 	}
 	return c.byMonth[periodKey(year, month)], nil
 }
@@ -771,6 +785,27 @@ func TestGetSpendingTrends_FanOutWrapsError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "2026-07", "error must name the failing period")
 	assert.Contains(t, err.Error(), "boom")
+}
+
+// TestGetSpendingTrends_FanOutCancelsSiblings proves the errgroup's first-error
+// cancellation reaches sibling reads: when one period read fails fast, the
+// derived gctx is cancelled, so reads not yet started return early (via the
+// entry-time context check) instead of every period being read to completion.
+// If the production goroutines passed the parent ctx (not gctx) to
+// GetExpensesForPeriod, the siblings would not observe the cancellation and all
+// twelve reads would complete, failing this assertion. This is the spec-09
+// sibling-cancellation row the other fan-out tests miss.
+func TestGetSpendingTrends_FanOutCancelsSiblings(t *testing.T) {
+	const window = 12
+	exp := newCountingExpenseClient()
+	exp.delay = 20 * time.Millisecond       // keep the first wave in flight past the failure
+	exp.failOn(2026, 1, errors.New("boom")) // window[0]: fails fast, before its delay
+	svc := newFanoutService(&fakeFanoutRepo{periods: seedYearPeriods(exp)}, exp)
+
+	_, err := svc.GetSpendingTrends(context.Background(), "user-1", 2026, 12, window)
+	require.Error(t, err)
+	assert.Less(t, exp.counter.Total(), window,
+		"first-error must cancel sibling reads; not every period should be read to completion")
 }
 
 // --- GetHistoricalComparison fan-out regression tests ---
