@@ -1,0 +1,3 @@
+id,name,amount,currency,expense_type,tag_name,expense_date,period_year,period_month,status,corrects_id,is_pro_rata,pro_rata_group,pro_rata_index,pro_rata_total,created_at
+exp-1,Groceries,45.99,USD,essentials,Food,2026-05-01,2026,5,active,,false,,,,2026-05-01T12:00:00Z
+exp-2,Bus pass,30.00,USD,essentials,Transport,2026-05-02,2026,5,active,,false,,,,2026-05-02T09:00:00Z

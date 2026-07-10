@@ -1,0 +1,26 @@
+# gofin perf baseline
+path: datarights/export-collection  (finance-call dedup, P2a)
+captured_against: ft/latency-refactor @ 1825b89  (pre-dedup; BenchmarkExportCollection over the full provider set)
+machine: Apple M4 Pro, 14 cores, macOS  (wall-clock reference only)
+date: 2026-07-10
+
+# Environment-independent (portable, gated in CI via the call-count assertion)
+# Per export, the finance client is hit for data one GetAllUserData call carries:
+#   tags, budget_periods, default_settings each call GetAllUserData  -> 3
+#   expenses.buildTagMap calls ListTags                              -> 1
+get_all_user_data_calls:   3
+list_tags_calls:           1
+finance_calls_total:       4
+
+# Wall-clock reference (same-machine only, NOT a threshold)
+# go test -bench BenchmarkExportCollection -benchmem -count=1
+ns_op:                     1395
+bytes_op:                  3883
+allocs_op:                 58
+
+# Target after dedup (this ticket): a fresh per-job MemoizedFinanceClient serves
+# GetAllUserData at most once and the expenses provider derives its tag map from
+# GetAllUserData().GetTags(), so ListTags drops to 0:
+#   get_all_user_data_calls: <= 1
+#   list_tags_calls:         0
+# Enforced by TestExport_DedupesFinanceCalls in internal/engine (test-backend CI).
