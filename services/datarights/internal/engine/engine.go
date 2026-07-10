@@ -146,9 +146,9 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 			exportmetrics.ExportDataCollectionDurationSeconds.WithLabelValues(provider.Name()).Observe(providerDuration)
 
 			if err != nil {
-				// Wrap the provider name in before errgroup captures it: Wait
-				// surfaces only the first error, and humanCollectMessage relies
-				// on this "collect <name>: ..." shape.
+				// Bake the provider name into the error before errgroup captures
+				// it: Wait surfaces only the first error, and humanCollectMessage
+				// relies on this "collect <name>: ..." shape.
 				return fmt.Errorf("collect %s: %w", provider.Name(), err)
 			}
 
