@@ -16,7 +16,7 @@ func underPrefix(path, prefix string) bool {
 // coveringPrefix returns the single ProxyPrefix a path sits under (prefixes are
 // disjoint on segment boundaries, so at most one matches).
 func coveringPrefix(path string) (ProxyPrefix, bool) {
-	for _, p := range ProxyPrefixes {
+	for _, p := range proxyPrefixes {
 		if underPrefix(path, p.Prefix) {
 			return p, true
 		}
@@ -30,7 +30,7 @@ func coveringPrefix(path string) (ProxyPrefix, bool) {
 // same service that serves the route (else the gateway would forward it to the
 // wrong downstream).
 func TestProxyPrefixes_EveryRegistryRouteIsReachable(t *testing.T) {
-	for _, r := range Registry {
+	for _, r := range registry {
 		prefix, ok := coveringPrefix(r.Path)
 		if !ok {
 			t.Errorf("route %s (%s %s) is classified but sits under no ProxyPrefix; the gateway would never proxy it (add a ProxyPrefix for its prefix)", r.ID, r.Method, r.Path)
@@ -47,9 +47,9 @@ func TestProxyPrefixes_EveryRegistryRouteIsReachable(t *testing.T) {
 // prefix with no Registry route is proxied-but-unclassified, so under
 // deny-by-default every request to it would 403 (a silently dead prefix).
 func TestProxyPrefixes_EveryPrefixHasARoute(t *testing.T) {
-	for _, p := range ProxyPrefixes {
+	for _, p := range proxyPrefixes {
 		found := false
-		for _, r := range Registry {
+		for _, r := range registry {
 			if underPrefix(r.Path, p.Prefix) {
 				found = true
 				break

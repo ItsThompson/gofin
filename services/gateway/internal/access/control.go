@@ -10,7 +10,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/ItsThompson/gofin/services/access"
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/apierr"
 )
 
 // Identity headers the gateway sets for downstream services after a successful
@@ -52,16 +53,16 @@ const (
 //
 // The per-level switch is fail-safe: only Authenticated passes without a role
 // check, and any level that is not explicitly allowed is denied (403).
-func AccessControl(validator TokenValidator, resolve func(method, path string) access.Access, logger *slog.Logger) gin.HandlerFunc {
+func AccessControl(validator TokenValidator, resolve func(method, path string) sharedaccess.Level, logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		stripIdentityHeaders(c)
 
 		level := resolve(c.Request.Method, c.Request.URL.Path)
-		if level == access.Public {
+		if level == sharedaccess.Public {
 			c.Next()
 			return
 		}
-		if level == access.Deny {
+		if level == sharedaccess.Deny {
 			// An unclassified path is not a real route, so no identity is
 			// needed: refuse it with a 403 before the cookie is read.
 			abortForbidden(c, logger)
@@ -105,17 +106,17 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 		setIdentityHeaders(c, result)
 
 		switch level {
-		case access.Personal:
+		case sharedaccess.Personal:
 			if result.Role != roleUser {
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case access.Admin:
+		case sharedaccess.Admin:
 			if result.Role != roleAdmin {
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case access.Authenticated:
+		case sharedaccess.Authenticated:
 			// Any valid token passes; no role check.
 		default:
 			// Fail-safe by construction: Public and Deny are short-circuited
@@ -135,11 +136,11 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 // and delegates every /api route to the shared registry resolver. Keeping this
 // composition in the gateway is why services/access never needs to know about
 // gateway-owned routes.
-func GatewayResolve(method, path string) access.Access {
+func GatewayResolve(method, path string) sharedaccess.Level {
 	if path == "/health" || path == "/metrics" {
-		return access.Public
+		return sharedaccess.Public
 	}
-	return access.Resolve(method, path)
+	return sharedaccess.Resolve(method, path)
 }
 
 // stripIdentityHeaders removes client-supplied identity headers before
@@ -163,12 +164,12 @@ func setIdentityHeaders(c *gin.Context, result *TokenValidationResult) {
 	}
 }
 
-// abortUnauthorized ends the request with the unchanged 401 contract.
+// abortUnauthorized ends the request with the unchanged 401 contract, encoded
+// through the shared apierr wire struct. c.Abort halts the middleware chain
+// (apierr.Respond only writes the body/status; it does not abort).
 func abortUnauthorized(c *gin.Context, message string) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		"code":    "UNAUTHORIZED",
-		"message": message,
-	})
+	apierr.Respond(c, apierr.Unauthorized(message))
+	c.Abort()
 }
 
 // isValidationTimeout reports whether a ValidateToken error is the bounded
@@ -190,12 +191,15 @@ func isValidationTimeout(err error) bool {
 
 // abortUnavailable ends the request with 503 SERVICE_UNAVAILABLE, used when the
 // auth dependency is unhealthy (validation timed out) rather than the client's
-// token being invalid.
+// token being invalid. SERVICE_UNAVAILABLE is a gateway-specific code (not one
+// of apierr's shared codes), so the typed error is constructed inline.
 func abortUnavailable(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-		"code":    "SERVICE_UNAVAILABLE",
-		"message": "Authentication service unavailable",
+	apierr.Respond(c, &apierr.Error{
+		Code:    "SERVICE_UNAVAILABLE",
+		Message: "Authentication service unavailable",
+		Status:  http.StatusServiceUnavailable,
 	})
+	c.Abort()
 }
 
 // rejectForbidden ends the request with the unchanged 403 code contract (the
@@ -224,10 +228,13 @@ func abortForbidden(c *gin.Context, logger *slog.Logger) {
 }
 
 // writeForbidden emits the shared 403 body contract (FORBIDDEN / "Access
-// denied") used by both the role-denied and unclassified-route paths.
+// denied") used by both the role-denied and unclassified-route paths, encoded
+// through the shared apierr wire struct.
 func writeForbidden(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-		"code":    "FORBIDDEN",
-		"message": "Access denied",
+	apierr.Respond(c, &apierr.Error{
+		Code:    apierr.CodeForbidden,
+		Message: "Access denied",
+		Status:  http.StatusForbidden,
 	})
+	c.Abort()
 }

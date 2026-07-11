@@ -19,10 +19,10 @@ import "strings"
 // borrow "/api/datarights/exports"'s level: static segments must match
 // byte-for-byte. This makes the leading-substring bug that segment-boundary
 // prefix matching guarded against (commit ca37e4c) impossible by construction.
-func Resolve(method, path string) Access {
+func Resolve(method, path string) Level {
 	var best *Route
-	for i := range Registry {
-		entry := &Registry[i]
+	for i := range registry {
+		entry := &registry[i]
 		if entry.Method != method || !matchPattern(entry.Path, path) {
 			continue
 		}

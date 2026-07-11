@@ -5,8 +5,8 @@ import "testing"
 // TestRegistry_IDsAreUnique guards the bind-by-ID contract: services look up
 // handlers by Route.ID, so a duplicate ID would silently shadow a handler.
 func TestRegistry_IDsAreUnique(t *testing.T) {
-	seen := make(map[string]Route, len(Registry))
-	for _, r := range Registry {
+	seen := make(map[string]Route, len(registry))
+	for _, r := range registry {
 		if prev, dup := seen[r.ID]; dup {
 			t.Errorf("duplicate route ID %q: %s %s and %s %s", r.ID, prev.Method, prev.Path, r.Method, r.Path)
 		}
@@ -18,7 +18,7 @@ func TestRegistry_IDsAreUnique(t *testing.T) {
 // directly from the Registry (no second hand-list): every entry's own
 // method+path must resolve to the Access it declares.
 func TestRegistry_EveryEntryResolvesToItsAccess(t *testing.T) {
-	for _, r := range Registry {
+	for _, r := range registry {
 		if got := Resolve(r.Method, r.Path); got != r.Access {
 			t.Errorf("Resolve(%q, %q) = %s, want %s (route %s)", r.Method, r.Path, got, r.Access, r.ID)
 		}
@@ -42,8 +42,8 @@ func TestRoutesFor_PartitionsRegistry(t *testing.T) {
 		total += len(routes)
 	}
 
-	if total != len(Registry) {
-		t.Errorf("RoutesFor over %v covered %d routes, but Registry has %d; a service is misnamed or missing", services, total, len(Registry))
+	if total != len(registry) {
+		t.Errorf("RoutesFor over %v covered %d routes, but Registry has %d; a service is misnamed or missing", services, total, len(registry))
 	}
 }
 

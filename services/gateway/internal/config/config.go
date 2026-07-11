@@ -29,6 +29,11 @@ const defaultValidateTimeout = 3 * time.Second
 // near-unbounded tail this bound exists to prevent.
 const maxRecommendedValidateTimeout = 30 * time.Second
 
+// DefaultPort is the gateway's default HTTP listen port. It is the single
+// source of truth shared by Load (the listener) and the --healthcheck probe so
+// the two can never desync (US-PLATFORM-05).
+const DefaultPort = "8080"
+
 // Config holds all configuration for the API gateway, loaded from environment variables.
 type Config struct {
 	AuthServiceAddr       string // gRPC address for auth service (e.g., "auth-service:9081")
@@ -80,10 +85,7 @@ func Load() (*Config, error) {
 		environment = "development"
 	}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
+	port := ResolvePort()
 
 	validateTimeout := defaultValidateTimeout
 	if raw := os.Getenv("GATEWAY_VALIDATE_TIMEOUT"); raw != "" {
@@ -119,4 +121,17 @@ func Load() (*Config, error) {
 // IsProduction returns true if the environment is not "development".
 func (c *Config) IsProduction() bool {
 	return c.Environment != "development"
+}
+
+// ResolvePort returns the configured HTTP port: the PORT env override when set,
+// else DefaultPort. Both the listener (via Load) and the --healthcheck probe
+// call this, so overriding PORT moves them together instead of desyncing the
+// probe from a hardcoded literal (US-PLATFORM-05). It is standalone (not a
+// Config method) so the pre-config --healthcheck branch can call it without a
+// full Load.
+func ResolvePort() string {
+	if port := os.Getenv("PORT"); port != "" {
+		return port
+	}
+	return DefaultPort
 }

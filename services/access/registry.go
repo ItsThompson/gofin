@@ -20,20 +20,20 @@ type Route struct {
 	// "/api/finance/tags/:id" or "/api/expenses/:id/history".
 	Path string
 	// Access is the classification enforced by the gateway middleware.
-	Access Access
+	Access Level
 }
 
-// Registry is the single, exhaustive list of every gateway-facing downstream
-// route. It is the sole source of truth: downstream services register their
-// routes by iterating RoutesFor, and the gateway classifies each request by
-// resolving against these patterns (see resolver.go).
+// registry is the single, exhaustive list of every gateway-facing downstream
+// route. It is the sole source of truth, set once at init and unexported so no
+// caller can reassign it: downstream services read it via RoutesFor and the
+// gateway classifies each request via Resolve (see resolver.go).
 //
 // Gateway-native endpoints (/health, /metrics) are intentionally absent: no
 // downstream service serves them, so the gateway classifies them itself.
 //
 // Path strings must match gin's registered patterns byte-for-byte (verified by
 // each service's registration coverage test against engine.Routes()).
-var Registry = []Route{
+var registry = []Route{
 	// --- auth service ---
 	{ID: "auth.register", Service: "auth", Method: http.MethodPost, Path: "/api/auth/register", Access: Public},
 	{ID: "auth.login", Service: "auth", Method: http.MethodPost, Path: "/api/auth/login", Access: Public},
@@ -89,7 +89,7 @@ var Registry = []Route{
 // a route missing from the Registry can never be served.
 func RoutesFor(service string) []Route {
 	var routes []Route
-	for _, r := range Registry {
+	for _, r := range registry {
 		if r.Service == service {
 			routes = append(routes, r)
 		}
