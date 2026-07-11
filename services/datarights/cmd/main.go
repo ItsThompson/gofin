@@ -21,7 +21,7 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/handler"
-	_ "github.com/ItsThompson/gofin/services/datarights/internal/metrics" // register Prometheus metrics
+	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
@@ -134,6 +134,10 @@ func run() error {
 	}
 
 	exportEngine := engine.NewEngine(newExportProviders, financeClient, repo, emailSender, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
+
+	// Expose the export pool's live telemetry through the Prometheus pool gauges
+	// (scraped by the Grafana dashboard and the stuck-pool alert).
+	exportmetrics.SetPoolStats(exportEngine.ActiveJobs, exportEngine.QueuedJobs)
 
 	// Startup recovery: re-submit non-terminal export jobs
 	emailResolver := service.NewAuthUserEmailResolver(authClient)

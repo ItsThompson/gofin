@@ -4,6 +4,8 @@
 package metrics
 
 import (
+	"sync/atomic"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -98,20 +100,46 @@ var (
 // Pool gauges
 // ---------------------------------------------------------------------------
 
-var (
-	// ExportPoolActiveJobs tracks currently running export goroutines.
-	ExportPoolActiveJobs = promauto.NewGauge(
+// poolAccessors reads live pool telemetry. The export engine's jobrunner.Pool
+// owns the semaphore, so the pool gauges are exposed as GaugeFuncs that read
+// pool.ActiveJobs()/QueuedJobs() at scrape time rather than being Inc/Dec'd.
+type poolAccessors struct {
+	active func() int
+	queued func() int
+}
+
+// poolStats holds the live accessors. It defaults to zero-returning stubs so the
+// gauges are registered (and report 0) before SetPoolStats wires the real pool.
+var poolStats atomic.Pointer[poolAccessors]
+
+func init() {
+	poolStats.Store(&poolAccessors{
+		active: func() int { return 0 },
+		queued: func() int { return 0 },
+	})
+
+	// ExportPoolActiveJobs reports the number of currently running export jobs.
+	promauto.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "export_pool_active_jobs",
 			Help: "Number of currently running export jobs",
 		},
+		func() float64 { return float64(poolStats.Load().active()) },
 	)
 
-	// ExportPoolQueuedJobs tracks jobs waiting for a pool slot.
-	ExportPoolQueuedJobs = promauto.NewGauge(
+	// ExportPoolQueuedJobs reports the number of export jobs waiting for a slot.
+	promauto.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Name: "export_pool_queued_jobs",
 			Help: "Number of export jobs waiting for a pool slot",
 		},
+		func() float64 { return float64(poolStats.Load().queued()) },
 	)
-)
+}
+
+// SetPoolStats wires the live export-pool accessors for the pool gauges. It is
+// called once from main after the export engine is constructed; before that the
+// gauges report 0.
+func SetPoolStats(active, queued func() int) {
+	poolStats.Store(&poolAccessors{active: active, queued: queued})
+}
