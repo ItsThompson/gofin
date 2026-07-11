@@ -2,6 +2,7 @@ go 1.26
 
 use (
 	./access
+	./apierr
 	./auth
 	./datarights
 	./dbmigrate
@@ -9,6 +10,7 @@ use (
 	./finance
 	./gateway
 	./healthcheck
+	./httpx
 	./metrics
 	./perf
 	./serverkit
