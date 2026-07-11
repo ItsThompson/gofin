@@ -94,7 +94,7 @@ func setupGateway(t *testing.T, validator access.TokenValidator) func(method, pa
 		ExpenseREST:    expenseURL,
 		FinanceREST:    financeURL,
 		DatarightsREST: datarightsURL,
-	}, newSilentLogger(), false)
+	}, sharedaccess.Prefixes(), newSilentLogger(), false)
 
 	// Use a real HTTP test server so the response writer supports CloseNotifier
 	// (required by httputil.ReverseProxy).
@@ -315,15 +315,13 @@ func TestRouter_HealthEndpoint(t *testing.T) {
 }
 
 // TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's
-// fail-fast contract: because router.New derives its proxy groups from
-// sharedaccess.ProxyPrefixes, a prefix naming a service with no proxy handler
+// fail-fast contract: because router.New derives its proxy groups from the
+// injected prefix inventory, a prefix naming a service with no proxy handler
 // is a wiring bug that must panic at construction rather than silently drop the
-// prefix. The bad prefix is appended and restored so other tests are unaffected.
+// prefix. The bad prefix is injected directly (no shared-global mutation).
 func TestRouter_New_PanicsOnPrefixWithNoProxy(t *testing.T) {
-	original := sharedaccess.ProxyPrefixes
-	sharedaccess.ProxyPrefixes = append(append([]sharedaccess.ProxyPrefix{}, original...),
+	badPrefixes := append(sharedaccess.Prefixes(),
 		sharedaccess.ProxyPrefix{Prefix: "/api/ghost", Service: "ghost"})
-	t.Cleanup(func() { sharedaccess.ProxyPrefixes = original })
 
 	defer func() {
 		r := recover()
@@ -338,5 +336,5 @@ func TestRouter_New_PanicsOnPrefixWithNoProxy(t *testing.T) {
 		ExpenseREST:    u,
 		FinanceREST:    u,
 		DatarightsREST: u,
-	}, newSilentLogger(), false)
+	}, badPrefixes, newSilentLogger(), false)
 }

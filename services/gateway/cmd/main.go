@@ -17,6 +17,8 @@ import (
 	"github.com/ItsThompson/gofin/services/gateway/internal/config"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
 	"github.com/ItsThompson/gofin/services/healthcheck"
+
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
 )
 
 func main() {
@@ -97,7 +99,7 @@ func run() error {
 		ExpenseREST:    expenseURL,
 		FinanceREST:    financeURL,
 		DatarightsREST: datarightsURL,
-	}, logger, cfg.IsProduction())
+	}, sharedaccess.Prefixes(), logger, cfg.IsProduction())
 
 	// Start the HTTP server.
 	server := &http.Server{
