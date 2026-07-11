@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -78,7 +79,7 @@ func run() error {
 	expenseClient := service.NewGRPCExpenseClient(
 		expensepb.NewExpenseServiceClient(expenseConn),
 	)
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expenseClient)
+	financeSvc := service.NewFinanceService(repo, txBeginner, expenseClient, time.Now, logger)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

@@ -216,12 +216,19 @@ func (m *mockExpClient) CreateExpense(ctx context.Context, req CreateExpenseInpu
 }
 
 func newTagTestService(repo *mockRepo, txBeg *mockTxBeg, expClient *mockExpClient) *FinanceService {
+	return newTagTestServiceNow(repo, txBeg, expClient, time.Now)
+}
+
+// newTagTestServiceNow builds a FinanceService with an injected clock. A nil
+// expClient is passed through as a nil ExpenseClient interface (paths that read
+// the client are not exercised by those callers).
+func newTagTestServiceNow(repo *mockRepo, txBeg *mockTxBeg, expClient *mockExpClient, nowFunc func() time.Time) *FinanceService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewFinanceService(repo, txBeg, logger)
+	var ec ExpenseClient
 	if expClient != nil {
-		svc.WithExpenseClient(expClient)
+		ec = expClient
 	}
-	return svc
+	return NewFinanceService(repo, txBeg, ec, nowFunc, logger)
 }
 
 func makeTag(id, name string, isDefault bool) *model.Tag {

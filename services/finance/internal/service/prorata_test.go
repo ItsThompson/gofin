@@ -135,8 +135,7 @@ func TestCreateProRataExpense_Success(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
 
 	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
 		return req.Name == "Annual subscription" &&
@@ -184,8 +183,7 @@ func TestCreateProRataExpense_YearRollover(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-	svc.WithNowFunc(fixedNow(2026, 11, 1))
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 11, 1))
 
 	expClient.On("CreateExpense", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-11-01T00:00:00Z"}, nil)
@@ -243,8 +241,7 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
 
 	expClient.On("CreateExpense", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)

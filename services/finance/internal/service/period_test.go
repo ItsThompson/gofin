@@ -39,8 +39,7 @@ func makePeriod(id string, year int32, month int32) *model.BudgetPeriod {
 func TestUpdatePeriod_Success(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, nil, fixedNow(2026, 5, 15))
 
 	existing := makePeriod("period-1", 2026, 5)
 	repo.On("GetPeriodByID", mock.Anything, "period-1", "user-1").Return(existing, nil)
@@ -74,9 +73,8 @@ func TestUpdatePeriod_Success(t *testing.T) {
 func TestUpdatePeriod_PastPeriodLocked(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
 	// Current time is May 2026, trying to update April 2026 period
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, nil, fixedNow(2026, 5, 15))
 
 	existing := makePeriod("period-old", 2026, 4)
 	repo.On("GetPeriodByID", mock.Anything, "period-old", "user-1").Return(existing, nil)
@@ -101,9 +99,8 @@ func TestUpdatePeriod_PastPeriodLocked(t *testing.T) {
 func TestUpdatePeriod_PastYearLocked(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
 	// Current time is Jan 2026, trying to update Dec 2025 period
-	svc.WithNowFunc(fixedNow(2026, 1, 10))
+	svc := newTagTestServiceNow(repo, txBeg, nil, fixedNow(2026, 1, 10))
 
 	existing := makePeriod("period-old-year", 2025, 12)
 	repo.On("GetPeriodByID", mock.Anything, "period-old-year", "user-1").Return(existing, nil)
@@ -168,8 +165,7 @@ func TestUpdatePeriod_NegativeBudget(t *testing.T) {
 func TestUpdatePeriod_NotFound(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, nil, fixedNow(2026, 5, 15))
 
 	repo.On("GetPeriodByID", mock.Anything, "nonexistent", "user-1").Return(nil, nil)
 
@@ -192,8 +188,7 @@ func TestUpdatePeriod_NotFound(t *testing.T) {
 func TestUpdatePeriod_ZeroBudgetAllowed(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, nil, fixedNow(2026, 5, 15))
 
 	existing := makePeriod("period-1", 2026, 5)
 	repo.On("GetPeriodByID", mock.Anything, "period-1", "user-1").Return(existing, nil)

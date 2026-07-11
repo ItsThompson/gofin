@@ -77,10 +77,6 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Expense date is required", Status: 400}
 	}
 
-	if s.expenseClient == nil {
-		return nil, fmt.Errorf("expense client not configured")
-	}
-
 	installments := CalculateInstallments(req.TotalAmount, req.Months)
 	proRataGroup := uuid.New().String()
 
@@ -194,10 +190,6 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 
 	if len(pending) == 0 {
 		return nil, nil
-	}
-
-	if s.expenseClient == nil {
-		return nil, fmt.Errorf("expense client not configured")
 	}
 
 	applied := make([]*model.ProRataSchedule, 0, len(pending))

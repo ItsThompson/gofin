@@ -38,32 +38,27 @@ type FinanceService struct {
 	logger        *slog.Logger
 }
 
-// NewFinanceService creates a new FinanceService.
+// NewFinanceService creates a new FinanceService with all dependencies injected.
+// expenseClient is always supplied, so the dashboard and pro-rata paths
+// dereference it without a nil guard. nowFunc is the clock seam (pass time.Now
+// in production); a nil nowFunc defaults to time.Now.
 func NewFinanceService(
 	repo repository.FinanceRepository,
 	txBeginner repository.TxBeginner,
+	expenseClient ExpenseClient,
+	nowFunc func() time.Time,
 	logger *slog.Logger,
 ) *FinanceService {
-	return &FinanceService{
-		repo:       repo,
-		txBeginner: txBeginner,
-		nowFunc:    time.Now,
-		logger:     logger,
+	if nowFunc == nil {
+		nowFunc = time.Now
 	}
-}
-
-// WithExpenseClient returns a copy of the service with the expense client set.
-// This is used to inject the gRPC client after the service is constructed.
-func (s *FinanceService) WithExpenseClient(client ExpenseClient) *FinanceService {
-	s.expenseClient = client
-	return s
-}
-
-// WithNowFunc overrides the clock function used for time-dependent logic.
-// Used in tests to inject a fixed time.
-func (s *FinanceService) WithNowFunc(f func() time.Time) *FinanceService {
-	s.nowFunc = f
-	return s
+	return &FinanceService{
+		repo:          repo,
+		txBeginner:    txBeginner,
+		expenseClient: expenseClient,
+		nowFunc:       nowFunc,
+		logger:        logger,
+	}
 }
 
 // ServiceError is a typed error that carries an HTTP status code and error code.
@@ -401,12 +396,9 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 		return &ServiceError{Code: model.ErrDefaultTag, Message: "Default tags cannot be deleted, only renamed", Status: 403}
 	}
 
-	var expenseCount int64
-	if s.expenseClient != nil {
-		expenseCount, err = s.expenseClient.CountExpensesByTag(ctx, userID, tagID)
-		if err != nil {
-			return fmt.Errorf("checking tag usage in expenses: %w", err)
-		}
+	expenseCount, err := s.expenseClient.CountExpensesByTag(ctx, userID, tagID)
+	if err != nil {
+		return fmt.Errorf("checking tag usage in expenses: %w", err)
 	}
 
 	proRataCount, err := s.repo.CountTagInProRata(ctx, tagID, userID)
