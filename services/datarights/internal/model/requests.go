@@ -2,10 +2,6 @@ package model
 
 import "time"
 
-// CreateExportRequest is the parsed request for creating an export job.
-// Currently empty since no body is required: the user ID comes from the header.
-type CreateExportRequest struct{}
-
 // JobResponse wraps a single job in the standard response envelope.
 type JobResponse struct {
 	Job *ExportJob `json:"job"`
