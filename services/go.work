@@ -11,4 +11,5 @@ use (
 	./healthcheck
 	./metrics
 	./perf
+	./pgutil
 )
