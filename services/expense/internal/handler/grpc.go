@@ -13,9 +13,8 @@ import (
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
-// GRPCHandler implements the ExpenseService gRPC server.
-// CreateExpense, GetExpensesForPeriod, and GetExpense are implemented.
-// All other RPCs return Unimplemented (stubs for later tickets).
+// GRPCHandler implements the ExpenseService gRPC server. Each RPC delegates to
+// the shared ExpenseService and maps service errors to gRPC status codes.
 type GRPCHandler struct {
 	pb.UnimplementedExpenseServiceServer
 	expenseService *service.ExpenseService
@@ -91,8 +90,6 @@ func (h *GRPCHandler) GetExpense(ctx context.Context, req *pb.GetExpenseRequest)
 	}, nil
 }
 
-// Stub RPCs: return Unimplemented for later tickets.
-
 func (h *GRPCHandler) CorrectExpense(ctx context.Context, req *pb.CorrectExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CorrectExpense(ctx, req.GetUserId(), req.GetExpenseId(), &model.CorrectExpenseRequest{
 		Name:        req.GetName(),
@@ -107,44 +104,6 @@ func (h *GRPCHandler) CorrectExpense(ctx context.Context, req *pb.CorrectExpense
 
 	return &pb.ExpenseResponse{
 		Expense: expenseToProto(expense),
-	}, nil
-}
-
-func (h *GRPCHandler) GetCorrectionHistory(ctx context.Context, req *pb.GetCorrectionHistoryRequest) (*pb.CorrectionHistoryResponse, error) {
-	// The proto request only has expense_id; extract user_id from context
-	// or use a convention. For now, since the proto doesn't carry user_id,
-	// we pass an empty string. The REST API is the primary consumer.
-	entries, err := h.expenseService.GetCorrectionHistory(ctx, "", req.GetExpenseId())
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-
-	protoEntries := make([]*pb.ExpenseData, len(entries))
-	for i, entry := range entries {
-		protoEntries[i] = expenseToProto(entry)
-	}
-
-	return &pb.CorrectionHistoryResponse{
-		Entries: protoEntries,
-	}, nil
-}
-
-func (h *GRPCHandler) GetProRataGroup(ctx context.Context, req *pb.GetProRataGroupRequest) (*pb.ExpenseListResponse, error) {
-	// Similar to GetCorrectionHistory: proto doesn't carry user_id.
-	// REST API is the primary consumer.
-	expenses, err := h.expenseService.GetProRataGroup(ctx, "", req.GetGroupId())
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-
-	protoExpenses := make([]*pb.ExpenseData, len(expenses))
-	for i, expense := range expenses {
-		protoExpenses[i] = expenseToProto(expense)
-	}
-
-	return &pb.ExpenseListResponse{
-		Data:  protoExpenses,
-		Total: int64(len(protoExpenses)),
 	}, nil
 }
 

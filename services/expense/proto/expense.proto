@@ -29,10 +29,8 @@ service ExpenseService {
   // GDPR: anonymize all expenses for a user (field redaction, not deletion)
   rpc AnonymizeAllUserExpenses(AnonymizeRequest) returns (AnonymizeResponse);
 
-  // Stubs: implemented in later tickets
+  // Correction flow (mutates the ledger; REST is the primary consumer).
   rpc CorrectExpense(CorrectExpenseRequest) returns (ExpenseResponse);
-  rpc GetCorrectionHistory(GetCorrectionHistoryRequest) returns (CorrectionHistoryResponse);
-  rpc GetProRataGroup(GetProRataGroupRequest) returns (ExpenseListResponse);
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +111,7 @@ message GetExpenseRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Stubs (messages defined, RPCs return Unimplemented)
+// CorrectExpense request
 // ---------------------------------------------------------------------------
 
 message CorrectExpenseRequest {
@@ -125,6 +123,14 @@ message CorrectExpenseRequest {
   string tag_id = 6;
   string expense_date = 7;
 }
+
+// ---------------------------------------------------------------------------
+// Messages retained without an RPC. GetCorrectionHistory and GetProRataGroup
+// were removed (they hardcoded an empty user scope and had no consumer); the
+// correction-history and pro-rata reads are served over REST. These generated
+// types are kept because an out-of-service gRPC client mock still references
+// them.
+// ---------------------------------------------------------------------------
 
 message GetCorrectionHistoryRequest {
   string expense_id = 1;

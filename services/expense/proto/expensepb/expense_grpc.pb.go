@@ -26,8 +26,6 @@ const (
 	ExpenseService_StreamAllUserExpenses_FullMethodName    = "/expense.ExpenseService/StreamAllUserExpenses"
 	ExpenseService_AnonymizeAllUserExpenses_FullMethodName = "/expense.ExpenseService/AnonymizeAllUserExpenses"
 	ExpenseService_CorrectExpense_FullMethodName           = "/expense.ExpenseService/CorrectExpense"
-	ExpenseService_GetCorrectionHistory_FullMethodName     = "/expense.ExpenseService/GetCorrectionHistory"
-	ExpenseService_GetProRataGroup_FullMethodName          = "/expense.ExpenseService/GetProRataGroup"
 )
 
 // ExpenseServiceClient is the client API for ExpenseService service.
@@ -44,13 +42,18 @@ type ExpenseServiceClient interface {
 	// for a user in chronological order (created_at ASC, id ASC). The server pages
 	// internally with a keyset cursor, bounding server memory to O(page_size); the
 	// client writes rows incrementally.
+	//
+	// WIRE BREAK: this replaced a unary GetAllUserExpenses RPC (renamed, request
+	// message swapped, field number 2 reused for page_size). It is an intentional
+	// atomic internal break: the sole consumer (datarights export) is cut over in
+	// the same change and no proto bytes are persisted, so there is no
+	// cross-version wire path and the reserve-field rules for incremental rollout
+	// do not apply.
 	StreamAllUserExpenses(ctx context.Context, in *StreamAllUserExpensesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExpenseData], error)
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error)
-	// Stubs: implemented in later tickets
+	// Correction flow (mutates the ledger; REST is the primary consumer).
 	CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
-	GetCorrectionHistory(ctx context.Context, in *GetCorrectionHistoryRequest, opts ...grpc.CallOption) (*CorrectionHistoryResponse, error)
-	GetProRataGroup(ctx context.Context, in *GetProRataGroupRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
 }
 
 type expenseServiceClient struct {
@@ -140,26 +143,6 @@ func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectEx
 	return out, nil
 }
 
-func (c *expenseServiceClient) GetCorrectionHistory(ctx context.Context, in *GetCorrectionHistoryRequest, opts ...grpc.CallOption) (*CorrectionHistoryResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CorrectionHistoryResponse)
-	err := c.cc.Invoke(ctx, ExpenseService_GetCorrectionHistory_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *expenseServiceClient) GetProRataGroup(ctx context.Context, in *GetProRataGroupRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ExpenseListResponse)
-	err := c.cc.Invoke(ctx, ExpenseService_GetProRataGroup_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ExpenseServiceServer is the server API for ExpenseService service.
 // All implementations must embed UnimplementedExpenseServiceServer
 // for forward compatibility.
@@ -174,13 +157,18 @@ type ExpenseServiceServer interface {
 	// for a user in chronological order (created_at ASC, id ASC). The server pages
 	// internally with a keyset cursor, bounding server memory to O(page_size); the
 	// client writes rows incrementally.
+	//
+	// WIRE BREAK: this replaced a unary GetAllUserExpenses RPC (renamed, request
+	// message swapped, field number 2 reused for page_size). It is an intentional
+	// atomic internal break: the sole consumer (datarights export) is cut over in
+	// the same change and no proto bytes are persisted, so there is no
+	// cross-version wire path and the reserve-field rules for incremental rollout
+	// do not apply.
 	StreamAllUserExpenses(*StreamAllUserExpensesRequest, grpc.ServerStreamingServer[ExpenseData]) error
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error)
-	// Stubs: implemented in later tickets
+	// Correction flow (mutates the ledger; REST is the primary consumer).
 	CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error)
-	GetCorrectionHistory(context.Context, *GetCorrectionHistoryRequest) (*CorrectionHistoryResponse, error)
-	GetProRataGroup(context.Context, *GetProRataGroupRequest) (*ExpenseListResponse, error)
 	mustEmbedUnimplementedExpenseServiceServer()
 }
 
@@ -211,12 +199,6 @@ func (UnimplementedExpenseServiceServer) AnonymizeAllUserExpenses(context.Contex
 }
 func (UnimplementedExpenseServiceServer) CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CorrectExpense not implemented")
-}
-func (UnimplementedExpenseServiceServer) GetCorrectionHistory(context.Context, *GetCorrectionHistoryRequest) (*CorrectionHistoryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetCorrectionHistory not implemented")
-}
-func (UnimplementedExpenseServiceServer) GetProRataGroup(context.Context, *GetProRataGroupRequest) (*ExpenseListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetProRataGroup not implemented")
 }
 func (UnimplementedExpenseServiceServer) mustEmbedUnimplementedExpenseServiceServer() {}
 func (UnimplementedExpenseServiceServer) testEmbeddedByValue()                        {}
@@ -358,42 +340,6 @@ func _ExpenseService_CorrectExpense_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ExpenseService_GetCorrectionHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCorrectionHistoryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ExpenseServiceServer).GetCorrectionHistory(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ExpenseService_GetCorrectionHistory_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ExpenseServiceServer).GetCorrectionHistory(ctx, req.(*GetCorrectionHistoryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ExpenseService_GetProRataGroup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetProRataGroupRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ExpenseServiceServer).GetProRataGroup(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ExpenseService_GetProRataGroup_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ExpenseServiceServer).GetProRataGroup(ctx, req.(*GetProRataGroupRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ExpenseService_ServiceDesc is the grpc.ServiceDesc for ExpenseService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -424,14 +370,6 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CorrectExpense",
 			Handler:    _ExpenseService_CorrectExpense_Handler,
-		},
-		{
-			MethodName: "GetCorrectionHistory",
-			Handler:    _ExpenseService_GetCorrectionHistory_Handler,
-		},
-		{
-			MethodName: "GetProRataGroup",
-			Handler:    _ExpenseService_GetProRataGroup_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
