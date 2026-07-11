@@ -58,7 +58,6 @@ func (v *GRPCTokenValidator) ValidateToken(ctx context.Context, accessToken stri
 	return &access.TokenValidationResult{
 		UserID:    resp.GetUserId(),
 		Role:      resp.GetRole(),
-		Username:  resp.GetUsername(),
 		AssumedBy: resp.GetAssumedBy(),
 	}, nil
 }

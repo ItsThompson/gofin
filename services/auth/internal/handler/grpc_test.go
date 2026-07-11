@@ -72,40 +72,6 @@ func TestGRPCValidateToken_Invalid(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, st.Code())
 }
 
-func TestGRPCStubs_ReturnUnimplemented(t *testing.T) {
-	handler, _, _ := newTestGRPCHandler()
-	ctx := context.Background()
-
-	_, err := handler.RefreshToken(ctx, &pb.RefreshTokenRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.Logout(ctx, &pb.LogoutRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.AssumeIdentity(ctx, &pb.AssumeIdentityRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.RestoreIdentity(ctx, &pb.RestoreIdentityRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.ListUsers(ctx, &pb.ListUsersRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.UpdateUser(ctx, &pb.UpdateUserRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.ChangePassword(ctx, &pb.ChangePasswordRequest{})
-	assertUnimplemented(t, err)
-}
-
-func assertUnimplemented(t *testing.T, err error) {
-	t.Helper()
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unimplemented, st.Code())
-}
-
 func TestGRPCGetUser_Success(t *testing.T) {
 	handler, _, repo := newTestGRPCHandler()
 

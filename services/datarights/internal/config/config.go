@@ -13,7 +13,6 @@ type Config struct {
 	LogLevel           string
 	Environment        string
 	RESTPort           string
-	GRPCPort           string
 	AuthServiceAddr    string
 	ExpenseServiceAddr string
 	FinanceServiceAddr string
@@ -46,11 +45,6 @@ func Load() (*Config, error) {
 	restPort := os.Getenv("REST_PORT")
 	if restPort == "" {
 		restPort = "8084"
-	}
-
-	grpcPort := os.Getenv("GRPC_PORT")
-	if grpcPort == "" {
-		grpcPort = "9084"
 	}
 
 	authServiceAddr := os.Getenv("AUTH_SERVICE_ADDR")
@@ -110,7 +104,6 @@ func Load() (*Config, error) {
 		LogLevel:           logLevel,
 		Environment:        environment,
 		RESTPort:           restPort,
-		GRPCPort:           grpcPort,
 		AuthServiceAddr:    authServiceAddr,
 		ExpenseServiceAddr: expenseServiceAddr,
 		FinanceServiceAddr: financeServiceAddr,

@@ -11,9 +11,10 @@ import (
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
 
-// GRPCHandler implements the AuthService gRPC server.
-// Register, Login, and ValidateToken are implemented.
-// All other RPCs return Unimplemented (stubs for later tickets).
+// GRPCHandler implements the AuthService gRPC server. Register and Login
+// deliberately return codes.Unimplemented directing callers to the REST
+// endpoints. RPCs without an explicit method are served by the embedded
+// UnimplementedAuthServiceServer.
 type GRPCHandler struct {
 	pb.UnimplementedAuthServiceServer
 	authService *service.AuthService
@@ -56,26 +57,6 @@ func (h *GRPCHandler) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Auth
 	return nil, status.Error(codes.Unimplemented, "use REST endpoint POST /api/auth/login")
 }
 
-func (h *GRPCHandler) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.AuthResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "RefreshToken not yet implemented")
-}
-
-func (h *GRPCHandler) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "Logout not yet implemented")
-}
-
-func (h *GRPCHandler) AssumeIdentity(ctx context.Context, req *pb.AssumeIdentityRequest) (*pb.AuthResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "AssumeIdentity not yet implemented")
-}
-
-func (h *GRPCHandler) RestoreIdentity(ctx context.Context, req *pb.RestoreIdentityRequest) (*pb.AuthResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "RestoreIdentity not yet implemented")
-}
-
-func (h *GRPCHandler) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ListUsers not yet implemented")
-}
-
 func (h *GRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.UserResponse, error) {
 	userID := req.GetUserId()
 	if userID == "" {
@@ -104,14 +85,6 @@ func (h *GRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 		HasCompletedOnboarding: user.HasCompletedOnboarding,
 		CreatedAt:              user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}, nil
-}
-
-func (h *GRPCHandler) UpdateUser(ctx context.Context, req *pb.UpdateUserRequest) (*pb.UserResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "UpdateUser not yet implemented")
-}
-
-func (h *GRPCHandler) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ChangePasswordResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ChangePassword not yet implemented")
 }
 
 func (h *GRPCHandler) VerifyPassword(ctx context.Context, req *pb.VerifyPasswordRequest) (*pb.VerifyPasswordResponse, error) {
