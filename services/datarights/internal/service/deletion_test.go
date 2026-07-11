@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
@@ -265,8 +266,8 @@ func TestDeletionService_CreateJob_InvalidPassword_Returns401(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrInvalidCredentials, svcErr.Code)
 	assert.Equal(t, http.StatusUnauthorized, svcErr.Status)
 }
@@ -315,8 +316,8 @@ func TestDeletionService_CreateJob_AuthServiceUnavailable_Returns503(t *testing.
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrServiceUnavailable, svcErr.Code)
 	assert.Equal(t, http.StatusServiceUnavailable, svcErr.Status)
 }
@@ -336,9 +337,9 @@ func TestDeletionService_CreateJob_SelfDeletion_Returns400(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 	assert.Equal(t, http.StatusBadRequest, svcErr.Status)
 	assert.Contains(t, svcErr.Message, "Cannot delete your own account")
 }
@@ -359,8 +360,8 @@ func TestDeletionService_CreateJob_ProtectedUsername_Admin_Returns403(t *testing
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrProtectedUser, svcErr.Code)
 	assert.Equal(t, http.StatusForbidden, svcErr.Status)
 }
@@ -379,8 +380,8 @@ func TestDeletionService_CreateJob_ProtectedUsername_Thompson_Returns403(t *test
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrProtectedUser, svcErr.Code)
 	assert.Equal(t, http.StatusForbidden, svcErr.Status)
 }
@@ -428,8 +429,8 @@ func TestDeletionService_CreateJob_GetUser_Unavailable_Returns503(t *testing.T) 
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrServiceUnavailable, svcErr.Code)
 	assert.Equal(t, http.StatusServiceUnavailable, svcErr.Status)
 }
@@ -455,8 +456,8 @@ func TestDeletionService_CreateJob_ExportInProgress_Returns409(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrExportConflict, svcErr.Code)
 	assert.Equal(t, http.StatusConflict, svcErr.Status)
 	assert.Contains(t, svcErr.Message, "Cannot delete user while data export is in progress")
@@ -619,9 +620,9 @@ func TestDeletionService_GetJob_NotFound(t *testing.T) {
 	assert.Nil(t, job)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 	assert.Equal(t, http.StatusNotFound, svcErr.Status)
 	mockRepo.AssertExpectations(t)
 }

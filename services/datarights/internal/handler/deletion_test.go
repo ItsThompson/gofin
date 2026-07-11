@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
@@ -338,7 +339,7 @@ func TestCreateDeletion_InvalidPassword_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, model.ErrInvalidCredentials, resp.Code)
@@ -362,7 +363,7 @@ func TestCreateDeletion_SelfDeletion_Returns400(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Contains(t, resp.Message, "Cannot delete your own account")
@@ -387,7 +388,7 @@ func TestCreateDeletion_ProtectedUsername_Returns403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, model.ErrProtectedUser, resp.Code)
@@ -417,7 +418,7 @@ func TestCreateDeletion_ExportConflict_Returns409(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, model.ErrExportConflict, resp.Code)
@@ -443,7 +444,7 @@ func TestCreateDeletion_AuthServiceUnavailable_Returns503(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, model.ErrServiceUnavailable, resp.Code)
@@ -462,10 +463,10 @@ func TestCreateDeletion_Unauthenticated_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrUnauthorized, resp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, resp.Code)
 }
 
 func TestCreateDeletion_MissingUserId_Returns400(t *testing.T) {
@@ -482,10 +483,12 @@ func TestCreateDeletion_MissingUserId_Returns400(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrValidationError, resp.Code)
+	assert.Equal(t, apierr.CodeValidation, resp.Code)
+	// C6: bind failures now carry field-level validation detail.
+	assert.Equal(t, "required", resp.Fields["UserID"])
 }
 
 func TestCreateDeletion_MissingPassword_Returns400(t *testing.T) {
@@ -502,10 +505,12 @@ func TestCreateDeletion_MissingPassword_Returns400(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrValidationError, resp.Code)
+	assert.Equal(t, apierr.CodeValidation, resp.Code)
+	// C6: bind failures now carry field-level validation detail.
+	assert.Equal(t, "required", resp.Fields["Password"])
 }
 
 func TestCreateDeletion_DBError_Returns500(t *testing.T) {
@@ -530,10 +535,10 @@ func TestCreateDeletion_DBError_Returns500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrInternalServerError, resp.Code)
+	assert.Equal(t, apierr.CodeInternal, resp.Code)
 	mockRepo.AssertExpectations(t)
 	mockExportRepo.AssertExpectations(t)
 }
@@ -586,10 +591,10 @@ func TestGetDeletion_NotFound_Returns404(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrNotFound, resp.Code)
+	assert.Equal(t, apierr.CodeNotFound, resp.Code)
 	mockRepo.AssertExpectations(t)
 }
 
@@ -604,10 +609,10 @@ func TestGetDeletion_Unauthenticated_Returns401(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrUnauthorized, resp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, resp.Code)
 }
 
 func TestGetDeletion_CompletedJob_ReturnsCompletedAt(t *testing.T) {

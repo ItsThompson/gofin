@@ -8,6 +8,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
+	"github.com/ItsThompson/gofin/services/httpx"
 )
 
 // DeletionHandler handles HTTP requests for deletion job endpoints.
@@ -35,27 +36,19 @@ func (h *DeletionHandler) handlers() map[string]gin.HandlerFunc {
 // CreateDeletion handles POST /api/datarights/deletions.
 // Returns 202 Accepted for a new job, or 200 OK for an existing in-progress job.
 func (h *DeletionHandler) CreateDeletion(c *gin.Context) {
-	adminUserID := c.GetHeader("X-User-ID")
-	if adminUserID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	adminUserID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.CreateDeletionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body: userId and password are required",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	result, err := h.deletionService.CreateJob(c.Request.Context(), req.UserID, adminUserID, req.Password)
 	if err != nil {
-		h.handleError(c, err)
+		respondError(c, h.logger, err)
 		return
 	}
 
@@ -84,12 +77,7 @@ func (h *DeletionHandler) CreateDeletion(c *gin.Context) {
 // GetDeletion handles GET /api/datarights/deletions/:id.
 // Returns the current state of a deletion job.
 func (h *DeletionHandler) GetDeletion(c *gin.Context) {
-	adminUserID := c.GetHeader("X-User-ID")
-	if adminUserID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	if _, ok := httpx.RequireUserID(c); !ok {
 		return
 	}
 
@@ -97,7 +85,7 @@ func (h *DeletionHandler) GetDeletion(c *gin.Context) {
 
 	job, err := h.deletionService.GetJob(c.Request.Context(), jobID)
 	if err != nil {
-		h.handleError(c, err)
+		respondError(c, h.logger, err)
 		return
 	}
 
@@ -108,24 +96,5 @@ func (h *DeletionHandler) GetDeletion(c *gin.Context) {
 		Error:       job.Error,
 		CreatedAt:   job.CreatedAt,
 		CompletedAt: job.CompletedAt,
-	})
-}
-
-// handleError maps service errors to HTTP responses.
-func (h *DeletionHandler) handleError(c *gin.Context, err error) {
-	if svcErr, ok := err.(*service.ServiceError); ok {
-		c.JSON(svcErr.Status, model.ApiError{
-			Code:    svcErr.Code,
-			Message: svcErr.Message,
-		})
-		return
-	}
-
-	h.logger.Error("unexpected error in deletion handler",
-		slog.String("error", err.Error()),
-	)
-	c.JSON(http.StatusInternalServerError, model.ApiError{
-		Code:    model.ErrInternalServerError,
-		Message: "An unexpected error occurred",
 	})
 }

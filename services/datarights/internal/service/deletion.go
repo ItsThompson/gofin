@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
@@ -92,11 +93,7 @@ func (s *DeletionService) CreateJob(ctx context.Context, userID, adminUserID, pa
 
 	// Guard 2: Self-deletion prevention
 	if userID == adminUserID {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Cannot delete your own account",
-			Status:  http.StatusBadRequest,
-		}
+		return nil, apierr.Validation("Cannot delete your own account", nil)
 	}
 
 	// Guard 3: Protected username enforcement
@@ -157,11 +154,7 @@ func (s *DeletionService) GetJob(ctx context.Context, jobID string) (*model.Dele
 	}
 
 	if job == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: "Deletion job not found",
-			Status:  http.StatusNotFound,
-		}
+		return nil, apierr.NotFound("Deletion job not found")
 	}
 
 	return job, nil
@@ -180,7 +173,7 @@ func (s *DeletionService) verifyPassword(ctx context.Context, adminUserID, passw
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.Unavailable {
-			return &ServiceError{
+			return &apierr.Error{
 				Code:    model.ErrServiceUnavailable,
 				Message: "Auth service unavailable",
 				Status:  http.StatusServiceUnavailable,
@@ -190,7 +183,7 @@ func (s *DeletionService) verifyPassword(ctx context.Context, adminUserID, passw
 	}
 
 	if !resp.GetValid() {
-		return &ServiceError{
+		return &apierr.Error{
 			Code:    model.ErrInvalidCredentials,
 			Message: "Invalid credentials",
 			Status:  http.StatusUnauthorized,
@@ -212,7 +205,7 @@ func (s *DeletionService) checkProtectedUsername(ctx context.Context, userID str
 	if err != nil {
 		st, ok := status.FromError(err)
 		if ok && st.Code() == codes.Unavailable {
-			return &ServiceError{
+			return &apierr.Error{
 				Code:    model.ErrServiceUnavailable,
 				Message: "Auth service unavailable",
 				Status:  http.StatusServiceUnavailable,
@@ -222,7 +215,7 @@ func (s *DeletionService) checkProtectedUsername(ctx context.Context, userID str
 	}
 
 	if isProtectedUsername(resp.GetUsername()) {
-		return &ServiceError{
+		return &apierr.Error{
 			Code:    model.ErrProtectedUser,
 			Message: "Cannot delete a protected user account",
 			Status:  http.StatusForbidden,
@@ -244,11 +237,7 @@ func (s *DeletionService) checkExportConflict(ctx context.Context, userID string
 	}
 
 	if exportJob != nil {
-		return &ServiceError{
-			Code:    model.ErrExportConflict,
-			Message: "Cannot delete user while data export is in progress",
-			Status:  http.StatusConflict,
-		}
+		return apierr.Conflict(model.ErrExportConflict, "Cannot delete user while data export is in progress")
 	}
 
 	return nil

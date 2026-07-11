@@ -23,24 +23,15 @@ type RateLimitedResponse struct {
 	RetryAfter time.Time `json:"retryAfter"`
 }
 
-// ApiError follows the standard error contract.
-type ApiError struct {
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Fields  map[string]string `json:"fields,omitempty"`
-}
-
-// Common error codes.
+// Datarights-specific error codes. The shared codes (UNAUTHORIZED, NOT_FOUND,
+// VALIDATION_ERROR, INTERNAL_SERVER_ERROR) are sourced from the apierr package;
+// only the codes unique to datarights are declared here.
 const (
-	ErrUnauthorized        = "UNAUTHORIZED"
-	ErrInvalidCredentials  = "INVALID_CREDENTIALS"
-	ErrNotFound            = "NOT_FOUND"
-	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
-	ErrRateLimited         = "RATE_LIMITED"
-	ErrValidationError     = "VALIDATION_ERROR"
-	ErrProtectedUser       = "PROTECTED_USER"
-	ErrExportConflict      = "EXPORT_CONFLICT"
-	ErrServiceUnavailable  = "SERVICE_UNAVAILABLE"
+	ErrInvalidCredentials = "INVALID_CREDENTIALS"
+	ErrRateLimited        = "RATE_LIMITED"
+	ErrProtectedUser      = "PROTECTED_USER"
+	ErrExportConflict     = "EXPORT_CONFLICT"
+	ErrServiceUnavailable = "SERVICE_UNAVAILABLE"
 )
 
 // CreateDeletionRequest is the parsed request body for creating a deletion job.

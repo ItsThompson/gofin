@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
@@ -248,10 +249,10 @@ func TestCreateExport_DBError_Returns500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrInternalServerError, resp.Code)
+	assert.Equal(t, apierr.CodeInternal, resp.Code)
 }
 
 func TestCreateExport_Unauthenticated(t *testing.T) {
@@ -265,10 +266,10 @@ func TestCreateExport_Unauthenticated(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrUnauthorized, resp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, resp.Code)
 }
 
 func TestGetExport_Success(t *testing.T) {
@@ -314,10 +315,10 @@ func TestGetExport_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrNotFound, resp.Code)
+	assert.Equal(t, apierr.CodeNotFound, resp.Code)
 }
 
 func TestGetExport_DifferentUser(t *testing.T) {

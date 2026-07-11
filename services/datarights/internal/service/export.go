@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
@@ -13,17 +14,6 @@ import (
 
 // RateLimitWindow is the minimum duration between successful exports for a user.
 const RateLimitWindow = 30 * 24 * time.Hour
-
-// ServiceError is a typed error that carries an HTTP status code and error code.
-type ServiceError struct {
-	Code    string
-	Message string
-	Status  int
-}
-
-func (e *ServiceError) Error() string {
-	return e.Message
-}
 
 // RateLimitError is returned when the user has exceeded the export rate limit.
 type RateLimitError struct {
@@ -155,11 +145,7 @@ func (s *ExportService) GetJob(ctx context.Context, jobID, userID string) (*mode
 	}
 
 	if job == nil || job.UserID != userID {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: "Export job not found",
-			Status:  404,
-		}
+		return nil, apierr.NotFound("Export job not found")
 	}
 
 	return job, nil

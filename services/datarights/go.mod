@@ -4,11 +4,13 @@ go 1.26
 
 require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
+	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/auth v0.0.0
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0
 	github.com/ItsThompson/gofin/services/finance v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
+	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/perf v0.0.0
 	github.com/ItsThompson/gofin/services/pgutil v0.0.0
@@ -23,6 +25,8 @@ require (
 
 replace github.com/ItsThompson/gofin/services/access => ../access
 
+replace github.com/ItsThompson/gofin/services/apierr => ../apierr
+
 replace github.com/ItsThompson/gofin/services/auth => ../auth
 
 replace github.com/ItsThompson/gofin/services/dbmigrate => ../dbmigrate
@@ -32,6 +36,8 @@ replace github.com/ItsThompson/gofin/services/expense => ../expense
 replace github.com/ItsThompson/gofin/services/finance => ../finance
 
 replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
+
+replace github.com/ItsThompson/gofin/services/httpx => ../httpx
 
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
