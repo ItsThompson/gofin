@@ -4,7 +4,9 @@ go 1.26
 
 require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
+	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
+	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/codenotary/immudb v1.11.0
@@ -24,6 +26,10 @@ replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
 
 replace github.com/ItsThompson/gofin/services/dbmigrate => ../dbmigrate
+
+replace github.com/ItsThompson/gofin/services/apierr => ../apierr
+
+replace github.com/ItsThompson/gofin/services/httpx => ../httpx
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect

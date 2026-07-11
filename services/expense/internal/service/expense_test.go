@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
@@ -101,6 +102,15 @@ func newTestService(repo *mockExpenseRepository) *ExpenseService {
 	return NewExpenseService(repo, time.Now, logger)
 }
 
+// requireAPIError asserts that err carries an *apierr.Error (via errors.As, so a
+// %w-wrapped typed error still matches) and returns it for further assertions.
+func requireAPIError(t *testing.T, err error) *apierr.Error {
+	t.Helper()
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	return apiErr
+}
+
 func validCreateRequest() *model.CreateExpenseRequest {
 	return &model.CreateExpenseRequest{
 		Name:        "Grocery shopping",
@@ -165,9 +175,8 @@ func TestCreateExpense_AmountMustBePositive(t *testing.T) {
 			_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
 			require.Error(t, err)
-			svcErr, ok := err.(*ServiceError)
-			require.True(t, ok)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 			assert.Equal(t, 400, svcErr.Status)
 		})
 	}
@@ -198,9 +207,8 @@ func TestCreateExpense_RequiredFields(t *testing.T) {
 			_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
 			require.Error(t, err)
-			svcErr, ok := err.(*ServiceError)
-			require.True(t, ok)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 		})
 	}
 }
@@ -215,9 +223,8 @@ func TestCreateExpense_InvalidExpenseType(t *testing.T) {
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 func TestCreateExpense_ValidExpenseTypes(t *testing.T) {
@@ -266,9 +273,8 @@ func TestCreateExpense_InvalidDateFormat(t *testing.T) {
 			_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
 			require.Error(t, err)
-			svcErr, ok := err.(*ServiceError)
-			require.True(t, ok)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 		})
 	}
 }
@@ -359,9 +365,8 @@ func TestGetExpensesForPeriod_InvalidMonth(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 // --- GetExpense tests ---
@@ -388,9 +393,8 @@ func TestGetExpense_NotFound(t *testing.T) {
 	_, err := svc.GetExpense(context.Background(), "user-1", "exp-999")
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 	assert.Equal(t, 404, svcErr.Status)
 }
 
@@ -401,9 +405,8 @@ func TestGetExpense_EmptyID(t *testing.T) {
 	_, err := svc.GetExpense(context.Background(), "user-1", "")
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 // --- CorrectExpense tests ---
@@ -501,8 +504,7 @@ func TestCorrectExpense_AlreadyCorrected(t *testing.T) {
 	_, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", validCorrectRequest())
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrAlreadyCorrected, svcErr.Code)
 	assert.Equal(t, 409, svcErr.Status)
 }
@@ -533,8 +535,7 @@ func TestCorrectExpense_PeriodLocked(t *testing.T) {
 	_, err := svc.CorrectExpense(context.Background(), "user-1", "exp-past", validCorrectRequest())
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrPeriodLocked, svcErr.Code)
 	assert.Equal(t, 403, svcErr.Status)
 }
@@ -549,9 +550,8 @@ func TestCorrectExpense_NotFound(t *testing.T) {
 	_, err := svc.CorrectExpense(context.Background(), "user-1", "exp-missing", validCorrectRequest())
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 	assert.Equal(t, 404, svcErr.Status)
 }
 
@@ -562,9 +562,8 @@ func TestCorrectExpense_EmptyID(t *testing.T) {
 	_, err := svc.CorrectExpense(context.Background(), "user-1", "", validCorrectRequest())
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 func TestCorrectExpense_ValidationErrors(t *testing.T) {
@@ -592,9 +591,8 @@ func TestCorrectExpense_ValidationErrors(t *testing.T) {
 			_, err := svc.CorrectExpense(context.Background(), "user-1", "exp-1", req)
 
 			require.Error(t, err)
-			svcErr, ok := err.(*ServiceError)
-			require.True(t, ok)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 			assert.NotEmpty(t, svcErr.Fields[tt.field])
 		})
 	}
@@ -649,9 +647,8 @@ func TestGetCorrectionHistory_NotFound(t *testing.T) {
 	_, err := svc.GetCorrectionHistory(context.Background(), "user-1", "exp-missing")
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 }
 
 func TestGetCorrectionHistory_EmptyID(t *testing.T) {
@@ -661,9 +658,8 @@ func TestGetCorrectionHistory_EmptyID(t *testing.T) {
 	_, err := svc.GetCorrectionHistory(context.Background(), "user-1", "")
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 // --- GetProRataGroup tests ---
@@ -692,9 +688,8 @@ func TestGetProRataGroup_EmptyGroupID(t *testing.T) {
 	_, err := svc.GetProRataGroup(context.Background(), "user-1", "")
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 // --- AnonymizeAllUserExpenses tests ---
@@ -734,9 +729,8 @@ func TestAnonymizeAllUserExpenses_EmptyUserID(t *testing.T) {
 	err := svc.AnonymizeAllUserExpenses(context.Background(), "")
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 	assert.Equal(t, 400, svcErr.Status)
 }
 

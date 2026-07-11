@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
@@ -202,9 +203,9 @@ func TestCreateExpenseHandler_InvalidBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 }
 
 func TestCreateExpenseHandler_ValidationError(t *testing.T) {
@@ -225,9 +226,9 @@ func TestCreateExpenseHandler_ValidationError(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Equal(t, "validation failed", errResp.Message)
 	require.NotNil(t, errResp.Fields)
 	assert.Equal(t, "amount must be positive", errResp.Fields["amount"])
@@ -250,7 +251,7 @@ func TestCreateExpenseHandler_InvalidExpenseType(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	require.NotNil(t, errResp.Fields)
 	assert.Contains(t, errResp.Fields["expenseType"], "essentials, desires, savings")
@@ -274,7 +275,7 @@ func TestCreateExpenseHandler_MultipleFieldErrors(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	require.NotNil(t, errResp.Fields)
 	assert.Len(t, errResp.Fields, 3) // name, amount, expenseType
@@ -415,9 +416,9 @@ func TestGetExpenseHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrNotFound, errResp.Code)
+	assert.Equal(t, apierr.CodeNotFound, errResp.Code)
 }
 
 // --- CorrectExpense Handler Tests ---
@@ -488,7 +489,7 @@ func TestCorrectExpenseHandler_AlreadyCorrected(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusConflict, w.Code)
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrAlreadyCorrected, errResp.Code)
 }
@@ -512,7 +513,7 @@ func TestCorrectExpenseHandler_PeriodLocked(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodLocked, errResp.Code)
 }

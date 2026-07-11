@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
@@ -170,9 +171,8 @@ func TestStreamAllUserExpenses_ValidationErrorForEmptyUserID(t *testing.T) {
 
 	err := svc.StreamAllUserExpenses(context.Background(), "", 10, func(*model.Expense) error { return nil })
 
-	var svcErr *ServiceError
-	require.ErrorAs(t, err, &svcErr)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 func TestStreamAllUserExpenses_DefaultsPageSizeWhenNonPositive(t *testing.T) {

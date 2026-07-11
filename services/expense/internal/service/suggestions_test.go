@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
 
@@ -197,9 +198,8 @@ func TestGetExpenseSuggestions_ValidationAndRepositoryFailure(t *testing.T) {
 			svc := newTestService(new(mockExpenseRepository))
 			_, err := svc.GetExpenseSuggestions(context.Background(), tt.req)
 			require.Error(t, err)
-			var svcErr *ServiceError
-			require.ErrorAs(t, err, &svcErr)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 		})
 	}
 

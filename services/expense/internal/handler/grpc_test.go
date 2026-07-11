@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
@@ -49,6 +50,31 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	assert.Contains(t, registered, "CountExpensesByTag")
 	assert.Contains(t, registered, "AnonymizeAllUserExpenses")
 	assert.Contains(t, registered, "StreamAllUserExpenses")
+}
+
+// TestGRPC_GetExpense_WrappedTypedErrorClassifies locks in C7 (gRPC): a typed
+// *apierr.Error that the service %w-wraps before it reaches the gRPC handler must
+// still classify via errors.As (not collapse to codes.Internal). GetExpense
+// wraps every repo error with %w ("getting expense: %w"), so a typed NOT_FOUND
+// returned by the repo reaches the handler wrapped; mapServiceError must still
+// map it to codes.NotFound.
+func TestGRPC_GetExpense_WrappedTypedErrorClassifies(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler := newTestGRPCHandler(repo)
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").
+		Return(nil, apierr.NotFound("expense exp-1 not found"))
+
+	resp, err := handler.GetExpense(context.Background(), &pb.GetExpenseRequest{
+		UserId: "user-1",
+		Id:     "exp-1",
+	})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
 }
 
 // --- AnonymizeAllUserExpenses gRPC handler tests ---

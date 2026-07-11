@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
@@ -36,19 +38,6 @@ func NewExpenseService(
 		logger: logger,
 		clock:  clock,
 	}
-}
-
-// ServiceError is a typed error that carries an HTTP status code, error code,
-// and optional field-level validation details.
-type ServiceError struct {
-	Code    string
-	Message string
-	Status  int
-	Fields  map[string]string
-}
-
-func (e *ServiceError) Error() string {
-	return e.Message
 }
 
 // CreateExpense validates and creates a new expense entry in the ledger.
@@ -99,18 +88,10 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 // GetExpensesForPeriod returns materialized expenses for a period with pagination.
 func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
 	if req.Year < 1 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "year must be positive",
-			Status:  400,
-		}
+		return nil, apierr.Validation("year must be positive", nil)
 	}
 	if req.Month < 1 || req.Month > 12 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "month must be between 1 and 12",
-			Status:  400,
-		}
+		return nil, apierr.Validation("month must be between 1 and 12", nil)
 	}
 
 	page := req.Page
@@ -141,11 +122,7 @@ func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.Ge
 // GetExpense returns a single expense by ID, scoped to the requesting user.
 func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id string) (*model.Expense, error) {
 	if id == "" {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "expense ID is required",
-			Status:  400,
-		}
+		return nil, apierr.Validation("expense ID is required", nil)
 	}
 
 	expense, err := s.repo.GetExpenseByID(ctx, id, userID)
@@ -153,11 +130,7 @@ func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id strin
 		return nil, fmt.Errorf("getting expense: %w", err)
 	}
 	if expense == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: fmt.Sprintf("expense %s not found", id),
-			Status:  404,
-		}
+		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", id))
 	}
 
 	return expense, nil
@@ -166,11 +139,7 @@ func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id strin
 // CountExpensesByTag returns the count of active expenses for a user that reference a given tag.
 func (s *ExpenseService) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
 	if tagID == "" {
-		return 0, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "tag_id is required",
-			Status:  400,
-		}
+		return 0, apierr.Validation("tag_id is required", nil)
 	}
 
 	count, err := s.repo.CountExpensesByTag(ctx, userID, tagID)
@@ -186,11 +155,7 @@ func (s *ExpenseService) CountExpensesByTag(ctx context.Context, userID string, 
 // is created atomically. Returns the new correction entry.
 func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expenseID string, req *model.CorrectExpenseRequest) (*model.Expense, error) {
 	if expenseID == "" {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "expense ID is required",
-			Status:  400,
-		}
+		return nil, apierr.Validation("expense ID is required", nil)
 	}
 
 	if err := validateCorrectExpenseRequest(req); err != nil {
@@ -203,20 +168,12 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		return nil, fmt.Errorf("fetching expense for correction: %w", err)
 	}
 	if original == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: fmt.Sprintf("expense %s not found", expenseID),
-			Status:  404,
-		}
+		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
 	}
 
 	// Check if already corrected
 	if original.Status != "active" {
-		return nil, &ServiceError{
-			Code:    model.ErrAlreadyCorrected,
-			Message: "this expense has already been corrected",
-			Status:  409,
-		}
+		return nil, apierr.Conflict(model.ErrAlreadyCorrected, "this expense has already been corrected")
 	}
 
 	// Check if the expense is in the current budget period
@@ -224,10 +181,10 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 	currentYear := int32(now.Year())
 	currentMonth := int32(now.Month())
 	if original.PeriodYear != currentYear || original.PeriodMonth != currentMonth {
-		return nil, &ServiceError{
+		return nil, &apierr.Error{
 			Code:    model.ErrPeriodLocked,
 			Message: "cannot correct expenses from a past period",
-			Status:  403,
+			Status:  http.StatusForbidden,
 		}
 	}
 
@@ -273,11 +230,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 // ordered chronologically (original first, latest correction last).
 func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string, expenseID string) ([]*model.Expense, error) {
 	if expenseID == "" {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "expense ID is required",
-			Status:  400,
-		}
+		return nil, apierr.Validation("expense ID is required", nil)
 	}
 
 	chain, err := s.repo.GetCorrectionHistory(ctx, expenseID, userID)
@@ -285,11 +238,7 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 		return nil, fmt.Errorf("getting correction history: %w", err)
 	}
 	if chain == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: fmt.Sprintf("expense %s not found", expenseID),
-			Status:  404,
-		}
+		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
 	}
 
 	return chain, nil
@@ -298,11 +247,7 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 // GetProRataGroup returns all expenses belonging to a pro-rata group.
 func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
 	if groupID == "" {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "group ID is required",
-			Status:  400,
-		}
+		return nil, apierr.Validation("group ID is required", nil)
 	}
 
 	expenses, err := s.repo.GetProRataGroup(ctx, groupID, userID)
@@ -328,11 +273,7 @@ func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, gro
 // the goroutine.
 func (s *ExpenseService) StreamAllUserExpenses(ctx context.Context, userID string, pageSize int32, send func(*model.Expense) error) error {
 	if userID == "" {
-		return &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "user_id is required",
-			Status:  400,
-		}
+		return apierr.Validation("user_id is required", nil)
 	}
 	if pageSize < 1 {
 		pageSize = repository.DefaultStreamPageSize
@@ -400,11 +341,7 @@ func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string,
 // Idempotent: calling for already-redacted data returns success.
 func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
 	if userID == "" {
-		return &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "user_id is required",
-			Status:  400,
-		}
+		return apierr.Validation("user_id is required", nil)
 	}
 
 	if err := s.repo.AnonymizeAllUserExpenses(ctx, userID); err != nil {
@@ -420,7 +357,7 @@ func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID st
 }
 
 // validateCorrectExpenseRequest checks all required fields for a correction.
-func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *ServiceError {
+func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *apierr.Error {
 	fields := make(map[string]string)
 
 	if req.Name == "" {
@@ -442,18 +379,13 @@ func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *ServiceErr
 	}
 
 	if len(fields) > 0 {
-		return &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "validation failed",
-			Status:  400,
-			Fields:  fields,
-		}
+		return apierr.Validation("validation failed", fields)
 	}
 	return nil
 }
 
 // validateCreateExpenseRequest checks all required fields and business rules.
-func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *ServiceError {
+func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error {
 	fields := make(map[string]string)
 
 	if req.Name == "" {
@@ -484,12 +416,7 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *ServiceError
 	}
 
 	if len(fields) > 0 {
-		return &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "validation failed",
-			Status:  400,
-			Fields:  fields,
-		}
+		return apierr.Validation("validation failed", fields)
 	}
 	return nil
 }

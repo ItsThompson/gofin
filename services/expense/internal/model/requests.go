@@ -3,7 +3,7 @@ package model
 // CreateExpenseRequest is the input for POST /api/expenses.
 // Note: binding tags are intentionally omitted. Validation is handled by the
 // service layer's validateCreateExpenseRequest, which returns field-level error
-// details in the ApiError response.
+// details in the error response.
 type CreateExpenseRequest struct {
 	Name        string `json:"name"`
 	Amount      int64  `json:"amount"`
