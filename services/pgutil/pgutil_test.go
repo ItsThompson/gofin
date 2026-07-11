@@ -41,9 +41,10 @@ func TestParseUUID_Invalid(t *testing.T) {
 	if !strings.HasPrefix(err.Error(), "parsing UUID: ") {
 		t.Errorf("error = %q, want %q prefix", err.Error(), "parsing UUID: ")
 	}
-	// The wrap must use %w so callers can errors.Is/As the underlying cause.
+	// The wrap must be verb-style (errors.Unwrap non-nil) so callers can
+	// errors.Is/As the underlying scan cause.
 	if errors.Unwrap(err) == nil {
-		t.Error("ParseUUID error does not wrap the underlying cause (%w expected)")
+		t.Error("ParseUUID error does not wrap the underlying cause")
 	}
 }
 
