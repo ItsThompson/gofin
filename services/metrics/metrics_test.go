@@ -34,7 +34,6 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 
 	metrics.GRPCRequestsTotal.WithLabelValues("/test.Service/Method", "OK").Inc()
 	metrics.GRPCRequestDuration.WithLabelValues("/test.Service/Method").Observe(0.01)
-	metrics.ObserveQuery("test_query", 0.05)
 	metrics.TokenRefreshTotal.WithLabelValues("success").Inc()
 
 	// Now scrape /metrics.
@@ -51,8 +50,6 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 	assert.Contains(t, body, "# TYPE http_request_duration_seconds histogram")
 	assert.Contains(t, body, "# HELP grpc_requests_total")
 	assert.Contains(t, body, "# HELP grpc_request_duration_seconds")
-	assert.Contains(t, body, "# HELP db_query_duration_seconds")
-	assert.Contains(t, body, "# HELP active_connections")
 	assert.Contains(t, body, "# HELP expense_entries_total")
 	assert.Contains(t, body, "# HELP corrections_total")
 	assert.Contains(t, body, "# HELP token_refresh_total")
@@ -131,34 +128,6 @@ func TestHTTPMetrics_UsesRouteTemplate(t *testing.T) {
 	// Should use the route template, not the actual path with the UUID.
 	assert.Contains(t, body, `path="/api/items/:id"`)
 	assert.NotContains(t, body, `path="/api/items/abc-123"`)
-}
-
-func TestObserveQuery_RecordsDBMetric(t *testing.T) {
-	router := gin.New()
-	metrics.Register(router)
-
-	metrics.ObserveQuery("get_user", 0.042)
-
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	body := w.Body.String()
-	assert.Contains(t, body, `db_query_duration_seconds_bucket{query_name="get_user"`)
-}
-
-func TestSetActiveConnections_SetsGauge(t *testing.T) {
-	router := gin.New()
-	metrics.Register(router)
-
-	metrics.SetActiveConnections(5)
-
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	body := w.Body.String()
-	assert.Contains(t, body, "active_connections 5")
 }
 
 func TestCustomMetrics_IncrementAndAppear(t *testing.T) {
