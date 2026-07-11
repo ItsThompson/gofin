@@ -112,3 +112,17 @@ func TestRespond_UnknownErrorYields500Internal(t *testing.T) {
 	assert.Equal(t, apierr.CodeInternal, body["code"])
 	assert.Equal(t, "An unexpected error occurred", body["message"])
 }
+
+func TestRespond_ZeroStatusErrorYields500Internal(t *testing.T) {
+	c, w := newTestContext()
+	// A hand-built *Error with an unset Status (0) must not yield WriteHeader(0);
+	// Respond falls back to a coherent 500 INTERNAL_SERVER_ERROR.
+	malformed := &apierr.Error{Code: "SOMETHING", Message: "no status set"}
+
+	apierr.Respond(c, malformed)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	body := decodeBody(t, w)
+	assert.Equal(t, apierr.CodeInternal, body["code"])
+	assert.Equal(t, "An unexpected error occurred", body["message"])
+}

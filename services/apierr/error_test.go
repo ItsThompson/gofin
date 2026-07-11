@@ -14,16 +14,17 @@ import (
 
 func TestConstructors_SetCodeAndStatus(t *testing.T) {
 	cases := []struct {
-		name       string
-		err        *apierr.Error
-		wantCode   string
-		wantStatus int
+		name        string
+		err         *apierr.Error
+		wantCode    string
+		wantStatus  int
+		wantMessage string
 	}{
-		{"unauthorized", apierr.Unauthorized("no auth"), apierr.CodeUnauthorized, http.StatusUnauthorized},
-		{"not found", apierr.NotFound("gone"), apierr.CodeNotFound, http.StatusNotFound},
-		{"validation", apierr.Validation("bad", nil), apierr.CodeValidation, http.StatusBadRequest},
-		{"conflict", apierr.Conflict("DUPLICATE_TAG", "dup"), "DUPLICATE_TAG", http.StatusConflict},
-		{"internal", apierr.Internal("boom"), apierr.CodeInternal, http.StatusInternalServerError},
+		{"unauthorized", apierr.Unauthorized("no auth"), apierr.CodeUnauthorized, http.StatusUnauthorized, "no auth"},
+		{"not found", apierr.NotFound("gone"), apierr.CodeNotFound, http.StatusNotFound, "gone"},
+		{"validation", apierr.Validation("bad", nil), apierr.CodeValidation, http.StatusBadRequest, "bad"},
+		{"conflict", apierr.Conflict("DUPLICATE_TAG", "dup"), "DUPLICATE_TAG", http.StatusConflict, "dup"},
+		{"internal", apierr.Internal("boom"), apierr.CodeInternal, http.StatusInternalServerError, "boom"},
 	}
 
 	for _, tc := range cases {
@@ -31,6 +32,7 @@ func TestConstructors_SetCodeAndStatus(t *testing.T) {
 			require.NotNil(t, tc.err)
 			assert.Equal(t, tc.wantCode, tc.err.Code)
 			assert.Equal(t, tc.wantStatus, tc.err.Status)
+			assert.Equal(t, tc.wantMessage, tc.err.Message)
 		})
 	}
 }
