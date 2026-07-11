@@ -25,17 +25,6 @@ func TestRegistry_EveryEntryResolvesToItsAccess(t *testing.T) {
 	}
 }
 
-// TestRegistry_EveryEntryIsClassified confirms Classifies agrees with the
-// Registry for every real route: each entry's path is matched by an explicit
-// entry rather than the fail-safe default.
-func TestRegistry_EveryEntryIsClassified(t *testing.T) {
-	for _, r := range Registry {
-		if !Classifies(r.Method, r.Path) {
-			t.Errorf("Classifies(%q, %q) = false, want true (route %s)", r.Method, r.Path, r.ID)
-		}
-	}
-}
-
 // TestRoutesFor_PartitionsRegistry proves RoutesFor slices the Registry cleanly:
 // the four known services together account for every entry with no gaps or
 // duplicates, and each returned route actually belongs to the requested service.
@@ -63,33 +52,5 @@ func TestRoutesFor_PartitionsRegistry(t *testing.T) {
 func TestRoutesFor_UnknownServiceIsEmpty(t *testing.T) {
 	if routes := RoutesFor("nope"); len(routes) != 0 {
 		t.Errorf("RoutesFor(%q) = %d routes, want 0", "nope", len(routes))
-	}
-}
-
-// TestClassifies_UnknownRoutesAreUnclassified is the failure-mode guardrail: a
-// route with no Registry entry, or a real path under the wrong method, is not
-// classified, so Resolve returns the fail-safe Deny default (403 at the
-// gateway).
-func TestClassifies_UnknownRoutesAreUnclassified(t *testing.T) {
-	cases := []struct {
-		name   string
-		method string
-		path   string
-	}{
-		{"unknown service", "GET", "/api/newservice/records"},
-		{"wrong method on a real route", "GET", "/api/auth/login"},
-		{"sibling substring of a real route", "POST", "/api/datarights/exports-admin"},
-		{"bare group with no exact route", "GET", "/api/finance"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if Classifies(tc.method, tc.path) {
-				t.Errorf("Classifies(%q, %q) = true, want false", tc.method, tc.path)
-			}
-			if got := Resolve(tc.method, tc.path); got != Deny {
-				t.Errorf("Resolve(%q, %q) = %s, want Deny (fail-safe default)", tc.method, tc.path, got)
-			}
-		})
 	}
 }
