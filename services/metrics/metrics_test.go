@@ -53,6 +53,8 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 	assert.Contains(t, body, "# HELP expense_entries_total")
 	assert.Contains(t, body, "# HELP corrections_total")
 	assert.Contains(t, body, "# HELP token_refresh_total")
+	// The dead ActiveConnections gauge was removed; its series must never reappear.
+	assert.NotContains(t, body, "active_connections")
 }
 
 func TestHTTPMetrics_RecordsRequestMetrics(t *testing.T) {
