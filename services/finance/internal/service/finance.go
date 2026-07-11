@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,11 +9,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
+	"github.com/ItsThompson/gofin/services/pgutil"
 )
 
 // DefaultTags are seeded when a user completes onboarding.
@@ -347,7 +345,7 @@ func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *mode
 
 	tag, err := s.repo.CreateTag(ctx, userID, name, false)
 	if err != nil {
-		if isDuplicateKeyError(err) {
+		if _, ok := pgutil.IsUniqueViolation(err); ok {
 			return nil, duplicateTagError(name)
 		}
 		return nil, fmt.Errorf("creating tag: %w", err)
@@ -365,7 +363,7 @@ func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, re
 
 	tag, err := s.repo.UpdateTag(ctx, tagID, userID, name)
 	if err != nil {
-		if isDuplicateKeyError(err) {
+		if _, ok := pgutil.IsUniqueViolation(err); ok {
 			return nil, duplicateTagError(name)
 		}
 		return nil, fmt.Errorf("updating tag: %w", err)
@@ -438,12 +436,4 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 
 	s.logger.Info("tag deleted", slog.String("method", "DeleteTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
 	return nil
-}
-
-func isDuplicateKeyError(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-	return false
 }
