@@ -12,6 +12,7 @@ require (
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/perf v0.0.0
 	github.com/ItsThompson/gofin/services/pgutil v0.0.0
+	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/prometheus/client_golang v1.22.0
@@ -37,6 +38,8 @@ replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 replace github.com/ItsThompson/gofin/services/perf => ../perf
 
 replace github.com/ItsThompson/gofin/services/pgutil => ../pgutil
+
+replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

@@ -25,6 +25,21 @@ type Config struct {
 	BrandTokensPath    string
 }
 
+// DefaultRESTPort is the datarights REST listener port used when REST_PORT is
+// unset. It is the single source of truth shared by the server listener and the
+// --healthcheck probe so a REST_PORT override never desyncs them (US-PLATFORM-05).
+const DefaultRESTPort = "8084"
+
+// RESTPort returns the configured REST port, honoring REST_PORT with
+// DefaultRESTPort as the fallback. Both Load (the listener) and the
+// --healthcheck probe call it.
+func RESTPort() string {
+	if port := os.Getenv("REST_PORT"); port != "" {
+		return port
+	}
+	return DefaultRESTPort
+}
+
 // Load reads configuration from environment variables and returns a Config.
 func Load() (*Config, error) {
 	dbURL := os.Getenv("DATARIGHTS_DB_URL")
@@ -42,10 +57,7 @@ func Load() (*Config, error) {
 		environment = "development"
 	}
 
-	restPort := os.Getenv("REST_PORT")
-	if restPort == "" {
-		restPort = "8084"
-	}
+	restPort := RESTPort()
 
 	authServiceAddr := os.Getenv("AUTH_SERVICE_ADDR")
 	if authServiceAddr == "" {
