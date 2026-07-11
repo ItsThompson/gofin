@@ -4,13 +4,15 @@ go 1.26
 
 require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
+	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/auth v0.0.0
-	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0
 	github.com/ItsThompson/gofin/services/finance v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
-	github.com/ItsThompson/gofin/services/metrics v0.0.0
+	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/perf v0.0.0
+	github.com/ItsThompson/gofin/services/pgutil v0.0.0
+	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/prometheus/client_golang v1.22.0
@@ -20,6 +22,8 @@ require (
 )
 
 replace github.com/ItsThompson/gofin/services/access => ../access
+
+replace github.com/ItsThompson/gofin/services/apierr => ../apierr
 
 replace github.com/ItsThompson/gofin/services/auth => ../auth
 
@@ -31,11 +35,19 @@ replace github.com/ItsThompson/gofin/services/finance => ../finance
 
 replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 
+replace github.com/ItsThompson/gofin/services/httpx => ../httpx
+
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
 replace github.com/ItsThompson/gofin/services/perf => ../perf
 
+replace github.com/ItsThompson/gofin/services/pgutil => ../pgutil
+
+replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
+
 require (
+	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
+	github.com/ItsThompson/gofin/services/metrics v0.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect

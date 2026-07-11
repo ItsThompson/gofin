@@ -8,10 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -27,16 +24,15 @@ import (
 	_ "github.com/ItsThompson/gofin/services/datarights/internal/metrics" // register Prometheus metrics
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
-	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/healthcheck"
-	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 func main() {
 	if healthcheck.ShouldRun(os.Args) {
-		os.Exit(healthcheck.Run("8084"))
+		os.Exit(healthcheck.Run(config.RESTPort()))
 	}
 
 	if err := run(); err != nil {
@@ -56,34 +52,15 @@ func run() error {
 	}
 
 	// Set up structured logging
-	logLevel := slog.LevelInfo
-	switch cfg.LogLevel {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "warn":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	logger = logger.With(slog.String("service", "datarights"))
+	logger := serverkit.NewLogger(cfg.LogLevel, "datarights")
 	slog.SetDefault(logger)
 
-	// Run database migrations (embedded in binary via go:embed)
-	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
-	}
-
-	// Connect to PostgreSQL
-	pool, err := pgxpool.New(ctx, cfg.DBUrl)
+	// Connect to PostgreSQL (runs embedded migrations, opens the pool, pings).
+	pool, err := serverkit.ConnectPostgres(ctx, cfg.DBUrl, migrations.FS)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
 	}
 	defer pool.Close()
-
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("pinging database: %w", err)
-	}
 	logger.Info("connected to PostgreSQL")
 
 	// Connect to auth service gRPC
@@ -186,28 +163,11 @@ func run() error {
 		service.WithDeletionEngine(deletionEngine),
 		service.WithAuthClient(authClient),
 		service.WithExportRepo(repo),
+		service.WithProtectedUsernames(cfg.ProtectedUsernames),
 	)
 
-	// Start REST server
-	if cfg.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	router := gin.New()
-	router.Use(gin.Recovery())
-	router.Use(metrics.HTTPMetrics())
-
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-			"pool": gin.H{
-				"active": exportEngine.ActiveJobs(),
-				"max":    exportEngine.MaxConcurrent(),
-			},
-		})
-	})
-
-	metrics.Register(router)
+	// Build the shared router (Recovery, HTTP metrics, /metrics, GET /health).
+	router := serverkit.NewRouter("datarights", cfg.IsProduction())
 
 	restHandler := handler.NewRESTHandler(exportSvc, logger)
 	deletionHandler := handler.NewDeletionHandler(deletionSvc, logger)
@@ -218,34 +178,17 @@ func run() error {
 		Handler: router,
 	}
 
-	go func() {
-		logger.Info("REST server starting",
-			slog.String("port", cfg.RESTPort),
-		)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("REST server failed", slog.String("error", err.Error()))
-		}
-	}()
-
 	logger.Info("datarights service ready",
 		slog.String("rest_port", cfg.RESTPort),
 		slog.Int("max_concurrent_exports", cfg.MaxConcurrent),
 		slog.Duration("export_timeout", cfg.ExportTimeout),
 	)
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	logger.Info("shutting down datarights service")
-
-	// Graceful shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("REST server shutdown error", slog.String("error", err.Error()))
-	}
-
-	return nil
+	// Serve blocks until ctx is cancelled or the HTTP server fails to bind.
+	// A bind failure returns non-nil so run() (and main) exit non-zero instead
+	// of lingering as a zombie with no listener (C5). datarights runs no gRPC
+	// server, so both gRPC arguments are nil.
+	return serverkit.Serve(ctx, httpServer, nil, nil)
 }
 
 // recoverJobs re-submits any non-terminal jobs found in the database on startup.

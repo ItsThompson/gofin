@@ -4,8 +4,15 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
+
+// DefaultProtectedUsernames is the fallback protected-username list used when
+// PROTECTED_USERNAMES is unset. These accounts cannot be deleted via the
+// datarights deletion flow. The check itself is owned by the datarights
+// service (moved from auth).
+var DefaultProtectedUsernames = []string{"admin", "thompson"}
 
 // Config holds all configuration for the datarights service.
 type Config struct {
@@ -23,6 +30,39 @@ type Config struct {
 	EmailFrom          string
 	EmailEnabled       bool
 	BrandTokensPath    string
+	ProtectedUsernames []string
+}
+
+// DefaultRESTPort is the datarights REST listener port used when REST_PORT is
+// unset. It is the single source of truth shared by the server listener and the
+// --healthcheck probe so a REST_PORT override never desyncs them (US-PLATFORM-05).
+const DefaultRESTPort = "8084"
+
+// RESTPort returns the configured REST port, honoring REST_PORT with
+// DefaultRESTPort as the fallback. Both Load (the listener) and the
+// --healthcheck probe call it.
+func RESTPort() string {
+	if port := os.Getenv("REST_PORT"); port != "" {
+		return port
+	}
+	return DefaultRESTPort
+}
+
+// parseProtectedUsernames splits a comma-separated PROTECTED_USERNAMES value
+// into a trimmed, non-empty list. When the value is empty or yields no
+// usernames it returns a fresh copy of DefaultProtectedUsernames, so callers
+// never share (and cannot mutate) the package-level default slice.
+func parseProtectedUsernames(raw string) []string {
+	var names []string
+	for _, part := range strings.Split(raw, ",") {
+		if name := strings.TrimSpace(part); name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return append([]string(nil), DefaultProtectedUsernames...)
+	}
+	return names
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -42,10 +82,7 @@ func Load() (*Config, error) {
 		environment = "development"
 	}
 
-	restPort := os.Getenv("REST_PORT")
-	if restPort == "" {
-		restPort = "8084"
-	}
+	restPort := RESTPort()
 
 	authServiceAddr := os.Getenv("AUTH_SERVICE_ADDR")
 	if authServiceAddr == "" {
@@ -99,6 +136,8 @@ func Load() (*Config, error) {
 		brandTokensPath = "/app/tokens/brand.json"
 	}
 
+	protectedUsernames := parseProtectedUsernames(os.Getenv("PROTECTED_USERNAMES"))
+
 	return &Config{
 		DBUrl:              dbURL,
 		LogLevel:           logLevel,
@@ -114,6 +153,7 @@ func Load() (*Config, error) {
 		EmailFrom:          emailFrom,
 		EmailEnabled:       emailEnabled,
 		BrandTokensPath:    brandTokensPath,
+		ProtectedUsernames: protectedUsernames,
 	}, nil
 }
 
