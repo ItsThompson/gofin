@@ -318,7 +318,6 @@ describe("ExportDataSection", () => {
             body: {
               code: "RATE_LIMITED",
               message: `Export limit reached. You can request another export after ${formatDateOnly(retryAfter)}.`,
-              retryAfter,
             },
           },
         ]),
@@ -587,7 +586,6 @@ describe("ExportDataSection", () => {
             body: {
               code: "RATE_LIMITED",
               message: `Export limit reached. Next available: ${retryAfter}`,
-              retryAfter,
             },
           },
         ]),

@@ -26,13 +26,6 @@ export interface ExportListResponse {
   hasMore: boolean;
 }
 
-/** Error response from 429 rate-limited requests. */
-export interface ExportRateLimitedResponse {
-  code: string;
-  message: string;
-  retryAfter: string;
-}
-
 /** Export lifecycle phases: exactly one is active at any time. */
 export type ExportStatus = 'idle' | 'loading' | 'creating' | 'polling' | 'error';
 

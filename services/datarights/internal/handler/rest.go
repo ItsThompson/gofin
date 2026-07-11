@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/apierr"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
@@ -67,17 +69,22 @@ func (h *RESTHandler) CreateExport(c *gin.Context) {
 
 	result, err := h.exportService.CreateJob(c.Request.Context(), userID)
 	if err != nil {
-		if rateLimitErr, ok := err.(*service.RateLimitError); ok {
+		var rateLimitErr *service.RateLimitError
+		if errors.As(err, &rateLimitErr) {
 			exportmetrics.ExportRateLimitRejectionsTotal.Inc()
 			h.logger.Warn("export rate limit rejected",
 				slog.String("user_id", userID),
 				slog.Time("next_allowed_at", rateLimitErr.RetryAfter),
 				slog.String("method", "handler.CreateExport"),
 			)
-			c.JSON(http.StatusTooManyRequests, model.RateLimitedResponse{
-				Code:       model.ErrRateLimited,
-				Message:    "Export limit reached. You can request another export after " + rateLimitErr.RetryAfter.Format("2006-01-02") + ".",
-				RetryAfter: rateLimitErr.RetryAfter,
+			// C9: the retry timing moves to the standard Retry-After header and
+			// the body becomes the standard {code, message}. datarights pre-maps
+			// its RateLimitError here so apierr.Respond stays generic.
+			c.Header("Retry-After", rateLimitErr.RetryAfter.UTC().Format(http.TimeFormat))
+			apierr.Respond(c, &apierr.Error{
+				Code:    model.ErrRateLimited,
+				Message: "Export limit reached. You can request another export after " + rateLimitErr.RetryAfter.Format("2006-01-02") + ".",
+				Status:  http.StatusTooManyRequests,
 			})
 			return
 		}

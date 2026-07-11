@@ -16,13 +16,6 @@ type JobListResponse struct {
 	HasMore  bool         `json:"hasMore"`
 }
 
-// RateLimitedResponse is returned when the user has exceeded the export rate limit.
-type RateLimitedResponse struct {
-	Code       string    `json:"code"`
-	Message    string    `json:"message"`
-	RetryAfter time.Time `json:"retryAfter"`
-}
-
 // Datarights-specific error codes. The shared codes (UNAUTHORIZED, NOT_FOUND,
 // VALIDATION_ERROR, INTERNAL_SERVER_ERROR) are sourced from the apierr package;
 // only the codes unique to datarights are declared here.
