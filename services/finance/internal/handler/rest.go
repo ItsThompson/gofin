@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -8,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
+	"github.com/ItsThompson/gofin/services/httpx"
 )
 
 // RESTHandler handles HTTP requests for the finance service.
@@ -65,27 +68,19 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 // CompleteOnboarding handles POST /api/finance/onboarding.
 // Saves default settings and seeds default tags for the user.
 func (h *RESTHandler) CompleteOnboarding(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.OnboardingRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	defaults, err := h.financeService.CompleteOnboarding(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -96,18 +91,14 @@ func (h *RESTHandler) CompleteOnboarding(c *gin.Context) {
 
 // GetDefaults handles GET /api/finance/defaults.
 func (h *RESTHandler) GetDefaults(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	defaults, err := h.financeService.GetDefaults(c.Request.Context(), userID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -119,27 +110,19 @@ func (h *RESTHandler) GetDefaults(c *gin.Context) {
 // UpdateDefaults handles PUT /api/finance/defaults.
 // Updates the user's default budget settings. Does not affect current or past periods.
 func (h *RESTHandler) UpdateDefaults(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.UpdateDefaultsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	defaults, err := h.financeService.UpdateDefaults(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -150,46 +133,36 @@ func (h *RESTHandler) UpdateDefaults(c *gin.Context) {
 
 // GetCurrentPeriod handles GET /api/finance/periods/current?year=YYYY&month=MM.
 func (h *RESTHandler) GetCurrentPeriod(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	yearStr := c.Query("year")
 	monthStr := c.Query("month")
 	if yearStr == "" || monthStr == "" {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "year and month query parameters are required",
-		})
+		apierr.Respond(c, apierr.Validation("year and month query parameters are required", map[string]string{
+			"year":  "required",
+			"month": "required",
+		}))
 		return
 	}
 
 	year, err := strconv.ParseInt(yearStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "year must be a valid integer",
-		})
+		apierr.Respond(c, apierr.Validation("year must be a valid integer", map[string]string{"year": "must be a valid integer"}))
 		return
 	}
 
 	month, err := strconv.ParseInt(monthStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "month must be a valid integer",
-		})
+		apierr.Respond(c, apierr.Validation("month must be a valid integer", map[string]string{"month": "must be a valid integer"}))
 		return
 	}
 
 	period, svcErr := h.financeService.GetCurrentPeriod(c.Request.Context(), userID, int32(year), int32(month))
 	if svcErr != nil {
-		h.handleError(c, svcErr)
+		h.respondError(c, svcErr)
 		return
 	}
 
@@ -201,27 +174,19 @@ func (h *RESTHandler) GetCurrentPeriod(c *gin.Context) {
 // CreatePeriod handles POST /api/finance/periods.
 // Creates a budget period, auto-creates missed months, and applies pending pro-rata.
 func (h *RESTHandler) CreatePeriod(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.CreatePeriodRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	result, err := h.financeService.CreatePeriodWithProRata(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -231,18 +196,14 @@ func (h *RESTHandler) CreatePeriod(c *gin.Context) {
 // ListPeriods handles GET /api/finance/periods.
 // Returns all budget periods for the authenticated user, ordered by year/month descending.
 func (h *RESTHandler) ListPeriods(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	periods, err := h.financeService.ListPeriods(c.Request.Context(), userID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -254,18 +215,14 @@ func (h *RESTHandler) ListPeriods(c *gin.Context) {
 // ListTags handles GET /api/finance/tags.
 // Returns all tags for the authenticated user, ordered alphabetically.
 func (h *RESTHandler) ListTags(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	tags, err := h.financeService.ListTags(c.Request.Context(), userID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -277,27 +234,19 @@ func (h *RESTHandler) ListTags(c *gin.Context) {
 // CreateTag handles POST /api/finance/tags.
 // Creates a new custom tag. Name must be unique per user (case-insensitive), max 50 chars.
 func (h *RESTHandler) CreateTag(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.CreateTagRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	tag, err := h.financeService.CreateTag(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -309,29 +258,21 @@ func (h *RESTHandler) CreateTag(c *gin.Context) {
 // UpdateTag handles PUT /api/finance/tags/:id.
 // Renames a tag (any tag, including defaults).
 func (h *RESTHandler) UpdateTag(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	tagID := c.Param("id")
 
 	var req model.UpdateTagRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	tag, err := h.financeService.UpdateTag(c.Request.Context(), userID, tagID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -343,12 +284,8 @@ func (h *RESTHandler) UpdateTag(c *gin.Context) {
 // DeleteTag handles DELETE /api/finance/tags/:id.
 // Deletes a tag only if it's not a default and not referenced by expenses or schedules.
 func (h *RESTHandler) DeleteTag(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
@@ -356,7 +293,7 @@ func (h *RESTHandler) DeleteTag(c *gin.Context) {
 
 	err := h.financeService.DeleteTag(c.Request.Context(), userID, tagID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -372,7 +309,7 @@ func (h *RESTHandler) GetPeriodSummary(c *gin.Context) {
 
 	summary, err := h.financeService.GetPeriodSummary(c.Request.Context(), userID, year, month)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -390,7 +327,7 @@ func (h *RESTHandler) GetSpendingByTag(c *gin.Context) {
 
 	tags, err := h.financeService.GetSpendingByTag(c.Request.Context(), userID, year, month)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -408,7 +345,7 @@ func (h *RESTHandler) GetCumulativeSpend(c *gin.Context) {
 
 	points, err := h.financeService.GetCumulativeSpend(c.Request.Context(), userID, year, month)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -420,29 +357,21 @@ func (h *RESTHandler) GetCumulativeSpend(c *gin.Context) {
 // UpdatePeriod handles PUT /api/finance/periods/:id.
 // Updates the current period's budget and E/D/S split. Past periods return 403.
 func (h *RESTHandler) UpdatePeriod(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	periodID := c.Param("id")
 
 	var req model.UpdatePeriodRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	period, err := h.financeService.UpdatePeriod(c.Request.Context(), userID, periodID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -460,7 +389,7 @@ func (h *RESTHandler) GetHistoricalComparison(c *gin.Context) {
 
 	comparison, err := h.financeService.GetHistoricalComparison(c.Request.Context(), userID, year, month)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -479,16 +408,13 @@ func (h *RESTHandler) GetSpendingTrends(c *gin.Context) {
 	monthsStr := c.DefaultQuery("months", "6")
 	months, err := strconv.ParseInt(monthsStr, 10, 32)
 	if err != nil || months < 1 || months > 12 {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "months must be between 1 and 12",
-		})
+		apierr.Respond(c, apierr.Validation("months must be between 1 and 12", map[string]string{"months": "must be between 1 and 12"}))
 		return
 	}
 
 	trends, err := h.financeService.GetSpendingTrends(c.Request.Context(), userID, year, month, int32(months))
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -500,40 +426,30 @@ func (h *RESTHandler) GetSpendingTrends(c *gin.Context) {
 // parseUserAndPeriodParams extracts and validates X-User-ID, year, and month from the request.
 // Returns (userID, year, month, ok). When ok is false, an error response has already been sent.
 func (h *RESTHandler) parseUserAndPeriodParams(c *gin.Context) (string, int32, int32, bool) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return "", 0, 0, false
 	}
 
 	yearStr := c.Query("year")
 	monthStr := c.Query("month")
 	if yearStr == "" || monthStr == "" {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "year and month query parameters are required",
-		})
+		apierr.Respond(c, apierr.Validation("year and month query parameters are required", map[string]string{
+			"year":  "required",
+			"month": "required",
+		}))
 		return "", 0, 0, false
 	}
 
 	year, err := strconv.ParseInt(yearStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "year must be a valid integer",
-		})
+		apierr.Respond(c, apierr.Validation("year must be a valid integer", map[string]string{"year": "must be a valid integer"}))
 		return "", 0, 0, false
 	}
 
 	month, err := strconv.ParseInt(monthStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "month must be a valid integer",
-		})
+		apierr.Respond(c, apierr.Validation("month must be a valid integer", map[string]string{"month": "must be a valid integer"}))
 		return "", 0, 0, false
 	}
 
@@ -543,27 +459,19 @@ func (h *RESTHandler) parseUserAndPeriodParams(c *gin.Context) (string, int32, i
 // CreateProRataExpense handles POST /api/finance/prorata.
 // Creates a pro-rata expense: writes first installment, schedules future ones.
 func (h *RESTHandler) CreateProRataExpense(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.CreateProRataRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	result, err := h.financeService.CreateProRataExpense(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -573,18 +481,14 @@ func (h *RESTHandler) CreateProRataExpense(c *gin.Context) {
 // GetUpcomingProRata handles GET /api/finance/prorata/upcoming.
 // Returns all pending pro-rata schedules for the user.
 func (h *RESTHandler) GetUpcomingProRata(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	schedules, err := h.financeService.GetUpcomingProRata(c.Request.Context(), userID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -593,21 +497,15 @@ func (h *RESTHandler) GetUpcomingProRata(c *gin.Context) {
 	})
 }
 
-// handleError maps service errors to HTTP responses following the ApiError contract.
-func (h *RESTHandler) handleError(c *gin.Context, err error) {
-	if svcErr, ok := err.(*service.ServiceError); ok {
-		c.JSON(svcErr.Status, model.ApiError{
-			Code:    svcErr.Code,
-			Message: svcErr.Message,
-		})
-		return
+// respondError delegates the wire mapping to apierr.Respond (which classifies
+// via errors.As), logging any unexpected non-*apierr.Error at error level first
+// so 500s stay observable (apierr.Respond takes no logger).
+func (h *RESTHandler) respondError(c *gin.Context, err error) {
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) {
+		h.logger.Error("unexpected error",
+			slog.String("error", err.Error()),
+		)
 	}
-
-	h.logger.Error("unexpected error",
-		slog.String("error", err.Error()),
-	)
-	c.JSON(http.StatusInternalServerError, model.ApiError{
-		Code:    model.ErrInternalServerError,
-		Message: "An unexpected error occurred",
-	})
+	apierr.Respond(c, err)
 }

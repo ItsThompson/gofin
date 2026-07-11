@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
@@ -89,8 +90,7 @@ func TestUpdatePeriod_PastPeriodLocked(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrPeriodLocked, svcErr.Code)
 	assert.Equal(t, 403, svcErr.Status)
 	assert.Contains(t, svcErr.Message, "read-only")
@@ -115,8 +115,7 @@ func TestUpdatePeriod_PastYearLocked(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrPeriodLocked, svcErr.Code)
 }
 
@@ -135,9 +134,8 @@ func TestUpdatePeriod_InvalidSplit(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "sum to 100%")
 }
 
@@ -156,9 +154,8 @@ func TestUpdatePeriod_NegativeBudget(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "non-negative")
 }
 
@@ -179,9 +176,8 @@ func TestUpdatePeriod_NotFound(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 	assert.Equal(t, 404, svcErr.Status)
 }
 

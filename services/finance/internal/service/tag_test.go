@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 )
@@ -231,6 +232,16 @@ func newTagTestServiceNow(repo *mockRepo, txBeg *mockTxBeg, expClient *mockExpCl
 	return NewFinanceService(repo, txBeg, ec, nowFunc, logger)
 }
 
+// requireAPIError asserts err is (or wraps) an *apierr.Error and returns it, so
+// tests read the classified Code/Status/Message. Using errors.As keeps the
+// assertion robust to a future %w-wrap of the typed error (C7).
+func requireAPIError(t *testing.T, err error) *apierr.Error {
+	t.Helper()
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	return apiErr
+}
+
 func makeTag(id, name string, isDefault bool) *model.Tag {
 	return &model.Tag{
 		ID:        id,
@@ -322,8 +333,7 @@ func TestCreateTag_DuplicateName(t *testing.T) {
 	assert.Nil(t, tag)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrDuplicateTag, svcErr.Code)
 	assert.Equal(t, 409, svcErr.Status)
 }
@@ -338,9 +348,8 @@ func TestCreateTag_NameTooLong(t *testing.T) {
 	assert.Nil(t, tag)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "50 characters")
 }
 
@@ -353,9 +362,8 @@ func TestCreateTag_EmptyName(t *testing.T) {
 	assert.Nil(t, tag)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 // --- UpdateTag Tests ---
@@ -385,9 +393,8 @@ func TestUpdateTag_NotFound(t *testing.T) {
 	assert.Nil(t, tag)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 }
 
 // --- DeleteTag Tests ---
@@ -423,8 +430,7 @@ func TestDeleteTag_DefaultTagBlocked(t *testing.T) {
 	err := svc.DeleteTag(context.Background(), "user-1", "tag-bills")
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrDefaultTag, svcErr.Code)
 	assert.Equal(t, 403, svcErr.Status)
 	assert.Contains(t, svcErr.Message, "Default tags cannot be deleted")
@@ -446,8 +452,7 @@ func TestDeleteTag_InUseByExpenses(t *testing.T) {
 	err := svc.DeleteTag(context.Background(), "user-1", "tag-custom")
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrTagInUse, svcErr.Code)
 	assert.Equal(t, 409, svcErr.Status)
 	assert.Contains(t, svcErr.Message, "3 expense(s)")
@@ -469,8 +474,7 @@ func TestDeleteTag_InUseByProRataSchedules(t *testing.T) {
 	err := svc.DeleteTag(context.Background(), "user-1", "tag-custom")
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrTagInUse, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "2 pending schedule(s)")
 }
@@ -491,8 +495,7 @@ func TestDeleteTag_InUseByBothExpensesAndSchedules(t *testing.T) {
 	err := svc.DeleteTag(context.Background(), "user-1", "tag-custom")
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	svcErr := requireAPIError(t, err)
 	assert.Equal(t, model.ErrTagInUse, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "5 expense(s)")
 	assert.Contains(t, svcErr.Message, "3 pending schedule(s)")
@@ -509,7 +512,6 @@ func TestDeleteTag_NotFound(t *testing.T) {
 	err := svc.DeleteTag(context.Background(), "user-1", "nonexistent")
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 }

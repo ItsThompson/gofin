@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
@@ -306,9 +307,9 @@ func TestCompleteOnboardingHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
@@ -416,9 +417,9 @@ func TestCompleteOnboardingHandler_TagSeedingFailureRollsBack(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrInternalServerError, errResp.Code)
+	assert.Equal(t, apierr.CodeInternal, errResp.Code)
 
 	// Verify rollback was called (commit should NOT have been called)
 	tx.AssertCalled(t, "Rollback", mock.Anything)
@@ -507,9 +508,9 @@ func TestGetDefaultsHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrNotFound, errResp.Code)
+	assert.Equal(t, apierr.CodeNotFound, errResp.Code)
 }
 
 // --- GetCurrentPeriod Handler Tests ---
@@ -557,7 +558,7 @@ func TestGetCurrentPeriodHandler_PeriodNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodNotFound, errResp.Code)
 	assert.Contains(t, errResp.Message, "2026-05")
@@ -701,9 +702,9 @@ func TestCreatePeriodHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
@@ -792,9 +793,9 @@ func TestUpdateDefaultsHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
@@ -941,7 +942,7 @@ func TestGetPeriodSummaryHandler_PeriodNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodNotFound, errResp.Code)
 }
@@ -1194,7 +1195,7 @@ func TestCreateTagHandler_DuplicateName(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDuplicateTag, errResp.Code)
 }
@@ -1294,7 +1295,7 @@ func TestDeleteTagHandler_DefaultTagForbidden(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDefaultTag, errResp.Code)
 	assert.Contains(t, errResp.Message, "Default tags cannot be deleted")
@@ -1317,7 +1318,7 @@ func TestDeleteTagHandler_TagInUse(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrTagInUse, errResp.Code)
 	assert.Contains(t, errResp.Message, "5 expense(s)")
@@ -1406,7 +1407,7 @@ func TestUpdatePeriodHandler_PastPeriodLocked(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodLocked, errResp.Code)
 }
@@ -1428,9 +1429,9 @@ func TestUpdatePeriodHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 

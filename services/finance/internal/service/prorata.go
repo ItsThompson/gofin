@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
@@ -55,26 +56,26 @@ func monthLabel(year int32, month int32) string {
 func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string, req *model.CreateProRataRequest) (*model.ProRataResponse, error) {
 	// Validate inputs
 	if strings.TrimSpace(req.Name) == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Name is required", Status: 400}
+		return nil, apierr.Validation("Name is required", map[string]string{"name": "required"})
 	}
 	if req.TotalAmount <= 0 {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Total amount must be positive", Status: 400}
+		return nil, apierr.Validation("Total amount must be positive", map[string]string{"totalAmount": "must be positive"})
 	}
 	if req.Months < 2 {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Pro-rata requires at least 2 months", Status: 400}
+		return nil, apierr.Validation("Pro-rata requires at least 2 months", map[string]string{"months": "must be at least 2"})
 	}
 	validTypes := map[string]bool{"essentials": true, "desires": true, "savings": true}
 	if !validTypes[req.ExpenseType] {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Expense type must be essentials, desires, or savings", Status: 400}
+		return nil, apierr.Validation("Expense type must be essentials, desires, or savings", map[string]string{"expenseType": "must be essentials, desires, or savings"})
 	}
 	if strings.TrimSpace(req.Currency) == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Currency is required", Status: 400}
+		return nil, apierr.Validation("Currency is required", map[string]string{"currency": "required"})
 	}
 	if strings.TrimSpace(req.TagID) == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag ID is required", Status: 400}
+		return nil, apierr.Validation("Tag ID is required", map[string]string{"tagId": "required"})
 	}
 	if strings.TrimSpace(req.ExpenseDate) == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Expense date is required", Status: 400}
+		return nil, apierr.Validation("Expense date is required", map[string]string{"expenseDate": "required"})
 	}
 
 	installments := CalculateInstallments(req.TotalAmount, req.Months)
@@ -133,11 +134,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 				slog.Int("installment_index", int(i)),
 				slog.String("error", err.Error()),
 			)
-			return nil, &ServiceError{
-				Code:    model.ErrInternalServerError,
-				Message: "First installment was created but schedule creation failed. Please contact support.",
-				Status:  500,
-			}
+			return nil, apierr.Internal("First installment was created but schedule creation failed. Please contact support.")
 		}
 		schedules = append(schedules, schedule)
 	}
@@ -250,26 +247,14 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 // schedules. It also handles missed months: if the user has skipped months, intermediate
 // periods are auto-created with defaults and their pro-rata installments are applied.
 func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID string, req *model.CreatePeriodRequest) (*model.CreatePeriodResponse, error) {
-	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: err.Error(),
-			Status:  400,
-		}
+	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
+		return nil, verr
 	}
 	if req.Month < 1 || req.Month > 12 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Month must be between 1 and 12",
-			Status:  400,
-		}
+		return nil, apierr.Validation("Month must be between 1 and 12", map[string]string{"month": "must be between 1 and 12"})
 	}
 	if req.BudgetAmount < 0 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Budget amount must be non-negative",
-			Status:  400,
-		}
+		return nil, budgetAmountError()
 	}
 
 	var autoCreatedMonths []string

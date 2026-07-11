@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
@@ -229,9 +230,8 @@ func TestCreateProRataExpense_Validation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := svc.CreateProRataExpense(context.Background(), "user-1", tt.req)
 			require.Error(t, err)
-			svcErr, ok := err.(*ServiceError)
-			require.True(t, ok)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 			assert.Contains(t, svcErr.Message, tt.msg)
 		})
 	}
@@ -255,9 +255,8 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrInternalServerError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "schedule creation failed")
 }
 
