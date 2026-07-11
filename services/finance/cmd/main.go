@@ -14,16 +14,16 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/db/migrations"
 	"github.com/ItsThompson/gofin/services/finance/internal/config"
 	"github.com/ItsThompson/gofin/services/finance/internal/db"
 	"github.com/ItsThompson/gofin/services/finance/internal/handler"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
+	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/serverkit"
-	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
-	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
 func main() {
