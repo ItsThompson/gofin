@@ -22,7 +22,7 @@ and gate on are the ones that reproduce on any machine.**
 | Upstream call counts (gRPC/repo) | Yes, structural | Committed baseline + CI assertion (`CallCounter`) |
 | Query counts / rows scanned | Yes, structural | Committed baseline + CI assertion |
 | Complexity-scaling ratio (cost across input sizes) | Yes, the *ratio* is portable | Committed baseline + growth-ratio assertion |
-| `allocs/op`, `B/op` | Per arch/compiler only | Baseline is documentation; CI asserts **bounds/ratios**, never committed absolutes (`AssertMaxAllocs`) |
+| `allocs/op`, `B/op` | Per arch/compiler only | Baseline is documentation; CI asserts **bounds/ratios** over `testing.AllocsPerRun`, never committed absolutes |
 | Wall-clock `ns/op` | No | Same-machine before/after reference only, never a gate |
 
 **Durable, portable signals are allocs bounds, call counts, and scaling ratios.
@@ -39,7 +39,7 @@ captured on the maintainer's machine (Apple M-series, **arm64**); CI runs on
 documentation for the same-machine before/after story: they are **not** valid CI
 thresholds. CI alloc assertions use only arch-stable forms:
 
-- `AssertMaxAllocs(t, max, fn)` max-bounds ("≤ N allocations") with headroom.
+- Max-bounds ("≤ N allocations") over `testing.AllocsPerRun`, with headroom.
 - Growth-ratios ("allocs must not scale with input size").
 
 Never assert a committed absolute alloc number in CI.
@@ -70,19 +70,6 @@ spy := &financeSpy{CallCounter: perf.NewCallCounter(), /* ... */}
 if got := spy.Count("GetAllUserData"); got > 1 {
     t.Fatalf("GetAllUserData called %d times; want <=1 (dedup regressed)", got)
 }
-```
-
-### `AssertMaxAllocs`
-
-Wraps `testing.AllocsPerRun` with a clear observed-vs-allowed failure message.
-Pass an arch-stable upper bound with headroom, not the exact number captured on
-one machine.
-
-```go
-perf.AssertMaxAllocs(t, 8, func() {
-    _ = encodeRow(row)
-})
-// fails with: "allocations exceeded bound: observed 12 allocs/op, allowed <= 8"
 ```
 
 > **Intentionally not provided:** a `baseline.Load`/`baseline.Compare` helper.
@@ -158,8 +145,8 @@ Optimization slices commit baselines under
 snapshots). Each file records the portable metrics as primary content, with
 wall-clock clearly labeled as a same-machine reference. The committed baseline is
 documentation reviewed in the PR diff; the non-flaky regression gate is the
-efficiency assertion (`CallCounter` bounds, query-shape checks, `AssertMaxAllocs`
-bounds, growth-ratios) that rides the existing `test-backend` job.
+efficiency assertion (`CallCounter` bounds, query-shape checks, alloc bounds,
+growth-ratios) that rides the existing `test-backend` job.
 
 ## Testing this module
 

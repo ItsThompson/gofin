@@ -1,6 +1,6 @@
 // Package metrics provides shared Prometheus instrumentation for all gofin
-// Go services: HTTP middleware, gRPC interceptors, database metric helpers,
-// and custom business metric definitions.
+// Go services: HTTP middleware, gRPC interceptors, and custom business metric
+// definitions.
 package metrics
 
 import (
@@ -61,30 +61,6 @@ var (
 )
 
 // ---------------------------------------------------------------------------
-// Database metrics
-// ---------------------------------------------------------------------------
-
-var (
-	// DBQueryDuration observes database query latency in seconds.
-	DBQueryDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "db_query_duration_seconds",
-			Help:    "Database query duration in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"query_name"},
-	)
-
-	// ActiveConnections tracks the current number of active database connections.
-	ActiveConnections = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "active_connections",
-			Help: "Number of active database connections",
-		},
-	)
-)
-
-// ---------------------------------------------------------------------------
 // Custom business metrics
 // ---------------------------------------------------------------------------
 
@@ -118,16 +94,6 @@ var (
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-// ObserveQuery records the duration of a named database query.
-func ObserveQuery(queryName string, seconds float64) {
-	DBQueryDuration.WithLabelValues(queryName).Observe(seconds)
-}
-
-// SetActiveConnections updates the active database connection gauge.
-func SetActiveConnections(count float64) {
-	ActiveConnections.Set(count)
-}
 
 // Register adds the /metrics endpoint to a Gin engine, serving the default
 // Prometheus registry in exposition format.
