@@ -502,9 +502,11 @@ func TestGatewayResolve(t *testing.T) {
 
 // TestAccessControl_ErrorBodies_MatchApierrWireShape pins that routing the
 // gateway's middleware errors through apierr.Respond preserves the exact
-// {code,message} wire shape clients already receive, so the migration is not a
+// {code,message} wire bytes clients already receive, so the migration is not a
 // schema change. Covers the 401 (missing cookie), 403 (denied route), and 503
-// (auth-dependency timeout) paths.
+// (auth-dependency timeout) paths. Asserts the raw body (not JSONEq) so the
+// byte-for-byte claim is pinned: field order and the absence of a trailing
+// newline are part of the contract.
 func TestAccessControl_ErrorBodies_MatchApierrWireShape(t *testing.T) {
 	t.Run("401 missing cookie", func(t *testing.T) {
 		engine := buildEngine(&fakeValidator{}, silentLogger(), http.MethodGet, "/api/auth/me", okHandler)
@@ -513,7 +515,7 @@ func TestAccessControl_ErrorBodies_MatchApierrWireShape(t *testing.T) {
 		engine.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
-		assert.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authentication required"}`, rec.Body.String())
+		assert.Equal(t, `{"code":"UNAUTHORIZED","message":"Authentication required"}`, rec.Body.String())
 	})
 
 	t.Run("403 denied unclassified route", func(t *testing.T) {
@@ -523,7 +525,7 @@ func TestAccessControl_ErrorBodies_MatchApierrWireShape(t *testing.T) {
 		engine.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
-		assert.JSONEq(t, `{"code":"FORBIDDEN","message":"Access denied"}`, rec.Body.String())
+		assert.Equal(t, `{"code":"FORBIDDEN","message":"Access denied"}`, rec.Body.String())
 	})
 
 	t.Run("503 auth dependency timeout", func(t *testing.T) {
@@ -535,7 +537,7 @@ func TestAccessControl_ErrorBodies_MatchApierrWireShape(t *testing.T) {
 		engine.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-		assert.JSONEq(t, `{"code":"SERVICE_UNAVAILABLE","message":"Authentication service unavailable"}`, rec.Body.String())
+		assert.Equal(t, `{"code":"SERVICE_UNAVAILABLE","message":"Authentication service unavailable"}`, rec.Body.String())
 	})
 }
 
