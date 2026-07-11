@@ -143,11 +143,6 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 		Month:    int32(month),
 		Page:     int32(page),
 		PageSize: int32(pageSize),
-		Sort:     c.Query("sort"),
-		Type:     c.Query("type"),
-		TagID:    c.Query("tagId"),
-		DateFrom: c.Query("dateFrom"),
-		DateTo:   c.Query("dateTo"),
 	})
 	if svcErr != nil {
 		h.handleError(c, svcErr)
