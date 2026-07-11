@@ -20,38 +20,16 @@ var htmlTemplateContent string
 //go:embed templates/export_ready.txt
 var textTemplateContent string
 
-// templateData holds values passed to email templates.
+// templateData holds values passed to email templates. The brand token groups
+// are used directly (BrandColors/BrandTypography/BrandSpacing) rather than
+// mirrored field by field into parallel types; the templates access the same
+// field names either way.
 type templateData struct {
-	Colors     templateColors
-	Typography templateTypography
-	Spacing    templateSpacing
+	Colors     BrandColors
+	Typography BrandTypography
+	Spacing    BrandSpacing
 	ExportDate string
 	FileName   string
-}
-
-// templateColors maps brand tokens to template-accessible fields.
-type templateColors struct {
-	Background        string
-	Foreground        string
-	Primary           string
-	PrimaryForeground string
-	Muted             string
-	MutedForeground   string
-	Border            string
-}
-
-// templateTypography holds font info for templates.
-type templateTypography struct {
-	FontFamily string
-	FontSize   map[string]string
-}
-
-// templateSpacing holds spacing tokens for templates.
-type templateSpacing struct {
-	Sm string
-	Md string
-	Lg string
-	Xl string
 }
 
 // resendAttachment represents an email attachment for the Resend API.
@@ -193,25 +171,9 @@ func (s *ResendSender) SendExportEmail(ctx context.Context, toEmail string, zipB
 // buildTemplateData constructs the template rendering context from brand tokens.
 func (s *ResendSender) buildTemplateData(exportDate, fileName string) templateData {
 	return templateData{
-		Colors: templateColors{
-			Background:        s.tokens.Colors.Background,
-			Foreground:        s.tokens.Colors.Foreground,
-			Primary:           s.tokens.Colors.Primary,
-			PrimaryForeground: s.tokens.Colors.PrimaryForeground,
-			Muted:             s.tokens.Colors.Muted,
-			MutedForeground:   s.tokens.Colors.MutedForeground,
-			Border:            s.tokens.Colors.Border,
-		},
-		Typography: templateTypography{
-			FontFamily: s.tokens.Typography.FontFamily,
-			FontSize:   s.tokens.Typography.FontSize,
-		},
-		Spacing: templateSpacing{
-			Sm: s.tokens.Spacing.Sm,
-			Md: s.tokens.Spacing.Md,
-			Lg: s.tokens.Spacing.Lg,
-			Xl: s.tokens.Spacing.Xl,
-		},
+		Colors:     s.tokens.Colors,
+		Typography: s.tokens.Typography,
+		Spacing:    s.tokens.Spacing,
 		ExportDate: exportDate,
 		FileName:   fileName,
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
@@ -137,13 +138,23 @@ func (p *stubProvider) Collect(ctx context.Context, _ string) ([][]string, error
 	return p.rows, nil
 }
 
-// staticProviders returns a ProviderFactory that ignores the injected finance
-// client and always yields the given providers, for engine tests using stub
+// staticProviders returns a ProviderFactory that ignores the fetched finance
+// response and always yields the given providers, for engine tests using stub
 // providers with no finance dependency.
 func staticProviders(ps ...DataProvider) ProviderFactory {
-	return func(financepb.FinanceServiceClient) []DataProvider {
+	return func(*financepb.AllUserDataResponse) []DataProvider {
 		return ps
 	}
+}
+
+// nopFinance satisfies the finance client the export engine fetches once per
+// job. Orchestration tests use stub providers that ignore the response, so an
+// empty response lets execute's single upfront fetch succeed without coupling
+// these tests to finance data.
+type nopFinance struct{ financepb.FinanceServiceClient }
+
+func (nopFinance) GetAllUserData(context.Context, *financepb.GetAllUserDataRequest, ...grpc.CallOption) (*financepb.AllUserDataResponse, error) {
+	return &financepb.AllUserDataResponse{}, nil
 }
 
 func newTestLogger() *slog.Logger {
@@ -189,7 +200,7 @@ func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 		name:    "profile",
 		headers: []string{"username", "email"},
 		rows:    [][]string{{"alex", "alex@example.com"}},
-	}), nil, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
+	}), nopFinance{}, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-1", "user-1", "alex@example.com")
 
 	// Wait for async completion
@@ -214,7 +225,7 @@ func TestEngine_ProviderError_FailsJob(t *testing.T) {
 	eng := NewEngine(staticProviders(&stubProvider{
 		name: "profile",
 		err:  fmt.Errorf("gRPC unavailable"),
-	}), nil, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
+	}), nopFinance{}, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-2", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -235,7 +246,7 @@ func TestEngine_Timeout_FailsJob(t *testing.T) {
 		headers: []string{"col"},
 		rows:    [][]string{{"val"}},
 		delay:   500 * time.Millisecond,
-	}), nil, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
+	}), nopFinance{}, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
 	eng.Submit("job-3", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -258,7 +269,7 @@ func TestEngine_ConcurrencyBounded(t *testing.T) {
 		running: &running,
 		maxSeen: &maxSeen,
 		delay:   100 * time.Millisecond,
-	}), nil, repo, newMockSender(), maxConcurrent, 5*time.Minute, newTestLogger())
+	}), nopFinance{}, repo, newMockSender(), maxConcurrent, 5*time.Minute, newTestLogger())
 
 	// Submit more jobs than max concurrent
 	totalJobs := 10
@@ -325,7 +336,7 @@ func TestEngine_MultipleProviders_AllCollected(t *testing.T) {
 				{"2", "30.00"},
 			},
 		},
-	), nil, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
+	), nopFinance{}, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-multi", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -349,7 +360,7 @@ func TestEngine_SecondProviderError_FailsJob(t *testing.T) {
 			name: "expenses",
 			err:  fmt.Errorf("upstream timeout"),
 		},
-	), nil, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
+	), nopFinance{}, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-fail", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -367,7 +378,7 @@ func TestEngine_EmailSenderCalled_OnSuccess(t *testing.T) {
 		name:    "profile",
 		headers: []string{"username", "email"},
 		rows:    [][]string{{"alex", "alex@example.com"}},
-	}), nil, repo, sender, 5, 5*time.Minute, newTestLogger())
+	}), nopFinance{}, repo, sender, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-email", "user-1", "alex@example.com")
 
 	require.Eventually(t, func() bool {
@@ -388,7 +399,7 @@ func TestEngine_EmailFailure_FailsJob(t *testing.T) {
 		name:    "profile",
 		headers: []string{"username"},
 		rows:    [][]string{{"alex"}},
-	}), nil, repo, sender, 5, 5*time.Minute, newTestLogger())
+	}), nopFinance{}, repo, sender, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-email-fail", "user-1", "alex@example.com")
 
 	require.Eventually(t, func() bool {

@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,19 +26,17 @@ func TestDefaultSettingsProvider_Headers(t *testing.T) {
 }
 
 func TestDefaultSettingsProvider_Collect_Success(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Defaults: &financepb.DefaultsData{
-				BudgetAmount:      500000,
-				EssentialsPercent: 50,
-				DesiresPercent:    30,
-				SavingsPercent:    20,
-				Currency:          "USD",
-			},
+	data := &financepb.AllUserDataResponse{
+		Defaults: &financepb.DefaultsData{
+			BudgetAmount:      500000,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+			Currency:          "USD",
 		},
 	}
 
-	p := NewDefaultSettingsProvider(mockClient)
+	p := NewDefaultSettingsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -50,19 +47,17 @@ func TestDefaultSettingsProvider_Collect_Success(t *testing.T) {
 }
 
 func TestDefaultSettingsProvider_Collect_AmountFormatting(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Defaults: &financepb.DefaultsData{
-				BudgetAmount:      4599,
-				EssentialsPercent: 50,
-				DesiresPercent:    30,
-				SavingsPercent:    20,
-				Currency:          "EUR",
-			},
+	data := &financepb.AllUserDataResponse{
+		Defaults: &financepb.DefaultsData{
+			BudgetAmount:      4599,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+			Currency:          "EUR",
 		},
 	}
 
-	p := NewDefaultSettingsProvider(mockClient)
+	p := NewDefaultSettingsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -71,28 +66,13 @@ func TestDefaultSettingsProvider_Collect_AmountFormatting(t *testing.T) {
 }
 
 func TestDefaultSettingsProvider_Collect_NilDefaults(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Defaults: nil,
-		},
+	data := &financepb.AllUserDataResponse{
+		Defaults: nil,
 	}
 
-	p := NewDefaultSettingsProvider(mockClient)
+	p := NewDefaultSettingsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
 	assert.Empty(t, rows)
-}
-
-func TestDefaultSettingsProvider_Collect_Error(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataErr: fmt.Errorf("deadline exceeded"),
-	}
-
-	p := NewDefaultSettingsProvider(mockClient)
-	rows, err := p.Collect(context.Background(), "user-123")
-
-	assert.Nil(t, rows)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "fetching user data for default settings")
 }

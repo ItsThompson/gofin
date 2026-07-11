@@ -18,11 +18,13 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
-// ProviderFactory builds a fresh set of data providers for a single export job,
-// injecting the finance client the finance-backed providers should share. The
-// factory closes over the non-finance clients (auth, expense) at startup; the
-// finance client is supplied per job so each job gets its own memoized instance.
-type ProviderFactory func(finance financepb.FinanceServiceClient) []DataProvider
+// ProviderFactory builds a fresh set of data providers for a single export job
+// from the finance data fetched once upfront. It closes over the self-fetching
+// clients (auth for the profile, expense for the expenses stream) at startup;
+// the resolved finance response is supplied per job so the finance-backed
+// providers are pure response -> rows mappers and the export hits finance
+// exactly once (in execute).
+type ProviderFactory func(financeData *financepb.AllUserDataResponse) []DataProvider
 
 // jobState carries the per-job values the pool's fixed Execute/StatusStore
 // signatures cannot thread through: userEmail flows in (set by Submit, read by
@@ -52,8 +54,8 @@ type Engine struct {
 }
 
 // NewEngine creates an export engine with bounded concurrency. newProviders
-// builds a fresh provider set per job; financeClient is the raw finance client
-// wrapped in a per-job MemoizedFinanceClient before being handed to the factory.
+// builds a fresh provider set per job from the finance response that execute
+// fetches once via financeClient.
 func NewEngine(
 	newProviders ProviderFactory,
 	financeClient financepb.FinanceServiceClient,
@@ -155,11 +157,18 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 		slog.String("method", "engine.execute"),
 	)
 
-	// Build a fresh provider set for this job. The finance-backed providers
-	// share one per-job MemoizedFinanceClient, so GetAllUserData is fetched at
-	// most once; a fresh instance per job prevents cross-user data leakage.
-	fc := NewMemoizedFinanceClient(e.financeClient)
-	providerSet := e.newProviders(fc)
+	// Fetch the user's finance data once upfront and hand the resolved response
+	// to the provider factory. The finance-backed providers (tags, budget
+	// periods, default settings, and the expenses tag map) are pure mappers over
+	// this response, so the export hits finance exactly once by construction.
+	financeData, err := e.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
+	if err != nil {
+		if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) {
+			return 0, e.recordFailure(jobID, userID, "Export timed out", "finance_fetch", jobStart)
+		}
+		return 0, e.recordFailure(jobID, userID, "Failed to fetch export data", "finance_fetch", jobStart)
+	}
+	providerSet := e.newProviders(financeData)
 
 	// Collect from every provider concurrently. The providers are independent
 	// and read-only, so each goroutine writes only its own pre-assigned index in

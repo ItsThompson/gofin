@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
@@ -12,14 +11,16 @@ import (
 // Compile-time check that BudgetPeriodsProvider implements DataProvider.
 var _ engine.DataProvider = (*BudgetPeriodsProvider)(nil)
 
-// BudgetPeriodsProvider fetches budget period data from the finance service.
+// BudgetPeriodsProvider maps the budget periods in the shared per-job finance
+// response into rows.
 type BudgetPeriodsProvider struct {
-	financeClient financepb.FinanceServiceClient
+	data *financepb.AllUserDataResponse
 }
 
-// NewBudgetPeriodsProvider creates a BudgetPeriodsProvider backed by the finance gRPC client.
-func NewBudgetPeriodsProvider(financeClient financepb.FinanceServiceClient) *BudgetPeriodsProvider {
-	return &BudgetPeriodsProvider{financeClient: financeClient}
+// NewBudgetPeriodsProvider creates a BudgetPeriodsProvider over the finance data
+// the export engine fetches once per job.
+func NewBudgetPeriodsProvider(data *financepb.AllUserDataResponse) *BudgetPeriodsProvider {
+	return &BudgetPeriodsProvider{data: data}
 }
 
 // Name returns the CSV filename for this provider.
@@ -35,14 +36,10 @@ func (p *BudgetPeriodsProvider) Headers() []string {
 	}
 }
 
-// Collect fetches all budget periods for the user and returns formatted rows.
-func (p *BudgetPeriodsProvider) Collect(ctx context.Context, userID string) ([][]string, error) {
-	resp, err := p.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
-	if err != nil {
-		return nil, fmt.Errorf("fetching user data for budget periods: %w", err)
-	}
-
-	periods := resp.GetPeriods()
+// Collect maps the pre-fetched user data's budget periods into rows. It is a
+// pure mapper: the finance fetch happens once in the export engine.
+func (p *BudgetPeriodsProvider) Collect(_ context.Context, _ string) ([][]string, error) {
+	periods := p.data.GetPeriods()
 	rows := make([][]string, 0, len(periods))
 	for _, period := range periods {
 		rows = append(rows, []string{

@@ -16,7 +16,6 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/db/migrations"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
-	deletionproviders "github.com/ItsThompson/gofin/services/datarights/internal/deletion/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
@@ -112,19 +111,20 @@ func run() error {
 	// Build dependency graph
 	repo := repository.NewPostgresJobRepository(pool)
 
-	// Set up export engine with a per-job provider factory. The factory closes
-	// over the auth and expense clients; the finance-backed providers receive a
-	// fresh per-job MemoizedFinanceClient (built inside the engine) so a single
-	// GetAllUserData call is shared across providers without leaking data across
-	// jobs. Registration/ZIP order: profile, expenses, tags, budget_periods,
+	// Set up export engine with a per-job provider factory. The engine fetches
+	// GetAllUserData once per job (in execute) and hands the resolved response
+	// here; the factory closes over the auth and expense clients (profile and the
+	// expenses stream self-fetch) and derives the tag map + finance-backed rows
+	// from the single response, so the export hits finance exactly once.
+	// Registration/ZIP order: profile, expenses, tags, budget_periods,
 	// default_settings.
-	newExportProviders := func(finance financepb.FinanceServiceClient) []engine.DataProvider {
+	newExportProviders := func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
 		return []engine.DataProvider{
 			providers.NewProfileProvider(authClient),
-			providers.NewExpensesProvider(expenseClient, finance),
-			providers.NewTagsProvider(finance),
-			providers.NewBudgetPeriodsProvider(finance),
-			providers.NewDefaultSettingsProvider(finance),
+			providers.NewExpensesProvider(expenseClient, providers.BuildTagMap(financeData)),
+			providers.NewTagsProvider(financeData),
+			providers.NewBudgetPeriodsProvider(financeData),
+			providers.NewDefaultSettingsProvider(financeData),
 		}
 	}
 
@@ -164,10 +164,24 @@ func run() error {
 
 	// Set up deletion engine with provider registry
 	deletionRepo := repository.NewPostgresDeletionJobRepository(pool)
+
+	// Register the deletion providers as name+func pairs. Registration order is
+	// execution order: finance and expense first, auth last (a user cannot
+	// authenticate once auth data is gone). Each func wraps one idempotent gRPC
+	// delete call and discards the response.
 	deletionRegistry := deletion.NewRegistry()
-	deletionRegistry.Register(deletionproviders.NewFinanceDeletionProvider(financeClient))
-	deletionRegistry.Register(deletionproviders.NewExpenseDeletionProvider(expenseClient))
-	deletionRegistry.Register(deletionproviders.NewAuthDeletionProvider(authClient))
+	deletionRegistry.Register(deletion.NewFuncProvider("finance", func(ctx context.Context, userID string) error {
+		_, err := financeClient.DeleteAllUserData(ctx, &financepb.DeleteAllUserDataRequest{UserId: userID})
+		return err
+	}))
+	deletionRegistry.Register(deletion.NewFuncProvider("expense", func(ctx context.Context, userID string) error {
+		_, err := expenseClient.AnonymizeAllUserExpenses(ctx, &expensepb.AnonymizeRequest{UserId: userID})
+		return err
+	}))
+	deletionRegistry.Register(deletion.NewFuncProvider("auth", func(ctx context.Context, userID string) error {
+		_, err := authClient.DeleteUserData(ctx, &authpb.DeleteUserDataRequest{UserId: userID})
+		return err
+	}))
 
 	deletionEngine := deletion.NewEngine(
 		deletionRegistry,
