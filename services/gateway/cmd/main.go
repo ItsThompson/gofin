@@ -9,16 +9,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/config"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
 	"github.com/ItsThompson/gofin/services/healthcheck"
-
-	sharedaccess "github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 func main() {
@@ -42,18 +41,11 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// Set up structured logging.
-	logLevel := slog.LevelInfo
-	switch cfg.LogLevel {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "warn":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	logger = logger.With(slog.String("service", "gateway"))
+	// Set up structured logging via serverkit (JSON slog handler with the
+	// "service" attribute attached to every record). Installed as the default so
+	// slog.Warn call sites (e.g. config.Load's oversized-timeout warning) share
+	// the same handler.
+	logger := serverkit.NewLogger(cfg.LogLevel, "gateway")
 	slog.SetDefault(logger)
 
 	// Establish gRPC connection to the auth service for token validation.
@@ -107,29 +99,17 @@ func run() error {
 		Handler: engine,
 	}
 
-	go func() {
-		logger.Info("API gateway starting",
-			slog.String("port", cfg.Port),
-			slog.String("auth_rest", cfg.AuthServiceREST),
-			slog.String("expense_rest", cfg.ExpenseServiceREST),
-			slog.String("finance_rest", cfg.FinanceServiceREST),
-			slog.String("datarights_rest", cfg.DatarightsServiceREST),
-		)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("server failed", slog.String("error", err.Error()))
-		}
-	}()
+	logger.Info("API gateway starting",
+		slog.String("port", cfg.Port),
+		slog.String("auth_rest", cfg.AuthServiceREST),
+		slog.String("expense_rest", cfg.ExpenseServiceREST),
+		slog.String("finance_rest", cfg.FinanceServiceREST),
+		slog.String("datarights_rest", cfg.DatarightsServiceREST),
+	)
 
-	// Wait for shutdown signal.
-	<-ctx.Done()
-	logger.Info("shutting down API gateway")
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("server shutdown error", slog.String("error", err.Error()))
-	}
-
-	return nil
+	// serverkit.Serve owns the serve/shutdown lifecycle and returns any fatal
+	// bind error so run() exits non-zero instead of lingering with no listener
+	// (the C5 zombie bug). The gateway runs no gRPC server, so both gRPC args
+	// are nil.
+	return serverkit.Serve(ctx, server, nil, nil)
 }
