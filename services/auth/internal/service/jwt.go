@@ -120,8 +120,3 @@ func (j *JWTService) ValidateRefreshToken(tokenString string) (*RefreshTokenClai
 
 	return claims, nil
 }
-
-// RefreshTokenTTL returns the refresh token time-to-live duration.
-func (j *JWTService) RefreshTokenTTL() time.Duration {
-	return j.refreshTokenTTL
-}

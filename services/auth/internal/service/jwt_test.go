@@ -146,8 +146,3 @@ func TestValidateRefreshToken_Garbage(t *testing.T) {
 	_, err := jwtSvc.ValidateRefreshToken("not-a-token")
 	assert.Error(t, err)
 }
-
-func TestRefreshTokenTTL(t *testing.T) {
-	jwtSvc := NewJWTService("test-secret")
-	assert.Equal(t, 7*24*time.Hour, jwtSvc.RefreshTokenTTL())
-}
