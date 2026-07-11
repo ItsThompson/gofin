@@ -57,6 +57,14 @@ func (c *inMemoryImmudbClient) SQLExec(_ context.Context, sql string, params map
 		return &repository.SQLResult{}, nil
 	}
 
+	// UPDATE is not implemented by this in-memory stub. Falling through to a
+	// silent empty result would let a local CorrectExpense leave the original
+	// row active (double-counting) and make anonymize a silent no-op, so fail
+	// loudly instead. The real immudb client (immudb_prod.go) handles UPDATE.
+	if strings.HasPrefix(sqlLower, "update") {
+		return nil, fmt.Errorf("UPDATE is unsupported in the local in-memory immudb stub")
+	}
+
 	return &repository.SQLResult{}, nil
 }
 
