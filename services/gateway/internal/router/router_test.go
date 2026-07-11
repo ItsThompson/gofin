@@ -41,7 +41,6 @@ func adminValidator() *mockValidator {
 		result: &access.TokenValidationResult{
 			UserID:   "admin-1",
 			Role:     "admin",
-			Username: "admin",
 		},
 	}
 }
@@ -51,7 +50,6 @@ func userValidator() *mockValidator {
 		result: &access.TokenValidationResult{
 			UserID:   "user-1",
 			Role:     "user",
-			Username: "alice",
 		},
 	}
 }

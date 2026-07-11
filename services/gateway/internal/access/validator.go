@@ -8,7 +8,6 @@ import "context"
 type TokenValidationResult struct {
 	UserID    string
 	Role      string
-	Username  string
 	AssumedBy string
 }
 
