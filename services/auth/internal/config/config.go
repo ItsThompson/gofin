@@ -4,18 +4,48 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
+
+	"github.com/ItsThompson/gofin/services/auth/internal/service"
+)
+
+// DefaultRESTPort is the REST listener port used when REST_PORT is unset. It is
+// also the port the --healthcheck probe targets (US-PLATFORM-05), so both the
+// server and its probe share one source of truth.
+const DefaultRESTPort = "8081"
+
+const defaultGRPCPort = "9081"
+
+// Cleanup cadence defaults for the blacklist sweep background worker.
+const (
+	defaultCleanupInterval = 5 * time.Minute
+	defaultCleanupTimeout  = 30 * time.Second
 )
 
 // Config holds all configuration for the auth service, loaded from environment variables.
 type Config struct {
-	DBUrl        string
-	JWTSecret    string
-	BcryptCost   int
-	LogLevel     string
-	Environment  string
-	RESTPort     string
-	GRPCPort     string
-	CookieDomain string
+	DBUrl           string
+	JWTSecret       string
+	BcryptCost      int
+	LogLevel        string
+	Environment     string
+	RESTPort        string
+	GRPCPort        string
+	CookieDomain    string
+	JWTAccessTTL    time.Duration
+	JWTRefreshTTL   time.Duration
+	CleanupInterval time.Duration
+	CleanupTimeout  time.Duration
+}
+
+// RESTPort returns the configured REST port from REST_PORT, or DefaultRESTPort.
+// It is exported so the --healthcheck probe, which runs before the full config
+// Load, targets the same port the server listens on (US-PLATFORM-05).
+func RESTPort() string {
+	if p := os.Getenv("REST_PORT"); p != "" {
+		return p
+	}
+	return DefaultRESTPort
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -53,26 +83,60 @@ func Load() (*Config, error) {
 		environment = "development"
 	}
 
-	restPort := os.Getenv("REST_PORT")
-	if restPort == "" {
-		restPort = "8081"
-	}
-
 	grpcPort := os.Getenv("GRPC_PORT")
 	if grpcPort == "" {
-		grpcPort = "9081"
+		grpcPort = defaultGRPCPort
+	}
+
+	jwtAccessTTL, err := durationEnv("JWT_ACCESS_TTL", service.DefaultAccessTokenTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	jwtRefreshTTL, err := durationEnv("JWT_REFRESH_TTL", service.DefaultRefreshTokenTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	cleanupInterval, err := durationEnv("CLEANUP_INTERVAL", defaultCleanupInterval)
+	if err != nil {
+		return nil, err
+	}
+
+	cleanupTimeout, err := durationEnv("CLEANUP_TIMEOUT", defaultCleanupTimeout)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Config{
-		DBUrl:        dbURL,
-		JWTSecret:    jwtSecret,
-		BcryptCost:   bcryptCost,
-		LogLevel:     logLevel,
-		Environment:  environment,
-		RESTPort:     restPort,
-		GRPCPort:     grpcPort,
-		CookieDomain: os.Getenv("COOKIE_DOMAIN"),
+		DBUrl:           dbURL,
+		JWTSecret:       jwtSecret,
+		BcryptCost:      bcryptCost,
+		LogLevel:        logLevel,
+		Environment:     environment,
+		RESTPort:        RESTPort(),
+		GRPCPort:        grpcPort,
+		CookieDomain:    os.Getenv("COOKIE_DOMAIN"),
+		JWTAccessTTL:    jwtAccessTTL,
+		JWTRefreshTTL:   jwtRefreshTTL,
+		CleanupInterval: cleanupInterval,
+		CleanupTimeout:  cleanupTimeout,
 	}, nil
+}
+
+// durationEnv reads a time.Duration from the named env var, falling back to def
+// when unset. A malformed value is a load-time error rather than a silent
+// fallback so misconfiguration surfaces at boot.
+func durationEnv(key string, def time.Duration) (time.Duration, error) {
+	val := os.Getenv(key)
+	if val == "" {
+		return def, nil
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid duration: %w", key, err)
+	}
+	return d, nil
 }
 
 // IsProduction returns true if the environment is not "development".

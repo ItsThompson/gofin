@@ -2,11 +2,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
@@ -27,6 +30,14 @@ func NewGRPCHandler(authService *service.AuthService, logger *slog.Logger) *GRPC
 		authService: authService,
 		logger:      logger,
 	}
+}
+
+// isMissingUser reports whether err is (or wraps) the service's "user not
+// found" signal, which GetUserByID surfaces as a 401 *apierr.Error. errors.As
+// unwraps %w chains, so a wrapped typed error still classifies correctly (C7).
+func isMissingUser(err error) bool {
+	var apiErr *apierr.Error
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized
 }
 
 func (h *GRPCHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
@@ -65,7 +76,7 @@ func (h *GRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 
 	user, err := h.authService.GetUserByID(ctx, userID)
 	if err != nil {
-		if authErr, ok := err.(*service.AuthError); ok && authErr.Status == 401 {
+		if isMissingUser(err) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		h.logger.Error("failed to get user",
@@ -99,7 +110,7 @@ func (h *GRPCHandler) VerifyPassword(ctx context.Context, req *pb.VerifyPassword
 
 	user, err := h.authService.GetUserByID(ctx, userID)
 	if err != nil {
-		if authErr, ok := err.(*service.AuthError); ok && authErr.Status == 401 {
+		if isMissingUser(err) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		h.logger.Error("failed to look up user for password verification",

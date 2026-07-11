@@ -1,22 +1,12 @@
 package model
 
-// ApiError follows the error contract from 10-nonfunctional.md:
-// { code, message, fields? }
-type ApiError struct {
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Fields  map[string]string `json:"fields,omitempty"`
-}
-
-// Common error codes
+// Auth-specific error codes. The cross-service codes (UNAUTHORIZED, NOT_FOUND,
+// VALIDATION_ERROR, INTERNAL_SERVER_ERROR, FORBIDDEN) live in the shared apierr
+// package; only codes unique to the auth domain remain here. They are still
+// valid apierr.Error Code strings.
 const (
-	ErrDuplicateEmail      = "DUPLICATE_EMAIL"
-	ErrDuplicateUsername   = "DUPLICATE_USERNAME"
-	ErrInvalidCredentials  = "INVALID_CREDENTIALS"
-	ErrWeakPassword        = "WEAK_PASSWORD"
-	ErrValidationError     = "VALIDATION_ERROR"
-	ErrUnauthorized        = "UNAUTHORIZED"
-	ErrForbidden           = "FORBIDDEN"
-	ErrNotFound            = "NOT_FOUND"
-	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
+	ErrDuplicateEmail     = "DUPLICATE_EMAIL"
+	ErrDuplicateUsername  = "DUPLICATE_USERNAME"
+	ErrInvalidCredentials = "INVALID_CREDENTIALS"
+	ErrWeakPassword       = "WEAK_PASSWORD"
 )

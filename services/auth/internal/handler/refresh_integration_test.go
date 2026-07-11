@@ -120,7 +120,7 @@ func TestConcurrentRefresh_Integration(t *testing.T) {
 	authSvc := service.NewAuthService(userRepo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
 	gin.SetMode(gin.TestMode)
-	h := handler.NewRESTHandler(authSvc, logger, false, "")
+	h := handler.NewRESTHandler(authSvc, logger, false, "", service.DefaultAccessTokenTTL, service.DefaultRefreshTokenTTL)
 	router := gin.New()
 	h.RegisterRoutes(router)
 
