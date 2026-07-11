@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
+	"github.com/ItsThompson/gofin/services/datarights/internal/jobrunner"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
@@ -22,15 +24,31 @@ import (
 // finance client is supplied per job so each job gets its own memoized instance.
 type ProviderFactory func(finance financepb.FinanceServiceClient) []DataProvider
 
-// Engine manages a bounded pool of export workers.
+// jobState carries the per-job values the pool's fixed Execute/StatusStore
+// signatures cannot thread through: userEmail flows in (set by Submit, read by
+// the execute strategy) and fileSize flows out (set by execute, read by the
+// StatusStore adapter's CompleteJob). One job runs per jobID, and the pool
+// drives that job's transitions sequentially in a single goroutine, so a plain
+// pointer needs no further locking; sync.Map guards concurrent jobs.
+type jobState struct {
+	userEmail string
+	fileSize  int64
+}
+
+// Engine manages a bounded pool of export workers via jobrunner.Pool, injecting
+// its errgroup fan-out + zip + email closure as the Execute strategy. Because
+// export's CompleteJob persists file_size_bytes (and Submit carries userEmail),
+// neither of which fit the generic pool signatures, the engine adapts its repo
+// behind the StatusStore seam (see statusStore) rather than handing the repo to
+// the pool directly.
 type Engine struct {
 	newProviders  ProviderFactory
 	financeClient financepb.FinanceServiceClient
 	repo          repository.JobRepository
 	sender        email.Sender
-	sem           chan struct{}
 	logger        *slog.Logger
-	timeout       time.Duration
+	pool          *jobrunner.Pool
+	jobs          sync.Map // jobID -> *jobState
 }
 
 // NewEngine creates an export engine with bounded concurrency. newProviders
@@ -45,54 +63,90 @@ func NewEngine(
 	timeout time.Duration,
 	logger *slog.Logger,
 ) *Engine {
-	return &Engine{
+	e := &Engine{
 		newProviders:  newProviders,
 		financeClient: financeClient,
 		repo:          repo,
 		sender:        sender,
-		sem:           make(chan struct{}, maxConcurrent),
 		logger:        logger,
-		timeout:       timeout,
 	}
+	e.pool = jobrunner.New(maxConcurrent, timeout, statusStore{e}, e.execute, logger)
+	return e
 }
 
 // ActiveJobs returns the number of currently executing export jobs.
-func (e *Engine) ActiveJobs() int {
-	return len(e.sem)
-}
+func (e *Engine) ActiveJobs() int { return e.pool.ActiveJobs() }
+
+// QueuedJobs returns the number of export jobs waiting for a pool slot.
+func (e *Engine) QueuedJobs() int { return e.pool.QueuedJobs() }
 
 // MaxConcurrent returns the pool capacity.
-func (e *Engine) MaxConcurrent() int {
-	return cap(e.sem)
-}
+func (e *Engine) MaxConcurrent() int { return e.pool.MaxConcurrent() }
 
-// Submit enqueues a job for asynchronous processing.
+// Submit enqueues a job for asynchronous processing. Non-blocking: the pool
+// spawns the worker goroutine.
 func (e *Engine) Submit(jobID, userID, userEmail string) {
-	go func() {
-		// Track queued state: job is waiting for a pool slot
-		exportmetrics.ExportPoolQueuedJobs.Inc()
-
-		// Acquire semaphore slot (blocks if pool is full)
-		e.sem <- struct{}{}
-
-		// No longer queued, now active
-		exportmetrics.ExportPoolQueuedJobs.Dec()
-		exportmetrics.ExportPoolActiveJobs.Inc()
-
-		defer func() {
-			<-e.sem
-			exportmetrics.ExportPoolActiveJobs.Dec()
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-		defer cancel()
-
-		e.execute(ctx, jobID, userID, userEmail)
-	}()
+	e.jobs.Store(jobID, &jobState{userEmail: userEmail})
+	e.pool.Submit(jobID, userID)
 }
 
-// execute runs the full export flow for a single job.
-func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
+func (e *Engine) loadState(jobID string) *jobState {
+	if v, ok := e.jobs.Load(jobID); ok {
+		return v.(*jobState)
+	}
+	return &jobState{}
+}
+
+func (e *Engine) takeState(jobID string) *jobState {
+	if v, ok := e.jobs.LoadAndDelete(jobID); ok {
+		return v.(*jobState)
+	}
+	return &jobState{}
+}
+
+// statusStore adapts the export engine's repo to jobrunner.StatusStore. The
+// pool's CompleteJob carries no size, so it reads the archive size the execute
+// strategy recorded for the job; export's CompleteJob still persists
+// file_size_bytes. The deletion repo satisfies StatusStore directly.
+type statusStore struct{ e *Engine }
+
+func (s statusStore) UpdateStatus(ctx context.Context, jobID, status string) error {
+	if err := s.e.repo.UpdateStatus(ctx, jobID, status); err != nil {
+		// The running transition failed, so the pool will not run execute or a
+		// terminal transition: drop the per-job state now so it never leaks.
+		s.e.jobs.Delete(jobID)
+		return err
+	}
+	return nil
+}
+
+func (s statusStore) CompleteJob(ctx context.Context, jobID string) error {
+	return s.e.repo.CompleteJob(ctx, jobID, s.e.takeState(jobID).fileSize)
+}
+
+func (s statusStore) FailJob(ctx context.Context, jobID, reason string) error {
+	s.e.jobs.Delete(jobID)
+	return s.e.repo.FailJob(ctx, jobID, reason)
+}
+
+// execute is the injected jobrunner strategy. It reads the per-job userEmail
+// stashed by Submit, runs the export work, and records the archive size for the
+// pool's CompleteJob. The pool owns the running transition, completion, and
+// background-context failure.
+func (e *Engine) execute(ctx context.Context, jobID, userID string) error {
+	st := e.loadState(jobID)
+	fileSizeBytes, err := e.runExport(ctx, jobID, userID, st.userEmail)
+	if err != nil {
+		return err
+	}
+	st.fileSize = fileSizeBytes
+	return nil
+}
+
+// runExport performs the full export work for a single job: fan-out collection,
+// ZIP assembly, and email delivery. It returns the archive size on success or a
+// PII-free failure whose message is persisted as the job's error.
+func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string) (int64, error) {
 	jobStart := time.Now()
 
 	e.logger.Info("export job starting",
@@ -100,19 +154,6 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 		slog.String("user_id", userID),
 		slog.String("method", "engine.execute"),
 	)
-
-	// Transition to running
-	if err := e.repo.UpdateStatus(ctx, jobID, "running"); err != nil {
-		e.logger.Error("failed to update job status to running",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("method", "engine.execute"),
-			slog.String("error", err.Error()),
-		)
-		exportmetrics.ExportJobsCompletedTotal.WithLabelValues("failed").Inc()
-		exportmetrics.ExportJobDurationSeconds.Observe(time.Since(jobStart).Seconds())
-		return
-	}
 
 	// Build a fresh provider set for this job. The finance-backed providers
 	// share one per-job MemoizedFinanceClient, so GetAllUserData is fetched at
@@ -178,21 +219,17 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	case err == nil:
 		// all providers succeeded; fall through to ZIP assembly
 	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
-		e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
-		return
+		return 0, e.recordFailure(jobID, userID, "Export timed out", "collection", jobStart)
 	case errors.As(err, &ce):
-		e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), "collection", jobStart)
-		return
+		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), "collection", jobStart)
 	default:
-		e.failJob(ctx, jobID, userID, "Failed to collect export data", "collection", jobStart)
-		return
+		return 0, e.recordFailure(jobID, userID, "Failed to collect export data", "collection", jobStart)
 	}
 
 	// Build ZIP
 	zipBytes, err := BuildZIP(csvFiles)
 	if err != nil {
-		e.failJob(ctx, jobID, userID, "Failed to build export archive", "zip_assembly", jobStart)
-		return
+		return 0, e.recordFailure(jobID, userID, "Failed to build export archive", "zip_assembly", jobStart)
 	}
 
 	fileSizeBytes := int64(len(zipBytes))
@@ -208,8 +245,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 	// Send email with ZIP attachment
 	emailStart := time.Now()
 	if err := e.sender.SendExportEmail(ctx, userEmail, zipBytes); err != nil {
-		e.failJob(ctx, jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), "email_delivery", jobStart)
-		return
+		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), "email_delivery", jobStart)
 	}
 	exportmetrics.ExportEmailSendDurationSeconds.Observe(time.Since(emailStart).Seconds())
 
@@ -219,19 +255,6 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 		slog.Float64("duration_seconds", time.Since(emailStart).Seconds()),
 		slog.String("method", "engine.execute"),
 	)
-
-	// Mark complete
-	if err := e.repo.CompleteJob(ctx, jobID, fileSizeBytes); err != nil {
-		e.logger.Error("failed to complete job",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("method", "engine.execute"),
-			slog.String("error", err.Error()),
-		)
-		exportmetrics.ExportJobsCompletedTotal.WithLabelValues("failed").Inc()
-		exportmetrics.ExportJobDurationSeconds.Observe(time.Since(jobStart).Seconds())
-		return
-	}
 
 	jobDuration := time.Since(jobStart).Seconds()
 	exportmetrics.ExportJobsCompletedTotal.WithLabelValues("completed").Inc()
@@ -244,10 +267,13 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 		slog.Float64("duration_seconds", jobDuration),
 		slog.String("method", "engine.execute"),
 	)
+
+	return fileSizeBytes, nil
 }
 
-// failJob marks a job as failed with a human-readable error message.
-func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg, stage string, jobStart time.Time) {
+// recordFailure observes the failure metrics, logs the PII-free reason with its
+// stage, and returns the terminal error the pool persists via FailJob.
+func (e *Engine) recordFailure(jobID, userID, errMsg, stage string, jobStart time.Time) error {
 	exportmetrics.ExportJobsCompletedTotal.WithLabelValues("failed").Inc()
 	exportmetrics.ExportJobDurationSeconds.Observe(time.Since(jobStart).Seconds())
 
@@ -256,20 +282,19 @@ func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg, stage string,
 		slog.String("user_id", userID),
 		slog.String("error", errMsg),
 		slog.String("stage", stage),
-		slog.String("method", "engine.failJob"),
+		slog.String("method", "engine.execute"),
 	)
 
-	// Use a background context for the fail update in case the original context expired
-	failCtx := context.Background()
-	if err := e.repo.FailJob(failCtx, jobID, errMsg); err != nil {
-		e.logger.Error("failed to mark job as failed",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("method", "engine.failJob"),
-			slog.String("error", err.Error()),
-		)
-	}
+	return &failure{reason: errMsg}
 }
+
+// failure is a terminal export error whose message is the final, PII-free text
+// persisted to the job's error column. Storing the text in a field (not an
+// errors.New/fmt.Errorf literal) keeps the user-facing capitalized phrasing
+// without tripping ST1005.
+type failure struct{ reason string }
+
+func (f *failure) Error() string { return f.reason }
 
 // collectError carries the failing provider's name alongside the underlying
 // cause, so the post-Wait switch recovers the name via errors.As instead of

@@ -7,8 +7,8 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
-// Compile-time check that ExpenseDeletionProvider implements DeletionProvider.
-var _ deletion.DeletionProvider = (*ExpenseDeletionProvider)(nil)
+// Compile-time check that ExpenseDeletionProvider implements deletion.Provider.
+var _ deletion.Provider = (*ExpenseDeletionProvider)(nil)
 
 // ExpenseDeletionProvider anonymizes all expense data for a user via gRPC.
 type ExpenseDeletionProvider struct {

@@ -1,19 +1,9 @@
 package model
 
-// ApiError follows the error contract from 10-nonfunctional.md:
-// { code, message, fields? }
-type ApiError struct {
-	Code    string            `json:"code"`
-	Message string            `json:"message"`
-	Fields  map[string]string `json:"fields,omitempty"`
-}
-
-// Common error codes
+// Expense-specific error codes. The shared codes (VALIDATION_ERROR,
+// UNAUTHORIZED, NOT_FOUND, INTERNAL_SERVER_ERROR) are single-sourced in the
+// shared apierr package; reference them from there.
 const (
-	ErrValidationError     = "VALIDATION_ERROR"
-	ErrUnauthorized        = "UNAUTHORIZED"
-	ErrNotFound            = "NOT_FOUND"
-	ErrInternalServerError = "INTERNAL_SERVER_ERROR"
-	ErrAlreadyCorrected    = "ALREADY_CORRECTED"
-	ErrPeriodLocked        = "PERIOD_LOCKED"
+	ErrAlreadyCorrected = "ALREADY_CORRECTED"
+	ErrPeriodLocked     = "PERIOD_LOCKED"
 )

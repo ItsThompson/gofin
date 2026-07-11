@@ -10,14 +10,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
 
 func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
 		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-old", CreatedAt: "2026-05-20T10:00:00Z"},
@@ -43,9 +42,7 @@ func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) 
 
 func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
 		{ID: "exp-1", Name: "Insurance", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-01T10:00:00Z", IsProRata: true, ProRataGroup: "group-1"},
@@ -62,9 +59,7 @@ func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
 
 func TestGetExpenseSuggestions_RankingTieBreakers(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
 		{ID: "exp-1", Name: "Coffee", Amount: 500, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T10:00:00Z"},
@@ -84,9 +79,7 @@ func TestGetExpenseSuggestions_RankingTieBreakers(t *testing.T) {
 
 func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
 		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "USD", ExpenseType: "desires", TagID: "tag-old", CreatedAt: "2026-05-31T10:00:00Z"},
@@ -104,9 +97,7 @@ func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
 
 func TestGetExpenseSuggestions_AssignsRecencyBucketWeights(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
 		{ID: "exp-1", Name: "Today", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-1", CreatedAt: "2026-06-01T01:00:00Z"},
@@ -126,9 +117,7 @@ func TestGetExpenseSuggestions_AssignsRecencyBucketWeights(t *testing.T) {
 
 func TestGetExpenseSuggestions_PaginatesRankedSuggestions(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 	inputs := make([]*model.ExpenseSuggestionInput, 0, 51)
 	for i := 0; i < 51; i++ {
 		inputs = append(inputs, &model.ExpenseSuggestionInput{
@@ -160,9 +149,7 @@ func TestGetExpenseSuggestions_PaginatesRankedSuggestions(t *testing.T) {
 
 func TestGetExpenseSuggestions_ReturnsEmptyPageWhenPageStartExceedsTotal(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	svc := newTestService(repo).WithClock(func() time.Time {
-		return time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
-	})
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
 		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
@@ -211,9 +198,8 @@ func TestGetExpenseSuggestions_ValidationAndRepositoryFailure(t *testing.T) {
 			svc := newTestService(new(mockExpenseRepository))
 			_, err := svc.GetExpenseSuggestions(context.Background(), tt.req)
 			require.Error(t, err)
-			var svcErr *ServiceError
-			require.ErrorAs(t, err, &svcErr)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 		})
 	}
 

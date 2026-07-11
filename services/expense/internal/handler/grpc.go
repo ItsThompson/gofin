@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
@@ -125,8 +126,8 @@ func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest
 	if err == nil {
 		return nil
 	}
-	var svcErr *service.ServiceError
-	if errors.As(err, &svcErr) {
+	var apiErr *apierr.Error
+	if errors.As(err, &apiErr) {
 		return mapServiceError(err)
 	}
 	// Normalize context cancellation / deadline so gRPC reports codes.Canceled /
@@ -174,21 +175,23 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	}
 }
 
-// mapServiceError converts a service-layer error to a gRPC status error.
+// mapServiceError converts a service-layer error to a gRPC status error. It
+// classifies via errors.As so a %w-wrapped *apierr.Error still maps to the
+// correct gRPC status code.
 func mapServiceError(err error) error {
-	var svcErr *service.ServiceError
-	if errors.As(err, &svcErr) {
-		switch svcErr.Code {
-		case model.ErrValidationError:
-			return status.Error(codes.InvalidArgument, svcErr.Message)
-		case model.ErrNotFound:
-			return status.Error(codes.NotFound, svcErr.Message)
+	var apiErr *apierr.Error
+	if errors.As(err, &apiErr) {
+		switch apiErr.Code {
+		case apierr.CodeValidation:
+			return status.Error(codes.InvalidArgument, apiErr.Message)
+		case apierr.CodeNotFound:
+			return status.Error(codes.NotFound, apiErr.Message)
 		case model.ErrAlreadyCorrected:
-			return status.Error(codes.FailedPrecondition, svcErr.Message)
+			return status.Error(codes.FailedPrecondition, apiErr.Message)
 		case model.ErrPeriodLocked:
-			return status.Error(codes.PermissionDenied, svcErr.Message)
+			return status.Error(codes.PermissionDenied, apiErr.Message)
 		default:
-			return status.Error(codes.Internal, svcErr.Message)
+			return status.Error(codes.Internal, apiErr.Message)
 		}
 	}
 	return status.Error(codes.Internal, "internal error")

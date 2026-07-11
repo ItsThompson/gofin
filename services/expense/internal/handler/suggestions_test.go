@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
 
@@ -20,9 +21,9 @@ func TestGetExpenseSuggestionsHandler_RequiresUserID(t *testing.T) {
 	w := doJSONWithUserID(r, http.MethodGet, "/api/expenses/suggestions", "", nil)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
-	var response model.ApiError
+	var response apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	assert.Equal(t, model.ErrUnauthorized, response.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, response.Code)
 }
 
 func TestGetExpenseSuggestionsHandler_DefaultsPaginationAndReturnsShape(t *testing.T) {
@@ -65,9 +66,9 @@ func TestGetExpenseSuggestionsHandler_RejectsInvalidPagination(t *testing.T) {
 			w := doJSONWithUserID(r, http.MethodGet, path, "user-1", nil)
 
 			assert.Equal(t, http.StatusBadRequest, w.Code)
-			var response model.ApiError
+			var response apierr.APIError
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-			assert.Equal(t, model.ErrValidationError, response.Code)
+			assert.Equal(t, apierr.CodeValidation, response.Code)
 		})
 	}
 }
@@ -80,7 +81,7 @@ func TestGetExpenseSuggestionsHandler_RepositoryFailureReturnsInternalServerErro
 	w := doJSONWithUserID(r, http.MethodGet, "/api/expenses/suggestions?page=1&pageSize=50", "user-1", nil)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	var response model.ApiError
+	var response apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	assert.Equal(t, model.ErrInternalServerError, response.Code)
+	assert.Equal(t, apierr.CodeInternal, response.Code)
 }

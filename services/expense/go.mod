@@ -4,8 +4,11 @@ go 1.26
 
 require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
+	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
+	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
+	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/codenotary/immudb v1.11.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
@@ -20,7 +23,16 @@ replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
+replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
+
+replace github.com/ItsThompson/gofin/services/dbmigrate => ../dbmigrate
+
+replace github.com/ItsThompson/gofin/services/apierr => ../apierr
+
+replace github.com/ItsThompson/gofin/services/httpx => ../httpx
+
 require (
+	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
 	github.com/aead/chacha20poly1305 v0.0.0-20201124145622-1a5aba2a8b29 // indirect
 	github.com/aead/poly1305 v0.0.0-20180717145839-3fee0db0b635 // indirect
@@ -39,14 +51,22 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/golang-migrate/migrate/v4 v4.18.3 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/pgx/v5 v5.9.2 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -65,7 +85,6 @@ require (
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/xid v1.5.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/afero v1.10.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/cobra v1.6.1 // indirect
@@ -77,9 +96,11 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/term v0.42.0 // indirect
 	golang.org/x/text v0.36.0 // indirect

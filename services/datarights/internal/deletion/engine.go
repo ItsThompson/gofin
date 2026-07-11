@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ItsThompson/gofin/services/datarights/internal/jobrunner"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 )
 
@@ -15,99 +16,63 @@ const (
 	backoffSecond = 2 * time.Second
 )
 
-// DeletionEngine manages a bounded pool of deletion workers.
-// It is structurally similar to the export Engine but with different
-// execution semantics (retry per provider, no email/zip step).
-type DeletionEngine struct {
-	registry *DeletionProviderRegistry
-	repo     repository.DeletionJobRepository
-	sem      chan struct{}
+// Engine manages a bounded pool of deletion workers. It shares the pool
+// lifecycle with the export engine via jobrunner.Pool and injects its own
+// execution strategy: each provider is run sequentially in registration order
+// with per-provider retry and backoff. The deletion job repo satisfies
+// jobrunner.StatusStore directly, so it is handed to the pool as the store.
+type Engine struct {
+	registry *Registry
+	pool     *jobrunner.Pool
 	logger   *slog.Logger
-	timeout  time.Duration
 }
 
-// NewDeletionEngine creates a deletion engine with bounded concurrency.
-func NewDeletionEngine(
-	registry *DeletionProviderRegistry,
+// NewEngine creates a deletion engine with bounded concurrency.
+func NewEngine(
+	registry *Registry,
 	repo repository.DeletionJobRepository,
 	maxConcurrent int,
 	timeout time.Duration,
 	logger *slog.Logger,
-) *DeletionEngine {
-	return &DeletionEngine{
+) *Engine {
+	e := &Engine{
 		registry: registry,
-		repo:     repo,
-		sem:      make(chan struct{}, maxConcurrent),
 		logger:   logger,
-		timeout:  timeout,
 	}
+	e.pool = jobrunner.New(maxConcurrent, timeout, repo, e.execute, logger)
+	return e
 }
 
-// ActiveJobs returns the number of currently executing deletion jobs.
-func (e *DeletionEngine) ActiveJobs() int {
-	return len(e.sem)
+// Submit enqueues a deletion job for async processing. Non-blocking: the pool
+// spawns a goroutine that blocks on the semaphore.
+func (e *Engine) Submit(jobID, userID string) {
+	e.pool.Submit(jobID, userID)
 }
 
-// MaxConcurrent returns the pool capacity.
-func (e *DeletionEngine) MaxConcurrent() int {
-	return cap(e.sem)
-}
-
-// Submit enqueues a deletion job for async processing.
-// Non-blocking: spawns a goroutine that blocks on the semaphore.
-func (e *DeletionEngine) Submit(jobID, userID string) {
-	go func() {
-		// Acquire semaphore slot (blocks if pool is full)
-		e.sem <- struct{}{}
-		defer func() { <-e.sem }()
-
-		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-		defer cancel()
-
-		e.execute(ctx, jobID, userID)
-	}()
-}
-
-// execute runs the full deletion flow for a single job.
-// Called inside a goroutine after acquiring a semaphore slot.
-func (e *DeletionEngine) execute(ctx context.Context, jobID, userID string) {
+// execute is the injected jobrunner strategy: it runs every provider in
+// registration order and returns the first exhausted-retry (or context) error.
+// The pool owns the running transition, completion, and failure persistence.
+func (e *Engine) execute(ctx context.Context, jobID, userID string) error {
 	e.logger.Info("deletion job starting",
 		slog.String("job_id", jobID),
 		slog.String("user_id", userID),
 		slog.String("method", "deletion.engine.execute"),
 	)
 
-	// Transition job to "running"
-	if err := e.repo.UpdateStatus(ctx, jobID, "running"); err != nil {
-		e.logger.Error("failed to update deletion job status to running",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("method", "deletion.engine.execute"),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-
-	// Execute each provider in registration order
+	// Execute each provider in registration order.
 	for _, provider := range e.registry.All() {
 		attempts, err := e.executeProvider(ctx, provider, jobID, userID)
 		if err != nil {
-			// Provider exhausted retries or context expired: mark job as failed
-			errMsg := fmt.Sprintf("provider %s failed after %d attempts: %s", provider.Name(), attempts, err.Error())
-			e.failJob(jobID, userID, errMsg)
-			return
+			// Provider exhausted retries or context expired: fail the job.
+			jobErr := fmt.Errorf("provider %s failed after %d attempts: %w", provider.Name(), attempts, err)
+			e.logger.Error("deletion job failed",
+				slog.String("job_id", jobID),
+				slog.String("user_id", userID),
+				slog.String("error", jobErr.Error()),
+				slog.String("method", "deletion.engine.execute"),
+			)
+			return jobErr
 		}
-	}
-
-	// All providers succeeded: mark job as completed
-	if err := e.repo.CompleteJob(ctx, jobID); err != nil {
-		e.logger.Error("failed to complete deletion job",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("method", "deletion.engine.execute"),
-			slog.String("error", err.Error()),
-		)
-		return
 	}
 
 	e.logger.Info("deletion job completed",
@@ -115,12 +80,13 @@ func (e *DeletionEngine) execute(ctx context.Context, jobID, userID string) {
 		slog.String("user_id", userID),
 		slog.String("method", "deletion.engine.execute"),
 	)
+	return nil
 }
 
 // executeProvider attempts a single provider up to maxRetries times with backoff.
 // Returns the number of attempts made and nil if the provider eventually succeeds,
 // or the number of attempts and the last error if retries are exhausted or context expires.
-func (e *DeletionEngine) executeProvider(ctx context.Context, provider DeletionProvider, jobID, userID string) (int, error) {
+func (e *Engine) executeProvider(ctx context.Context, provider Provider, jobID, userID string) (int, error) {
 	backoffs := []time.Duration{backoffFirst, backoffSecond}
 
 	var lastErr error
@@ -169,24 +135,4 @@ func (e *DeletionEngine) executeProvider(ctx context.Context, provider DeletionP
 	}
 
 	return maxRetries, lastErr
-}
-
-// failJob marks a job as failed using a background context (in case the original expired).
-func (e *DeletionEngine) failJob(jobID, userID, errMsg string) {
-	e.logger.Error("deletion job failed",
-		slog.String("job_id", jobID),
-		slog.String("user_id", userID),
-		slog.String("error", errMsg),
-		slog.String("method", "deletion.engine.failJob"),
-	)
-
-	failCtx := context.Background()
-	if err := e.repo.FailJob(failCtx, jobID, errMsg); err != nil {
-		e.logger.Error("failed to mark deletion job as failed",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("method", "deletion.engine.failJob"),
-			slog.String("error", err.Error()),
-		)
-	}
 }

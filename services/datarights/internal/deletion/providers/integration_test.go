@@ -76,7 +76,7 @@ func (m *integrationMockRepo) GetNonTerminalJobs(_ context.Context) ([]model.Rec
 // ---------------------------------------------------------------------------
 
 type orderTrackingProvider struct {
-	inner    deletion.DeletionProvider
+	inner    deletion.Provider
 	mu       *sync.Mutex
 	callLog  *[]string
 	calledAt *[]time.Time
@@ -117,7 +117,7 @@ func TestIntegration_AllProviders_CalledInOrder_JobCompletes(t *testing.T) {
 	wrappedAuth := &orderTrackingProvider{inner: authProv, mu: &mu, callLog: &callLog, calledAt: &calledAt}
 
 	// Register in correct order: finance → expense → auth
-	registry := deletion.NewDeletionProviderRegistry()
+	registry := deletion.NewRegistry()
 	registry.Register(wrappedFinance)
 	registry.Register(wrappedExpense)
 	registry.Register(wrappedAuth)
@@ -125,7 +125,7 @@ func TestIntegration_AllProviders_CalledInOrder_JobCompletes(t *testing.T) {
 	repo := &integrationMockRepo{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	engine := deletion.NewDeletionEngine(registry, repo, 2, 30*time.Second, logger)
+	engine := deletion.NewEngine(registry, repo, 2, 30*time.Second, logger)
 
 	// Submit a job
 	engine.Submit("job-1", "user-42")
@@ -179,7 +179,7 @@ func TestIntegration_ProviderFailure_JobFails_RemainingSkipped(t *testing.T) {
 	wrappedExpense := &orderTrackingProvider{inner: expenseProv, mu: &mu, callLog: &callLog, calledAt: &calledAt}
 	wrappedAuth := &orderTrackingProvider{inner: authProv, mu: &mu, callLog: &callLog, calledAt: &calledAt}
 
-	registry := deletion.NewDeletionProviderRegistry()
+	registry := deletion.NewRegistry()
 	registry.Register(wrappedFinance)
 	registry.Register(wrappedExpense)
 	registry.Register(wrappedAuth)
@@ -187,7 +187,7 @@ func TestIntegration_ProviderFailure_JobFails_RemainingSkipped(t *testing.T) {
 	repo := &integrationMockRepo{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	engine := deletion.NewDeletionEngine(registry, repo, 2, 30*time.Second, logger)
+	engine := deletion.NewEngine(registry, repo, 2, 30*time.Second, logger)
 
 	engine.Submit("job-2", "user-99")
 
