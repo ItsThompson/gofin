@@ -205,7 +205,7 @@ func TestCreateExport_RateLimited_Returns429(t *testing.T) {
 	assert.Equal(t, expectedRetryAfter.Unix(), retryAfter.Unix())
 }
 
-func TestCreateExport_RateLimited_IncludesRetryAfterTimestamp(t *testing.T) {
+func TestCreateExport_RateLimited_SetsRetryAfterHeader(t *testing.T) {
 	mockRepo := new(mockJobRepository)
 	twoDaysAgo := time.Now().UTC().Add(-2 * 24 * time.Hour).Truncate(time.Second)
 
