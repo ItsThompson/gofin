@@ -7,8 +7,8 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
 )
 
-// Compile-time check that AuthDeletionProvider implements DeletionProvider.
-var _ deletion.DeletionProvider = (*AuthDeletionProvider)(nil)
+// Compile-time check that AuthDeletionProvider implements deletion.Provider.
+var _ deletion.Provider = (*AuthDeletionProvider)(nil)
 
 // AuthDeletionProvider deletes all auth-related data for a user via gRPC.
 // Must be registered last: user cannot authenticate after this provider runs.

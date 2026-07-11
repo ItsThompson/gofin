@@ -143,12 +143,12 @@ func run() error {
 
 	// Set up deletion engine with provider registry
 	deletionRepo := repository.NewPostgresDeletionJobRepository(pool)
-	deletionRegistry := deletion.NewDeletionProviderRegistry()
+	deletionRegistry := deletion.NewRegistry()
 	deletionRegistry.Register(deletionproviders.NewFinanceDeletionProvider(financeClient))
 	deletionRegistry.Register(deletionproviders.NewExpenseDeletionProvider(expenseClient))
 	deletionRegistry.Register(deletionproviders.NewAuthDeletionProvider(authClient))
 
-	deletionEngine := deletion.NewDeletionEngine(
+	deletionEngine := deletion.NewEngine(
 		deletionRegistry,
 		deletionRepo,
 		cfg.MaxConcurrent,
@@ -225,7 +225,7 @@ func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine
 }
 
 // recoverDeletionJobs re-submits any non-terminal deletion jobs on startup.
-func recoverDeletionJobs(ctx context.Context, repo repository.DeletionJobRepository, eng *deletion.DeletionEngine, logger *slog.Logger) {
+func recoverDeletionJobs(ctx context.Context, repo repository.DeletionJobRepository, eng *deletion.Engine, logger *slog.Logger) {
 	jobs, err := repo.GetNonTerminalJobs(ctx)
 	if err != nil {
 		logger.Error("failed to query recoverable deletion jobs", slog.String("error", err.Error()))

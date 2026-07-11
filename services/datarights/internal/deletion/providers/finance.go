@@ -7,8 +7,8 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
-// Compile-time check that FinanceDeletionProvider implements DeletionProvider.
-var _ deletion.DeletionProvider = (*FinanceDeletionProvider)(nil)
+// Compile-time check that FinanceDeletionProvider implements deletion.Provider.
+var _ deletion.Provider = (*FinanceDeletionProvider)(nil)
 
 // FinanceDeletionProvider deletes all financial data for a user via gRPC.
 type FinanceDeletionProvider struct {

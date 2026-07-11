@@ -2,11 +2,11 @@ package deletion
 
 import "context"
 
-// DeletionProvider deletes one category of user data.
+// Provider deletes one category of user data.
 // Each provider is responsible for all data in its domain.
 // Implementations must be idempotent: calling Delete for a user
 // whose data is already gone is a no-op (returns nil).
-type DeletionProvider interface {
+type Provider interface {
 	// Name returns a human-readable identifier for this provider.
 	// Used in logging, metrics labels, and error messages.
 	Name() string
