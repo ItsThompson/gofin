@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,26 +22,24 @@ func TestTagsProvider_Headers(t *testing.T) {
 }
 
 func TestTagsProvider_Collect_Success(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{
-				{
-					Id:        "tag-1",
-					Name:      "Food",
-					IsDefault: true,
-					CreatedAt: "2025-06-01T10:00:00Z",
-				},
-				{
-					Id:        "tag-2",
-					Name:      "Transport",
-					IsDefault: false,
-					CreatedAt: "2025-07-15T14:30:00Z",
-				},
+	data := &financepb.AllUserDataResponse{
+		Tags: []*financepb.TagData{
+			{
+				Id:        "tag-1",
+				Name:      "Food",
+				IsDefault: true,
+				CreatedAt: "2025-06-01T10:00:00Z",
+			},
+			{
+				Id:        "tag-2",
+				Name:      "Transport",
+				IsDefault: false,
+				CreatedAt: "2025-07-15T14:30:00Z",
 			},
 		},
 	}
 
-	p := NewTagsProvider(mockClient)
+	p := NewTagsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -53,13 +50,11 @@ func TestTagsProvider_Collect_Success(t *testing.T) {
 }
 
 func TestTagsProvider_Collect_EmptyData(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{},
-		},
+	data := &financepb.AllUserDataResponse{
+		Tags: []*financepb.TagData{},
 	}
 
-	p := NewTagsProvider(mockClient)
+	p := NewTagsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -67,43 +62,26 @@ func TestTagsProvider_Collect_EmptyData(t *testing.T) {
 }
 
 func TestTagsProvider_Collect_NilTags(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: nil,
-		},
+	data := &financepb.AllUserDataResponse{
+		Tags: nil,
 	}
 
-	p := NewTagsProvider(mockClient)
+	p := NewTagsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }
 
-func TestTagsProvider_Collect_Error(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataErr: fmt.Errorf("service unavailable"),
-	}
-
-	p := NewTagsProvider(mockClient)
-	rows, err := p.Collect(context.Background(), "user-123")
-
-	assert.Nil(t, rows)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "fetching user data for tags")
-}
-
 func TestTagsProvider_Collect_BoolFormatting(t *testing.T) {
-	mockClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{
-				{Id: "t1", Name: "Default Tag", IsDefault: true, CreatedAt: "2025-01-01T00:00:00Z"},
-				{Id: "t2", Name: "Custom Tag", IsDefault: false, CreatedAt: "2025-01-02T00:00:00Z"},
-			},
+	data := &financepb.AllUserDataResponse{
+		Tags: []*financepb.TagData{
+			{Id: "t1", Name: "Default Tag", IsDefault: true, CreatedAt: "2025-01-01T00:00:00Z"},
+			{Id: "t2", Name: "Custom Tag", IsDefault: false, CreatedAt: "2025-01-02T00:00:00Z"},
 		},
 	}
 
-	p := NewTagsProvider(mockClient)
+	p := NewTagsProvider(data)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)

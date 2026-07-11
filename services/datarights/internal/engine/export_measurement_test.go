@@ -48,9 +48,8 @@ func providerCSV(t testing.TB, p engine.DataProvider) []byte {
 func TestExportProviders_CSVByteIdentical(t *testing.T) {
 	auth := &stubAuthClient{user: cannedUser()}
 	expense := &stubExpenseClient{pages: cannedExpensePages()}
-	finance := newFinanceSpy(cannedAllUserData(), cannedTagList())
 
-	for _, p := range buildRealProviders(auth, expense, finance) {
+	for _, p := range buildRealProviders(auth, expense, cannedAllUserData()) {
 		golden := filepath.Join("testdata", "export", p.Name()+".csv")
 		got := providerCSV(t, p)
 
@@ -67,28 +66,21 @@ func TestExportProviders_CSVByteIdentical(t *testing.T) {
 }
 
 // BenchmarkExportCollection measures serial collection across the full provider
-// set and logs the finance call shape per export. Collection runs serially here
-// to isolate the deduplication shape; BenchmarkEngineCollectionFanout measures
-// fan-out latency. The finance client is wrapped
-// in a per-job MemoizedFinanceClient exactly as engine.execute does, so this
-// records the deduped shape: GetAllUserData=1, ListTags=0 (down from the
-// committed pre-dedup baseline of GetAllUserData=3 + ListTags=1).
+// set. After the fetch-once refactor the finance-backed providers are pure
+// mappers over the response the engine fetches once (in execute), so collection
+// itself issues no finance RPC; this benchmark isolates the per-provider mapping
+// plus expense-stream formatting cost. BenchmarkEngineCollectionFanout measures
+// the fan-out latency of a full run; the single-fetch guarantee is asserted by
+// TestExport_DedupesFinanceCalls.
 func BenchmarkExportCollection(b *testing.B) {
 	auth := &stubAuthClient{user: cannedUser()}
-
-	observed := newFinanceSpy(cannedAllUserData(), cannedTagList())
-	observedFC := engine.NewMemoizedFinanceClient(observed)
-	collectAll(b, buildRealProviders(auth, &stubExpenseClient{pages: cannedExpensePages()}, observedFC))
-	b.Logf("finance calls per export: GetAllUserData=%d ListTags=%d total=%d",
-		observed.Count("GetAllUserData"), observed.Count("ListTags"), observed.Total())
+	financeData := cannedAllUserData()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		finance := newFinanceSpy(cannedAllUserData(), cannedTagList())
-		fc := engine.NewMemoizedFinanceClient(finance)
 		expense := &stubExpenseClient{pages: cannedExpensePages()}
-		collectAll(b, buildRealProviders(auth, expense, fc))
+		collectAll(b, buildRealProviders(auth, expense, financeData))
 	}
 }
 

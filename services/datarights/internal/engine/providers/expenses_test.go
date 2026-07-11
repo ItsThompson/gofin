@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
-	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
 func TestExpensesProvider_Name(t *testing.T) {
@@ -30,14 +29,7 @@ func TestExpensesProvider_Headers(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_Success(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{
-				{Id: "tag-1", Name: "Food"},
-				{Id: "tag-2", Name: "Transport"},
-			},
-		},
-	}
+	tagMap := map[string]string{"tag-1": "Food", "tag-2": "Transport"}
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
@@ -58,7 +50,7 @@ func TestExpensesProvider_Collect_Success(t *testing.T) {
 		},
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, tagMap)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -73,37 +65,31 @@ func TestExpensesProvider_Collect_Success(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_ProRataExpense(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{
-				{Id: "tag-1", Name: "Rent"},
-			},
-		},
-	}
+	tagMap := map[string]string{"tag-1": "Rent"}
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{
-				Id:            "exp-pr-1",
-				Name:          "Rent (1/3)",
-				Amount:        50000,
-				Currency:      "USD",
-				ExpenseType:   "essentials",
-				TagId:         "tag-1",
-				ExpenseDate:   "2026-05-01",
-				PeriodYear:    2026,
-				PeriodMonth:   5,
-				Status:        "active",
-				IsProRata:     true,
-				ProRataGroup:  "group-abc",
-				ProRataIndex:  1,
-				ProRataTotal:  3,
-				CreatedAt:     "2026-05-01T10:00:00Z",
+				Id:           "exp-pr-1",
+				Name:         "Rent (1/3)",
+				Amount:       50000,
+				Currency:     "USD",
+				ExpenseType:  "essentials",
+				TagId:        "tag-1",
+				ExpenseDate:  "2026-05-01",
+				PeriodYear:   2026,
+				PeriodMonth:  5,
+				Status:       "active",
+				IsProRata:    true,
+				ProRataGroup: "group-abc",
+				ProRataIndex: 1,
+				ProRataTotal: 3,
+				CreatedAt:    "2026-05-01T10:00:00Z",
 			},
 		},
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, tagMap)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -118,11 +104,7 @@ func TestExpensesProvider_Collect_ProRataExpense(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{}, // No tags
-		},
-	}
+	tagMap := map[string]string{} // No tags
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
@@ -142,7 +124,7 @@ func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
 		},
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, tagMap)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -151,13 +133,7 @@ func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{
-				{Id: "tag-1", Name: "Food"},
-			},
-		},
-	}
+	tagMap := map[string]string{"tag-1": "Food"}
 
 	// The server streams every expense in one ordered pass (chronological:
 	// created_at ASC, id ASC); the consumer no longer pages.
@@ -169,7 +145,7 @@ func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
 		},
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, tagMap)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -183,13 +159,9 @@ func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_EmptyData(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{Tags: []*financepb.TagData{}},
-	}
-
 	expenseClient := &mockExpenseServiceClient{streamRows: nil}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, map[string]string{})
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
@@ -197,15 +169,11 @@ func TestExpensesProvider_Collect_EmptyData(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_StreamOpenError(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{Tags: []*financepb.TagData{}},
-	}
-
 	expenseClient := &mockExpenseServiceClient{
 		streamOpenErr: fmt.Errorf("connection refused"),
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, map[string]string{})
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	assert.Nil(t, rows)
@@ -214,11 +182,7 @@ func TestExpensesProvider_Collect_StreamOpenError(t *testing.T) {
 }
 
 func TestExpensesProvider_Collect_MidStreamRecvError(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{{Id: "tag-1", Name: "Food"}},
-		},
-	}
+	tagMap := map[string]string{"tag-1": "Food"}
 
 	// Two rows arrive, then the third Recv fails: the error must propagate
 	// (not be swallowed as a clean EOF).
@@ -231,7 +195,7 @@ func TestExpensesProvider_Collect_MidStreamRecvError(t *testing.T) {
 		recvErrAt: 3,
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, tagMap)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	assert.Nil(t, rows)
@@ -240,27 +204,8 @@ func TestExpensesProvider_Collect_MidStreamRecvError(t *testing.T) {
 	assert.Contains(t, err.Error(), "stream reset")
 }
 
-func TestExpensesProvider_Collect_TagServiceError(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataErr: fmt.Errorf("service unavailable"),
-	}
-
-	expenseClient := &mockExpenseServiceClient{}
-
-	p := NewExpensesProvider(expenseClient, financeClient)
-	rows, err := p.Collect(context.Background(), "user-123")
-
-	assert.Nil(t, rows)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "fetching tags")
-}
-
 func TestExpensesProvider_Collect_CorrectedExpense(t *testing.T) {
-	financeClient := &mockFinanceServiceClient{
-		getAllUserDataResp: &financepb.AllUserDataResponse{
-			Tags: []*financepb.TagData{{Id: "tag-1", Name: "Food"}},
-		},
-	}
+	tagMap := map[string]string{"tag-1": "Food"}
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
@@ -281,11 +226,11 @@ func TestExpensesProvider_Collect_CorrectedExpense(t *testing.T) {
 		},
 	}
 
-	p := NewExpensesProvider(expenseClient, financeClient)
+	p := NewExpensesProvider(expenseClient, tagMap)
 	rows, err := p.Collect(context.Background(), "user-123")
 
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "corrected", rows[0][9])    // status
+	assert.Equal(t, "corrected", rows[0][9])     // status
 	assert.Equal(t, "exp-original", rows[0][10]) // corrects_id
 }

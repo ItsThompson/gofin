@@ -31,7 +31,7 @@ func BenchmarkEngineCollectionFanout(b *testing.B) {
 		}
 	}
 
-	eng := NewEngine(staticProviders(provs...), nil, &mockRepo{}, newMockSender(), 5, time.Minute, newTestLogger())
+	eng := NewEngine(staticProviders(provs...), nopFinance{}, &mockRepo{}, newMockSender(), 5, time.Minute, newTestLogger())
 
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -101,18 +101,19 @@ func (f *fakeExpenseStream) Recv() (*expensepb.ExpenseData, error) {
 
 // buildRealProviders returns the export provider set in registration/ZIP order:
 // profile, expenses, tags, budget_periods, default_settings. The finance-backed
-// providers share the injected finance client.
+// providers map the shared finance response (fetched once per export); the
+// expenses provider resolves tag names from the derived tag map.
 func buildRealProviders(
 	auth authpb.AuthServiceClient,
 	expense expensepb.ExpenseServiceClient,
-	finance financepb.FinanceServiceClient,
+	financeData *financepb.AllUserDataResponse,
 ) []engine.DataProvider {
 	return []engine.DataProvider{
 		providers.NewProfileProvider(auth),
-		providers.NewExpensesProvider(expense, finance),
-		providers.NewTagsProvider(finance),
-		providers.NewBudgetPeriodsProvider(finance),
-		providers.NewDefaultSettingsProvider(finance),
+		providers.NewExpensesProvider(expense, providers.BuildTagMap(financeData)),
+		providers.NewTagsProvider(financeData),
+		providers.NewBudgetPeriodsProvider(financeData),
+		providers.NewDefaultSettingsProvider(financeData),
 	}
 }
 
@@ -180,15 +181,16 @@ func cannedExpensePages() []*expensepb.ExpenseListResponse {
 	}
 }
 
-// newExportEngine wires the real export providers through the per-job factory,
-// with the finance spy as the raw client the engine wraps in a
-// MemoizedFinanceClient per job. Used by the dedup regression test.
+// newExportEngine wires the real export providers through the per-job factory.
+// The finance spy is the engine's finance client; execute fetches GetAllUserData
+// once per job and passes the resolved response to the factory. Used by the
+// single-fetch regression test.
 func newExportEngine(finance financepb.FinanceServiceClient, repo repository.JobRepository) *engine.Engine {
 	auth := &stubAuthClient{user: cannedUser()}
 	expense := &stubExpenseClient{pages: cannedExpensePages()}
 	return engine.NewEngine(
-		func(fc financepb.FinanceServiceClient) []engine.DataProvider {
-			return buildRealProviders(auth, expense, fc)
+		func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
+			return buildRealProviders(auth, expense, financeData)
 		},
 		finance, repo, noopSender{}, 5, 30*time.Second, discardLogger(),
 	)

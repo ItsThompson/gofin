@@ -111,19 +111,20 @@ func run() error {
 	// Build dependency graph
 	repo := repository.NewPostgresJobRepository(pool)
 
-	// Set up export engine with a per-job provider factory. The factory closes
-	// over the auth and expense clients; the finance-backed providers receive a
-	// fresh per-job MemoizedFinanceClient (built inside the engine) so a single
-	// GetAllUserData call is shared across providers without leaking data across
-	// jobs. Registration/ZIP order: profile, expenses, tags, budget_periods,
+	// Set up export engine with a per-job provider factory. The engine fetches
+	// GetAllUserData once per job (in execute) and hands the resolved response
+	// here; the factory closes over the auth and expense clients (profile and the
+	// expenses stream self-fetch) and derives the tag map + finance-backed rows
+	// from the single response, so the export hits finance exactly once.
+	// Registration/ZIP order: profile, expenses, tags, budget_periods,
 	// default_settings.
-	newExportProviders := func(finance financepb.FinanceServiceClient) []engine.DataProvider {
+	newExportProviders := func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
 		return []engine.DataProvider{
 			providers.NewProfileProvider(authClient),
-			providers.NewExpensesProvider(expenseClient, finance),
-			providers.NewTagsProvider(finance),
-			providers.NewBudgetPeriodsProvider(finance),
-			providers.NewDefaultSettingsProvider(finance),
+			providers.NewExpensesProvider(expenseClient, providers.BuildTagMap(financeData)),
+			providers.NewTagsProvider(financeData),
+			providers.NewBudgetPeriodsProvider(financeData),
+			providers.NewDefaultSettingsProvider(financeData),
 		}
 	}
 
