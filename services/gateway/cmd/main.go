@@ -22,7 +22,7 @@ import (
 
 func main() {
 	if healthcheck.ShouldRun(os.Args) {
-		os.Exit(healthcheck.Run("8080"))
+		os.Exit(healthcheck.Run(config.ResolvePort()))
 	}
 
 	if err := run(); err != nil {
