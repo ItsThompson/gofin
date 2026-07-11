@@ -39,8 +39,8 @@ func validCookie() *http.Cookie {
 func adminValidator() *mockValidator {
 	return &mockValidator{
 		result: &access.TokenValidationResult{
-			UserID:   "admin-1",
-			Role:     "admin",
+			UserID: "admin-1",
+			Role:   "admin",
 		},
 	}
 }
@@ -48,8 +48,8 @@ func adminValidator() *mockValidator {
 func userValidator() *mockValidator {
 	return &mockValidator{
 		result: &access.TokenValidationResult{
-			UserID:   "user-1",
-			Role:     "user",
+			UserID: "user-1",
+			Role:   "user",
 		},
 	}
 }
