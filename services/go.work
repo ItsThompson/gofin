@@ -10,6 +10,7 @@ use (
 	./finance
 	./gateway
 	./healthcheck
+	./httpx
 	./metrics
 	./perf
 )
