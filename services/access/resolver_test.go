@@ -10,7 +10,7 @@ func TestResolve_WorkedExamples(t *testing.T) {
 		name   string
 		method string
 		path   string
-		want   Access
+		want   Level
 	}{
 		{"login is public", "POST", "/api/auth/login", Public},
 		{"register is public", "POST", "/api/auth/register", Public},

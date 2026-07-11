@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/ItsThompson/gofin/services/access"
+	sharedaccess "github.com/ItsThompson/gofin/services/access"
 )
 
 // Identity headers the gateway sets for downstream services after a successful
@@ -52,16 +52,16 @@ const (
 //
 // The per-level switch is fail-safe: only Authenticated passes without a role
 // check, and any level that is not explicitly allowed is denied (403).
-func AccessControl(validator TokenValidator, resolve func(method, path string) access.Access, logger *slog.Logger) gin.HandlerFunc {
+func AccessControl(validator TokenValidator, resolve func(method, path string) sharedaccess.Level, logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		stripIdentityHeaders(c)
 
 		level := resolve(c.Request.Method, c.Request.URL.Path)
-		if level == access.Public {
+		if level == sharedaccess.Public {
 			c.Next()
 			return
 		}
-		if level == access.Deny {
+		if level == sharedaccess.Deny {
 			// An unclassified path is not a real route, so no identity is
 			// needed: refuse it with a 403 before the cookie is read.
 			abortForbidden(c, logger)
@@ -105,17 +105,17 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 		setIdentityHeaders(c, result)
 
 		switch level {
-		case access.Personal:
+		case sharedaccess.Personal:
 			if result.Role != roleUser {
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case access.Admin:
+		case sharedaccess.Admin:
 			if result.Role != roleAdmin {
 				rejectForbidden(c, logger, result)
 				return
 			}
-		case access.Authenticated:
+		case sharedaccess.Authenticated:
 			// Any valid token passes; no role check.
 		default:
 			// Fail-safe by construction: Public and Deny are short-circuited
@@ -135,11 +135,11 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) a
 // and delegates every /api route to the shared registry resolver. Keeping this
 // composition in the gateway is why services/access never needs to know about
 // gateway-owned routes.
-func GatewayResolve(method, path string) access.Access {
+func GatewayResolve(method, path string) sharedaccess.Level {
 	if path == "/health" || path == "/metrics" {
-		return access.Public
+		return sharedaccess.Public
 	}
-	return access.Resolve(method, path)
+	return sharedaccess.Resolve(method, path)
 }
 
 // stripIdentityHeaders removes client-supplied identity headers before

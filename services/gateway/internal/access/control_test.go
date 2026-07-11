@@ -437,7 +437,7 @@ func TestAccessControl_UnknownLevel_DeniesByDefault(t *testing.T) {
 	// A resolve func that returns an out-of-enum access level for every path.
 	// A valid token reaches the middleware's switch with a level that matches
 	// none of the known cases and must fall through to the fail-safe deny.
-	resolve := func(_, _ string) sharedaccess.Access { return sharedaccess.Access(99) }
+	resolve := func(_, _ string) sharedaccess.Level { return sharedaccess.Level(99) }
 
 	engine := gin.New()
 	engine.Use(access.AccessControl(validator, resolve, silentLogger()))
@@ -482,7 +482,7 @@ func TestGatewayResolve(t *testing.T) {
 		name   string
 		method string
 		path   string
-		want   sharedaccess.Access
+		want   sharedaccess.Level
 	}{
 		{"health is public", http.MethodGet, "/health", sharedaccess.Public},
 		{"metrics is public", http.MethodGet, "/metrics", sharedaccess.Public},

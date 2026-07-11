@@ -20,7 +20,7 @@ type Route struct {
 	// "/api/finance/tags/:id" or "/api/expenses/:id/history".
 	Path string
 	// Access is the classification enforced by the gateway middleware.
-	Access Access
+	Access Level
 }
 
 // Registry is the single, exhaustive list of every gateway-facing downstream
