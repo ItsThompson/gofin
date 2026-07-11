@@ -75,3 +75,21 @@ func TestGetActiveExpenseSuggestionInputs_ReadsActiveRowsForUserAndMapsFields(t 
 	assert.True(t, inputs[0].IsProRata)
 	assert.Equal(t, "group-1", inputs[0].ProRataGroup)
 }
+
+func TestGetExpenseByID_ShortRowReturnsErrorNotPanic(t *testing.T) {
+	// A malformed/short row (fewer than the 17 selected columns) must produce a
+	// wrapped error rather than an index-out-of-range panic.
+	client := &fakeImmudbClient{result: &SQLResult{Rows: []SQLRow{{Values: []SQLValue{
+		fakeSQLValue{stringValue: "exp-1"},
+		fakeSQLValue{stringValue: "user-1"},
+		fakeSQLValue{stringValue: "Groceries"},
+	}}}}}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	expense, err := repo.GetExpenseByID(context.Background(), "exp-1", "user-1")
+
+	require.Error(t, err)
+	assert.Nil(t, expense)
+	assert.Contains(t, err.Error(), "expense row has 3 values, want 17")
+}

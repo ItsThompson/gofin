@@ -23,6 +23,33 @@ func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	return NewGRPCHandler(expenseSvc, logger)
 }
 
+// TestGRPC_RemovedReadRPCsAreNotRegistered locks in C2: the GetCorrectionHistory
+// and GetProRataGroup RPCs hardcoded an empty ("") user scope and had no
+// consumer, so they were removed from the proto and the generated service
+// descriptor. The correction-history and pro-rata reads are served over REST.
+// This guards against re-introducing an unscoped read RPC.
+func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
+	registered := make(map[string]bool)
+	for _, m := range pb.ExpenseService_ServiceDesc.Methods {
+		registered[m.MethodName] = true
+	}
+	for _, s := range pb.ExpenseService_ServiceDesc.Streams {
+		registered[s.StreamName] = true
+	}
+
+	assert.NotContains(t, registered, "GetCorrectionHistory")
+	assert.NotContains(t, registered, "GetProRataGroup")
+
+	// The rest of the gRPC surface is unchanged.
+	assert.Contains(t, registered, "CreateExpense")
+	assert.Contains(t, registered, "GetExpensesForPeriod")
+	assert.Contains(t, registered, "GetExpense")
+	assert.Contains(t, registered, "CorrectExpense")
+	assert.Contains(t, registered, "CountExpensesByTag")
+	assert.Contains(t, registered, "AnonymizeAllUserExpenses")
+	assert.Contains(t, registered, "StreamAllUserExpenses")
+}
+
 // --- AnonymizeAllUserExpenses gRPC handler tests ---
 
 func TestGRPC_AnonymizeAllUserExpenses_Success(t *testing.T) {

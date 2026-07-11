@@ -1119,7 +1119,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x05count\x18\x01 \x01(\x03R\x05count\"+\n" +
 	"\x10AnonymizeRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x13\n" +
-	"\x11AnonymizeResponse2\x84\x06\n" +
+	"\x11AnonymizeResponse2\xd0\x04\n" +
 	"\x0eExpenseService\x12H\n" +
 	"\rCreateExpense\x12\x1d.expense.CreateExpenseRequest\x1a\x18.expense.ExpenseResponse\x12Z\n" +
 	"\x14GetExpensesForPeriod\x12$.expense.GetExpensesForPeriodRequest\x1a\x1c.expense.ExpenseListResponse\x12B\n" +
@@ -1128,9 +1128,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x12CountExpensesByTag\x12\".expense.CountExpensesByTagRequest\x1a#.expense.CountExpensesByTagResponse\x12V\n" +
 	"\x15StreamAllUserExpenses\x12%.expense.StreamAllUserExpensesRequest\x1a\x14.expense.ExpenseData0\x01\x12Q\n" +
 	"\x18AnonymizeAllUserExpenses\x12\x19.expense.AnonymizeRequest\x1a\x1a.expense.AnonymizeResponse\x12J\n" +
-	"\x0eCorrectExpense\x12\x1e.expense.CorrectExpenseRequest\x1a\x18.expense.ExpenseResponse\x12`\n" +
-	"\x14GetCorrectionHistory\x12$.expense.GetCorrectionHistoryRequest\x1a\".expense.CorrectionHistoryResponse\x12P\n" +
-	"\x0fGetProRataGroup\x12\x1f.expense.GetProRataGroupRequest\x1a\x1c.expense.ExpenseListResponseB?Z=github.com/ItsThompson/gofin/services/expense/proto/expensepbb\x06proto3"
+	"\x0eCorrectExpense\x12\x1e.expense.CorrectExpenseRequest\x1a\x18.expense.ExpenseResponseB?Z=github.com/ItsThompson/gofin/services/expense/proto/expensepbb\x06proto3"
 
 var (
 	file_proto_expense_proto_rawDescOnce sync.Once
@@ -1173,19 +1171,15 @@ var file_proto_expense_proto_depIdxs = []int32{
 	10, // 7: expense.ExpenseService.StreamAllUserExpenses:input_type -> expense.StreamAllUserExpensesRequest
 	13, // 8: expense.ExpenseService.AnonymizeAllUserExpenses:input_type -> expense.AnonymizeRequest
 	6,  // 9: expense.ExpenseService.CorrectExpense:input_type -> expense.CorrectExpenseRequest
-	7,  // 10: expense.ExpenseService.GetCorrectionHistory:input_type -> expense.GetCorrectionHistoryRequest
-	9,  // 11: expense.ExpenseService.GetProRataGroup:input_type -> expense.GetProRataGroupRequest
-	2,  // 12: expense.ExpenseService.CreateExpense:output_type -> expense.ExpenseResponse
-	4,  // 13: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
-	2,  // 14: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
-	12, // 15: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
-	0,  // 16: expense.ExpenseService.StreamAllUserExpenses:output_type -> expense.ExpenseData
-	14, // 17: expense.ExpenseService.AnonymizeAllUserExpenses:output_type -> expense.AnonymizeResponse
-	2,  // 18: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
-	8,  // 19: expense.ExpenseService.GetCorrectionHistory:output_type -> expense.CorrectionHistoryResponse
-	4,  // 20: expense.ExpenseService.GetProRataGroup:output_type -> expense.ExpenseListResponse
-	12, // [12:21] is the sub-list for method output_type
-	3,  // [3:12] is the sub-list for method input_type
+	2,  // 10: expense.ExpenseService.CreateExpense:output_type -> expense.ExpenseResponse
+	4,  // 11: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
+	2,  // 12: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
+	12, // 13: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
+	0,  // 14: expense.ExpenseService.StreamAllUserExpenses:output_type -> expense.ExpenseData
+	14, // 15: expense.ExpenseService.AnonymizeAllUserExpenses:output_type -> expense.AnonymizeResponse
+	2,  // 16: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
