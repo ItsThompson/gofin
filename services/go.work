@@ -10,4 +10,5 @@ use (
 	./gateway
 	./healthcheck
 	./metrics
+	./perf
 )

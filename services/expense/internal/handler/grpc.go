@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"google.golang.org/grpc/codes"
@@ -158,24 +159,24 @@ func (h *GRPCHandler) CountExpensesByTag(ctx context.Context, req *pb.CountExpen
 	}, nil
 }
 
-func (h *GRPCHandler) GetAllUserExpenses(ctx context.Context, req *pb.GetAllUserExpensesRequest) (*pb.ExpenseListResponse, error) {
-	result, err := h.expenseService.GetAllUserExpenses(ctx, req.GetUserId(), req.GetPage(), req.GetPageSize())
-	if err != nil {
-		return nil, mapServiceError(err)
+func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest, stream pb.ExpenseService_StreamAllUserExpensesServer) error {
+	err := h.expenseService.StreamAllUserExpenses(stream.Context(), req.GetUserId(), req.GetPageSize(), func(expense *model.Expense) error {
+		return stream.Send(expenseToProto(expense))
+	})
+	if err == nil {
+		return nil
 	}
-
-	protoExpenses := make([]*pb.ExpenseData, len(result.Data))
-	for i, expense := range result.Data {
-		protoExpenses[i] = expenseToProto(expense)
+	var svcErr *service.ServiceError
+	if errors.As(err, &svcErr) {
+		return mapServiceError(err)
 	}
-
-	return &pb.ExpenseListResponse{
-		Data:     protoExpenses,
-		Total:    result.Total,
-		Page:     result.Page,
-		PageSize: result.PageSize,
-		HasMore:  result.HasMore,
-	}, nil
+	// Normalize context cancellation / deadline so gRPC reports codes.Canceled /
+	// codes.DeadlineExceeded rather than codes.Unknown.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return status.FromContextError(err).Err()
+	}
+	// Stream-send failures are already gRPC-meaningful; surface them directly.
+	return err
 }
 
 func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.AnonymizeRequest) (*pb.AnonymizeResponse, error) {
@@ -216,7 +217,8 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 
 // mapServiceError converts a service-layer error to a gRPC status error.
 func mapServiceError(err error) error {
-	if svcErr, ok := err.(*service.ServiceError); ok {
+	var svcErr *service.ServiceError
+	if errors.As(err, &svcErr) {
 		switch svcErr.Code {
 		case model.ErrValidationError:
 			return status.Error(codes.InvalidArgument, svcErr.Message)

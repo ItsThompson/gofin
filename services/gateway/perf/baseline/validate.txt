@@ -1,0 +1,83 @@
+# Baseline: Gateway ValidateToken validation path (P1)
+
+Captured on `main` **before** the bounded-timeout change (spec §05, ticket #2).
+
+## Happy-path allocations
+
+Benchmark: `BenchmarkValidateHappyPath`
+(`services/gateway/internal/access/bench_test.go`) exercises the full
+`AccessControl` validation path (strip headers → resolve → read cookie →
+`ValidateToken` → set identity headers → role check) on an Authenticated route
+with a valid token, via `gin` `ServeHTTP`.
+
+```
+$ cd services/gateway && go test -run '^$' -bench '^BenchmarkValidateHappyPath$' -benchmem -count=3 ./internal/access/
+goos: darwin
+goarch: arm64
+cpu: Apple M4 Pro
+BenchmarkValidateHappyPath-14    447820    2652 ns/op    8467 B/op    59 allocs/op
+BenchmarkValidateHappyPath-14    455296    2680 ns/op    8466 B/op    59 allocs/op
+BenchmarkValidateHappyPath-14    447896    2678 ns/op    8467 B/op    59 allocs/op
+```
+
+**Reference figure: ~59 allocs/op, ~8467 B/op.**
+
+Per the `services/perf` README, wall-clock ns/op and absolute allocs/op are
+same-machine references (arm64 dev here vs amd64 CI), not a CI gate. This path's
+regression guard is **behavioral** (see below), not an allocation count, so no
+`AssertMaxAllocs` bound is asserted for it.
+
+## The meaningful "before": no upper latency bound
+
+Before this change, `GRPCTokenValidator.ValidateToken` called
+`client.ValidateToken(ctx, …)` with **no `context.WithTimeout`**. The incoming
+request context carries no deadline of its own, so:
+
+- If the auth service **hangs** (as opposed to being down, which returns a fast
+  connection error), the gateway worker blocks on the validation RPC
+  **indefinitely** — it would never return until the client disconnects.
+- There was therefore **no upper bound** on validation latency on the hottest
+  path (every authenticated request). This is unbounded tail latency and a real
+  availability risk under the VPS's modest worker limits.
+
+There is no pre-change wall-clock number for a hang because a hang never
+returns. The "before" is the **absence of a bound**; the regression guard added
+with this change is the behavioral test asserting a hung/slow validator now
+returns `503` within `GATEWAY_VALIDATE_TIMEOUT` (default `3s`) plus a small
+margin, and that reverting the timeout wrap makes that test hang/fail.
+
+## Scope of the bound: a hang backstop, not p99 tail control
+
+`GATEWAY_VALIDATE_TIMEOUT` (default `3s`, `internal/config/config.go`) is a
+hung-dependency / availability **backstop**. It bounds the catastrophic-hang
+tail: a healthy `ValidateToken` runs in low single-digit milliseconds, so at
+`3s` the bound never trips in normal operation and only fires when the auth
+dependency is effectively hung.
+
+This is deliberately NOT p99/tail-latency control in the "Tail at Scale" sense.
+Trimming the p99 tail toward the auth service's measured P99 (research §D.1
+suggests a 100-300 ms starting point, near the auth P99) is explicitly OUT OF
+SCOPE for P1 and left as possible future work once that percentile is measured
+against `04-measurement-and-baselining.md`. The earlier "audit's 2-5s band"
+framing is superseded: `3s` is a hang backstop, not a percentile-derived bound.
+The default value is left unchanged by this review: tightening an
+auth-validation timeout is a production behavioral change that risks spurious
+fail-closed 503s and needs measured auth P99 data first.
+
+The knob is validated to be positive (non-positive is rejected). There is no
+hard upper clamp, but a value above `maxRecommendedValidateTimeout` (`30s`)
+defeats the backstop's purpose (it re-introduces the near-unbounded tail) and is
+logged as a warning at load, so a `1h`-style typo is visible.
+
+## Metrics on the 503 timeout path: deliberately deferred
+
+The fail-closed timeout path (`internal/access/control.go`, the `503` warn) is
+log-only. It emits a distinct `dependency=auth` warn ("auth validation timed
+out") and no counter/metric, so the timeout is diagnosable via that log event,
+which names auth as the cause and is separable from the `401` warn.
+
+Adding a metric for the `DeadlineExceeded` failure class (research §D.3 calls for
+distinguishing `DeadlineExceeded` (auth slow) from `Unauthenticated` (auth said
+no) in metrics) is a deliberate OUT-OF-SCOPE deferral per spec §04/§12: this epic
+adds no new metrics, and the `access` middleware emits none today, so this is a
+pre-existing convention rather than a P1 regression. No metric code is added.

@@ -317,38 +317,86 @@ func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, gro
 	return expenses, nil
 }
 
-// GetAllUserExpenses returns all expenses (active + corrected) for a user,
-// with pagination. Used by the datarights service for GDPR data export.
-func (s *ExpenseService) GetAllUserExpenses(ctx context.Context, userID string, page, pageSize int32) (*model.ExpenseListResponse, error) {
+// StreamAllUserExpenses walks the full expense history (active + corrected) for
+// a user with keyset pagination and invokes send for each row in chronological
+// order (created_at ASC, id ASC), bounding memory to O(pageSize). It backs the
+// StreamAllUserExpenses server-streaming RPC.
+//
+// A single producer goroutine pages the keyset cursor and feeds a rows channel
+// buffered to pageSize; this method (the sole stream owner) consumes it and
+// calls send. Buffering to one page lets the producer fetch page N+1 while the
+// consumer is still sending page N, while keeping retained memory O(pageSize).
+// The producer reports its terminal status on a buffered (cap 1) error channel
+// and selects on context cancellation for every hand-off, so a send error, a
+// client disconnect, or a job timeout stops the walk promptly without leaking
+// the goroutine.
+func (s *ExpenseService) StreamAllUserExpenses(ctx context.Context, userID string, pageSize int32, send func(*model.Expense) error) error {
 	if userID == "" {
-		return nil, &ServiceError{
+		return &ServiceError{
 			Code:    model.ErrValidationError,
 			Message: "user_id is required",
 			Status:  400,
 		}
 	}
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 50
+	if pageSize < 1 {
+		pageSize = repository.DefaultStreamPageSize
 	}
 
-	expenses, total, err := s.repo.GetAllExpensesByUser(ctx, userID, page, pageSize)
-	if err != nil {
-		return nil, fmt.Errorf("getting all user expenses: %w", err)
+	// Derive a cancellable context so returning for any reason (send error,
+	// cancellation, clean EOF) unblocks the producer goroutine.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	rows := make(chan *model.Expense, pageSize) // buffered to one page: bounds retained memory to O(pageSize)
+	errc := make(chan error, 1)                 // cap 1: producer reports terminal status without blocking
+
+	go s.produceExpensePages(ctx, userID, pageSize, rows, errc)
+
+	for expense := range rows {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := send(expense); err != nil {
+			return err
+		}
 	}
+	return <-errc
+}
 
-	hasMore := int64(page)*int64(pageSize) < total
+// produceExpensePages is the single owner and closer of rows. It pages the
+// keyset cursor, feeds each row to rows (selecting on ctx.Done() so
+// cancellation stops it promptly), and reports its terminal status (nil on a
+// clean end-of-history) on errc before returning.
+//
+// It holds at most one page at a time (the current page slice plus the
+// pageSize-buffered rows channel), so producer-side memory stays O(pageSize)
+// regardless of total history size. The end-to-end retained-heap bound is
+// verified by the datarights streaming consumer growth-ratio test in
+// services/datarights/internal/engine/providers/expenses_stream_test.go.
+func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string, pageSize int32, rows chan<- *model.Expense, errc chan<- error) {
+	defer close(rows)
 
-	return &model.ExpenseListResponse{
-		Data:     expenses,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-		HasMore:  hasMore,
-	}, nil
+	cursor := repository.ExpenseCursor{}
+	for {
+		page, next, hasMore, err := s.repo.GetExpensesByUserAfter(ctx, userID, cursor, pageSize)
+		if err != nil {
+			errc <- fmt.Errorf("streaming user expenses: %w", err)
+			return
+		}
+		for _, expense := range page {
+			select {
+			case rows <- expense:
+			case <-ctx.Done():
+				errc <- ctx.Err()
+				return
+			}
+		}
+		if !hasMore {
+			errc <- nil
+			return
+		}
+		cursor = next
+	}
 }
 
 // AnonymizeAllUserExpenses redacts PII fields on all expense rows for a user.

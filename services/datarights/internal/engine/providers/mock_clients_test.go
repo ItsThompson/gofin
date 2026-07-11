@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"io"
 
 	"google.golang.org/grpc"
 
@@ -13,8 +14,6 @@ import (
 type mockFinanceServiceClient struct {
 	getAllUserDataResp *financepb.AllUserDataResponse
 	getAllUserDataErr  error
-	listTagsResp      *financepb.TagListResponse
-	listTagsErr       error
 }
 
 func (m *mockFinanceServiceClient) GetAllUserData(_ context.Context, _ *financepb.GetAllUserDataRequest, _ ...grpc.CallOption) (*financepb.AllUserDataResponse, error) {
@@ -25,10 +24,7 @@ func (m *mockFinanceServiceClient) GetAllUserData(_ context.Context, _ *financep
 }
 
 func (m *mockFinanceServiceClient) ListTags(_ context.Context, _ *financepb.ListTagsRequest, _ ...grpc.CallOption) (*financepb.TagListResponse, error) {
-	if m.listTagsErr != nil {
-		return nil, m.listTagsErr
-	}
-	return m.listTagsResp, nil
+	return nil, nil
 }
 
 // Implement remaining interface methods as no-ops.
@@ -87,24 +83,52 @@ func (m *mockFinanceServiceClient) DeleteAllUserData(_ context.Context, _ *finan
 	return nil, nil
 }
 
-// mockExpenseServiceClient implements ExpenseServiceClient for tests.
+// mockExpenseServiceClient implements ExpenseServiceClient for tests. The
+// expenses provider consumes StreamAllUserExpenses, so streamRows seeds the
+// server stream (one ExpenseData per Recv, in order). streamOpenErr fails the
+// RPC open; recvErr fails a Recv (at recvErrAt, 1-based; 0 = after all rows).
 type mockExpenseServiceClient struct {
-	// getAllUserExpensesResponses is a list of responses, one per page call.
-	getAllUserExpensesResponses []*expensepb.ExpenseListResponse
-	getAllUserExpensesErr       error
-	callCount                  int
+	streamRows    []*expensepb.ExpenseData
+	streamOpenErr error
+	recvErr       error
+	recvErrAt     int
+	lastStreamReq *expensepb.StreamAllUserExpensesRequest
+	callCount     int
 }
 
-func (m *mockExpenseServiceClient) GetAllUserExpenses(_ context.Context, _ *expensepb.GetAllUserExpensesRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	if m.getAllUserExpensesErr != nil {
-		return nil, m.getAllUserExpensesErr
+// fakeExpenseStream is the client side of a StreamAllUserExpenses server stream.
+// The embedded nil grpc.ClientStream supplies the ClientStream methods the
+// consumer never calls; only Recv is exercised.
+type fakeExpenseStream struct {
+	grpc.ClientStream
+	rows      []*expensepb.ExpenseData
+	idx       int
+	recvErr   error
+	recvErrAt int
+}
+
+func (f *fakeExpenseStream) Recv() (*expensepb.ExpenseData, error) {
+	if f.recvErr != nil && f.recvErrAt > 0 && f.idx+1 == f.recvErrAt {
+		return nil, f.recvErr
 	}
-	if m.callCount >= len(m.getAllUserExpensesResponses) {
-		return &expensepb.ExpenseListResponse{}, nil
+	if f.idx >= len(f.rows) {
+		if f.recvErr != nil && f.recvErrAt == 0 {
+			return nil, f.recvErr
+		}
+		return nil, io.EOF
 	}
-	resp := m.getAllUserExpensesResponses[m.callCount]
+	row := f.rows[f.idx]
+	f.idx++
+	return row, nil
+}
+
+func (m *mockExpenseServiceClient) StreamAllUserExpenses(_ context.Context, req *expensepb.StreamAllUserExpensesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[expensepb.ExpenseData], error) {
 	m.callCount++
-	return resp, nil
+	m.lastStreamReq = req
+	if m.streamOpenErr != nil {
+		return nil, m.streamOpenErr
+	}
+	return &fakeExpenseStream{rows: m.streamRows, recvErr: m.recvErr, recvErrAt: m.recvErrAt}, nil
 }
 
 // Implement remaining interface methods as no-ops.

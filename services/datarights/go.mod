@@ -10,10 +10,12 @@ require (
 	github.com/ItsThompson/gofin/services/finance v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
+	github.com/ItsThompson/gofin/services/perf v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/sync v0.20.0
 	google.golang.org/grpc v1.80.0
 )
 
@@ -30,6 +32,8 @@ replace github.com/ItsThompson/gofin/services/finance => ../finance
 replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
+
+replace github.com/ItsThompson/gofin/services/perf => ../perf
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -76,7 +80,6 @@ require (
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect

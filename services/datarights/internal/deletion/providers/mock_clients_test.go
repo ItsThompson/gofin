@@ -116,9 +116,6 @@ func (m *mockExpenseClient) GetExpense(_ context.Context, _ *expensepb.GetExpens
 func (m *mockExpenseClient) CountExpensesByTag(_ context.Context, _ *expensepb.CountExpensesByTagRequest, _ ...grpc.CallOption) (*expensepb.CountExpensesByTagResponse, error) {
 	return nil, nil
 }
-func (m *mockExpenseClient) GetAllUserExpenses(_ context.Context, _ *expensepb.GetAllUserExpensesRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	return nil, nil
-}
 func (m *mockExpenseClient) CorrectExpense(_ context.Context, _ *expensepb.CorrectExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil
 }
@@ -126,6 +123,9 @@ func (m *mockExpenseClient) GetCorrectionHistory(_ context.Context, _ *expensepb
 	return nil, nil
 }
 func (m *mockExpenseClient) GetProRataGroup(_ context.Context, _ *expensepb.GetProRataGroupRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
+	return nil, nil
+}
+func (m *mockExpenseClient) StreamAllUserExpenses(_ context.Context, _ *expensepb.StreamAllUserExpensesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[expensepb.ExpenseData], error) {
 	return nil, nil
 }
 

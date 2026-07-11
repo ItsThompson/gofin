@@ -115,7 +115,12 @@ func TestGetAllUserData_InternalError(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	handler := setupGRPCHandler(repo)
 
+	// GetAllUserData fans out the three reads concurrently (no serial
+	// short-circuit), so the sibling reads must be stubbed even though ListTags
+	// is the one failing. The errgroup surfaces the ListTags error.
 	repo.On("ListTags", mock.Anything, "user-1").Return(nil, fmt.Errorf("connection refused"))
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{}, nil)
+	repo.On("GetDefaults", mock.Anything, "user-1").Return((*model.DefaultSettings)(nil), nil)
 
 	resp, err := handler.GetAllUserData(context.Background(), &pb.GetAllUserDataRequest{UserId: "user-1"})
 	assert.Nil(t, resp)

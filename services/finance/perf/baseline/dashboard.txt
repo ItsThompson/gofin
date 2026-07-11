@@ -1,0 +1,53 @@
+# gofin perf baseline
+path: finance/dashboard  (GetSpendingTrends + GetHistoricalComparison, fan-out)
+captured_against: main @ 8baca69  (pre-optimization: serial GetExpensesForPeriod reads)
+machine: Apple M4 Pro, 14 cores, macOS 26.3.1  (wall-clock reference only, arm64)
+go: go1.26.2
+date: 2026-07-11
+benchmark_note: reads use a synthetic 200µs per-read latency (benchReadLatency in
+                dashboard_bench_test.go) so wall-clock reflects serial sum vs
+                fan-out max·ceil(n/limit); absolute ns/op is a same-machine
+                reference, never a CI threshold.
+
+# Environment-independent (portable; the durable signal, gated by regression tests)
+#   GetSpendingTrends issues exactly one GetExpensesForPeriod per non-nil period in
+#   the window (nil/missing periods issue no read):
+expense_calls@GetSpendingTrends(months=1):   1
+expense_calls@GetSpendingTrends(months=6):   6
+expense_calls@GetSpendingTrends(months=12): 12
+#   GetHistoricalComparison (serial) reads current + previous + up-to-3 rolling.
+#   The serial path reads priorPeriods[0] TWICE (once for "previous", once as the
+#   first rolling-average term), so with >=3 priors it issues 5 reads for 4
+#   distinct periods:
+expense_calls@GetHistoricalComparison(>=3 priors, serial): 5   (4 distinct periods)
+expense_calls@GetHistoricalComparison(2 priors, serial):   2   (current + previous)
+expense_calls@GetHistoricalComparison(0 priors, serial):   1   (current only)
+max_reads_in_flight(serial): 1   (fully sequential)
+
+# Wall-clock reference (same-machine only, NOT a threshold; count=10 mean per
+# perf-methodology §3, re-captured 2026-07-11 on the machine above).
+# The serial (pre-fan-out) side is reproducible by checking out commit 6036abb,
+# where dashboard.go still issues serial reads; re-run HEAD for the fan-out side.
+#
+# Serial (checkout 6036abb):
+ns_op@GetSpendingTrends(months=1):   ~237,000    (6 allocs/op,  424 B/op)
+ns_op@GetSpendingTrends(months=6):   ~1,418,000  (19 allocs/op, 1112 B/op)
+ns_op@GetSpendingTrends(months=12):  ~2,834,000  (33 allocs/op, 1994 B/op)
+ns_op@GetHistoricalComparison:       ~1,182,000  (12 allocs/op, 112 B/op)
+#
+# Fan-out (HEAD, dashboardFanoutLimit=5):
+ns_op@GetSpendingTrends(months=1):   ~243,000    (14 allocs/op, 936 B/op)   # 1 read: errgroup overhead, no parallelism gain
+ns_op@GetSpendingTrends(months=6):   ~482,000    (41 allocs/op, 2685 B/op)  # ~2.9x faster
+ns_op@GetSpendingTrends(months=12):  ~722,000    (73 allocs/op, 4860 B/op)  # ~3.9x faster
+ns_op@GetHistoricalComparison:       ~247,000    (29 allocs/op, 1313 B/op)  # ~4.8x faster
+
+# Expected post-change shape (bounded errgroup, dashboardFanoutLimit=5):
+#   - call counts unchanged for trends (1 per non-nil period)
+#   - historical drops to <=4 reads (distinct periods; priorPeriods[0] read once)
+#   - wall-clock ~ max·ceil(n/limit): months=12 drops ~3.9x, historical ~4.8x;
+#     months=1 is flat (one read, so errgroup setup makes it marginally slower)
+#   - max_reads_in_flight rises to <= dashboardFanoutLimit (asserted in tests)
+#   - allocs/op RISES (errgroup + up to N goroutine closures + per-read wrapped
+#     error funcs): months=12 33->73, historical 12->29. This is the documented
+#     cost of the latency win; a same-machine reference, not gated (spec 04).
+#   Re-capture on the same machine after the change; diff via benchstat old.txt new.txt.

@@ -54,7 +54,10 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_prorata_group ON expenses (pro_rata_group);`,
-		`CREATE INDEX IF NOT EXISTS idx_expenses_user_created ON expenses (user_id, created_at);`,
+		// Covers the keyset export seek: the (created_at, id) tiebreaker column is
+		// included so the index matches the full ORDER BY created_at ASC, id ASC
+		// tuple and rows tied on created_at seek instead of scanning+sorting.
+		`CREATE INDEX IF NOT EXISTS idx_expenses_user_created_id ON expenses (user_id, created_at, id);`,
 	}
 
 	for _, idx := range indexes {
@@ -406,47 +409,65 @@ func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID s
 	return expenses, nil
 }
 
-// GetAllExpensesByUser returns all expenses (active + corrected) for a user,
-// ordered by created_at ASC with LIMIT/OFFSET pagination. No status filter
-// is applied: GDPR export requires the full correction chain.
-func (r *ImmudbExpenseRepository) GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error) {
-	// Count query for pagination metadata
-	countQuery := `SELECT COUNT(*) FROM expenses WHERE user_id = @user_id;`
+// GetExpensesByUserAfter returns one keyset page of expenses (active +
+// corrected) for a user past the given cursor, ordered by
+// (created_at ASC, id ASC). It seeks with the expanded-OR (created_at, id)
+// predicate instead of LIMIT/OFFSET and derives hasMore by fetching pageSize+1
+// rows and inspecting the overflow row, so it issues no OFFSET and no per-page
+// COUNT(*). An empty cursor starts from the beginning.
+//
+// immudb 1.11.0 does not support SQL row-value tuple syntax
+// ((created_at, id) > (@c, @cid) raises a syntax error), so the comparison is
+// written in expanded-OR form.
+func (r *ImmudbExpenseRepository) GetExpensesByUserAfter(ctx context.Context, userID string, cursor ExpenseCursor, pageSize int32) ([]*model.Expense, ExpenseCursor, bool, error) {
+	if pageSize < 1 {
+		pageSize = DefaultStreamPageSize
+	}
 
-	countResult, err := r.client.SQLQuery(ctx, countQuery, map[string]interface{}{
+	// Fetch one extra row (pageSize+1) so the overflow row reveals whether more
+	// rows remain, avoiding a per-page COUNT(*).
+	params := map[string]interface{}{
 		"user_id": userID,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("counting all user expenses: %w", err)
+		"limit":   pageSize + 1,
 	}
 
-	var total int64
-	if len(countResult.Rows) > 0 && len(countResult.Rows[0].Values) > 0 {
-		total = countResult.Rows[0].Values[0].GetInt()
+	cursorPredicate := ""
+	if cursor.CreatedAt != "" {
+		cursorPredicate = ` AND (created_at > @cursor_created_at
+		OR (created_at = @cursor_created_at AND id > @cursor_id))`
+		params["cursor_created_at"] = cursor.CreatedAt
+		params["cursor_id"] = cursor.ID
 	}
 
-	// Data query with pagination, ordered by created_at ASC (chronological for export)
-	offset := (page - 1) * pageSize
 	dataQuery := fmt.Sprintf(`SELECT %s FROM expenses
-		WHERE user_id = @user_id
-		ORDER BY created_at ASC
-		LIMIT @limit OFFSET @offset;`, expenseSelectColumns)
+		WHERE user_id = @user_id%s
+		ORDER BY created_at ASC, id ASC
+		LIMIT @limit;`, expenseSelectColumns, cursorPredicate)
 
-	result, err := r.client.SQLQuery(ctx, dataQuery, map[string]interface{}{
-		"user_id": userID,
-		"limit":   pageSize,
-		"offset":  offset,
-	})
+	result, err := r.client.SQLQuery(ctx, dataQuery, params)
 	if err != nil {
-		return nil, 0, fmt.Errorf("querying all user expenses: %w", err)
+		return nil, ExpenseCursor{}, false, fmt.Errorf("querying user expenses after cursor: %w", err)
 	}
 
-	expenses := make([]*model.Expense, 0, len(result.Rows))
+	rows := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expenses = append(expenses, rowToExpense(row))
+		rows = append(rows, rowToExpense(row))
 	}
 
-	return expenses, total, nil
+	// The overflow row (pageSize+1th) means more rows remain. Drop it from the
+	// page and report hasMore.
+	hasMore := int32(len(rows)) > pageSize
+	if hasMore {
+		rows = rows[:pageSize]
+	}
+
+	next := cursor
+	if len(rows) > 0 {
+		last := rows[len(rows)-1]
+		next = ExpenseCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+	}
+
+	return rows, next, hasMore, nil
 }
 
 // AnonymizeAllUserExpenses redacts PII fields on all expense rows for a user.

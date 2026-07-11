@@ -23,7 +23,7 @@ const (
 	ExpenseService_GetExpensesForPeriod_FullMethodName     = "/expense.ExpenseService/GetExpensesForPeriod"
 	ExpenseService_GetExpense_FullMethodName               = "/expense.ExpenseService/GetExpense"
 	ExpenseService_CountExpensesByTag_FullMethodName       = "/expense.ExpenseService/CountExpensesByTag"
-	ExpenseService_GetAllUserExpenses_FullMethodName       = "/expense.ExpenseService/GetAllUserExpenses"
+	ExpenseService_StreamAllUserExpenses_FullMethodName    = "/expense.ExpenseService/StreamAllUserExpenses"
 	ExpenseService_AnonymizeAllUserExpenses_FullMethodName = "/expense.ExpenseService/AnonymizeAllUserExpenses"
 	ExpenseService_CorrectExpense_FullMethodName           = "/expense.ExpenseService/CorrectExpense"
 	ExpenseService_GetCorrectionHistory_FullMethodName     = "/expense.ExpenseService/GetCorrectionHistory"
@@ -40,8 +40,11 @@ type ExpenseServiceClient interface {
 	GetExpense(ctx context.Context, in *GetExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	// Tag usage check (called by finance service during tag deletion)
 	CountExpensesByTag(ctx context.Context, in *CountExpensesByTagRequest, opts ...grpc.CallOption) (*CountExpensesByTagResponse, error)
-	// Data export: returns all expenses (active + corrected) for a user, paginated
-	GetAllUserExpenses(ctx context.Context, in *GetAllUserExpensesRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
+	// Data export streaming: the server streams every expense (active + corrected)
+	// for a user in chronological order (created_at ASC, id ASC). The server pages
+	// internally with a keyset cursor, bounding server memory to O(page_size); the
+	// client writes rows incrementally.
+	StreamAllUserExpenses(ctx context.Context, in *StreamAllUserExpensesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExpenseData], error)
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error)
 	// Stubs: implemented in later tickets
@@ -98,15 +101,24 @@ func (c *expenseServiceClient) CountExpensesByTag(ctx context.Context, in *Count
 	return out, nil
 }
 
-func (c *expenseServiceClient) GetAllUserExpenses(ctx context.Context, in *GetAllUserExpensesRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error) {
+func (c *expenseServiceClient) StreamAllUserExpenses(ctx context.Context, in *StreamAllUserExpensesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExpenseData], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ExpenseListResponse)
-	err := c.cc.Invoke(ctx, ExpenseService_GetAllUserExpenses_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &ExpenseService_ServiceDesc.Streams[0], ExpenseService_StreamAllUserExpenses_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[StreamAllUserExpensesRequest, ExpenseData]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ExpenseService_StreamAllUserExpensesClient = grpc.ServerStreamingClient[ExpenseData]
 
 func (c *expenseServiceClient) AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -158,8 +170,11 @@ type ExpenseServiceServer interface {
 	GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error)
 	// Tag usage check (called by finance service during tag deletion)
 	CountExpensesByTag(context.Context, *CountExpensesByTagRequest) (*CountExpensesByTagResponse, error)
-	// Data export: returns all expenses (active + corrected) for a user, paginated
-	GetAllUserExpenses(context.Context, *GetAllUserExpensesRequest) (*ExpenseListResponse, error)
+	// Data export streaming: the server streams every expense (active + corrected)
+	// for a user in chronological order (created_at ASC, id ASC). The server pages
+	// internally with a keyset cursor, bounding server memory to O(page_size); the
+	// client writes rows incrementally.
+	StreamAllUserExpenses(*StreamAllUserExpensesRequest, grpc.ServerStreamingServer[ExpenseData]) error
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error)
 	// Stubs: implemented in later tickets
@@ -188,8 +203,8 @@ func (UnimplementedExpenseServiceServer) GetExpense(context.Context, *GetExpense
 func (UnimplementedExpenseServiceServer) CountExpensesByTag(context.Context, *CountExpensesByTagRequest) (*CountExpensesByTagResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CountExpensesByTag not implemented")
 }
-func (UnimplementedExpenseServiceServer) GetAllUserExpenses(context.Context, *GetAllUserExpensesRequest) (*ExpenseListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAllUserExpenses not implemented")
+func (UnimplementedExpenseServiceServer) StreamAllUserExpenses(*StreamAllUserExpensesRequest, grpc.ServerStreamingServer[ExpenseData]) error {
+	return status.Error(codes.Unimplemented, "method StreamAllUserExpenses not implemented")
 }
 func (UnimplementedExpenseServiceServer) AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AnonymizeAllUserExpenses not implemented")
@@ -296,23 +311,16 @@ func _ExpenseService_CountExpensesByTag_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ExpenseService_GetAllUserExpenses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAllUserExpensesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _ExpenseService_StreamAllUserExpenses_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamAllUserExpensesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(ExpenseServiceServer).GetAllUserExpenses(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ExpenseService_GetAllUserExpenses_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ExpenseServiceServer).GetAllUserExpenses(ctx, req.(*GetAllUserExpensesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(ExpenseServiceServer).StreamAllUserExpenses(m, &grpc.GenericServerStream[StreamAllUserExpensesRequest, ExpenseData]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type ExpenseService_StreamAllUserExpensesServer = grpc.ServerStreamingServer[ExpenseData]
 
 func _ExpenseService_AnonymizeAllUserExpenses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AnonymizeRequest)
@@ -410,10 +418,6 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ExpenseService_CountExpensesByTag_Handler,
 		},
 		{
-			MethodName: "GetAllUserExpenses",
-			Handler:    _ExpenseService_GetAllUserExpenses_Handler,
-		},
-		{
 			MethodName: "AnonymizeAllUserExpenses",
 			Handler:    _ExpenseService_AnonymizeAllUserExpenses_Handler,
 		},
@@ -430,6 +434,12 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ExpenseService_GetProRataGroup_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamAllUserExpenses",
+			Handler:       _ExpenseService_StreamAllUserExpenses_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/expense.proto",
 }

@@ -1,0 +1,59 @@
+# gofin perf baseline
+path: datarights/export-collection  (finance-call dedup, P2a)
+captured_against: ft/latency-refactor @ 1825b89  (pre-dedup; BenchmarkExportCollection over the full provider set)
+machine: Apple M4 Pro, 14 cores, macOS  (wall-clock reference only)
+date: 2026-07-10
+
+# Environment-independent (portable, gated in CI via the call-count assertion)
+# Per export, the finance client is hit for data one GetAllUserData call carries:
+#   tags, budget_periods, default_settings each call GetAllUserData  -> 3
+#   expenses.buildTagMap calls ListTags                              -> 1
+get_all_user_data_calls:   3
+list_tags_calls:           1
+finance_calls_total:       4
+
+# Wall-clock reference (same-machine only, NOT a threshold)
+# go test -bench BenchmarkExportCollection -benchmem -count=1
+ns_op:                     1395
+bytes_op:                  3883
+allocs_op:                 58
+
+# Target after dedup (this ticket): a fresh per-job MemoizedFinanceClient serves
+# GetAllUserData at most once and the expenses provider derives its tag map from
+# GetAllUserData().GetTags(), so ListTags drops to 0:
+#   get_all_user_data_calls: <= 1
+#   list_tags_calls:         0
+# Enforced by TestExport_DedupesFinanceCalls in internal/engine (test-backend CI).
+
+# ---------------------------------------------------------------------------
+# Collection fan-out (P2b, ticket #6)
+# ---------------------------------------------------------------------------
+# path: datarights/export-collection-scaling
+# BenchmarkEngineCollectionFanout drives engine.execute over five providers with
+# simulated per-provider latency of 1x..5x a 10ms base (10, 20, 30, 40, 50 ms).
+# Serial collection costs the sum (150ms); the errgroup fan-out costs the max
+# (50ms). go test -bench BenchmarkEngineCollectionFanout -benchmem -benchtime=15x
+# machine: Apple M4 Pro, 14 cores, macOS  (wall-clock reference only, NOT a gate)
+#
+# Structural expectation (portable, the durable signal):
+#   sum_of_provider_latencies:  150ms  (1+2+3+4+5)*10ms
+#   max_provider_latency:         50ms
+#   before (serial loop):  ns_op ~= sum  (~155ms)
+#   after  (errgroup fan): ns_op ~= max  (~52ms)
+#
+# before (serial, captured @ pre-fan-out on ft/latency-refactor):
+#   ns_op:     154835733   (~155ms  ~= sum)
+#   bytes_op:  143614
+#   allocs_op: 181
+# after  (errgroup fan-out, this ticket):
+#   ns_op:     51121856    (~51ms  ~= max)
+#   bytes_op:  416401
+#   allocs_op: 202
+# Net: collection dropped from ~155ms (sum) to ~51ms (max), a ~3x reduction that
+# matches max/sum = 50/150. Extra bytes/allocs are the five goroutines' stacks
+# plus errgroup bookkeeping; expected and bounded by the fixed provider count.
+#
+# The fan-out is additionally proven structurally (not by wall-clock) in
+# test-backend: TestEngine_FanOut_RunsProvidersConcurrently asserts all five
+# providers are in flight at once (max-concurrent == provider count), which is
+# the deterministic, machine-independent form of "max, not sum".

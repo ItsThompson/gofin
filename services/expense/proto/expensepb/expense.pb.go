@@ -805,29 +805,28 @@ func (x *GetProRataGroupRequest) GetGroupId() string {
 	return ""
 }
 
-type GetAllUserExpensesRequest struct {
+type StreamAllUserExpensesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"` // internal server-side keyset page size; 0 = server default
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetAllUserExpensesRequest) Reset() {
-	*x = GetAllUserExpensesRequest{}
+func (x *StreamAllUserExpensesRequest) Reset() {
+	*x = StreamAllUserExpensesRequest{}
 	mi := &file_proto_expense_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetAllUserExpensesRequest) String() string {
+func (x *StreamAllUserExpensesRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetAllUserExpensesRequest) ProtoMessage() {}
+func (*StreamAllUserExpensesRequest) ProtoMessage() {}
 
-func (x *GetAllUserExpensesRequest) ProtoReflect() protoreflect.Message {
+func (x *StreamAllUserExpensesRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_proto_expense_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -839,26 +838,19 @@ func (x *GetAllUserExpensesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAllUserExpensesRequest.ProtoReflect.Descriptor instead.
-func (*GetAllUserExpensesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use StreamAllUserExpensesRequest.ProtoReflect.Descriptor instead.
+func (*StreamAllUserExpensesRequest) Descriptor() ([]byte, []int) {
 	return file_proto_expense_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *GetAllUserExpensesRequest) GetUserId() string {
+func (x *StreamAllUserExpensesRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
 	return ""
 }
 
-func (x *GetAllUserExpensesRequest) GetPage() int32 {
-	if x != nil {
-		return x.Page
-	}
-	return 0
-}
-
-func (x *GetAllUserExpensesRequest) GetPageSize() int32 {
+func (x *StreamAllUserExpensesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
 	}
@@ -1116,11 +1108,10 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x19CorrectionHistoryResponse\x12.\n" +
 	"\aentries\x18\x01 \x03(\v2\x14.expense.ExpenseDataR\aentries\"3\n" +
 	"\x16GetProRataGroupRequest\x12\x19\n" +
-	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"e\n" +
-	"\x19GetAllUserExpensesRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
-	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
-	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"K\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"T\n" +
+	"\x1cStreamAllUserExpensesRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\"K\n" +
 	"\x19CountExpensesByTagRequest\x12\x15\n" +
 	"\x06tag_id\x18\x01 \x01(\tR\x05tagId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"2\n" +
@@ -1135,7 +1126,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\n" +
 	"GetExpense\x12\x1a.expense.GetExpenseRequest\x1a\x18.expense.ExpenseResponse\x12]\n" +
 	"\x12CountExpensesByTag\x12\".expense.CountExpensesByTagRequest\x1a#.expense.CountExpensesByTagResponse\x12V\n" +
-	"\x12GetAllUserExpenses\x12\".expense.GetAllUserExpensesRequest\x1a\x1c.expense.ExpenseListResponse\x12Q\n" +
+	"\x15StreamAllUserExpenses\x12%.expense.StreamAllUserExpensesRequest\x1a\x14.expense.ExpenseData0\x01\x12Q\n" +
 	"\x18AnonymizeAllUserExpenses\x12\x19.expense.AnonymizeRequest\x1a\x1a.expense.AnonymizeResponse\x12J\n" +
 	"\x0eCorrectExpense\x12\x1e.expense.CorrectExpenseRequest\x1a\x18.expense.ExpenseResponse\x12`\n" +
 	"\x14GetCorrectionHistory\x12$.expense.GetCorrectionHistoryRequest\x1a\".expense.CorrectionHistoryResponse\x12P\n" +
@@ -1155,21 +1146,21 @@ func file_proto_expense_proto_rawDescGZIP() []byte {
 
 var file_proto_expense_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_proto_expense_proto_goTypes = []any{
-	(*ExpenseData)(nil),                 // 0: expense.ExpenseData
-	(*CreateExpenseRequest)(nil),        // 1: expense.CreateExpenseRequest
-	(*ExpenseResponse)(nil),             // 2: expense.ExpenseResponse
-	(*GetExpensesForPeriodRequest)(nil), // 3: expense.GetExpensesForPeriodRequest
-	(*ExpenseListResponse)(nil),         // 4: expense.ExpenseListResponse
-	(*GetExpenseRequest)(nil),           // 5: expense.GetExpenseRequest
-	(*CorrectExpenseRequest)(nil),       // 6: expense.CorrectExpenseRequest
-	(*GetCorrectionHistoryRequest)(nil), // 7: expense.GetCorrectionHistoryRequest
-	(*CorrectionHistoryResponse)(nil),   // 8: expense.CorrectionHistoryResponse
-	(*GetProRataGroupRequest)(nil),      // 9: expense.GetProRataGroupRequest
-	(*GetAllUserExpensesRequest)(nil),   // 10: expense.GetAllUserExpensesRequest
-	(*CountExpensesByTagRequest)(nil),   // 11: expense.CountExpensesByTagRequest
-	(*CountExpensesByTagResponse)(nil),  // 12: expense.CountExpensesByTagResponse
-	(*AnonymizeRequest)(nil),            // 13: expense.AnonymizeRequest
-	(*AnonymizeResponse)(nil),           // 14: expense.AnonymizeResponse
+	(*ExpenseData)(nil),                  // 0: expense.ExpenseData
+	(*CreateExpenseRequest)(nil),         // 1: expense.CreateExpenseRequest
+	(*ExpenseResponse)(nil),              // 2: expense.ExpenseResponse
+	(*GetExpensesForPeriodRequest)(nil),  // 3: expense.GetExpensesForPeriodRequest
+	(*ExpenseListResponse)(nil),          // 4: expense.ExpenseListResponse
+	(*GetExpenseRequest)(nil),            // 5: expense.GetExpenseRequest
+	(*CorrectExpenseRequest)(nil),        // 6: expense.CorrectExpenseRequest
+	(*GetCorrectionHistoryRequest)(nil),  // 7: expense.GetCorrectionHistoryRequest
+	(*CorrectionHistoryResponse)(nil),    // 8: expense.CorrectionHistoryResponse
+	(*GetProRataGroupRequest)(nil),       // 9: expense.GetProRataGroupRequest
+	(*StreamAllUserExpensesRequest)(nil), // 10: expense.StreamAllUserExpensesRequest
+	(*CountExpensesByTagRequest)(nil),    // 11: expense.CountExpensesByTagRequest
+	(*CountExpensesByTagResponse)(nil),   // 12: expense.CountExpensesByTagResponse
+	(*AnonymizeRequest)(nil),             // 13: expense.AnonymizeRequest
+	(*AnonymizeResponse)(nil),            // 14: expense.AnonymizeResponse
 }
 var file_proto_expense_proto_depIdxs = []int32{
 	0,  // 0: expense.ExpenseResponse.expense:type_name -> expense.ExpenseData
@@ -1179,7 +1170,7 @@ var file_proto_expense_proto_depIdxs = []int32{
 	3,  // 4: expense.ExpenseService.GetExpensesForPeriod:input_type -> expense.GetExpensesForPeriodRequest
 	5,  // 5: expense.ExpenseService.GetExpense:input_type -> expense.GetExpenseRequest
 	11, // 6: expense.ExpenseService.CountExpensesByTag:input_type -> expense.CountExpensesByTagRequest
-	10, // 7: expense.ExpenseService.GetAllUserExpenses:input_type -> expense.GetAllUserExpensesRequest
+	10, // 7: expense.ExpenseService.StreamAllUserExpenses:input_type -> expense.StreamAllUserExpensesRequest
 	13, // 8: expense.ExpenseService.AnonymizeAllUserExpenses:input_type -> expense.AnonymizeRequest
 	6,  // 9: expense.ExpenseService.CorrectExpense:input_type -> expense.CorrectExpenseRequest
 	7,  // 10: expense.ExpenseService.GetCorrectionHistory:input_type -> expense.GetCorrectionHistoryRequest
@@ -1188,7 +1179,7 @@ var file_proto_expense_proto_depIdxs = []int32{
 	4,  // 13: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
 	2,  // 14: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
 	12, // 15: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
-	4,  // 16: expense.ExpenseService.GetAllUserExpenses:output_type -> expense.ExpenseListResponse
+	0,  // 16: expense.ExpenseService.StreamAllUserExpenses:output_type -> expense.ExpenseData
 	14, // 17: expense.ExpenseService.AnonymizeAllUserExpenses:output_type -> expense.AnonymizeResponse
 	2,  // 18: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
 	8,  // 19: expense.ExpenseService.GetCorrectionHistory:output_type -> expense.CorrectionHistoryResponse

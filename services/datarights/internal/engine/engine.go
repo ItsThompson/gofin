@@ -2,29 +2,43 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
+	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
+
+// ProviderFactory builds a fresh set of data providers for a single export job,
+// injecting the finance client the finance-backed providers should share. The
+// factory closes over the non-finance clients (auth, expense) at startup; the
+// finance client is supplied per job so each job gets its own memoized instance.
+type ProviderFactory func(finance financepb.FinanceServiceClient) []DataProvider
 
 // Engine manages a bounded pool of export workers.
 type Engine struct {
-	registry *ProviderRegistry
-	repo     repository.JobRepository
-	sender   email.Sender
-	sem      chan struct{}
-	logger   *slog.Logger
-	timeout  time.Duration
+	newProviders  ProviderFactory
+	financeClient financepb.FinanceServiceClient
+	repo          repository.JobRepository
+	sender        email.Sender
+	sem           chan struct{}
+	logger        *slog.Logger
+	timeout       time.Duration
 }
 
-// NewEngine creates an export engine with bounded concurrency.
+// NewEngine creates an export engine with bounded concurrency. newProviders
+// builds a fresh provider set per job; financeClient is the raw finance client
+// wrapped in a per-job MemoizedFinanceClient before being handed to the factory.
 func NewEngine(
-	registry *ProviderRegistry,
+	newProviders ProviderFactory,
+	financeClient financepb.FinanceServiceClient,
 	repo repository.JobRepository,
 	sender email.Sender,
 	maxConcurrent int,
@@ -32,12 +46,13 @@ func NewEngine(
 	logger *slog.Logger,
 ) *Engine {
 	return &Engine{
-		registry: registry,
-		repo:     repo,
-		sender:   sender,
-		sem:      make(chan struct{}, maxConcurrent),
-		logger:   logger,
-		timeout:  timeout,
+		newProviders:  newProviders,
+		financeClient: financeClient,
+		repo:          repo,
+		sender:        sender,
+		sem:           make(chan struct{}, maxConcurrent),
+		logger:        logger,
+		timeout:       timeout,
 	}
 }
 
@@ -99,51 +114,78 @@ func (e *Engine) execute(ctx context.Context, jobID, userID, userEmail string) {
 		return
 	}
 
-	// Collect data from all providers
-	var csvFiles []CSVFile
-	for _, provider := range e.registry.All() {
-		// Check context before each provider
-		if err := ctx.Err(); err != nil {
-			e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
-			return
-		}
+	// Build a fresh provider set for this job. The finance-backed providers
+	// share one per-job MemoizedFinanceClient, so GetAllUserData is fetched at
+	// most once; a fresh instance per job prevents cross-user data leakage.
+	fc := NewMemoizedFinanceClient(e.financeClient)
+	providerSet := e.newProviders(fc)
 
-		e.logger.Debug("provider collection started",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("provider", provider.Name()),
-			slog.String("method", "engine.execute"),
-		)
+	// Collect from every provider concurrently. The providers are independent
+	// and read-only, so each goroutine writes only its own pre-assigned index in
+	// csvFiles; this makes collection latency max(providers) instead of sum while
+	// keeping ZIP order deterministic (the factory's slice order).
+	csvFiles := make([]CSVFile, len(providerSet))
+	g, gctx := errgroup.WithContext(ctx)
+	for i, provider := range providerSet {
+		i, provider := i, provider
+		g.Go(func() error {
+			e.logger.Debug("provider collection started",
+				slog.String("job_id", jobID),
+				slog.String("user_id", userID),
+				slog.String("provider", provider.Name()),
+				slog.String("method", "engine.execute"),
+			)
 
-		providerStart := time.Now()
-		rows, err := provider.Collect(ctx, userID)
-		providerDuration := time.Since(providerStart).Seconds()
+			providerStart := time.Now()
+			rows, err := provider.Collect(gctx, userID)
+			providerDuration := time.Since(providerStart).Seconds()
 
-		exportmetrics.ExportDataCollectionDurationSeconds.WithLabelValues(provider.Name()).Observe(providerDuration)
+			// HistogramVec is goroutine-safe, so the per-provider observation
+			// stays inside the goroutine.
+			exportmetrics.ExportDataCollectionDurationSeconds.WithLabelValues(provider.Name()).Observe(providerDuration)
 
-		if err != nil {
-			if ctx.Err() != nil {
-				e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
-				return
+			if err != nil {
+				// Attach the provider name before errgroup captures the error:
+				// Wait surfaces only the first error, and the post-Wait switch
+				// recovers the name via errors.As on *collectError.
+				return &collectError{provider: provider.Name(), err: err}
 			}
-			e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", provider.Name()), "collection", jobStart)
-			return
-		}
 
-		e.logger.Info("provider collection complete",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("provider", provider.Name()),
-			slog.Int("row_count", len(rows)),
-			slog.Float64("duration_seconds", providerDuration),
-			slog.String("method", "engine.execute"),
-		)
+			e.logger.Info("provider collection complete",
+				slog.String("job_id", jobID),
+				slog.String("user_id", userID),
+				slog.String("provider", provider.Name()),
+				slog.Int("row_count", len(rows)),
+				slog.Float64("duration_seconds", providerDuration),
+				slog.String("method", "engine.execute"),
+			)
 
-		csvFiles = append(csvFiles, CSVFile{
-			Name:    provider.Name() + ".csv",
-			Headers: provider.Headers(),
-			Rows:    rows,
+			// Write only this goroutine's own slot; never append (data race).
+			csvFiles[i] = CSVFile{
+				Name:    provider.Name() + ".csv",
+				Headers: provider.Headers(),
+				Rows:    rows,
+			}
+			return nil
 		})
+	}
+
+	// Fan-in barrier: the first error wins and cancels the siblings via gctx.
+	// Recheck the job context afterward so a deadline still maps to "Export timed
+	// out" while a genuine provider failure maps to "Failed to collect X data".
+	var ce *collectError
+	switch err := g.Wait(); {
+	case err == nil:
+		// all providers succeeded; fall through to ZIP assembly
+	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
+		e.failJob(ctx, jobID, userID, "Export timed out", "collection", jobStart)
+		return
+	case errors.As(err, &ce):
+		e.failJob(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), "collection", jobStart)
+		return
+	default:
+		e.failJob(ctx, jobID, userID, "Failed to collect export data", "collection", jobStart)
+		return
 	}
 
 	// Build ZIP
@@ -228,6 +270,19 @@ func (e *Engine) failJob(_ context.Context, jobID, userID, errMsg, stage string,
 		)
 	}
 }
+
+// collectError carries the failing provider's name alongside the underlying
+// cause, so the post-Wait switch recovers the name via errors.As instead of
+// round-tripping structured data through the error string. It unwraps to the
+// cause so errors.Is(err, context.DeadlineExceeded) still classifies timeouts.
+type collectError struct {
+	provider string
+	err      error
+}
+
+func (e *collectError) Error() string { return "collect " + e.provider + ": " + e.err.Error() }
+
+func (e *collectError) Unwrap() error { return e.err }
 
 // sanitizeError extracts a human-readable reason from an error without exposing internals.
 func sanitizeError(err error) string {

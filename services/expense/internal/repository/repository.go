@@ -39,10 +39,15 @@ type ExpenseRepository interface {
 	// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
 	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
 
-	// GetAllExpensesByUser returns all expenses (active + corrected) for a user,
-	// ordered by created_at ASC, with LIMIT/OFFSET pagination.
-	// Used by the datarights service for data export (GDPR compliance).
-	GetAllExpensesByUser(ctx context.Context, userID string, page, pageSize int32) ([]*model.Expense, int64, error)
+	// GetExpensesByUserAfter returns one keyset page of expenses (active +
+	// corrected) for a user past the given cursor, ordered by
+	// (created_at ASC, id ASC). It seeks with a (created_at, id) cursor instead
+	// of LIMIT/OFFSET and derives hasMore by fetching pageSize+1 rows, so it
+	// issues no OFFSET and no per-page COUNT(*). An empty cursor starts from the
+	// beginning. next is the cursor for the following page (the last returned
+	// row); hasMore reports whether more rows remain. Consumed by the
+	// StreamAllUserExpenses RPC for O(page_size)-memory export.
+	GetExpensesByUserAfter(ctx context.Context, userID string, cursor ExpenseCursor, pageSize int32) (rows []*model.Expense, next ExpenseCursor, hasMore bool, err error)
 
 	// AnonymizeAllUserExpenses redacts PII fields on all expense rows for a user.
 	// immudb is append-only: the UPDATE overwrites the current head while history
@@ -55,6 +60,19 @@ type ExpenseRepository interface {
 type SchemaInitializer interface {
 	InitSchema(ctx context.Context) error
 }
+
+// ExpenseCursor identifies the last row seen during a keyset walk, used to seek
+// the next page without OFFSET. CreatedAt holds an RFC3339 timestamp in
+// canonical fixed-precision UTC form (lexicographically sortable); an empty
+// CreatedAt means "start from the beginning".
+type ExpenseCursor struct {
+	CreatedAt string
+	ID        string
+}
+
+// DefaultStreamPageSize is the keyset page size applied when a caller passes a
+// non-positive page size (e.g. StreamAllUserExpensesRequest.page_size == 0).
+const DefaultStreamPageSize int32 = 100
 
 // SQLResult represents the result of an SQL query row.
 type SQLResult struct {
