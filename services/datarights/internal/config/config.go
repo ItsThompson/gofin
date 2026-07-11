@@ -4,8 +4,15 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
+
+// DefaultProtectedUsernames is the fallback protected-username list used when
+// PROTECTED_USERNAMES is unset. These accounts cannot be deleted via the
+// datarights deletion flow. The check itself is owned by the datarights
+// service (moved from auth).
+var DefaultProtectedUsernames = []string{"admin", "thompson"}
 
 // Config holds all configuration for the datarights service.
 type Config struct {
@@ -23,6 +30,7 @@ type Config struct {
 	EmailFrom          string
 	EmailEnabled       bool
 	BrandTokensPath    string
+	ProtectedUsernames []string
 }
 
 // DefaultRESTPort is the datarights REST listener port used when REST_PORT is
@@ -38,6 +46,23 @@ func RESTPort() string {
 		return port
 	}
 	return DefaultRESTPort
+}
+
+// parseProtectedUsernames splits a comma-separated PROTECTED_USERNAMES value
+// into a trimmed, non-empty list. When the value is empty or yields no
+// usernames it returns a fresh copy of DefaultProtectedUsernames, so callers
+// never share (and cannot mutate) the package-level default slice.
+func parseProtectedUsernames(raw string) []string {
+	var names []string
+	for _, part := range strings.Split(raw, ",") {
+		if name := strings.TrimSpace(part); name != "" {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return append([]string(nil), DefaultProtectedUsernames...)
+	}
+	return names
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -111,6 +136,8 @@ func Load() (*Config, error) {
 		brandTokensPath = "/app/tokens/brand.json"
 	}
 
+	protectedUsernames := parseProtectedUsernames(os.Getenv("PROTECTED_USERNAMES"))
+
 	return &Config{
 		DBUrl:              dbURL,
 		LogLevel:           logLevel,
@@ -126,6 +153,7 @@ func Load() (*Config, error) {
 		EmailFrom:          emailFrom,
 		EmailEnabled:       emailEnabled,
 		BrandTokensPath:    brandTokensPath,
+		ProtectedUsernames: protectedUsernames,
 	}, nil
 }
 

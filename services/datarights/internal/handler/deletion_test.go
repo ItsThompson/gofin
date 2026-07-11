@@ -22,6 +22,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
@@ -214,7 +215,9 @@ func setupDeletionTestRouter(
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	opts := []service.DeletionServiceOption{}
+	opts := []service.DeletionServiceOption{
+		service.WithProtectedUsernames(config.DefaultProtectedUsernames),
+	}
 	if authClient != nil {
 		opts = append(opts, service.WithAuthClient(authClient))
 	}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 )
@@ -228,7 +229,9 @@ func newTestDeletionService(
 	engine DeletionJobSubmitter,
 ) *DeletionService {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	opts := []DeletionServiceOption{}
+	opts := []DeletionServiceOption{
+		WithProtectedUsernames(config.DefaultProtectedUsernames),
+	}
 	if authClient != nil {
 		opts = append(opts, WithAuthClient(authClient))
 	}

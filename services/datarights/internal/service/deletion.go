@@ -24,11 +24,12 @@ type CreateDeletionJobResult struct {
 
 // DeletionService handles deletion job lifecycle with full validation chain.
 type DeletionService struct {
-	repo       repository.DeletionJobRepository
-	exportRepo repository.JobRepository
-	authClient authpb.AuthServiceClient
-	engine     DeletionJobSubmitter
-	logger     *slog.Logger
+	repo               repository.DeletionJobRepository
+	exportRepo         repository.JobRepository
+	authClient         authpb.AuthServiceClient
+	engine             DeletionJobSubmitter
+	protectedUsernames []string
+	logger             *slog.Logger
 }
 
 // NewDeletionService creates a new DeletionService.
@@ -68,6 +69,14 @@ func WithExportRepo(repo repository.JobRepository) DeletionServiceOption {
 func WithDeletionEngine(engine DeletionJobSubmitter) DeletionServiceOption {
 	return func(s *DeletionService) {
 		s.engine = engine
+	}
+}
+
+// WithProtectedUsernames sets the usernames that cannot be deleted (sourced
+// from config). When unset, no username is treated as protected.
+func WithProtectedUsernames(names []string) DeletionServiceOption {
+	return func(s *DeletionService) {
+		s.protectedUsernames = names
 	}
 }
 
@@ -214,7 +223,7 @@ func (s *DeletionService) checkProtectedUsername(ctx context.Context, userID str
 		return fmt.Errorf("fetching user for protected check: %w", err)
 	}
 
-	if isProtectedUsername(resp.GetUsername()) {
+	if isProtectedUsername(s.protectedUsernames, resp.GetUsername()) {
 		return &apierr.Error{
 			Code:    model.ErrProtectedUser,
 			Message: "Cannot delete a protected user account",

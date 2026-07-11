@@ -163,6 +163,7 @@ func run() error {
 		service.WithDeletionEngine(deletionEngine),
 		service.WithAuthClient(authClient),
 		service.WithExportRepo(repo),
+		service.WithProtectedUsernames(cfg.ProtectedUsernames),
 	)
 
 	// Build the shared router (Recovery, HTTP metrics, /metrics, GET /health).
