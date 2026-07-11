@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/apierr"
 )
 
 // Identity headers the gateway sets for downstream services after a successful
@@ -163,12 +164,12 @@ func setIdentityHeaders(c *gin.Context, result *TokenValidationResult) {
 	}
 }
 
-// abortUnauthorized ends the request with the unchanged 401 contract.
+// abortUnauthorized ends the request with the unchanged 401 contract, encoded
+// through the shared apierr wire struct. c.Abort halts the middleware chain
+// (apierr.Respond only writes the body/status; it does not abort).
 func abortUnauthorized(c *gin.Context, message string) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		"code":    "UNAUTHORIZED",
-		"message": message,
-	})
+	apierr.Respond(c, apierr.Unauthorized(message))
+	c.Abort()
 }
 
 // isValidationTimeout reports whether a ValidateToken error is the bounded
@@ -190,12 +191,15 @@ func isValidationTimeout(err error) bool {
 
 // abortUnavailable ends the request with 503 SERVICE_UNAVAILABLE, used when the
 // auth dependency is unhealthy (validation timed out) rather than the client's
-// token being invalid.
+// token being invalid. SERVICE_UNAVAILABLE is a gateway-specific code (not one
+// of apierr's shared codes), so the typed error is constructed inline.
 func abortUnavailable(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
-		"code":    "SERVICE_UNAVAILABLE",
-		"message": "Authentication service unavailable",
+	apierr.Respond(c, &apierr.Error{
+		Code:    "SERVICE_UNAVAILABLE",
+		Message: "Authentication service unavailable",
+		Status:  http.StatusServiceUnavailable,
 	})
+	c.Abort()
 }
 
 // rejectForbidden ends the request with the unchanged 403 code contract (the
@@ -224,10 +228,13 @@ func abortForbidden(c *gin.Context, logger *slog.Logger) {
 }
 
 // writeForbidden emits the shared 403 body contract (FORBIDDEN / "Access
-// denied") used by both the role-denied and unclassified-route paths.
+// denied") used by both the role-denied and unclassified-route paths, encoded
+// through the shared apierr wire struct.
 func writeForbidden(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-		"code":    "FORBIDDEN",
-		"message": "Access denied",
+	apierr.Respond(c, &apierr.Error{
+		Code:    apierr.CodeForbidden,
+		Message: "Access denied",
+		Status:  http.StatusForbidden,
 	})
+	c.Abort()
 }

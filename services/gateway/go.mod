@@ -7,6 +7,7 @@ require (
 	// Locally this resolves via go.work; in Docker builds (GOWORK=off) the
 	// replace directive below points to the sibling module.
 	github.com/ItsThompson/gofin/services/access v0.0.0
+	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/auth v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
@@ -19,6 +20,8 @@ require (
 
 // Required for Docker builds where go.work is not available.
 replace github.com/ItsThompson/gofin/services/access => ../access
+
+replace github.com/ItsThompson/gofin/services/apierr => ../apierr
 
 replace github.com/ItsThompson/gofin/services/auth => ../auth
 

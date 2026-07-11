@@ -500,6 +500,45 @@ func TestGatewayResolve(t *testing.T) {
 	}
 }
 
+// TestAccessControl_ErrorBodies_MatchApierrWireShape pins that routing the
+// gateway's middleware errors through apierr.Respond preserves the exact
+// {code,message} wire shape clients already receive, so the migration is not a
+// schema change. Covers the 401 (missing cookie), 403 (denied route), and 503
+// (auth-dependency timeout) paths.
+func TestAccessControl_ErrorBodies_MatchApierrWireShape(t *testing.T) {
+	t.Run("401 missing cookie", func(t *testing.T) {
+		engine := buildEngine(&fakeValidator{}, silentLogger(), http.MethodGet, "/api/auth/me", okHandler)
+		req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authentication required"}`, rec.Body.String())
+	})
+
+	t.Run("403 denied unclassified route", func(t *testing.T) {
+		engine := buildEngine(&fakeValidator{}, silentLogger(), http.MethodGet, "/api/unclassified", okHandler)
+		req := httptest.NewRequest(http.MethodGet, "/api/unclassified", nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+		assert.JSONEq(t, `{"code":"FORBIDDEN","message":"Access denied"}`, rec.Body.String())
+	})
+
+	t.Run("503 auth dependency timeout", func(t *testing.T) {
+		validator := &fakeValidator{err: context.DeadlineExceeded}
+		engine := buildEngine(validator, silentLogger(), http.MethodGet, "/api/finance/periods", okHandler)
+		req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+		req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		assert.JSONEq(t, `{"code":"SERVICE_UNAVAILABLE","message":"Authentication service unavailable"}`, rec.Body.String())
+	})
+}
+
 // bytesBuffer is a minimal io.Writer that also parses the last JSON log line.
 type bytesBuffer struct {
 	data []byte
