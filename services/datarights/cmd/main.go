@@ -16,7 +16,6 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/db/migrations"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
-	deletionproviders "github.com/ItsThompson/gofin/services/datarights/internal/deletion/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
@@ -164,10 +163,24 @@ func run() error {
 
 	// Set up deletion engine with provider registry
 	deletionRepo := repository.NewPostgresDeletionJobRepository(pool)
+
+	// Register the deletion providers as name+func pairs. Registration order is
+	// execution order: finance and expense first, auth last (a user cannot
+	// authenticate once auth data is gone). Each func wraps one idempotent gRPC
+	// delete call and discards the response.
 	deletionRegistry := deletion.NewRegistry()
-	deletionRegistry.Register(deletionproviders.NewFinanceDeletionProvider(financeClient))
-	deletionRegistry.Register(deletionproviders.NewExpenseDeletionProvider(expenseClient))
-	deletionRegistry.Register(deletionproviders.NewAuthDeletionProvider(authClient))
+	deletionRegistry.Register(deletion.NewFuncProvider("finance", func(ctx context.Context, userID string) error {
+		_, err := financeClient.DeleteAllUserData(ctx, &financepb.DeleteAllUserDataRequest{UserId: userID})
+		return err
+	}))
+	deletionRegistry.Register(deletion.NewFuncProvider("expense", func(ctx context.Context, userID string) error {
+		_, err := expenseClient.AnonymizeAllUserExpenses(ctx, &expensepb.AnonymizeRequest{UserId: userID})
+		return err
+	}))
+	deletionRegistry.Register(deletion.NewFuncProvider("auth", func(ctx context.Context, userID string) error {
+		_, err := authClient.DeleteUserData(ctx, &authpb.DeleteUserDataRequest{UserId: userID})
+		return err
+	}))
 
 	deletionEngine := deletion.NewEngine(
 		deletionRegistry,
