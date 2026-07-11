@@ -60,14 +60,15 @@ func New(maxConcurrent int, timeout time.Duration, store StatusStore, execute Ex
 	}
 }
 
-// Submit is non-blocking: it spawns a worker goroutine that acquires a slot,
-// transitions the job to running, runs execute, then completes or fails it.
+// Submit is non-blocking: it marks the job queued and spawns a worker goroutine
+// that acquires a slot, transitions the job to running, runs execute, then
+// completes or fails it.
 func (p *Pool) Submit(jobID, userID string) {
+	p.queued.Add(1)
 	go p.run(jobID, userID)
 }
 
 func (p *Pool) run(jobID, userID string) {
-	p.queued.Add(1)
 	p.sem <- struct{}{} // acquire slot (blocks if the pool is full)
 	p.queued.Add(-1)
 	defer func() { <-p.sem }()
