@@ -223,7 +223,10 @@ func TestRESTPort(t *testing.T) {
 	assert.Equal(t, "9090", RESTPort())
 }
 
-// clearEnv unsets all config env vars so tests are isolated.
+// clearEnv resets all config env vars to empty for test isolation. Load treats
+// an empty value as unset (each read guards on ""), so the "missing var" cases
+// behave as if the var were absent, while t.Setenv still restores the original
+// on cleanup.
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
@@ -233,8 +236,6 @@ func clearEnv(t *testing.T) {
 		"CLEANUP_INTERVAL", "CLEANUP_TIMEOUT",
 	} {
 		t.Setenv(key, "")
-		// t.Setenv restores original value on cleanup, but we need
-		// the var to be truly unset for "missing" tests
 	}
 }
 
