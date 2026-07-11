@@ -700,7 +700,7 @@ func (r *fakeFanoutRepo) GetCurrentPeriod(_ context.Context, _ string, year, mon
 // discarded logger and no transaction beginner (the read paths never open a tx).
 func newFanoutService(repo repository.FinanceRepository, exp ExpenseClient) *FinanceService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewFinanceService(repo, nil, logger).WithExpenseClient(exp)
+	return NewFinanceService(repo, nil, exp, time.Now, logger)
 }
 
 // --- GetSpendingTrends fan-out regression tests ---

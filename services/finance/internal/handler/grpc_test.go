@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
@@ -21,8 +22,29 @@ import (
 
 func setupGRPCHandler(repo *mockFinanceRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, new(mockTxBeginner), logger)
+	financeSvc := service.NewFinanceService(repo, new(mockTxBeginner), nil, time.Now, logger)
 	return NewGRPCHandler(financeSvc, logger)
+}
+
+// TestGetDefaults_WrappedTypedErrorClassifies locks in C7: a typed *apierr.Error
+// that has been %w-wrapped before reaching the gRPC handler must still classify
+// via errors.As (not collapse to codes.Internal). The service wraps every repo
+// error with %w ("getting defaults: %w"), so a typed NOT_FOUND returned by the
+// repo reaches the handler wrapped; the handler must still map it to NotFound.
+func TestGetDefaults_WrappedTypedErrorClassifies(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	repo.On("GetDefaults", mock.Anything, "user-1").
+		Return(nil, apierr.NotFound("defaults missing"))
+
+	resp, err := handler.GetDefaults(context.Background(), &pb.GetDefaultsRequest{UserId: "user-1"})
+	assert.Nil(t, resp)
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
 }
 
 func TestGetAllUserData_Success(t *testing.T) {
@@ -140,7 +162,7 @@ func TestDeleteAllUserData_Success(t *testing.T) {
 	tx := &mockTx{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 	handler := NewGRPCHandler(financeSvc, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
@@ -164,7 +186,7 @@ func TestDeleteAllUserData_Idempotent(t *testing.T) {
 	tx := &mockTx{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 	handler := NewGRPCHandler(financeSvc, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
@@ -201,7 +223,7 @@ func TestDeleteAllUserData_DatabaseError(t *testing.T) {
 	tx := &mockTx{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 	handler := NewGRPCHandler(financeSvc, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
@@ -227,7 +249,7 @@ func TestDeleteAllUserData_TransactionBeginError(t *testing.T) {
 	txBeginner := new(mockTxBeginner)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 	handler := NewGRPCHandler(financeSvc, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(nil, fmt.Errorf("pool exhausted"))

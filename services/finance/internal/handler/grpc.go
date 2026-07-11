@@ -2,11 +2,13 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
@@ -32,8 +34,9 @@ func NewGRPCHandler(financeService *service.FinanceService, logger *slog.Logger)
 func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsRequest) (*pb.DefaultsResponse, error) {
 	defaults, err := h.financeService.GetDefaults(ctx, req.GetUserId())
 	if err != nil {
-		if svcErr, ok := err.(*service.ServiceError); ok && svcErr.Code == model.ErrNotFound {
-			return nil, status.Error(codes.NotFound, svcErr.Message)
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) && apiErr.Code == apierr.CodeNotFound {
+			return nil, status.Error(codes.NotFound, apiErr.Message)
 		}
 		return nil, status.Error(codes.Internal, "failed to get defaults")
 	}
@@ -59,8 +62,9 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 		Currency:          req.GetCurrency(),
 	})
 	if err != nil {
-		if svcErr, ok := err.(*service.ServiceError); ok {
-			return nil, status.Error(codes.InvalidArgument, svcErr.Message)
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) {
+			return nil, status.Error(codes.InvalidArgument, apiErr.Message)
 		}
 		return nil, status.Error(codes.Internal, "failed to complete onboarding")
 	}
@@ -80,8 +84,9 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
 	tags, err := h.financeService.ListTags(ctx, req.GetUserId())
 	if err != nil {
-		if svcErr, ok := err.(*service.ServiceError); ok {
-			return nil, status.Error(codes.Internal, svcErr.Message)
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) {
+			return nil, status.Error(codes.Internal, apiErr.Message)
 		}
 		return nil, status.Error(codes.Internal, "failed to list tags")
 	}
@@ -102,12 +107,13 @@ func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*p
 func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (*pb.TagResponse, error) {
 	tag, err := h.financeService.CreateTag(ctx, req.GetUserId(), &model.CreateTagRequest{Name: req.GetName()})
 	if err != nil {
-		if svcErr, ok := err.(*service.ServiceError); ok {
-			switch svcErr.Code {
-			case model.ErrValidationError:
-				return nil, status.Error(codes.InvalidArgument, svcErr.Message)
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) {
+			switch apiErr.Code {
+			case apierr.CodeValidation:
+				return nil, status.Error(codes.InvalidArgument, apiErr.Message)
 			case model.ErrDuplicateTag:
-				return nil, status.Error(codes.AlreadyExists, svcErr.Message)
+				return nil, status.Error(codes.AlreadyExists, apiErr.Message)
 			}
 		}
 		return nil, status.Error(codes.Internal, "failed to create tag")
@@ -119,14 +125,15 @@ func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (
 func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (*pb.TagResponse, error) {
 	tag, err := h.financeService.UpdateTag(ctx, req.GetUserId(), req.GetTagId(), &model.UpdateTagRequest{Name: req.GetName()})
 	if err != nil {
-		if svcErr, ok := err.(*service.ServiceError); ok {
-			switch svcErr.Code {
-			case model.ErrValidationError:
-				return nil, status.Error(codes.InvalidArgument, svcErr.Message)
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) {
+			switch apiErr.Code {
+			case apierr.CodeValidation:
+				return nil, status.Error(codes.InvalidArgument, apiErr.Message)
 			case model.ErrDuplicateTag:
-				return nil, status.Error(codes.AlreadyExists, svcErr.Message)
-			case model.ErrNotFound:
-				return nil, status.Error(codes.NotFound, svcErr.Message)
+				return nil, status.Error(codes.AlreadyExists, apiErr.Message)
+			case apierr.CodeNotFound:
+				return nil, status.Error(codes.NotFound, apiErr.Message)
 			}
 		}
 		return nil, status.Error(codes.Internal, "failed to update tag")
@@ -138,14 +145,15 @@ func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (
 func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (*pb.DeleteTagResponse, error) {
 	err := h.financeService.DeleteTag(ctx, req.GetUserId(), req.GetTagId())
 	if err != nil {
-		if svcErr, ok := err.(*service.ServiceError); ok {
-			switch svcErr.Code {
-			case model.ErrNotFound:
-				return nil, status.Error(codes.NotFound, svcErr.Message)
+		var apiErr *apierr.Error
+		if errors.As(err, &apiErr) {
+			switch apiErr.Code {
+			case apierr.CodeNotFound:
+				return nil, status.Error(codes.NotFound, apiErr.Message)
 			case model.ErrDefaultTag:
-				return nil, status.Error(codes.PermissionDenied, svcErr.Message)
+				return nil, status.Error(codes.PermissionDenied, apiErr.Message)
 			case model.ErrTagInUse:
-				return nil, status.Error(codes.FailedPrecondition, svcErr.Message)
+				return nil, status.Error(codes.FailedPrecondition, apiErr.Message)
 			}
 		}
 		return nil, status.Error(codes.Internal, "failed to delete tag")

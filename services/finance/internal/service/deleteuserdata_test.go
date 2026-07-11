@@ -53,7 +53,7 @@ func TestDeleteAllUserData_ServiceSuccess(t *testing.T) {
 	tx := &mockTxForDeletion{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewFinanceService(nil, txBeginner, logger)
+	svc := NewFinanceService(nil, txBeginner, nil, nil, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)
@@ -73,7 +73,7 @@ func TestDeleteAllUserData_ServiceIdempotent_NoData(t *testing.T) {
 	tx := &mockTxForDeletion{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewFinanceService(nil, txBeginner, logger)
+	svc := NewFinanceService(nil, txBeginner, nil, nil, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)
@@ -91,7 +91,7 @@ func TestDeleteAllUserData_ServiceTransactionBeginError(t *testing.T) {
 	txBeginner := new(mockTxBeginnerForDeletion)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewFinanceService(nil, txBeginner, logger)
+	svc := NewFinanceService(nil, txBeginner, nil, nil, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(nil, fmt.Errorf("pool exhausted"))
 
@@ -106,7 +106,7 @@ func TestDeleteAllUserData_ServiceRepositoryError_RollsBack(t *testing.T) {
 	tx := &mockTxForDeletion{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewFinanceService(nil, txBeginner, logger)
+	svc := NewFinanceService(nil, txBeginner, nil, nil, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)
@@ -127,7 +127,7 @@ func TestDeleteAllUserData_ServiceCommitError(t *testing.T) {
 	tx := &mockTxForDeletion{repo: txRepo}
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewFinanceService(nil, txBeginner, logger)
+	svc := NewFinanceService(nil, txBeginner, nil, nil, logger)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)

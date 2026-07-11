@@ -5,6 +5,21 @@ import (
 	"os"
 )
 
+// DefaultRESTPort is the single source of truth for the finance REST port
+// default. It backs both the listener (via Load) and the --healthcheck probe
+// (via ResolveRESTPort) so the two never desync (US-PLATFORM-05).
+const DefaultRESTPort = "8083"
+
+// ResolveRESTPort returns the REST port from REST_PORT, falling back to
+// DefaultRESTPort. The --healthcheck branch runs before Load, so it calls this
+// to probe the same port the listener will bind.
+func ResolveRESTPort() string {
+	if p := os.Getenv("REST_PORT"); p != "" {
+		return p
+	}
+	return DefaultRESTPort
+}
+
 // Config holds all configuration for the finance service, loaded from environment variables.
 type Config struct {
 	DBUrl              string
@@ -38,10 +53,7 @@ func Load() (*Config, error) {
 		environment = "development"
 	}
 
-	restPort := os.Getenv("REST_PORT")
-	if restPort == "" {
-		restPort = "8083"
-	}
+	restPort := ResolveRESTPort()
 
 	grpcPort := os.Getenv("GRPC_PORT")
 	if grpcPort == "" {

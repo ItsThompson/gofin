@@ -11,27 +11,24 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/db/migrations"
 	"github.com/ItsThompson/gofin/services/finance/internal/config"
 	"github.com/ItsThompson/gofin/services/finance/internal/db"
 	"github.com/ItsThompson/gofin/services/finance/internal/handler"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
-	"github.com/ItsThompson/gofin/services/dbmigrate"
-	"github.com/ItsThompson/gofin/services/healthcheck"
-	"github.com/ItsThompson/gofin/services/metrics"
-	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
+	"github.com/ItsThompson/gofin/services/healthcheck"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 func main() {
 	if healthcheck.ShouldRun(os.Args) {
-		os.Exit(healthcheck.Run("8083"))
+		os.Exit(healthcheck.Run(config.ResolveRESTPort()))
 	}
 
 	if err := run(); err != nil {
@@ -51,40 +48,16 @@ func run() error {
 	}
 
 	// Set up structured logging
-	logLevel := slog.LevelInfo
-	switch cfg.LogLevel {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "warn":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	logger = logger.With(slog.String("service", "finance"))
+	logger := serverkit.NewLogger(cfg.LogLevel, "finance")
 	slog.SetDefault(logger)
 
-	// Run database migrations (embedded in binary via go:embed)
-	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
-	}
-
-	// Connect to PostgreSQL
-	pool, err := pgxpool.New(ctx, cfg.DBUrl)
+	// Run embedded migrations, open the pool, and ping it.
+	pool, err := serverkit.ConnectPostgres(ctx, cfg.DBUrl, migrations.FS)
 	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
+		return err
 	}
 	defer pool.Close()
-
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("pinging database: %w", err)
-	}
 	logger.Info("connected to PostgreSQL")
-
-	// Log the expense service address (connection not required yet per ticket notes)
-	logger.Info("expense service configured",
-		slog.String("addr", cfg.ExpenseServiceAddr),
-	)
 
 	// Connect to expense service gRPC for dashboard aggregation
 	expenseConn, err := grpc.NewClient(
@@ -106,12 +79,10 @@ func run() error {
 	expenseClient := service.NewGRPCExpenseClient(
 		expensepb.NewExpenseServiceClient(expenseConn),
 	)
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expenseClient)
+	financeSvc := service.NewFinanceService(repo, txBeginner, expenseClient, time.Now, logger)
 
-	// Start gRPC server
-	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
-	)
+	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
+	grpcServer := serverkit.NewGRPCServer()
 	grpcHandler := handler.NewGRPCHandler(financeSvc, logger)
 	pb.RegisterFinanceServiceServer(grpcServer, grpcHandler)
 
@@ -120,29 +91,8 @@ func run() error {
 		return fmt.Errorf("listening on gRPC port %s: %w", cfg.GRPCPort, err)
 	}
 
-	go func() {
-		logger.Info("gRPC server starting",
-			slog.String("port", cfg.GRPCPort),
-		)
-		if err := grpcServer.Serve(grpcLis); err != nil {
-			logger.Error("gRPC server failed", slog.String("error", err.Error()))
-		}
-	}()
-
-	// Start REST server
-	if cfg.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	router := gin.New()
-	router.Use(gin.Recovery())
-	router.Use(metrics.HTTPMetrics())
-
-	metrics.Register(router)
-
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
+	// Build the REST router and server.
+	router := serverkit.NewRouter("finance", cfg.IsProduction())
 	restHandler := handler.NewRESTHandler(financeSvc, logger)
 	restHandler.RegisterRoutes(router)
 
@@ -151,32 +101,12 @@ func run() error {
 		Handler: router,
 	}
 
-	go func() {
-		logger.Info("REST server starting",
-			slog.String("port", cfg.RESTPort),
-		)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("REST server failed", slog.String("error", err.Error()))
-		}
-	}()
-
 	logger.Info("finance service ready",
 		slog.String("rest_port", cfg.RESTPort),
 		slog.String("grpc_port", cfg.GRPCPort),
 	)
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	logger.Info("shutting down finance service")
-
-	// Graceful shutdown: give in-flight requests up to 10 seconds
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	grpcServer.GracefulStop()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("REST server shutdown error", slog.String("error", err.Error()))
-	}
-
-	return nil
+	// Serve blocks until ctx is cancelled or a server fails fatally (e.g. a REST
+	// bind failure), returning that error so the process exits non-zero (C5).
+	return serverkit.Serve(ctx, httpServer, grpcServer, grpcLis)
 }
