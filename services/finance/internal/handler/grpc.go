@@ -12,9 +12,9 @@ import (
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
-// GRPCHandler implements the FinanceService gRPC server.
-// CompleteOnboarding and GetDefaults are implemented.
-// All other RPCs return Unimplemented (stubs for later tickets).
+// GRPCHandler implements the FinanceService gRPC server. RPCs without an
+// explicit method are served by the embedded UnimplementedFinanceServiceServer,
+// which returns codes.Unimplemented.
 type GRPCHandler struct {
 	pb.UnimplementedFinanceServiceServer
 	financeService *service.FinanceService
@@ -75,27 +75,6 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 			Currency:          defaults.Currency,
 		},
 	}, nil
-}
-
-// Stub RPCs: return Unimplemented for later tickets.
-func (h *GRPCHandler) UpdateDefaults(ctx context.Context, req *pb.UpdateDefaultsRequest) (*pb.DefaultsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "UpdateDefaults not yet implemented")
-}
-
-func (h *GRPCHandler) GetCurrentPeriod(ctx context.Context, req *pb.GetCurrentPeriodRequest) (*pb.PeriodResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetCurrentPeriod not yet implemented")
-}
-
-func (h *GRPCHandler) CreatePeriod(ctx context.Context, req *pb.CreatePeriodRequest) (*pb.PeriodResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "CreatePeriod not yet implemented")
-}
-
-func (h *GRPCHandler) UpdatePeriod(ctx context.Context, req *pb.UpdatePeriodRequest) (*pb.PeriodResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "UpdatePeriod not yet implemented")
-}
-
-func (h *GRPCHandler) ListPeriods(ctx context.Context, req *pb.ListPeriodsRequest) (*pb.PeriodListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "ListPeriods not yet implemented")
 }
 
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
@@ -173,34 +152,6 @@ func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (
 	}
 
 	return &pb.DeleteTagResponse{}, nil
-}
-
-func (h *GRPCHandler) CheckTagUsage(ctx context.Context, req *pb.CheckTagUsageRequest) (*pb.TagUsageResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "CheckTagUsage not yet implemented")
-}
-
-func (h *GRPCHandler) CreateProRataExpense(ctx context.Context, req *pb.CreateProRataExpenseRequest) (*pb.ProRataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "CreateProRataExpense not yet implemented")
-}
-
-func (h *GRPCHandler) GetUpcomingProRata(ctx context.Context, req *pb.GetUpcomingProRataRequest) (*pb.UpcomingProRataListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetUpcomingProRata not yet implemented")
-}
-
-func (h *GRPCHandler) GetPeriodSummary(ctx context.Context, req *pb.GetPeriodSummaryRequest) (*pb.PeriodSummaryResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetPeriodSummary not yet implemented")
-}
-
-func (h *GRPCHandler) GetSpendingByTag(ctx context.Context, req *pb.GetSpendingByTagRequest) (*pb.TagSpendingListResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetSpendingByTag not yet implemented")
-}
-
-func (h *GRPCHandler) GetCumulativeSpend(ctx context.Context, req *pb.GetCumulativeSpendRequest) (*pb.CumulativeSpendResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetCumulativeSpend not yet implemented")
-}
-
-func (h *GRPCHandler) GetHistoricalComparison(ctx context.Context, req *pb.GetHistoricalComparisonRequest) (*pb.HistoricalComparisonResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "GetHistoricalComparison not yet implemented")
 }
 
 func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserDataRequest) (*pb.AllUserDataResponse, error) {
