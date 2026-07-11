@@ -22,6 +22,7 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/handler"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
+	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
@@ -139,9 +140,25 @@ func run() error {
 	// (scraped by the Grafana dashboard and the stuck-pool alert).
 	exportmetrics.SetPoolStats(exportEngine.ActiveJobs, exportEngine.QueuedJobs)
 
-	// Startup recovery: re-submit non-terminal export jobs
+	// Startup recovery: re-submit non-terminal export jobs. Export resolves the
+	// user's email first; a failure is logged and the job is submitted anyway (it
+	// will fail with a descriptive error at the email step).
 	emailResolver := service.NewAuthUserEmailResolver(authClient)
-	recoverJobs(ctx, repo, exportEngine, emailResolver, logger)
+	recoverJobs(ctx, logger, "export", repo.GetNonTerminalJobs, func(ctx context.Context, job model.RecoverableJob) {
+		userEmail, err := emailResolver.ResolveEmail(ctx, job.UserID)
+		if err != nil {
+			logger.Error("failed to resolve email for recovered job",
+				slog.String("job_id", job.ID),
+				slog.String("user_id", job.UserID),
+				slog.String("error", err.Error()),
+			)
+		}
+		logger.Info("re-submitting job",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+		)
+		exportEngine.Submit(job.ID, job.UserID, userEmail)
+	})
 
 	exportSvc := service.NewExportService(repo, logger, service.WithEngine(exportEngine), service.WithEmailResolver(emailResolver))
 
@@ -161,7 +178,13 @@ func run() error {
 	)
 
 	// Startup recovery: re-submit non-terminal deletion jobs
-	recoverDeletionJobs(ctx, deletionRepo, deletionEngine, logger)
+	recoverJobs(ctx, logger, "deletion", deletionRepo.GetNonTerminalJobs, func(_ context.Context, job model.RecoverableDeletionJob) {
+		logger.Info("re-submitting deletion job",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+		)
+		deletionEngine.Submit(job.ID, job.UserID)
+	})
 
 	deletionSvc := service.NewDeletionService(deletionRepo, logger,
 		service.WithDeletionEngine(deletionEngine),
@@ -195,11 +218,23 @@ func run() error {
 	return serverkit.Serve(ctx, httpServer, nil, nil)
 }
 
-// recoverJobs re-submits any non-terminal jobs found in the database on startup.
-func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine.Engine, resolver service.UserEmailResolver, logger *slog.Logger) {
-	jobs, err := repo.GetNonTerminalJobs(ctx)
+// recoverJobs re-submits non-terminal jobs found in the database on startup. It
+// shares the query -> empty-check -> per-job submit skeleton across both
+// engines; the submit closure supplies the engine-specific step (export
+// resolves the user's email before re-submitting).
+func recoverJobs[J any](
+	ctx context.Context,
+	logger *slog.Logger,
+	kind string,
+	fetch func(context.Context) ([]J, error),
+	submit func(context.Context, J),
+) {
+	jobs, err := fetch(ctx)
 	if err != nil {
-		logger.Error("failed to query recoverable jobs", slog.String("error", err.Error()))
+		logger.Error("failed to query recoverable jobs",
+			slog.String("kind", kind),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -207,47 +242,13 @@ func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine
 		return
 	}
 
-	logger.Info("recovering non-terminal jobs", slog.Int("count", len(jobs)))
+	logger.Info("recovering non-terminal jobs",
+		slog.String("kind", kind),
+		slog.Int("count", len(jobs)),
+	)
 
 	for _, job := range jobs {
-		userEmail, err := resolver.ResolveEmail(ctx, job.UserID)
-		if err != nil {
-			logger.Error("failed to resolve email for recovered job",
-				slog.String("job_id", job.ID),
-				slog.String("user_id", job.UserID),
-				slog.String("error", err.Error()),
-			)
-			// Submit anyway: will fail at email step with descriptive error
-		}
-
-		logger.Info("re-submitting job",
-			slog.String("job_id", job.ID),
-			slog.String("user_id", job.UserID),
-		)
-		eng.Submit(job.ID, job.UserID, userEmail)
-	}
-}
-
-// recoverDeletionJobs re-submits any non-terminal deletion jobs on startup.
-func recoverDeletionJobs(ctx context.Context, repo repository.DeletionJobRepository, eng *deletion.Engine, logger *slog.Logger) {
-	jobs, err := repo.GetNonTerminalJobs(ctx)
-	if err != nil {
-		logger.Error("failed to query recoverable deletion jobs", slog.String("error", err.Error()))
-		return
-	}
-
-	if len(jobs) == 0 {
-		return
-	}
-
-	logger.Info("recovering non-terminal deletion jobs", slog.Int("count", len(jobs)))
-
-	for _, job := range jobs {
-		logger.Info("re-submitting deletion job",
-			slog.String("job_id", job.ID),
-			slog.String("user_id", job.UserID),
-		)
-		eng.Submit(job.ID, job.UserID)
+		submit(ctx, job)
 	}
 }
 
