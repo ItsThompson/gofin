@@ -313,6 +313,34 @@ func TestCompleteOnboardingHandler_InvalidSplit(t *testing.T) {
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
+func TestCompleteOnboardingHandler_MultiFieldValidationEmitsFields(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	// 50/50/50 sums to 150: a multi-field validation failure (C6). The wire
+	// response must carry field-level detail for every offending percentage,
+	// end to end through apierr.Respond.
+	w := doJSONWithUserID(r, "POST", "/api/finance/onboarding", "user-123", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    50,
+		"savingsPercent":    50,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
+	assert.Equal(t, map[string]string{
+		"essentialsPercent": "must sum to 100 with desires and savings",
+		"desiresPercent":    "must sum to 100 with essentials and savings",
+		"savingsPercent":    "must sum to 100 with essentials and desires",
+	}, errResp.Fields)
+}
+
 func TestCompleteOnboardingHandler_ZeroPercentAllocations(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
