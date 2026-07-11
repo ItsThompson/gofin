@@ -4,65 +4,14 @@ package dbmigrate
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"strings"
 
-	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 )
-
-// Run connects to the database at dbURL, reads migrations from migrationsPath,
-// and applies any pending migrations. It returns nil when all migrations are
-// applied (including the case where no new migrations exist).
-//
-// If the connection URL contains a search_path parameter referencing a schema
-// that doesn't yet exist, Run creates the schema before running migrations.
-// This solves the chicken-and-egg problem where golang-migrate's postgres driver
-// requires the schema to exist on connect.
-//
-// A non-nil error is returned when:
-//   - The migrations path doesn't exist or contains no migration files
-//   - The database URL is invalid or unreachable
-//   - A migration fails to apply (the database is left in a dirty state)
-func Run(dbURL, migrationsPath string) error {
-	if migrationsPath == "" {
-		return fmt.Errorf("dbmigrate: migrations path is empty")
-	}
-
-	if err := ensureSchema(dbURL); err != nil {
-		return fmt.Errorf("dbmigrate: ensuring schema exists: %w", err)
-	}
-
-	sourceURL := fmt.Sprintf("file://%s", migrationsPath)
-
-	m, err := migrate.New(sourceURL, dbURL)
-	if err != nil {
-		return fmt.Errorf("dbmigrate: creating migrator: %w", err)
-	}
-	defer m.Close() //nolint:errcheck
-
-	err = m.Up()
-	if errors.Is(err, migrate.ErrNoChange) {
-		slog.Info("dbmigrate: no new migrations to apply")
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("dbmigrate: applying migrations: %w", err)
-	}
-
-	version, dirty, _ := m.Version()
-	slog.Info("dbmigrate: migrations applied successfully",
-		slog.Uint64("version", uint64(version)),
-		slog.Bool("dirty", dirty),
-	)
-
-	return nil
-}
 
 // ensureSchema parses the search_path from the database URL and creates the
 // schema if it doesn't exist. This must run before golang-migrate connects,
