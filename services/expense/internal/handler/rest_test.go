@@ -104,7 +104,7 @@ func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, user
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, logger)
+	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
 	h := NewRESTHandler(expenseSvc, logger)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -426,7 +426,7 @@ func TestGetExpenseHandler_NotFound(t *testing.T) {
 func setupTestRouterWithClock(repo *mockExpenseRepository, now time.Time) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, logger).WithClock(func() time.Time { return now })
+	expenseSvc := service.NewExpenseService(repo, func() time.Time { return now }, logger)
 	h := NewRESTHandler(expenseSvc, logger)
 	r := gin.New()
 	h.RegisterRoutes(r)

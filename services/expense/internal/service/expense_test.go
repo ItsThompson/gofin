@@ -98,7 +98,7 @@ func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, user
 
 func newTestService(repo *mockExpenseRepository) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewExpenseService(repo, logger)
+	return NewExpenseService(repo, time.Now, logger)
 }
 
 func validCreateRequest() *model.CreateExpenseRequest {
@@ -436,9 +436,8 @@ func validCorrectRequest() *model.CorrectExpenseRequest {
 }
 
 func newTestServiceWithClock(repo *mockExpenseRepository, now time.Time) *ExpenseService {
-	svc := newTestService(repo)
-	svc.WithClock(func() time.Time { return now })
-	return svc
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return NewExpenseService(repo, func() time.Time { return now }, logger)
 }
 
 func TestCorrectExpense_Success(t *testing.T) {

@@ -23,23 +23,19 @@ type ExpenseService struct {
 	clock  func() time.Time
 }
 
-// NewExpenseService creates a new ExpenseService.
+// NewExpenseService creates a new ExpenseService. The clock seam supplies the
+// current time for CreatedAt stamping and the period-lock check; production
+// passes time.Now and tests inject a fixed clock.
 func NewExpenseService(
 	repo repository.ExpenseRepository,
+	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
 	return &ExpenseService{
 		repo:   repo,
 		logger: logger,
-		clock:  time.Now,
+		clock:  clock,
 	}
-}
-
-// WithClock returns a copy of the service with a custom clock function.
-// Used in tests to inject a fixed time.
-func (s *ExpenseService) WithClock(clock func() time.Time) *ExpenseService {
-	s.clock = clock
-	return s
 }
 
 // ServiceError is a typed error that carries an HTTP status code, error code,
@@ -61,7 +57,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := s.clock().UTC().Format(time.RFC3339)
 	expense := &model.Expense{
 		ID:           uuid.New().String(),
 		UserID:       userID,
@@ -253,7 +249,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		ProRataGroup: original.ProRataGroup,
 		ProRataIndex: original.ProRataIndex,
 		ProRataTotal: original.ProRataTotal,
-		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:    s.clock().UTC().Format(time.RFC3339),
 	}
 
 	created, err := s.repo.CorrectExpense(ctx, original, correction)

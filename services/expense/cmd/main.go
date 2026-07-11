@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/handler"
@@ -61,7 +62,7 @@ func run() error {
 	}
 
 	// Build dependency graph
-	expenseSvc := service.NewExpenseService(repo, logger)
+	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

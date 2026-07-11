@@ -220,7 +220,7 @@ func TestStreamAllUserExpenses_ProducerLookAheadBoundedToOnePage(t *testing.T) {
 		page: page,
 		next: repository.ExpenseCursor{CreatedAt: "2026-05-01T00:00:00Z", ID: "exp-9"},
 	}
-	svc := NewExpenseService(repo, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	svc := NewExpenseService(repo, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
