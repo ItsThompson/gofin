@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 )
@@ -185,10 +187,10 @@ func TestRegister_WeakPassword(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
-	assert.Equal(t, 400, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrWeakPassword, apiErr.Code)
+	assert.Equal(t, http.StatusBadRequest, apiErr.Status)
 }
 
 func TestRegister_PasswordTooLong(t *testing.T) {
@@ -205,11 +207,11 @@ func TestRegister_PasswordTooLong(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
-	assert.Equal(t, 400, authErr.Status)
-	assert.Contains(t, authErr.Message, "must not exceed 72 characters")
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrWeakPassword, apiErr.Code)
+	assert.Equal(t, http.StatusBadRequest, apiErr.Status)
+	assert.Contains(t, apiErr.Message, "must not exceed 72 characters")
 }
 
 func TestRegister_DuplicateEmail(t *testing.T) {
@@ -229,10 +231,10 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrDuplicateEmail, authErr.Code)
-	assert.Equal(t, 409, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrDuplicateEmail, apiErr.Code)
+	assert.Equal(t, http.StatusConflict, apiErr.Status)
 }
 
 func TestRegister_DuplicateUsername(t *testing.T) {
@@ -253,10 +255,10 @@ func TestRegister_DuplicateUsername(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrDuplicateUsername, authErr.Code)
-	assert.Equal(t, 409, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrDuplicateUsername, apiErr.Code)
+	assert.Equal(t, http.StatusConflict, apiErr.Status)
 }
 
 func TestRegister_EmailNormalization(t *testing.T) {
@@ -304,10 +306,10 @@ func TestRegister_DuplicateEmailFromConstraint(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrDuplicateEmail, authErr.Code)
-	assert.Equal(t, 409, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrDuplicateEmail, apiErr.Code)
+	assert.Equal(t, http.StatusConflict, apiErr.Status)
 }
 
 func TestRegister_DuplicateUsernameFromConstraint(t *testing.T) {
@@ -327,10 +329,10 @@ func TestRegister_DuplicateUsernameFromConstraint(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrDuplicateUsername, authErr.Code)
-	assert.Equal(t, 409, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrDuplicateUsername, apiErr.Code)
+	assert.Equal(t, http.StatusConflict, apiErr.Status)
 }
 
 // --- Login Tests ---
@@ -379,12 +381,12 @@ func TestLogin_WrongPassword(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrInvalidCredentials, authErr.Code)
-	assert.Equal(t, 401, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrInvalidCredentials, apiErr.Code)
+	assert.Equal(t, http.StatusUnauthorized, apiErr.Status)
 	// Must not hint at which field is wrong
-	assert.Equal(t, "Invalid email or password", authErr.Message)
+	assert.Equal(t, "Invalid email or password", apiErr.Message)
 }
 
 func TestLogin_UserNotFound(t *testing.T) {
@@ -400,11 +402,11 @@ func TestLogin_UserNotFound(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrInvalidCredentials, authErr.Code)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrInvalidCredentials, apiErr.Code)
 	// Same message as wrong password: no hint about whether user exists
-	assert.Equal(t, "Invalid email or password", authErr.Message)
+	assert.Equal(t, "Invalid email or password", apiErr.Message)
 }
 
 // --- ValidateToken Tests ---
@@ -435,9 +437,9 @@ func TestValidateToken_Invalid(t *testing.T) {
 
 	_, err := svc.ValidateToken(ctx, "garbage-token")
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeUnauthorized, apiErr.Code)
 }
 
 func TestValidateToken_RevokedToken(t *testing.T) {
@@ -455,10 +457,10 @@ func TestValidateToken_RevokedToken(t *testing.T) {
 
 	_, err = svc.ValidateToken(ctx, access)
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
-	assert.Contains(t, authErr.Message, "revoked")
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeUnauthorized, apiErr.Code)
+	assert.Contains(t, apiErr.Message, "revoked")
 }
 
 func TestValidateToken_SameSecondGracePeriod(t *testing.T) {
@@ -543,10 +545,10 @@ func TestRefreshToken_BlacklistedToken(t *testing.T) {
 	_, _, err = svc.RefreshToken(ctx, refreshToken)
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
-	assert.Equal(t, 401, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeUnauthorized, apiErr.Code)
+	assert.Equal(t, http.StatusUnauthorized, apiErr.Status)
 }
 
 func TestRefreshToken_ConsumeError(t *testing.T) {
@@ -582,10 +584,10 @@ func TestRefreshToken_ExpiredToken(t *testing.T) {
 	_, _, err := svc.RefreshToken(ctx, "expired-or-invalid-token")
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
-	assert.Equal(t, 401, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeUnauthorized, apiErr.Code)
+	assert.Equal(t, http.StatusUnauthorized, apiErr.Status)
 }
 
 func TestRefreshToken_UserNotFound(t *testing.T) {
@@ -607,10 +609,10 @@ func TestRefreshToken_UserNotFound(t *testing.T) {
 	_, _, err = svc.RefreshToken(ctx, refreshToken)
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrUnauthorized, authErr.Code)
-	assert.Equal(t, 401, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeUnauthorized, apiErr.Code)
+	assert.Equal(t, http.StatusUnauthorized, apiErr.Status)
 }
 
 // --- Logout Tests ---
@@ -725,10 +727,10 @@ func TestAssumeIdentity_CannotAssumeSelf(t *testing.T) {
 	_, _, err := svc.AssumeIdentity(ctx, "admin-123", "admin-123")
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrValidationError, authErr.Code)
-	assert.Equal(t, 400, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeValidation, apiErr.Code)
+	assert.Equal(t, http.StatusBadRequest, apiErr.Status)
 }
 
 func TestAssumeIdentity_TargetNotFound(t *testing.T) {
@@ -741,10 +743,10 @@ func TestAssumeIdentity_TargetNotFound(t *testing.T) {
 	_, _, err := svc.AssumeIdentity(ctx, "admin-123", "nonexistent")
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrNotFound, authErr.Code)
-	assert.Equal(t, 404, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeNotFound, apiErr.Code)
+	assert.Equal(t, http.StatusNotFound, apiErr.Status)
 }
 
 // --- RestoreIdentity Tests ---
@@ -786,10 +788,10 @@ func TestRestoreIdentity_EmptyAssumedBy(t *testing.T) {
 	_, _, err := svc.RestoreIdentity(ctx, "")
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrValidationError, authErr.Code)
-	assert.Equal(t, 400, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeValidation, apiErr.Code)
+	assert.Equal(t, http.StatusBadRequest, apiErr.Status)
 }
 
 func TestRestoreIdentity_AdminNotFound(t *testing.T) {
@@ -802,9 +804,9 @@ func TestRestoreIdentity_AdminNotFound(t *testing.T) {
 	_, _, err := svc.RestoreIdentity(ctx, "deleted-admin")
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrNotFound, authErr.Code)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeNotFound, apiErr.Code)
 }
 
 func TestRestoreIdentity_UserNotAdmin(t *testing.T) {
@@ -820,10 +822,10 @@ func TestRestoreIdentity_UserNotAdmin(t *testing.T) {
 	_, _, err := svc.RestoreIdentity(ctx, "regular-user")
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrForbidden, authErr.Code)
-	assert.Equal(t, 403, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeForbidden, apiErr.Code)
+	assert.Equal(t, http.StatusForbidden, apiErr.Status)
 }
 
 // --- SeedAdmin Tests ---
@@ -920,10 +922,10 @@ func TestUpdateProfile_DuplicateEmail(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrDuplicateEmail, authErr.Code)
-	assert.Equal(t, 409, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrDuplicateEmail, apiErr.Code)
+	assert.Equal(t, http.StatusConflict, apiErr.Status)
 }
 
 func TestUpdateProfile_DuplicateUsername(t *testing.T) {
@@ -944,10 +946,10 @@ func TestUpdateProfile_DuplicateUsername(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrDuplicateUsername, authErr.Code)
-	assert.Equal(t, 409, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrDuplicateUsername, apiErr.Code)
+	assert.Equal(t, http.StatusConflict, apiErr.Status)
 }
 
 func TestUpdateProfile_SameEmailSameUser_Succeeds(t *testing.T) {
@@ -979,6 +981,33 @@ func TestUpdateProfile_SameEmailSameUser_Succeeds(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "user-123", user.ID)
+}
+
+// TestUpdateProfile_OwnRecordMissing_Returns401 locks in the C8 fix: when the
+// caller's own record is missing, UpdateProfile returns 401 UNAUTHORIZED to
+// match GetUserByID / RefreshToken / CompleteOnboarding / ChangePassword (the
+// four-method majority), not the 404 it returned before.
+func TestUpdateProfile_OwnRecordMissing_Returns401(t *testing.T) {
+	repo := new(mockUserRepository)
+	svc := newTestAuthService(repo)
+	ctx := context.Background()
+
+	repo.On("GetUserByEmail", ctx, "me@example.com").Return(nil, nil)
+	repo.On("GetUserByUsername", ctx, "myname").Return(nil, nil)
+	// UpdateUser reports no matching row (own record vanished).
+	repo.On("UpdateUser", ctx, "user-123", "myname", "me@example.com", "USD").Return(nil, nil)
+
+	_, err := svc.UpdateProfile(ctx, "user-123", &model.UpdateProfileRequest{
+		Username: "myname",
+		Email:    "me@example.com",
+		Currency: "USD",
+	})
+
+	require.Error(t, err)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeUnauthorized, apiErr.Code)
+	assert.Equal(t, http.StatusUnauthorized, apiErr.Status)
 }
 
 // --- ChangePassword Tests ---
@@ -1029,10 +1058,10 @@ func TestChangePassword_WrongCurrentPassword(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrInvalidCredentials, authErr.Code)
-	assert.Equal(t, 401, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrInvalidCredentials, apiErr.Code)
+	assert.Equal(t, http.StatusUnauthorized, apiErr.Status)
 }
 
 func TestChangePassword_WeakNewPassword(t *testing.T) {
@@ -1052,10 +1081,10 @@ func TestChangePassword_WeakNewPassword(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
-	assert.Equal(t, 400, authErr.Status)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrWeakPassword, apiErr.Code)
+	assert.Equal(t, http.StatusBadRequest, apiErr.Status)
 }
 
 func TestChangePassword_NewPasswordTooLong(t *testing.T) {
@@ -1077,11 +1106,11 @@ func TestChangePassword_NewPasswordTooLong(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var authErr *AuthError
-	require.ErrorAs(t, err, &authErr)
-	assert.Equal(t, model.ErrWeakPassword, authErr.Code)
-	assert.Equal(t, 400, authErr.Status)
-	assert.Contains(t, authErr.Message, "must not exceed 72 characters")
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, model.ErrWeakPassword, apiErr.Code)
+	assert.Equal(t, http.StatusBadRequest, apiErr.Status)
+	assert.Contains(t, apiErr.Message, "must not exceed 72 characters")
 }
 
 func TestChangePassword_TokenRevocation(t *testing.T) {
@@ -1109,4 +1138,3 @@ func TestChangePassword_TokenRevocation(t *testing.T) {
 	// Any token with iat before that timestamp will be rejected by ValidateToken.
 	repo.AssertCalled(t, "RevokeAllUserTokens", ctx, "user-123")
 }
-

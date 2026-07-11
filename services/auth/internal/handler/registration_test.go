@@ -22,7 +22,7 @@ func TestRegisterRoutes_MatchesRegistry(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 	engine := gin.New()
-	NewRESTHandler(nil, logger, false, "").RegisterRoutes(engine)
+	NewRESTHandler(nil, logger, false, "", 0, 0).RegisterRoutes(engine)
 
 	registered := make([]access.RegisteredRoute, 0)
 	for _, r := range engine.Routes() {

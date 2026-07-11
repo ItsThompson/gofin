@@ -11,9 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/grpc"
 
 	"github.com/ItsThompson/gofin/services/auth/db/migrations"
 	"github.com/ItsThompson/gofin/services/auth/internal/config"
@@ -21,16 +19,16 @@ import (
 	"github.com/ItsThompson/gofin/services/auth/internal/handler"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
-	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/healthcheck"
-	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/serverkit"
+
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
 
 func main() {
 	// Support subcommands: "--healthcheck" checks the health endpoint and exits.
 	if healthcheck.ShouldRun(os.Args) {
-		os.Exit(healthcheck.Run("8081"))
+		os.Exit(healthcheck.Run(config.RESTPort()))
 	}
 
 	// Support subcommands: "seed-admin" runs the admin seeder and exits.
@@ -59,51 +57,33 @@ func run() error {
 	}
 
 	// Set up structured logging
-	logLevel := slog.LevelInfo
-	switch cfg.LogLevel {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "warn":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	logger = logger.With(slog.String("service", "auth"))
+	logger := serverkit.NewLogger(cfg.LogLevel, "auth")
 	slog.SetDefault(logger)
 
-	// Run database migrations (embedded in binary via go:embed)
-	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
-	}
-
-	// Connect to PostgreSQL
-	pool, err := pgxpool.New(ctx, cfg.DBUrl)
+	// Run migrations, connect to PostgreSQL, and ping (caller owns pool.Close).
+	pool, err := serverkit.ConnectPostgres(ctx, cfg.DBUrl, migrations.FS)
 	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
+		return err
 	}
 	defer pool.Close()
-
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("pinging database: %w", err)
-	}
 	logger.Info("connected to PostgreSQL")
 
 	// Build dependency graph
 	queries := db.New(pool)
 	repo := repository.NewPostgresUserRepository(queries)
 	blacklistRepo := repository.NewPostgresBlacklistRepository(queries)
-	jwtSvc := service.NewJWTService(cfg.JWTSecret)
+	jwtSvc := service.NewJWTService(cfg.JWTSecret,
+		service.WithAccessTTL(cfg.JWTAccessTTL),
+		service.WithRefreshTTL(cfg.JWTRefreshTTL),
+	)
 	pwdSvc := service.NewPasswordService(cfg.BcryptCost)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
 	// Start background workers
-	authSvc.StartPeriodicCleanup(ctx, 5*time.Minute, 30*time.Second)
+	authSvc.StartPeriodicCleanup(ctx, cfg.CleanupInterval, cfg.CleanupTimeout)
 
-	// Start gRPC server
-	grpcServer := grpc.NewServer(
-		grpc.UnaryInterceptor(metrics.UnaryServerInterceptor()),
-	)
+	// Build the gRPC server
+	grpcServer := serverkit.NewGRPCServer()
 	grpcHandler := handler.NewGRPCHandler(authSvc, logger)
 	pb.RegisterAuthServiceServer(grpcServer, grpcHandler)
 
@@ -112,30 +92,9 @@ func run() error {
 		return fmt.Errorf("listening on gRPC port %s: %w", cfg.GRPCPort, err)
 	}
 
-	go func() {
-		logger.Info("gRPC server starting",
-			slog.String("port", cfg.GRPCPort),
-		)
-		if err := grpcServer.Serve(grpcLis); err != nil {
-			logger.Error("gRPC server failed", slog.String("error", err.Error()))
-		}
-	}()
-
-	// Start REST server
-	if cfg.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	router := gin.New()
-	router.Use(gin.Recovery())
-	router.Use(metrics.HTTPMetrics())
-
-	metrics.Register(router)
-
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction(), cfg.CookieDomain)
+	// Build the REST server
+	router := serverkit.NewRouter("auth", cfg.IsProduction())
+	restHandler := handler.NewRESTHandler(authSvc, logger, cfg.IsProduction(), cfg.CookieDomain, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	restHandler.RegisterRoutes(router)
 
 	httpServer := &http.Server{
@@ -143,34 +102,14 @@ func run() error {
 		Handler: router,
 	}
 
-	go func() {
-		logger.Info("REST server starting",
-			slog.String("port", cfg.RESTPort),
-		)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("REST server failed", slog.String("error", err.Error()))
-		}
-	}()
-
 	logger.Info("auth service ready",
 		slog.String("rest_port", cfg.RESTPort),
 		slog.String("grpc_port", cfg.GRPCPort),
 	)
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	logger.Info("shutting down auth service")
-
-	// Graceful shutdown: give in-flight requests up to 10 seconds
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	grpcServer.GracefulStop()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("REST server shutdown error", slog.String("error", err.Error()))
-	}
-
-	return nil
+	// Serve blocks until ctx is cancelled or a server fails to bind; a fatal
+	// serve error propagates so run() exits non-zero (fixes the C5 zombie).
+	return serverkit.Serve(ctx, httpServer, grpcServer, grpcLis)
 }
 
 // runSeedAdmin creates an admin user from environment variables.
@@ -184,8 +123,7 @@ func runSeedAdmin() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	logger = logger.With(slog.String("service", "auth"), slog.String("command", "seed-admin"))
+	logger := serverkit.NewLogger(cfg.LogLevel, "auth").With(slog.String("command", "seed-admin"))
 
 	// Read admin credentials from env
 	adminUsername := os.Getenv("ADMIN_USERNAME")

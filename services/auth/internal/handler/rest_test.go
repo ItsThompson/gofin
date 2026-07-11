@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
@@ -142,7 +143,8 @@ func setupTestRouterWithBlacklist(repo *mockUserRepository, blacklistRepo *mockB
 	pwdSvc := service.NewPasswordService(4)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 
-	handler := NewRESTHandler(authSvc, logger, false, "")
+	// TTLs match the JWTService defaults so cookie max-ages stay 900 / 604800.
+	handler := NewRESTHandler(authSvc, logger, false, "", service.DefaultAccessTokenTTL, service.DefaultRefreshTokenTTL)
 	r := gin.New()
 	handler.RegisterRoutes(r)
 	return r
@@ -221,7 +223,7 @@ func TestRegisterHandler_WeakPassword(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrWeakPassword, errResp.Code)
 }
@@ -243,7 +245,7 @@ func TestRegisterHandler_DuplicateEmail(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDuplicateEmail, errResp.Code)
 }
@@ -259,9 +261,11 @@ func TestRegisterHandler_InvalidJSON(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
+	// Malformed JSON carries no per-field detail, so fields is omitted.
+	assert.Nil(t, errResp.Fields)
 }
 
 func TestRegisterHandler_MissingFields(t *testing.T) {
@@ -276,9 +280,32 @@ func TestRegisterHandler_MissingFields(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
+}
+
+// TestRegisterHandler_ValidationFields_C6 asserts that a validator-detected
+// field error now surfaces the offending field in the response `fields` map
+// (the wire slot auth dropped before the apierr/httpx migration: C6).
+func TestRegisterHandler_ValidationFields_C6(t *testing.T) {
+	repo := new(mockUserRepository)
+	r := setupTestRouter(repo)
+
+	// Valid username + password but a malformed email fails the `email` rule.
+	w := doJSON(r, "POST", "/api/auth/register", map[string]string{
+		"username": "testuser",
+		"email":    "not-an-email",
+		"password": "ValidPass1",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
+	require.NotEmpty(t, errResp.Fields, "validation error should carry field detail")
+	assert.Contains(t, errResp.Fields, "Email")
 }
 
 // --- Login Handler Tests ---
@@ -301,7 +328,7 @@ func TestRegisterHandler_DuplicateEmailFromConstraint(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDuplicateEmail, errResp.Code)
 }
@@ -323,7 +350,7 @@ func TestRegisterHandler_DuplicateUsernameFromConstraint(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDuplicateUsername, errResp.Code)
 }
@@ -386,7 +413,7 @@ func TestLoginHandler_InvalidCredentials(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrInvalidCredentials, errResp.Code)
 	assert.Equal(t, "Invalid email or password", errResp.Message)
@@ -437,11 +464,11 @@ func TestRefreshHandler_Success(t *testing.T) {
 
 	blacklistRepo.On("ConsumeToken", mock.Anything, refreshClaims.ID, "user-123", mock.AnythingOfType("time.Time")).Return(true, nil)
 	repo.On("GetUserByID", mock.Anything, "user-123").Return(&model.User{
-		ID:       "user-123",
-		Username: "testuser",
-		Email:    "test@example.com",
-		Role:     "user",
-		Currency: "USD",
+		ID:        "user-123",
+		Username:  "testuser",
+		Email:     "test@example.com",
+		Role:      "user",
+		Currency:  "USD",
 		CreatedAt: time.Now(),
 	}, nil)
 
@@ -478,9 +505,9 @@ func TestRefreshHandler_NoCookie(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrUnauthorized, errResp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, errResp.Code)
 }
 
 func TestRefreshHandler_BlacklistedToken(t *testing.T) {
@@ -503,9 +530,9 @@ func TestRefreshHandler_BlacklistedToken(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrUnauthorized, errResp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, errResp.Code)
 }
 
 // --- Logout Handler Tests ---
@@ -612,9 +639,9 @@ func TestCompleteOnboardingHandler_MissingUserID(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrUnauthorized, errResp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, errResp.Code)
 }
 
 func TestCompleteOnboardingHandler_InvalidBody(t *testing.T) {
@@ -625,9 +652,9 @@ func TestCompleteOnboardingHandler_InvalidBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 }
 
 // --- ListUsers Handler Tests ---
@@ -760,7 +787,7 @@ func TestRestoreIdentityHandler_NoAssumedBy(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 }
