@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
+	"github.com/ItsThompson/gofin/services/pgutil"
 )
 
 // PostgresJobRepository implements JobRepository using PostgreSQL.
@@ -64,7 +64,7 @@ func (r *PostgresJobRepository) GetJob(ctx context.Context, jobID string) (*mode
 		&job.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("getting export job: %w", err)
@@ -93,7 +93,7 @@ func (r *PostgresJobRepository) GetInProgressJob(ctx context.Context, userID str
 		&job.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("getting in-progress job: %w", err)
@@ -124,7 +124,7 @@ func (r *PostgresJobRepository) GetLatestNonFailedJob(ctx context.Context, userI
 		&job.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("getting latest non-failed job: %w", err)
