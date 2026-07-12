@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -8,26 +9,34 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/httpx"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 // RESTHandler handles HTTP requests for the auth service.
 type RESTHandler struct {
-	authService  *service.AuthService
-	logger       *slog.Logger
-	cookieSecure bool
-	cookieDomain string
+	authService     *service.AuthService
+	logger          *slog.Logger
+	cookieSecure    bool
+	cookieDomain    string
+	accessTokenTTL  time.Duration
+	refreshTokenTTL time.Duration
 }
 
-// NewRESTHandler creates a new RESTHandler.
-func NewRESTHandler(authService *service.AuthService, logger *slog.Logger, cookieSecure bool, cookieDomain string) *RESTHandler {
+// NewRESTHandler creates a new RESTHandler. accessTokenTTL and refreshTokenTTL
+// set the auth-cookie max-ages; they are sourced from the same config as the
+// JWT TTLs so the cookie lifetime always tracks the token lifetime.
+func NewRESTHandler(authService *service.AuthService, logger *slog.Logger, cookieSecure bool, cookieDomain string, accessTokenTTL, refreshTokenTTL time.Duration) *RESTHandler {
 	return &RESTHandler{
-		authService:  authService,
-		logger:       logger,
-		cookieSecure: cookieSecure,
-		cookieDomain: cookieDomain,
+		authService:     authService,
+		logger:          logger,
+		cookieSecure:    cookieSecure,
+		cookieDomain:    cookieDomain,
+		accessTokenTTL:  accessTokenTTL,
+		refreshTokenTTL: refreshTokenTTL,
 	}
 }
 
@@ -65,11 +74,7 @@ func (h *RESTHandler) Register(c *gin.Context) {
 	start := time.Now()
 
 	var req model.RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -97,11 +102,7 @@ func (h *RESTHandler) Login(c *gin.Context) {
 	start := time.Now()
 
 	var req model.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -127,12 +128,8 @@ func (h *RESTHandler) Login(c *gin.Context) {
 // Me handles GET /api/auth/me.
 // Returns the current user based on the X-User-ID header set by the gateway.
 func (h *RESTHandler) Me(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
@@ -150,21 +147,13 @@ func (h *RESTHandler) Me(c *gin.Context) {
 // CompleteOnboarding handles POST /api/auth/onboarding-complete.
 // Marks the user's onboarding as done and updates currency on the auth record.
 func (h *RESTHandler) CompleteOnboarding(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.CompleteOnboardingRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -179,29 +168,30 @@ func (h *RESTHandler) CompleteOnboarding(c *gin.Context) {
 	})
 }
 
-// setAuthCookies sets the access and refresh token httpOnly cookies.
+// setAuthCookies sets the access and refresh token httpOnly cookies. Each
+// cookie's max-age tracks the corresponding JWT TTL (sourced from config), so
+// the cookie lifetime never drifts from the token lifetime.
 func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 	c.SetSameSite(http.SameSiteStrictMode)
 
-	// Access token: 15-minute expiry, root path so the Grafana auth proxy
-	// (on a separate port) can also receive the cookie.
+	// Access token cookie: root path so the Grafana auth proxy (on a separate
+	// port) can also receive the cookie.
 	c.SetCookie(
-		"gofin_access",          // name
-		tokens.AccessToken,      // value
-		int(15*time.Minute/time.Second), // maxAge in seconds
-		"/",                     // path
-		h.cookieDomain,          // domain
-		h.cookieSecure,          // secure
-		true,                    // httpOnly
+		"gofin_access",                        // name
+		tokens.AccessToken,                    // value
+		int(h.accessTokenTTL/time.Second),     // maxAge in seconds
+		"/",                                   // path
+		h.cookieDomain,                        // domain
+		h.cookieSecure,                        // secure
+		true,                                  // httpOnly
 	)
 
-	// Refresh token: 7-day expiry, scoped to /api/auth
-	// Path is /api/auth (not /api/auth/refresh) so both the refresh and
-	// logout endpoints can read the cookie.
+	// Refresh token cookie: scoped to /api/auth (not /api/auth/refresh) so both
+	// the refresh and logout endpoints can read the cookie.
 	c.SetCookie(
 		"gofin_refresh",
 		tokens.RefreshToken,
-		int(7*24*time.Hour/time.Second),
+		int(h.refreshTokenTTL/time.Second),
 		"/api/auth",
 		h.cookieDomain,
 		h.cookieSecure,
@@ -209,23 +199,18 @@ func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 	)
 }
 
-// handleError maps service errors to HTTP responses following the ApiError contract.
+// handleError logs unexpected (non-apierr) errors before delegating to
+// apierr.Respond, which owns the {code, message, fields?} wire mapping.
+// apierr.Respond takes no logger, so logging here preserves the 500
+// observability the service relies on.
 func (h *RESTHandler) handleError(c *gin.Context, err error) {
-	if authErr, ok := err.(*service.AuthError); ok {
-		c.JSON(authErr.Status, model.ApiError{
-			Code:    authErr.Code,
-			Message: authErr.Message,
-		})
-		return
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) {
+		h.logger.Error("unexpected error",
+			slog.String("error", err.Error()),
+		)
 	}
-
-	h.logger.Error("unexpected error",
-		slog.String("error", err.Error()),
-	)
-	c.JSON(http.StatusInternalServerError, model.ApiError{
-		Code:    model.ErrInternalServerError,
-		Message: "An unexpected error occurred",
-	})
+	apierr.Respond(c, err)
 }
 
 // clearAuthCookies removes both auth cookies by setting MaxAge to -1
@@ -244,10 +229,7 @@ func (h *RESTHandler) Refresh(c *gin.Context) {
 
 	cookie, err := c.Request.Cookie("gofin_refresh")
 	if err != nil || cookie.Value == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "No refresh token provided",
-		})
+		apierr.Respond(c, apierr.Unauthorized("No refresh token provided"))
 		return
 	}
 
@@ -329,21 +311,13 @@ func (h *RESTHandler) ListUsers(c *gin.Context) {
 func (h *RESTHandler) AssumeIdentity(c *gin.Context) {
 	start := time.Now()
 
-	adminUserID := c.GetHeader("X-User-ID")
-	if adminUserID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	adminUserID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.AssumeIdentityRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -375,10 +349,7 @@ func (h *RESTHandler) RestoreIdentity(c *gin.Context) {
 
 	assumedBy := c.GetHeader("X-Assumed-By")
 	if assumedBy == "" {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "No assumed identity to restore",
-		})
+		apierr.Respond(c, apierr.Validation("No assumed identity to restore", nil))
 		return
 	}
 
@@ -406,21 +377,13 @@ func (h *RESTHandler) RestoreIdentity(c *gin.Context) {
 func (h *RESTHandler) UpdateProfile(c *gin.Context) {
 	start := time.Now()
 
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.UpdateProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
@@ -447,21 +410,13 @@ func (h *RESTHandler) UpdateProfile(c *gin.Context) {
 func (h *RESTHandler) ChangePassword(c *gin.Context) {
 	start := time.Now()
 
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.ChangePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 

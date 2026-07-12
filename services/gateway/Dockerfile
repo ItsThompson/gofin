@@ -12,15 +12,23 @@ COPY access/go.mod access/go.sum* ./access/
 COPY auth/go.mod auth/go.sum* ./auth/
 COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
+COPY serverkit/go.mod serverkit/go.sum* ./serverkit/
+COPY apierr/go.mod apierr/go.sum* ./apierr/
+COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd gateway && GOWORK=off go mod download
 
-# Copy only what the gateway build needs: gateway source + access + auth proto + healthcheck + metrics.
+# Copy only what the gateway build needs: gateway source + access + auth proto
+# + healthcheck + metrics + the shared serverkit/apierr platform (and dbmigrate,
+# pulled in transitively by serverkit).
 COPY gateway/ ./gateway/
 COPY access/ ./access/
 COPY auth/proto/ ./auth/proto/
 COPY healthcheck/ ./healthcheck/
 COPY metrics/ ./metrics/
+COPY serverkit/ ./serverkit/
+COPY apierr/ ./apierr/
+COPY dbmigrate/ ./dbmigrate/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

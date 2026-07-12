@@ -28,13 +28,40 @@ type JWTService struct {
 	refreshTokenTTL time.Duration
 }
 
-// NewJWTService creates a new JWTService with the given secret.
-func NewJWTService(secret string) *JWTService {
-	return &JWTService{
+// Default token lifetimes. Token lifetimes are the JWTService's domain, so the
+// defaults live here; config defaults its env-driven overrides to these values.
+const (
+	DefaultAccessTokenTTL  = 15 * time.Minute
+	DefaultRefreshTokenTTL = 7 * 24 * time.Hour
+)
+
+// JWTOption overrides an optional JWTService parameter at construction time.
+type JWTOption func(*JWTService)
+
+// WithAccessTTL overrides the access-token lifetime.
+func WithAccessTTL(ttl time.Duration) JWTOption {
+	return func(j *JWTService) { j.accessTokenTTL = ttl }
+}
+
+// WithRefreshTTL overrides the refresh-token lifetime.
+func WithRefreshTTL(ttl time.Duration) JWTOption {
+	return func(j *JWTService) { j.refreshTokenTTL = ttl }
+}
+
+// NewJWTService creates a new JWTService with the given secret. Token TTLs
+// default to DefaultAccessTokenTTL / DefaultRefreshTokenTTL and can be
+// overridden with WithAccessTTL / WithRefreshTTL (production sources them from
+// config).
+func NewJWTService(secret string, opts ...JWTOption) *JWTService {
+	j := &JWTService{
 		secret:          []byte(secret),
-		accessTokenTTL:  15 * time.Minute,
-		refreshTokenTTL: 7 * 24 * time.Hour,
+		accessTokenTTL:  DefaultAccessTokenTTL,
+		refreshTokenTTL: DefaultRefreshTokenTTL,
 	}
+	for _, opt := range opts {
+		opt(j)
+	}
+	return j
 }
 
 // GenerateTokenPair creates an access token and a refresh token for the given user.
@@ -119,9 +146,4 @@ func (j *JWTService) ValidateRefreshToken(tokenString string) (*RefreshTokenClai
 	}
 
 	return claims, nil
-}
-
-// RefreshTokenTTL returns the refresh token time-to-live duration.
-func (j *JWTService) RefreshTokenTTL() time.Duration {
-	return j.refreshTokenTTL
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
+	"github.com/ItsThompson/gofin/services/pgutil"
 )
 
 // PostgresDeletionJobRepository implements DeletionJobRepository using PostgreSQL.
@@ -64,7 +64,7 @@ func (r *PostgresDeletionJobRepository) GetJob(ctx context.Context, jobID string
 		&job.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("getting deletion job: %w", err)
@@ -93,7 +93,7 @@ func (r *PostgresDeletionJobRepository) GetInProgressJob(ctx context.Context, us
 		&job.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("getting in-progress deletion job: %w", err)

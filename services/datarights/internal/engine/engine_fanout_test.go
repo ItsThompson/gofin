@@ -67,7 +67,7 @@ func TestEngine_FanOut_ZIPOrderDeterministic(t *testing.T) {
 
 	repo := &mockRepo{}
 	sender := &capturingSender{}
-	eng := NewEngine(staticProviders(provs...), nil, repo, sender, 5, time.Minute, newTestLogger())
+	eng := NewEngine(staticProviders(provs...), nopFinance{}, repo, sender, 5, time.Minute, newTestLogger())
 	eng.Submit("job-order", "user-1", "alex@example.com")
 
 	require.Eventually(t, func() bool {
@@ -96,7 +96,7 @@ func TestEngine_FanOut_RunsProvidersConcurrently(t *testing.T) {
 	}
 
 	repo := &mockRepo{}
-	eng := NewEngine(staticProviders(provs...), nil, repo, newMockSender(), 5, time.Minute, newTestLogger())
+	eng := NewEngine(staticProviders(provs...), nopFinance{}, repo, newMockSender(), 5, time.Minute, newTestLogger())
 	eng.Submit("job-concurrent", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -118,7 +118,7 @@ func TestEngine_FanOut_NamedProviderErrorSurvivesFirstError(t *testing.T) {
 		&stubProvider{name: "profile", headers: []string{"c"}, rows: [][]string{{"v"}}, delay: 50 * time.Millisecond},
 		&stubProvider{name: "expenses", err: fmt.Errorf("gRPC unavailable: connection refused")},
 		&stubProvider{name: "tags", headers: []string{"c"}, rows: [][]string{{"v"}}, delay: 50 * time.Millisecond},
-	), nil, repo, newMockSender(), 5, time.Minute, newTestLogger())
+	), nopFinance{}, repo, newMockSender(), 5, time.Minute, newTestLogger())
 	eng.Submit("job-named-err", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -139,7 +139,7 @@ func TestEngine_FanOut_TimeoutMapsToExportTimedOut(t *testing.T) {
 	eng := NewEngine(staticProviders(
 		&stubProvider{name: "profile", headers: []string{"c"}, rows: [][]string{{"v"}}},
 		&stubProvider{name: "expenses", headers: []string{"c"}, rows: [][]string{{"v"}}, delay: 500 * time.Millisecond},
-	), nil, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
+	), nopFinance{}, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
 	eng.Submit("job-timeout", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -188,7 +188,7 @@ func TestEngine_FanOut_FailurePersistsViaBackgroundContext(t *testing.T) {
 	repo := &ctxCapturingRepo{}
 	eng := NewEngine(staticProviders(
 		&stubProvider{name: "expenses", headers: []string{"c"}, rows: [][]string{{"v"}}, delay: 500 * time.Millisecond},
-	), nil, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
+	), nopFinance{}, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
 	eng.Submit("job-persist", "user-1", "")
 
 	require.Eventually(t, func() bool {

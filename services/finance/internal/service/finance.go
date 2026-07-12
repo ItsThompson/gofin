@@ -2,17 +2,17 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/jackc/pgx/v5/pgconn"
-
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
+	"github.com/ItsThompson/gofin/services/pgutil"
 )
 
 // DefaultTags are seeded when a user completes onboarding.
@@ -38,70 +38,93 @@ type FinanceService struct {
 	logger        *slog.Logger
 }
 
-// NewFinanceService creates a new FinanceService.
+// NewFinanceService creates a new FinanceService with all dependencies injected.
+// expenseClient is always supplied, so the dashboard and pro-rata paths
+// dereference it without a nil guard. nowFunc is the clock seam (pass time.Now
+// in production); a nil nowFunc defaults to time.Now.
 func NewFinanceService(
 	repo repository.FinanceRepository,
 	txBeginner repository.TxBeginner,
+	expenseClient ExpenseClient,
+	nowFunc func() time.Time,
 	logger *slog.Logger,
 ) *FinanceService {
+	if nowFunc == nil {
+		nowFunc = time.Now
+	}
 	return &FinanceService{
-		repo:       repo,
-		txBeginner: txBeginner,
-		nowFunc:    time.Now,
-		logger:     logger,
+		repo:          repo,
+		txBeginner:    txBeginner,
+		expenseClient: expenseClient,
+		nowFunc:       nowFunc,
+		logger:        logger,
 	}
 }
 
-// WithExpenseClient returns a copy of the service with the expense client set.
-// This is used to inject the gRPC client after the service is constructed.
-func (s *FinanceService) WithExpenseClient(client ExpenseClient) *FinanceService {
-	s.expenseClient = client
-	return s
-}
-
-// WithNowFunc overrides the clock function used for time-dependent logic.
-// Used in tests to inject a fixed time.
-func (s *FinanceService) WithNowFunc(f func() time.Time) *FinanceService {
-	s.nowFunc = f
-	return s
-}
-
-// ServiceError is a typed error that carries an HTTP status code and error code.
-type ServiceError struct {
-	Code    string
-	Message string
-	Status  int
-}
-
-func (e *ServiceError) Error() string {
-	return e.Message
-}
-
-// ValidateEDSSplit checks that essentials + desires + savings == 100.
-func ValidateEDSSplit(essentials, desires, savings int32) error {
-	if essentials < 0 || desires < 0 || savings < 0 {
-		return fmt.Errorf("E/D/S percentages must be non-negative")
+// ValidateEDSSplit checks that essentials + desires + savings == 100. On
+// failure it returns an *apierr.Error whose Fields map names every offending
+// percentage, so the response carries field-level detail (C6).
+func ValidateEDSSplit(essentials, desires, savings int32) *apierr.Error {
+	if negFields := negativeEDSFields(essentials, desires, savings); len(negFields) > 0 {
+		return apierr.Validation("E/D/S percentages must be non-negative", negFields)
 	}
-	if essentials > 100 || desires > 100 || savings > 100 {
-		return fmt.Errorf("E/D/S percentages must not exceed 100")
+	if overFields := overHundredEDSFields(essentials, desires, savings); len(overFields) > 0 {
+		return apierr.Validation("E/D/S percentages must not exceed 100", overFields)
 	}
-	total := essentials + desires + savings
-	if total != 100 {
-		return fmt.Errorf("E/D/S split must sum to 100%%, got %d%%", total)
+	if total := essentials + desires + savings; total != 100 {
+		return apierr.Validation(
+			fmt.Sprintf("E/D/S split must sum to 100%%, got %d%%", total),
+			map[string]string{
+				"essentialsPercent": "must sum to 100 with desires and savings",
+				"desiresPercent":    "must sum to 100 with essentials and savings",
+				"savingsPercent":    "must sum to 100 with essentials and desires",
+			},
+		)
 	}
 	return nil
+}
+
+func negativeEDSFields(essentials, desires, savings int32) map[string]string {
+	fields := map[string]string{}
+	if essentials < 0 {
+		fields["essentialsPercent"] = "must be non-negative"
+	}
+	if desires < 0 {
+		fields["desiresPercent"] = "must be non-negative"
+	}
+	if savings < 0 {
+		fields["savingsPercent"] = "must be non-negative"
+	}
+	return fields
+}
+
+func overHundredEDSFields(essentials, desires, savings int32) map[string]string {
+	fields := map[string]string{}
+	if essentials > 100 {
+		fields["essentialsPercent"] = "must not exceed 100"
+	}
+	if desires > 100 {
+		fields["desiresPercent"] = "must not exceed 100"
+	}
+	if savings > 100 {
+		fields["savingsPercent"] = "must not exceed 100"
+	}
+	return fields
+}
+
+// budgetAmountError returns a VALIDATION_ERROR for a negative budget amount.
+func budgetAmountError() *apierr.Error {
+	return apierr.Validation("Budget amount must be non-negative", map[string]string{
+		"budgetAmount": "must be non-negative",
+	})
 }
 
 // CompleteOnboarding saves the user's default settings and seeds default tags.
 // Both operations run in a transaction: if tag seeding fails, the defaults
 // upsert is rolled back.
 func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, req *model.OnboardingRequest) (*model.DefaultSettings, error) {
-	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: err.Error(),
-			Status:  400,
-		}
+	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
+		return nil, verr
 	}
 
 	tx, err := s.txBeginner.BeginTx(ctx)
@@ -152,11 +175,7 @@ func (s *FinanceService) GetDefaults(ctx context.Context, userID string) (*model
 		return nil, fmt.Errorf("getting defaults: %w", err)
 	}
 	if defaults == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: "Default settings not found",
-			Status:  404,
-		}
+		return nil, apierr.NotFound("Default settings not found")
 	}
 	return defaults, nil
 }
@@ -164,20 +183,12 @@ func (s *FinanceService) GetDefaults(ctx context.Context, userID string) (*model
 // UpdateDefaults updates the user's default budget settings.
 // Does not affect current or past budget periods.
 func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req *model.UpdateDefaultsRequest) (*model.DefaultSettings, error) {
-	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: err.Error(),
-			Status:  400,
-		}
+	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
+		return nil, verr
 	}
 
 	if req.BudgetAmount < 0 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Budget amount must be non-negative",
-			Status:  400,
-		}
+		return nil, budgetAmountError()
 	}
 
 	defaults, err := s.repo.UpsertDefaults(ctx, &model.DefaultSettings{
@@ -201,14 +212,12 @@ func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req 
 }
 
 // GetCurrentPeriod retrieves the budget period for a given user, year, and month.
-// Returns a PERIOD_NOT_FOUND ServiceError (404) when no period exists.
+// Returns a PERIOD_NOT_FOUND apierr.Error (404) when no period exists.
 func (s *FinanceService) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
 	if month < 1 || month > 12 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Month must be between 1 and 12",
-			Status:  400,
-		}
+		return nil, apierr.Validation("Month must be between 1 and 12", map[string]string{
+			"month": "must be between 1 and 12",
+		})
 	}
 
 	period, err := s.repo.GetCurrentPeriod(ctx, userID, year, month)
@@ -216,62 +225,12 @@ func (s *FinanceService) GetCurrentPeriod(ctx context.Context, userID string, ye
 		return nil, fmt.Errorf("getting current period: %w", err)
 	}
 	if period == nil {
-		return nil, &ServiceError{
+		return nil, &apierr.Error{
 			Code:    model.ErrPeriodNotFound,
 			Message: fmt.Sprintf("No budget period found for %d-%02d", year, month),
-			Status:  404,
+			Status:  http.StatusNotFound,
 		}
 	}
-	return period, nil
-}
-
-// CreatePeriod creates a new budget period for the given user.
-// Validates the E/D/S split sums to 100% before persisting.
-func (s *FinanceService) CreatePeriod(ctx context.Context, userID string, req *model.CreatePeriodRequest) (*model.BudgetPeriod, error) {
-	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: err.Error(),
-			Status:  400,
-		}
-	}
-
-	if req.Month < 1 || req.Month > 12 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Month must be between 1 and 12",
-			Status:  400,
-		}
-	}
-
-	if req.BudgetAmount < 0 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Budget amount must be non-negative",
-			Status:  400,
-		}
-	}
-
-	period, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
-		UserID:            userID,
-		Year:              req.Year,
-		Month:             req.Month,
-		BudgetAmount:      req.BudgetAmount,
-		EssentialsPercent: req.EssentialsPercent,
-		DesiresPercent:    req.DesiresPercent,
-		SavingsPercent:    req.SavingsPercent,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("creating period: %w", err)
-	}
-
-	s.logger.Info("budget period created",
-		slog.String("method", "CreatePeriod"),
-		slog.String("user_id", userID),
-		slog.Int("year", int(req.Year)),
-		slog.Int("month", int(req.Month)),
-	)
-
 	return period, nil
 }
 
@@ -287,20 +246,12 @@ func (s *FinanceService) ListPeriods(ctx context.Context, userID string) ([]*mod
 // UpdatePeriod updates the budget and E/D/S split for a period.
 // Only the current period can be updated: past periods are immutable (PERIOD_LOCKED).
 func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID string, req *model.UpdatePeriodRequest) (*model.BudgetPeriod, error) {
-	if err := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); err != nil {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: err.Error(),
-			Status:  400,
-		}
+	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
+		return nil, verr
 	}
 
 	if req.BudgetAmount < 0 {
-		return nil, &ServiceError{
-			Code:    model.ErrValidationError,
-			Message: "Budget amount must be non-negative",
-			Status:  400,
-		}
+		return nil, budgetAmountError()
 	}
 
 	// Fetch the period to check ownership and whether it's current.
@@ -309,20 +260,16 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 		return nil, fmt.Errorf("fetching period: %w", err)
 	}
 	if existing == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: "Budget period not found",
-			Status:  404,
-		}
+		return nil, apierr.NotFound("Budget period not found")
 	}
 
 	// Enforce: only the current month's period can be edited.
 	now := s.nowFunc()
 	if existing.Year != int32(now.Year()) || existing.Month != int32(now.Month()) {
-		return nil, &ServiceError{
+		return nil, &apierr.Error{
 			Code:    model.ErrPeriodLocked,
 			Message: "Past periods are read-only and cannot be modified",
-			Status:  403,
+			Status:  http.StatusForbidden,
 		}
 	}
 
@@ -338,11 +285,7 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 		return nil, fmt.Errorf("updating period: %w", err)
 	}
 	if updated == nil {
-		return nil, &ServiceError{
-			Code:    model.ErrNotFound,
-			Message: "Budget period not found",
-			Status:  404,
-		}
+		return nil, apierr.NotFound("Budget period not found")
 	}
 
 	s.logger.Info("budget period updated",
@@ -396,17 +339,14 @@ func (s *FinanceService) ListTags(ctx context.Context, userID string) ([]*model.
 
 func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *model.CreateTagRequest) (*model.Tag, error) {
 	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name is required", Status: 400}
-	}
-	if utf8.RuneCountInString(name) > 50 {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name must be 50 characters or fewer", Status: 400}
+	if verr := validateTagName(name); verr != nil {
+		return nil, verr
 	}
 
 	tag, err := s.repo.CreateTag(ctx, userID, name, false)
 	if err != nil {
-		if isDuplicateKeyError(err) {
-			return nil, &ServiceError{Code: model.ErrDuplicateTag, Message: fmt.Sprintf("A tag named %q already exists", name), Status: 409}
+		if _, ok := pgutil.IsUniqueViolation(err); ok {
+			return nil, duplicateTagError(name)
 		}
 		return nil, fmt.Errorf("creating tag: %w", err)
 	}
@@ -417,26 +357,40 @@ func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *mode
 
 func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, req *model.UpdateTagRequest) (*model.Tag, error) {
 	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name is required", Status: 400}
-	}
-	if utf8.RuneCountInString(name) > 50 {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "Tag name must be 50 characters or fewer", Status: 400}
+	if verr := validateTagName(name); verr != nil {
+		return nil, verr
 	}
 
 	tag, err := s.repo.UpdateTag(ctx, tagID, userID, name)
 	if err != nil {
-		if isDuplicateKeyError(err) {
-			return nil, &ServiceError{Code: model.ErrDuplicateTag, Message: fmt.Sprintf("A tag named %q already exists", name), Status: 409}
+		if _, ok := pgutil.IsUniqueViolation(err); ok {
+			return nil, duplicateTagError(name)
 		}
 		return nil, fmt.Errorf("updating tag: %w", err)
 	}
 	if tag == nil {
-		return nil, &ServiceError{Code: model.ErrNotFound, Message: "Tag not found", Status: 404}
+		return nil, apierr.NotFound("Tag not found")
 	}
 
 	s.logger.Info("tag updated", slog.String("method", "UpdateTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
 	return tag, nil
+}
+
+// validateTagName enforces the non-empty and length constraints shared by tag
+// creation and rename, returning a VALIDATION_ERROR with a name field on failure.
+func validateTagName(name string) *apierr.Error {
+	if name == "" {
+		return apierr.Validation("Tag name is required", map[string]string{"name": "required"})
+	}
+	if utf8.RuneCountInString(name) > 50 {
+		return apierr.Validation("Tag name must be 50 characters or fewer", map[string]string{"name": "must be 50 characters or fewer"})
+	}
+	return nil
+}
+
+// duplicateTagError is the 409 returned when a tag name collides.
+func duplicateTagError(name string) *apierr.Error {
+	return apierr.Conflict(model.ErrDuplicateTag, fmt.Sprintf("A tag named %q already exists", name))
 }
 
 func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) error {
@@ -445,18 +399,19 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 		return fmt.Errorf("getting tag: %w", err)
 	}
 	if tag == nil {
-		return &ServiceError{Code: model.ErrNotFound, Message: "Tag not found", Status: 404}
+		return apierr.NotFound("Tag not found")
 	}
 	if tag.IsDefault {
-		return &ServiceError{Code: model.ErrDefaultTag, Message: "Default tags cannot be deleted, only renamed", Status: 403}
+		return &apierr.Error{
+			Code:    model.ErrDefaultTag,
+			Message: "Default tags cannot be deleted, only renamed",
+			Status:  http.StatusForbidden,
+		}
 	}
 
-	var expenseCount int64
-	if s.expenseClient != nil {
-		expenseCount, err = s.expenseClient.CountExpensesByTag(ctx, userID, tagID)
-		if err != nil {
-			return fmt.Errorf("checking tag usage in expenses: %w", err)
-		}
+	expenseCount, err := s.expenseClient.CountExpensesByTag(ctx, userID, tagID)
+	if err != nil {
+		return fmt.Errorf("checking tag usage in expenses: %w", err)
 	}
 
 	proRataCount, err := s.repo.CountTagInProRata(ctx, tagID, userID)
@@ -472,7 +427,7 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 		if proRataCount > 0 {
 			parts = append(parts, fmt.Sprintf("%d pending schedule(s)", proRataCount))
 		}
-		return &ServiceError{Code: model.ErrTagInUse, Message: fmt.Sprintf("Tag is referenced by %s", strings.Join(parts, " and ")), Status: 409}
+		return apierr.Conflict(model.ErrTagInUse, fmt.Sprintf("Tag is referenced by %s", strings.Join(parts, " and ")))
 	}
 
 	if err := s.repo.DeleteTag(ctx, tagID, userID); err != nil {
@@ -481,12 +436,4 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 
 	s.logger.Info("tag deleted", slog.String("method", "DeleteTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
 	return nil
-}
-
-func isDuplicateKeyError(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-	return false
 }

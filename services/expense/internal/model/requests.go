@@ -3,7 +3,7 @@ package model
 // CreateExpenseRequest is the input for POST /api/expenses.
 // Note: binding tags are intentionally omitted. Validation is handled by the
 // service layer's validateCreateExpenseRequest, which returns field-level error
-// details in the ApiError response.
+// details in the error response.
 type CreateExpenseRequest struct {
 	Name        string `json:"name"`
 	Amount      int64  `json:"amount"`
@@ -22,17 +22,15 @@ type CreateExpenseRequest struct {
 }
 
 // GetExpensesRequest holds the parsed query parameters for GET /api/expenses.
+// The repository query is scoped to user_id + period and ordered by
+// expense_date DESC; all further filtering and sorting is done client-side, so
+// no sort/type/tag/date-range fields are carried here.
 type GetExpensesRequest struct {
-	UserID      string
-	Year        int32
-	Month       int32
-	Page        int32
-	PageSize    int32
-	Sort        string // e.g., "date:asc", "amount:desc"
-	Type        string // comma-separated expense types
-	TagID       string // comma-separated tag IDs
-	DateFrom    string // ISO date
-	DateTo      string // ISO date
+	UserID   string
+	Year     int32
+	Month    int32
+	Page     int32
+	PageSize int32
 }
 
 // ExpenseResponse is the JSON body returned for a single expense.

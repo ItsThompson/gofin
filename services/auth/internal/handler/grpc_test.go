@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
@@ -37,6 +39,25 @@ func newTestGRPCHandlerWithBlacklist() (*GRPCHandler, *mockUserRepository, *mock
 	pwdSvc := service.NewPasswordService(4)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
 	return NewGRPCHandler(authSvc, logger), repo, blacklistRepo
+}
+
+// TestIsMissingUser_ClassifiesWrappedTypedError locks in the C7 gRPC change:
+// the handlers classify the service's "user not found" signal with errors.As,
+// so a %w-wrapped *apierr.Error (401) is still recognized and mapped to
+// codes.NotFound, while unrelated errors and non-401 apierr.Errors are not.
+func TestIsMissingUser_ClassifiesWrappedTypedError(t *testing.T) {
+	// Bare 401 (what GetUserByID returns for a missing user).
+	assert.True(t, isMissingUser(apierr.Unauthorized("User not found")))
+
+	// %w-wrapped 401 still classifies via errors.As.
+	wrapped := fmt.Errorf("looking up user: %w", apierr.Unauthorized("User not found"))
+	assert.True(t, isMissingUser(wrapped))
+
+	// A 404 apierr.Error is a different case, not "missing user" for these RPCs.
+	assert.False(t, isMissingUser(apierr.NotFound("Target user not found")))
+
+	// A plain error is not classified.
+	assert.False(t, isMissingUser(errors.New("db connection lost")))
 }
 
 func TestGRPCValidateToken_Success(t *testing.T) {
@@ -70,40 +91,6 @@ func TestGRPCValidateToken_Invalid(t *testing.T) {
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	assert.Equal(t, codes.Unauthenticated, st.Code())
-}
-
-func TestGRPCStubs_ReturnUnimplemented(t *testing.T) {
-	handler, _, _ := newTestGRPCHandler()
-	ctx := context.Background()
-
-	_, err := handler.RefreshToken(ctx, &pb.RefreshTokenRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.Logout(ctx, &pb.LogoutRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.AssumeIdentity(ctx, &pb.AssumeIdentityRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.RestoreIdentity(ctx, &pb.RestoreIdentityRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.ListUsers(ctx, &pb.ListUsersRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.UpdateUser(ctx, &pb.UpdateUserRequest{})
-	assertUnimplemented(t, err)
-
-	_, err = handler.ChangePassword(ctx, &pb.ChangePasswordRequest{})
-	assertUnimplemented(t, err)
-}
-
-func assertUnimplemented(t *testing.T, err error) {
-	t.Helper()
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unimplemented, st.Code())
 }
 
 func TestGRPCGetUser_Success(t *testing.T) {

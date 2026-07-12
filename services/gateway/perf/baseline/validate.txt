@@ -25,7 +25,7 @@ BenchmarkValidateHappyPath-14    447896    2678 ns/op    8467 B/op    59 allocs/
 Per the `services/perf` README, wall-clock ns/op and absolute allocs/op are
 same-machine references (arm64 dev here vs amd64 CI), not a CI gate. This path's
 regression guard is **behavioral** (see below), not an allocation count, so no
-`AssertMaxAllocs` bound is asserted for it.
+allocation-bound assertion is made for it.
 
 ## The meaningful "before": no upper latency bound
 

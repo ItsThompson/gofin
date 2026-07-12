@@ -57,6 +57,14 @@ func (c *inMemoryImmudbClient) SQLExec(_ context.Context, sql string, params map
 		return &repository.SQLResult{}, nil
 	}
 
+	// UPDATE is not implemented by this in-memory stub. Falling through to a
+	// silent empty result would let a local CorrectExpense leave the original
+	// row active (double-counting) and make anonymize a silent no-op, so fail
+	// loudly instead. The real immudb client (immudb_prod.go) handles UPDATE.
+	if strings.HasPrefix(sqlLower, "update") {
+		return nil, fmt.Errorf("UPDATE is unsupported in the local in-memory immudb stub")
+	}
+
 	return &repository.SQLResult{}, nil
 }
 
@@ -81,14 +89,16 @@ func (c *inMemoryImmudbClient) SQLQuery(_ context.Context, sql string, params ma
 		}, nil
 	}
 
-	// SELECT by ID (with user scoping)
+	// SELECT by ID, always scoped to the requesting user. The user_id must match
+	// exactly: there is no empty-userID bypass, so the stub can never return
+	// another user's row (matches the real repository's user-scoped query).
 	if strings.Contains(sqlLower, "where id = @id") {
 		id, _ := params["id"].(string)
 		userID, _ := params["user_id"].(string)
 		for _, row := range c.rows {
 			rowID := fmt.Sprintf("%v", row["id"])
 			rowUserID := fmt.Sprintf("%v", row["user_id"])
-			if rowID == id && (userID == "" || rowUserID == userID) {
+			if rowID == id && rowUserID == userID {
 				return &repository.SQLResult{
 					Rows: []repository.SQLRow{rowToSQLRow(row)},
 				}, nil

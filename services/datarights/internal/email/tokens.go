@@ -16,9 +16,6 @@ type BrandColors struct {
 	Muted             string `json:"muted"`
 	MutedForeground   string `json:"mutedForeground"`
 	Border            string `json:"border"`
-	Essentials        string `json:"essentials"`
-	Desires           string `json:"desires"`
-	Savings           string `json:"savings"`
 }
 
 // BrandTypography contains font family and size tokens.

@@ -20,7 +20,7 @@ import (
 
 func newAllUserDataTestService(repo *mockRepo) *FinanceService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewFinanceService(repo, new(mockTxBeg), logger)
+	return NewFinanceService(repo, new(mockTxBeg), nil, time.Now, logger)
 }
 
 func TestGetAllUserData_UserWithData(t *testing.T) {

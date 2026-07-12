@@ -156,7 +156,7 @@ func newTestLogger() *slog.Logger {
 // ---------------------------------------------------------------------------
 
 func TestRegistry_All_ReturnsInRegistrationOrder(t *testing.T) {
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 	p1 := &mockDeletionProvider{name: "finance"}
 	p2 := &mockDeletionProvider{name: "expense"}
 	p3 := &mockDeletionProvider{name: "auth"}
@@ -173,7 +173,7 @@ func TestRegistry_All_ReturnsInRegistrationOrder(t *testing.T) {
 }
 
 func TestRegistry_All_EmptyRegistryReturnsNil(t *testing.T) {
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 	assert.Nil(t, registry.All())
 }
 
@@ -183,12 +183,12 @@ func TestRegistry_All_EmptyRegistryReturnsNil(t *testing.T) {
 
 func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 	registry.Register(&mockDeletionProvider{name: "finance"})
 	registry.Register(&mockDeletionProvider{name: "expense"})
 	registry.Register(&mockDeletionProvider{name: "auth"})
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-1", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -211,7 +211,7 @@ func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 
 func TestEngine_ProvidersExecuteInOrder(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	p1 := &mockDeletionProvider{name: "finance"}
 	p2 := &mockDeletionProvider{name: "expense"}
@@ -221,7 +221,7 @@ func TestEngine_ProvidersExecuteInOrder(t *testing.T) {
 	registry.Register(p2)
 	registry.Register(p3)
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-order", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -236,7 +236,7 @@ func TestEngine_ProvidersExecuteInOrder(t *testing.T) {
 
 func TestEngine_RetrySuccess_ContinuesToNextProvider(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	// Provider fails first attempt but succeeds on second
 	retryProvider := &mockDeletionProvider{
@@ -247,7 +247,7 @@ func TestEngine_RetrySuccess_ContinuesToNextProvider(t *testing.T) {
 	registry.Register(retryProvider)
 	registry.Register(&mockDeletionProvider{name: "auth"})
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-retry", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -264,7 +264,7 @@ func TestEngine_RetrySuccess_ContinuesToNextProvider(t *testing.T) {
 
 func TestEngine_RetryExhaustion_FailsJob(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	// Provider fails all 3 attempts
 	failProvider := &mockDeletionProvider{
@@ -276,7 +276,7 @@ func TestEngine_RetryExhaustion_FailsJob(t *testing.T) {
 	registry.Register(failProvider)
 	registry.Register(&mockDeletionProvider{name: "auth"})
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-exhaust", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -298,7 +298,7 @@ func TestEngine_RetryExhaustion_FailsJob(t *testing.T) {
 
 func TestEngine_FailFast_RemainingProvidersNotAttempted(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	// First provider fails permanently
 	failProvider := &mockDeletionProvider{
@@ -312,7 +312,7 @@ func TestEngine_FailFast_RemainingProvidersNotAttempted(t *testing.T) {
 	registry.Register(failProvider)
 	registry.Register(authProvider)
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-failfast", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -325,10 +325,10 @@ func TestEngine_FailFast_RemainingProvidersNotAttempted(t *testing.T) {
 
 func TestEngine_StateTransitions_PendingToRunningToCompleted(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 	registry.Register(&mockDeletionProvider{name: "finance"})
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-states", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -346,14 +346,14 @@ func TestEngine_StateTransitions_PendingToRunningToCompleted(t *testing.T) {
 
 func TestEngine_StateTransitions_PendingToRunningToFailed(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 	registry.Register(&mockDeletionProvider{
 		name:      "finance",
 		failUntil: 3,
 		err:       fmt.Errorf("always fails"),
 	})
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-fail-states", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -371,7 +371,7 @@ func TestEngine_StateTransitions_PendingToRunningToFailed(t *testing.T) {
 
 func TestEngine_ContextTimeout_CountsAsFailedAttempt(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	// Provider has a delay longer than the engine timeout
 	slowProvider := &mockDeletionProvider{
@@ -381,7 +381,7 @@ func TestEngine_ContextTimeout_CountsAsFailedAttempt(t *testing.T) {
 	registry.Register(slowProvider)
 
 	// Very short timeout to trigger context cancellation
-	eng := NewDeletionEngine(registry, repo, 5, 100*time.Millisecond, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 100*time.Millisecond, newTestLogger())
 	eng.Submit("job-timeout", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -396,7 +396,7 @@ func TestEngine_ContextTimeout_CountsAsFailedAttempt(t *testing.T) {
 
 func TestEngine_BoundedConcurrency(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	var running atomic.Int32
 	var maxSeen atomic.Int32
@@ -410,7 +410,7 @@ func TestEngine_BoundedConcurrency(t *testing.T) {
 	registry.Register(trackingProvider)
 
 	maxConcurrent := 3
-	eng := NewDeletionEngine(registry, repo, maxConcurrent, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, maxConcurrent, 5*time.Minute, newTestLogger())
 
 	// Submit more jobs than max concurrent
 	totalJobs := 10
@@ -430,14 +430,14 @@ func TestEngine_BoundedConcurrency(t *testing.T) {
 
 func TestEngine_SubmitIsNonBlocking(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 	registry.Register(&mockDeletionProvider{
 		name:  "slow",
 		delay: 1 * time.Second,
 	})
 
 	// Engine with 1 concurrency slot
-	eng := NewDeletionEngine(registry, repo, 1, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 1, 5*time.Minute, newTestLogger())
 
 	// Submit should return immediately even with a full semaphore
 	start := time.Now()
@@ -456,7 +456,7 @@ func TestEngine_SubmitIsNonBlocking(t *testing.T) {
 
 func TestEngine_RetrySecondAttemptSuccess(t *testing.T) {
 	repo := &mockDeletionRepo{}
-	registry := NewDeletionProviderRegistry()
+	registry := NewRegistry()
 
 	// Provider fails twice but succeeds on third (last) attempt
 	retryProvider := &mockDeletionProvider{
@@ -466,7 +466,7 @@ func TestEngine_RetrySecondAttemptSuccess(t *testing.T) {
 	}
 	registry.Register(retryProvider)
 
-	eng := NewDeletionEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
+	eng := NewEngine(registry, repo, 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-retry-2", "user-1")
 
 	require.Eventually(t, func() bool {

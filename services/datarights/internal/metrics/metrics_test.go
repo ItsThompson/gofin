@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -68,28 +69,45 @@ func TestExportRateLimitRejectionsTotal_Increments(t *testing.T) {
 	assert.GreaterOrEqual(t, value, float64(1))
 }
 
-func TestExportPoolActiveJobs_GaugeOperations(t *testing.T) {
-	ExportPoolActiveJobs.Set(0) // Reset for deterministic test
-	ExportPoolActiveJobs.Inc()
-	ExportPoolActiveJobs.Inc()
-	ExportPoolActiveJobs.Inc()
+func TestExportPoolGauges_ReflectLivePoolStats(t *testing.T) {
+	var active, queued atomic.Int64
+	SetPoolStats(
+		func() int { return int(active.Load()) },
+		func() int { return int(queued.Load()) },
+	)
+	// Restore the zero-returning stubs so other tests are unaffected.
+	t.Cleanup(func() {
+		SetPoolStats(func() int { return 0 }, func() int { return 0 })
+	})
 
-	assert.Equal(t, float64(3), testutil.ToFloat64(ExportPoolActiveJobs))
+	active.Store(3)
+	queued.Store(2)
 
-	ExportPoolActiveJobs.Dec()
-	assert.Equal(t, float64(2), testutil.ToFloat64(ExportPoolActiveJobs))
+	assert.Equal(t, float64(3), gaugeValue(t, "export_pool_active_jobs"))
+	assert.Equal(t, float64(2), gaugeValue(t, "export_pool_queued_jobs"))
+
+	active.Store(0)
+	queued.Store(0)
+
+	assert.Equal(t, float64(0), gaugeValue(t, "export_pool_active_jobs"))
+	assert.Equal(t, float64(0), gaugeValue(t, "export_pool_queued_jobs"))
 }
 
-func TestExportPoolQueuedJobs_GaugeOperations(t *testing.T) {
-	ExportPoolQueuedJobs.Set(0) // Reset for deterministic test
-	ExportPoolQueuedJobs.Inc()
-	ExportPoolQueuedJobs.Inc()
-
-	assert.Equal(t, float64(2), testutil.ToFloat64(ExportPoolQueuedJobs))
-
-	ExportPoolQueuedJobs.Dec()
-	ExportPoolQueuedJobs.Dec()
-	assert.Equal(t, float64(0), testutil.ToFloat64(ExportPoolQueuedJobs))
+// gaugeValue gathers the default registry and returns the first sample of the
+// named gauge family.
+func gaugeValue(t *testing.T, name string) float64 {
+	t.Helper()
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		require.NotEmpty(t, family.GetMetric())
+		return family.GetMetric()[0].GetGauge().GetValue()
+	}
+	t.Fatalf("metric %q not found", name)
+	return 0
 }
 
 func TestExportDataCollectionDurationSeconds_RecordsProviderLabel(t *testing.T) {

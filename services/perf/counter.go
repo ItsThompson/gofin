@@ -1,8 +1,7 @@
 // Package perf provides shared test helpers for the gofin latency & efficiency
 // epic: a concurrency-safe call counter that spy client/repo implementations
-// embed, and an allocation-bound assertion over testing.AllocsPerRun. It carries
-// no runtime dependencies and is imported only from test files. See README.md
-// for the benchmark / pprof / benchstat workflow.
+// embed. It carries no runtime dependencies and is imported only from test
+// files. See README.md for the benchmark / pprof / benchstat workflow.
 package perf
 
 import "sync"

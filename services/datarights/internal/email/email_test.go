@@ -20,9 +20,6 @@ func testTokens() BrandTokens {
 			Muted:             "#f1f5f9",
 			MutedForeground:   "#64748b",
 			Border:            "#e2e8f0",
-			Essentials:        "#3b82f6",
-			Desires:           "#f59e0b",
-			Savings:           "#10b981",
 		},
 		Typography: BrandTypography{
 			FontFamily: "'Geist', -apple-system, BlinkMacSystemFont, sans-serif",

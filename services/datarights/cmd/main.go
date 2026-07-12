@@ -8,10 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -19,24 +16,23 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/db/migrations"
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 	"github.com/ItsThompson/gofin/services/datarights/internal/deletion"
-	deletionproviders "github.com/ItsThompson/gofin/services/datarights/internal/deletion/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/email"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine/providers"
 	"github.com/ItsThompson/gofin/services/datarights/internal/handler"
-	_ "github.com/ItsThompson/gofin/services/datarights/internal/metrics" // register Prometheus metrics
+	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
+	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
-	"github.com/ItsThompson/gofin/services/dbmigrate"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/healthcheck"
-	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 func main() {
 	if healthcheck.ShouldRun(os.Args) {
-		os.Exit(healthcheck.Run("8084"))
+		os.Exit(healthcheck.Run(config.RESTPort()))
 	}
 
 	if err := run(); err != nil {
@@ -56,34 +52,15 @@ func run() error {
 	}
 
 	// Set up structured logging
-	logLevel := slog.LevelInfo
-	switch cfg.LogLevel {
-	case "debug":
-		logLevel = slog.LevelDebug
-	case "warn":
-		logLevel = slog.LevelWarn
-	case "error":
-		logLevel = slog.LevelError
-	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	logger = logger.With(slog.String("service", "datarights"))
+	logger := serverkit.NewLogger(cfg.LogLevel, "datarights")
 	slog.SetDefault(logger)
 
-	// Run database migrations (embedded in binary via go:embed)
-	if err := dbmigrate.RunWithFS(cfg.DBUrl, migrations.FS, "."); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
-	}
-
-	// Connect to PostgreSQL
-	pool, err := pgxpool.New(ctx, cfg.DBUrl)
+	// Connect to PostgreSQL (runs embedded migrations, opens the pool, pings).
+	pool, err := serverkit.ConnectPostgres(ctx, cfg.DBUrl, migrations.FS)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
 	}
 	defer pool.Close()
-
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("pinging database: %w", err)
-	}
 	logger.Info("connected to PostgreSQL")
 
 	// Connect to auth service gRPC
@@ -134,19 +111,20 @@ func run() error {
 	// Build dependency graph
 	repo := repository.NewPostgresJobRepository(pool)
 
-	// Set up export engine with a per-job provider factory. The factory closes
-	// over the auth and expense clients; the finance-backed providers receive a
-	// fresh per-job MemoizedFinanceClient (built inside the engine) so a single
-	// GetAllUserData call is shared across providers without leaking data across
-	// jobs. Registration/ZIP order: profile, expenses, tags, budget_periods,
+	// Set up export engine with a per-job provider factory. The engine fetches
+	// GetAllUserData once per job (in execute) and hands the resolved response
+	// here; the factory closes over the auth and expense clients (profile and the
+	// expenses stream self-fetch) and derives the tag map + finance-backed rows
+	// from the single response, so the export hits finance exactly once.
+	// Registration/ZIP order: profile, expenses, tags, budget_periods,
 	// default_settings.
-	newExportProviders := func(finance financepb.FinanceServiceClient) []engine.DataProvider {
+	newExportProviders := func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
 		return []engine.DataProvider{
 			providers.NewProfileProvider(authClient),
-			providers.NewExpensesProvider(expenseClient, finance),
-			providers.NewTagsProvider(finance),
-			providers.NewBudgetPeriodsProvider(finance),
-			providers.NewDefaultSettingsProvider(finance),
+			providers.NewExpensesProvider(expenseClient, providers.BuildTagMap(financeData)),
+			providers.NewTagsProvider(financeData),
+			providers.NewBudgetPeriodsProvider(financeData),
+			providers.NewDefaultSettingsProvider(financeData),
 		}
 	}
 
@@ -158,20 +136,54 @@ func run() error {
 
 	exportEngine := engine.NewEngine(newExportProviders, financeClient, repo, emailSender, cfg.MaxConcurrent, cfg.ExportTimeout, logger)
 
-	// Startup recovery: re-submit non-terminal export jobs
+	// Expose the export pool's live telemetry through the Prometheus pool gauges
+	// (scraped by the Grafana dashboard and the stuck-pool alert).
+	exportmetrics.SetPoolStats(exportEngine.ActiveJobs, exportEngine.QueuedJobs)
+
+	// Startup recovery: re-submit non-terminal export jobs. Export resolves the
+	// user's email first; a failure is logged and the job is submitted anyway (it
+	// will fail with a descriptive error at the email step).
 	emailResolver := service.NewAuthUserEmailResolver(authClient)
-	recoverJobs(ctx, repo, exportEngine, emailResolver, logger)
+	recoverJobs(ctx, logger, "export", repo.GetNonTerminalJobs, func(ctx context.Context, job model.RecoverableJob) {
+		userEmail, err := emailResolver.ResolveEmail(ctx, job.UserID)
+		if err != nil {
+			logger.Error("failed to resolve email for recovered job",
+				slog.String("job_id", job.ID),
+				slog.String("user_id", job.UserID),
+				slog.String("error", err.Error()),
+			)
+		}
+		logger.Info("re-submitting job",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+		)
+		exportEngine.Submit(job.ID, job.UserID, userEmail)
+	})
 
 	exportSvc := service.NewExportService(repo, logger, service.WithEngine(exportEngine), service.WithEmailResolver(emailResolver))
 
 	// Set up deletion engine with provider registry
 	deletionRepo := repository.NewPostgresDeletionJobRepository(pool)
-	deletionRegistry := deletion.NewDeletionProviderRegistry()
-	deletionRegistry.Register(deletionproviders.NewFinanceDeletionProvider(financeClient))
-	deletionRegistry.Register(deletionproviders.NewExpenseDeletionProvider(expenseClient))
-	deletionRegistry.Register(deletionproviders.NewAuthDeletionProvider(authClient))
 
-	deletionEngine := deletion.NewDeletionEngine(
+	// Register the deletion providers as name+func pairs. Registration order is
+	// execution order: finance and expense first, auth last (a user cannot
+	// authenticate once auth data is gone). Each func wraps one idempotent gRPC
+	// delete call and discards the response.
+	deletionRegistry := deletion.NewRegistry()
+	deletionRegistry.Register(deletion.NewFuncProvider("finance", func(ctx context.Context, userID string) error {
+		_, err := financeClient.DeleteAllUserData(ctx, &financepb.DeleteAllUserDataRequest{UserId: userID})
+		return err
+	}))
+	deletionRegistry.Register(deletion.NewFuncProvider("expense", func(ctx context.Context, userID string) error {
+		_, err := expenseClient.AnonymizeAllUserExpenses(ctx, &expensepb.AnonymizeRequest{UserId: userID})
+		return err
+	}))
+	deletionRegistry.Register(deletion.NewFuncProvider("auth", func(ctx context.Context, userID string) error {
+		_, err := authClient.DeleteUserData(ctx, &authpb.DeleteUserDataRequest{UserId: userID})
+		return err
+	}))
+
+	deletionEngine := deletion.NewEngine(
 		deletionRegistry,
 		deletionRepo,
 		cfg.MaxConcurrent,
@@ -180,34 +192,23 @@ func run() error {
 	)
 
 	// Startup recovery: re-submit non-terminal deletion jobs
-	recoverDeletionJobs(ctx, deletionRepo, deletionEngine, logger)
+	recoverJobs(ctx, logger, "deletion", deletionRepo.GetNonTerminalJobs, func(_ context.Context, job model.RecoverableDeletionJob) {
+		logger.Info("re-submitting deletion job",
+			slog.String("job_id", job.ID),
+			slog.String("user_id", job.UserID),
+		)
+		deletionEngine.Submit(job.ID, job.UserID)
+	})
 
 	deletionSvc := service.NewDeletionService(deletionRepo, logger,
 		service.WithDeletionEngine(deletionEngine),
 		service.WithAuthClient(authClient),
 		service.WithExportRepo(repo),
+		service.WithProtectedUsernames(cfg.ProtectedUsernames),
 	)
 
-	// Start REST server
-	if cfg.IsProduction() {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	router := gin.New()
-	router.Use(gin.Recovery())
-	router.Use(metrics.HTTPMetrics())
-
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-			"pool": gin.H{
-				"active": exportEngine.ActiveJobs(),
-				"max":    exportEngine.MaxConcurrent(),
-			},
-		})
-	})
-
-	metrics.Register(router)
+	// Build the shared router (Recovery, HTTP metrics, /metrics, GET /health).
+	router := serverkit.NewRouter("datarights", cfg.IsProduction())
 
 	restHandler := handler.NewRESTHandler(exportSvc, logger)
 	deletionHandler := handler.NewDeletionHandler(deletionSvc, logger)
@@ -218,41 +219,36 @@ func run() error {
 		Handler: router,
 	}
 
-	go func() {
-		logger.Info("REST server starting",
-			slog.String("port", cfg.RESTPort),
-		)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("REST server failed", slog.String("error", err.Error()))
-		}
-	}()
-
 	logger.Info("datarights service ready",
 		slog.String("rest_port", cfg.RESTPort),
 		slog.Int("max_concurrent_exports", cfg.MaxConcurrent),
 		slog.Duration("export_timeout", cfg.ExportTimeout),
 	)
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	logger.Info("shutting down datarights service")
-
-	// Graceful shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		logger.Error("REST server shutdown error", slog.String("error", err.Error()))
-	}
-
-	return nil
+	// Serve blocks until ctx is cancelled or the HTTP server fails to bind.
+	// A bind failure returns non-nil so run() (and main) exit non-zero instead
+	// of lingering as a zombie with no listener (C5). datarights runs no gRPC
+	// server, so both gRPC arguments are nil.
+	return serverkit.Serve(ctx, httpServer, nil, nil)
 }
 
-// recoverJobs re-submits any non-terminal jobs found in the database on startup.
-func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine.Engine, resolver service.UserEmailResolver, logger *slog.Logger) {
-	jobs, err := repo.GetNonTerminalJobs(ctx)
+// recoverJobs re-submits non-terminal jobs found in the database on startup. It
+// shares the query -> empty-check -> per-job submit skeleton across both
+// engines; the submit closure supplies the engine-specific step (export
+// resolves the user's email before re-submitting).
+func recoverJobs[J any](
+	ctx context.Context,
+	logger *slog.Logger,
+	kind string,
+	fetch func(context.Context) ([]J, error),
+	submit func(context.Context, J),
+) {
+	jobs, err := fetch(ctx)
 	if err != nil {
-		logger.Error("failed to query recoverable jobs", slog.String("error", err.Error()))
+		logger.Error("failed to query recoverable jobs",
+			slog.String("kind", kind),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
@@ -260,47 +256,13 @@ func recoverJobs(ctx context.Context, repo repository.JobRepository, eng *engine
 		return
 	}
 
-	logger.Info("recovering non-terminal jobs", slog.Int("count", len(jobs)))
+	logger.Info("recovering non-terminal jobs",
+		slog.String("kind", kind),
+		slog.Int("count", len(jobs)),
+	)
 
 	for _, job := range jobs {
-		userEmail, err := resolver.ResolveEmail(ctx, job.UserID)
-		if err != nil {
-			logger.Error("failed to resolve email for recovered job",
-				slog.String("job_id", job.ID),
-				slog.String("user_id", job.UserID),
-				slog.String("error", err.Error()),
-			)
-			// Submit anyway: will fail at email step with descriptive error
-		}
-
-		logger.Info("re-submitting job",
-			slog.String("job_id", job.ID),
-			slog.String("user_id", job.UserID),
-		)
-		eng.Submit(job.ID, job.UserID, userEmail)
-	}
-}
-
-// recoverDeletionJobs re-submits any non-terminal deletion jobs on startup.
-func recoverDeletionJobs(ctx context.Context, repo repository.DeletionJobRepository, eng *deletion.DeletionEngine, logger *slog.Logger) {
-	jobs, err := repo.GetNonTerminalJobs(ctx)
-	if err != nil {
-		logger.Error("failed to query recoverable deletion jobs", slog.String("error", err.Error()))
-		return
-	}
-
-	if len(jobs) == 0 {
-		return
-	}
-
-	logger.Info("recovering non-terminal deletion jobs", slog.Int("count", len(jobs)))
-
-	for _, job := range jobs {
-		logger.Info("re-submitting deletion job",
-			slog.String("job_id", job.ID),
-			slog.String("user_id", job.UserID),
-		)
-		eng.Submit(job.ID, job.UserID)
+		submit(ctx, job)
 	}
 }
 

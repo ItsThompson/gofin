@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
 )
@@ -44,10 +46,10 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 
 	// Validate password strength
 	if err := ValidatePasswordStrength(req.Password); err != nil {
-		return nil, nil, &AuthError{
+		return nil, nil, &apierr.Error{
 			Code:    model.ErrWeakPassword,
 			Message: err.Error(),
-			Status:  400,
+			Status:  http.StatusBadRequest,
 		}
 	}
 
@@ -61,11 +63,7 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 		return nil, nil, fmt.Errorf("checking email uniqueness: %w", err)
 	}
 	if existingByEmail != nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrDuplicateEmail,
-			Message: "An account with this email already exists",
-			Status:  409,
-		}
+		return nil, nil, apierr.Conflict(model.ErrDuplicateEmail, "An account with this email already exists")
 	}
 
 	// Check for duplicate username
@@ -74,11 +72,7 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 		return nil, nil, fmt.Errorf("checking username uniqueness: %w", err)
 	}
 	if existingByUsername != nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrDuplicateUsername,
-			Message: "This username is already taken",
-			Status:  409,
-		}
+		return nil, nil, apierr.Conflict(model.ErrDuplicateUsername, "This username is already taken")
 	}
 
 	// Hash password
@@ -88,22 +82,14 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 	}
 
 	// Create user
-	user, err := s.repo.CreateUser(ctx, username, email, hash, "user", "USD")
+	user, err := s.repo.CreateUser(ctx, username, email, hash, model.RoleUser, "USD")
 	if err != nil {
 		var dupErr *repository.DuplicateError
 		if errors.As(err, &dupErr) {
 			if strings.Contains(dupErr.Constraint, "email") {
-				return nil, nil, &AuthError{
-					Code:    model.ErrDuplicateEmail,
-					Message: "An account with this email already exists",
-					Status:  409,
-				}
+				return nil, nil, apierr.Conflict(model.ErrDuplicateEmail, "An account with this email already exists")
 			}
-			return nil, nil, &AuthError{
-				Code:    model.ErrDuplicateUsername,
-				Message: "This username is already taken",
-				Status:  409,
-			}
+			return nil, nil, apierr.Conflict(model.ErrDuplicateUsername, "This username is already taken")
 		}
 		return nil, nil, fmt.Errorf("creating user: %w", err)
 	}
@@ -139,19 +125,19 @@ func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 
 	// Generic error for both "user not found" and "wrong password" (no field hints)
 	if user == nil {
-		return nil, nil, &AuthError{
+		return nil, nil, &apierr.Error{
 			Code:    model.ErrInvalidCredentials,
 			Message: "Invalid email or password",
-			Status:  401,
+			Status:  http.StatusUnauthorized,
 		}
 	}
 
 	// Verify password
 	if !s.password.CheckPassword(req.Password, user.PasswordHash) {
-		return nil, nil, &AuthError{
+		return nil, nil, &apierr.Error{
 			Code:    model.ErrInvalidCredentials,
 			Message: "Invalid email or password",
-			Status:  401,
+			Status:  http.StatusUnauthorized,
 		}
 	}
 
@@ -177,11 +163,7 @@ func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*model.ValidateTokenResult, error) {
 	claims, err := s.jwt.ValidateAccessToken(tokenString)
 	if err != nil {
-		return nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "Please log in again",
-			Status:  401,
-		}
+		return nil, apierr.Unauthorized("Please log in again")
 	}
 
 	// Check if user's tokens have been revoked (e.g., after password change)
@@ -192,11 +174,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*m
 			slog.String("error", err.Error()),
 		)
 		// Fail open: if we can't check revocation, still reject to be safe
-		return nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "Unable to validate token",
-			Status:  401,
-		}
+		return nil, apierr.Unauthorized("Unable to validate token")
 	}
 
 	if revokedAt != nil && claims.IssuedAt != nil {
@@ -209,11 +187,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*m
 		// before the microsecond-precise revocation timestamp.
 		revokedAtTruncated := revokedAt.Truncate(time.Second)
 		if tokenIssuedAt.Before(revokedAtTruncated) {
-			return nil, &AuthError{
-				Code:    model.ErrUnauthorized,
-				Message: "Token has been revoked. Please log in again.",
-				Status:  401,
-			}
+			return nil, apierr.Unauthorized("Token has been revoked. Please log in again.")
 		}
 	}
 
@@ -232,24 +206,9 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID string) (*model.Us
 		return nil, fmt.Errorf("looking up user: %w", err)
 	}
 	if user == nil {
-		return nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "User not found",
-			Status:  401,
-		}
+		return nil, apierr.Unauthorized("User not found")
 	}
 	return user, nil
-}
-
-// AuthError is a typed error that carries an HTTP status code and error code.
-type AuthError struct {
-	Code    string
-	Message string
-	Status  int
-}
-
-func (e *AuthError) Error() string {
-	return e.Message
 }
 
 // RefreshToken validates a refresh token, atomically consumes it (blacklists
@@ -258,11 +217,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 	// Validate the refresh token JWT
 	claims, err := s.jwt.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "Invalid or expired refresh token",
-			Status:  401,
-		}
+		return nil, nil, apierr.Unauthorized("Invalid or expired refresh token")
 	}
 
 	// Atomically consume the token (blacklist + uniqueness check in one query)
@@ -277,11 +232,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 			slog.String("jti", claims.ID),
 			slog.String("user_id", claims.Subject),
 		)
-		return nil, nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "Refresh token has been revoked",
-			Status:  401,
-		}
+		return nil, nil, apierr.Unauthorized("Refresh token has been revoked")
 	}
 
 	// Look up the user
@@ -290,11 +241,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 		return nil, nil, fmt.Errorf("looking up user for refresh: %w", err)
 	}
 	if user == nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "User not found",
-			Status:  401,
-		}
+		return nil, nil, apierr.Unauthorized("User not found")
 	}
 
 	// Generate new token pair
@@ -350,11 +297,7 @@ func (s *AuthService) CompleteOnboarding(ctx context.Context, userID string, cur
 		return nil, fmt.Errorf("completing onboarding: %w", err)
 	}
 	if user == nil {
-		return nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "User not found",
-			Status:  401,
-		}
+		return nil, apierr.Unauthorized("User not found")
 	}
 
 	s.logger.Info("onboarding completed",
@@ -379,11 +322,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req *mod
 		return nil, fmt.Errorf("checking email uniqueness: %w", err)
 	}
 	if existingByEmail != nil && existingByEmail.ID != userID {
-		return nil, &AuthError{
-			Code:    model.ErrDuplicateEmail,
-			Message: "An account with this email already exists",
-			Status:  409,
-		}
+		return nil, apierr.Conflict(model.ErrDuplicateEmail, "An account with this email already exists")
 	}
 
 	// Check for duplicate username (exclude current user)
@@ -392,11 +331,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req *mod
 		return nil, fmt.Errorf("checking username uniqueness: %w", err)
 	}
 	if existingByUsername != nil && existingByUsername.ID != userID {
-		return nil, &AuthError{
-			Code:    model.ErrDuplicateUsername,
-			Message: "This username is already taken",
-			Status:  409,
-		}
+		return nil, apierr.Conflict(model.ErrDuplicateUsername, "This username is already taken")
 	}
 
 	user, err := s.repo.UpdateUser(ctx, userID, username, email, currency)
@@ -404,26 +339,17 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req *mod
 		var dupErr *repository.DuplicateError
 		if errors.As(err, &dupErr) {
 			if strings.Contains(dupErr.Constraint, "email") {
-				return nil, &AuthError{
-					Code:    model.ErrDuplicateEmail,
-					Message: "An account with this email already exists",
-					Status:  409,
-				}
+				return nil, apierr.Conflict(model.ErrDuplicateEmail, "An account with this email already exists")
 			}
-			return nil, &AuthError{
-				Code:    model.ErrDuplicateUsername,
-				Message: "This username is already taken",
-				Status:  409,
-			}
+			return nil, apierr.Conflict(model.ErrDuplicateUsername, "This username is already taken")
 		}
 		return nil, fmt.Errorf("updating user: %w", err)
 	}
 	if user == nil {
-		return nil, &AuthError{
-			Code:    model.ErrNotFound,
-			Message: "User not found",
-			Status:  404,
-		}
+		// C8: an own-record-missing lookup returns 401 to match GetUserByID/
+		// RefreshToken/CompleteOnboarding/ChangePassword (the four-method
+		// majority), not the 404 used for admin lookups of another user.
+		return nil, apierr.Unauthorized("User not found")
 	}
 
 	s.logger.Info("profile updated",
@@ -454,11 +380,7 @@ func (s *AuthService) ListUsers(ctx context.Context) ([]*model.User, error) {
 // admin role before calling this method.
 func (s *AuthService) AssumeIdentity(ctx context.Context, adminUserID, targetUserID string) (*model.User, *model.TokenPair, error) {
 	if adminUserID == targetUserID {
-		return nil, nil, &AuthError{
-			Code:    model.ErrValidationError,
-			Message: "Cannot assume your own identity",
-			Status:  400,
-		}
+		return nil, nil, apierr.Validation("Cannot assume your own identity", nil)
 	}
 
 	targetUser, err := s.repo.GetUserByID(ctx, targetUserID)
@@ -466,11 +388,7 @@ func (s *AuthService) AssumeIdentity(ctx context.Context, adminUserID, targetUse
 		return nil, nil, fmt.Errorf("looking up target user: %w", err)
 	}
 	if targetUser == nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrNotFound,
-			Message: "Target user not found",
-			Status:  404,
-		}
+		return nil, nil, apierr.NotFound("Target user not found")
 	}
 
 	accessToken, refreshToken, err := s.jwt.GenerateTokenPairWithAssumedBy(
@@ -496,11 +414,7 @@ func (s *AuthService) AssumeIdentity(ctx context.Context, adminUserID, targetUse
 // looks up the original admin user, and generates fresh tokens for that admin.
 func (s *AuthService) RestoreIdentity(ctx context.Context, assumedByUserID string) (*model.User, *model.TokenPair, error) {
 	if assumedByUserID == "" {
-		return nil, nil, &AuthError{
-			Code:    model.ErrValidationError,
-			Message: "No assumed identity to restore",
-			Status:  400,
-		}
+		return nil, nil, apierr.Validation("No assumed identity to restore", nil)
 	}
 
 	adminUser, err := s.repo.GetUserByID(ctx, assumedByUserID)
@@ -508,18 +422,14 @@ func (s *AuthService) RestoreIdentity(ctx context.Context, assumedByUserID strin
 		return nil, nil, fmt.Errorf("looking up admin user: %w", err)
 	}
 	if adminUser == nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrNotFound,
-			Message: "Admin user not found",
-			Status:  404,
-		}
+		return nil, nil, apierr.NotFound("Admin user not found")
 	}
 
-	if adminUser.Role != "admin" {
-		return nil, nil, &AuthError{
-			Code:    model.ErrForbidden,
+	if adminUser.Role != model.RoleAdmin {
+		return nil, nil, &apierr.Error{
+			Code:    apierr.CodeForbidden,
 			Message: "Assumed-by user is not an admin",
-			Status:  403,
+			Status:  http.StatusForbidden,
 		}
 	}
 
@@ -561,7 +471,7 @@ func (s *AuthService) SeedAdmin(ctx context.Context, username, email, password s
 		return fmt.Errorf("hashing admin password: %w", err)
 	}
 
-	user, err := s.repo.CreateUser(ctx, username, email, hash, "admin", "USD")
+	user, err := s.repo.CreateUser(ctx, username, email, hash, model.RoleAdmin, "USD")
 	if err != nil {
 		return fmt.Errorf("creating admin user: %w", err)
 	}
@@ -591,28 +501,24 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *mo
 		return nil, nil, fmt.Errorf("looking up user: %w", err)
 	}
 	if user == nil {
-		return nil, nil, &AuthError{
-			Code:    model.ErrUnauthorized,
-			Message: "User not found",
-			Status:  401,
-		}
+		return nil, nil, apierr.Unauthorized("User not found")
 	}
 
 	// Verify current password
 	if !s.password.CheckPassword(req.CurrentPassword, user.PasswordHash) {
-		return nil, nil, &AuthError{
+		return nil, nil, &apierr.Error{
 			Code:    model.ErrInvalidCredentials,
 			Message: "Current password is incorrect",
-			Status:  401,
+			Status:  http.StatusUnauthorized,
 		}
 	}
 
 	// Validate new password strength
 	if err := ValidatePasswordStrength(req.NewPassword); err != nil {
-		return nil, nil, &AuthError{
+		return nil, nil, &apierr.Error{
 			Code:    model.ErrWeakPassword,
 			Message: err.Error(),
-			Status:  400,
+			Status:  http.StatusBadRequest,
 		}
 	}
 

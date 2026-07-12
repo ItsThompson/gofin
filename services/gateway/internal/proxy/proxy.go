@@ -1,12 +1,15 @@
 package proxy
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	"github.com/ItsThompson/gofin/services/apierr"
 )
 
 // NewServiceProxy creates a reverse proxy that forwards requests to the given
@@ -41,7 +44,14 @@ func NewServiceProxy(target *url.URL, logger *slog.Logger) http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"code":"BAD_GATEWAY","message":"Downstream service is unavailable"}`))
+		// Encode via the shared apierr wire struct so every gateway error body
+		// (including this raw-ResponseWriter path, which has no gin.Context for
+		// apierr.Respond) shares one shape. BAD_GATEWAY is gateway-specific.
+		body, _ := json.Marshal(apierr.APIError{
+			Code:    "BAD_GATEWAY",
+			Message: "Downstream service is unavailable",
+		})
+		_, _ = w.Write(body)
 	}
 
 	// Use a transport with reasonable timeouts for inter-service communication.

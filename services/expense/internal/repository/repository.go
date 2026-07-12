@@ -56,11 +56,6 @@ type ExpenseRepository interface {
 	AnonymizeAllUserExpenses(ctx context.Context, userID string) error
 }
 
-// SchemaInitializer creates the required tables and indexes on startup.
-type SchemaInitializer interface {
-	InitSchema(ctx context.Context) error
-}
-
 // ExpenseCursor identifies the last row seen during a keyset walk, used to seek
 // the next page without OFFSET. CreatedAt holds an RFC3339 timestamp in
 // canonical fixed-precision UTC form (lexicographically sortable); an empty
@@ -76,8 +71,7 @@ const DefaultStreamPageSize int32 = 100
 
 // SQLResult represents the result of an SQL query row.
 type SQLResult struct {
-	Columns []string
-	Rows    []SQLRow
+	Rows []SQLRow
 }
 
 // SQLRow represents a single row from an SQL query result.

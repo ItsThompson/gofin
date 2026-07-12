@@ -18,10 +18,12 @@ ns_op:                     1395
 bytes_op:                  3883
 allocs_op:                 58
 
-# Target after dedup (this ticket): a fresh per-job MemoizedFinanceClient serves
-# GetAllUserData at most once and the expenses provider derives its tag map from
-# GetAllUserData().GetTags(), so ListTags drops to 0:
-#   get_all_user_data_calls: <= 1
+# Structural single-fetch (ticket #13): the export engine fetches GetAllUserData
+# exactly once in execute and passes the resolved response to the finance-backed
+# providers (now pure response->rows mappers); the expenses tag map derives from
+# that same GetAllUserData().GetTags(), so ListTags is never called. The
+# guarantee is structural (one call site), not a memoization wrapper:
+#   get_all_user_data_calls: 1   (exactly once, by construction)
 #   list_tags_calls:         0
 # Enforced by TestExport_DedupesFinanceCalls in internal/engine (test-backend CI).
 

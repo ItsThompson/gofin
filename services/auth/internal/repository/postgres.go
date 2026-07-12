@@ -2,16 +2,13 @@ package repository
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/db"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	"github.com/ItsThompson/gofin/services/pgutil"
 )
 
 // PostgresUserRepository implements UserRepository using sqlc-generated queries.
@@ -33,9 +30,8 @@ func (r *PostgresUserRepository) CreateUser(ctx context.Context, username, email
 		Currency:     currency,
 	})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, &DuplicateError{Constraint: pgErr.ConstraintName}
+		if constraint, ok := pgutil.IsUniqueViolation(err); ok {
+			return nil, &DuplicateError{Constraint: constraint}
 		}
 		return nil, err
 	}
@@ -45,7 +41,7 @@ func (r *PostgresUserRepository) CreateUser(ctx context.Context, username, email
 func (r *PostgresUserRepository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	dbUser, err := r.queries.GetUserByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -54,14 +50,14 @@ func (r *PostgresUserRepository) GetUserByEmail(ctx context.Context, email strin
 }
 
 func (r *PostgresUserRepository) GetUserByID(ctx context.Context, id string) (*model.User, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(id); err != nil {
+	uid, err := pgutil.ParseUUID(id)
+	if err != nil {
 		return nil, err
 	}
 
 	dbUser, err := r.queries.GetUserByID(ctx, uid)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -72,7 +68,7 @@ func (r *PostgresUserRepository) GetUserByID(ctx context.Context, id string) (*m
 func (r *PostgresUserRepository) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
 	dbUser, err := r.queries.GetUserByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -84,8 +80,7 @@ func (r *PostgresUserRepository) GetUserByUsername(ctx context.Context, username
 func dbUserToModel(u db.AuthUser) *model.User {
 	id := ""
 	if u.ID.Valid {
-		idBytes := u.ID.Bytes
-		id = formatUUID(idBytes)
+		id = uuid.UUID(u.ID.Bytes).String()
 	}
 
 	return &model.User{
@@ -101,15 +96,9 @@ func dbUserToModel(u db.AuthUser) *model.User {
 	}
 }
 
-// formatUUID formats a [16]byte as a UUID string.
-func formatUUID(b [16]byte) string {
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
 func (r *PostgresUserRepository) CompleteOnboarding(ctx context.Context, userID string, currency string) (*model.User, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -118,7 +107,7 @@ func (r *PostgresUserRepository) CompleteOnboarding(ctx context.Context, userID 
 		ID:       uid,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -136,7 +125,7 @@ func (r *PostgresUserRepository) ListAllUsers(ctx context.Context) ([]*model.Use
 	for _, row := range rows {
 		id := ""
 		if row.ID.Valid {
-			id = formatUUID(row.ID.Bytes)
+			id = uuid.UUID(row.ID.Bytes).String()
 		}
 		users = append(users, &model.User{
 			ID:        id,
@@ -150,8 +139,8 @@ func (r *PostgresUserRepository) ListAllUsers(ctx context.Context) ([]*model.Use
 }
 
 func (r *PostgresUserRepository) UpdateUser(ctx context.Context, userID, username, email, currency string) (*model.User, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -162,11 +151,10 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, userID, usernam
 		ID:       uid,
 	})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, &DuplicateError{Constraint: pgErr.ConstraintName}
+		if constraint, ok := pgutil.IsUniqueViolation(err); ok {
+			return nil, &DuplicateError{Constraint: constraint}
 		}
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -175,8 +163,8 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, userID, usernam
 }
 
 func (r *PostgresUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
 		return err
 	}
 
@@ -187,8 +175,8 @@ func (r *PostgresUserRepository) UpdatePassword(ctx context.Context, userID, pas
 }
 
 func (r *PostgresUserRepository) RevokeAllUserTokens(ctx context.Context, userID string) error {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
 		return err
 	}
 
@@ -196,14 +184,14 @@ func (r *PostgresUserRepository) RevokeAllUserTokens(ctx context.Context, userID
 }
 
 func (r *PostgresUserRepository) GetTokensRevokedAt(ctx context.Context, userID string) (*time.Time, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
 		return nil, err
 	}
 
 	ts, err := r.queries.GetTokensRevokedAt(ctx, uid)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -216,8 +204,8 @@ func (r *PostgresUserRepository) GetTokensRevokedAt(ctx context.Context, userID 
 }
 
 func (r *PostgresUserRepository) DeleteUser(ctx context.Context, userID string) error {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
 		return err
 	}
 

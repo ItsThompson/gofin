@@ -26,7 +26,7 @@ func (s *FinanceService) GetPeriodSummary(ctx context.Context, userID string, ye
 		return nil, fmt.Errorf("fetching expenses: %w", err)
 	}
 
-	return ComputePeriodSummary(period, expenses, year, month, time.Now()), nil
+	return ComputePeriodSummary(period, expenses, year, month, s.nowFunc()), nil
 }
 
 // GetSpendingByTag computes per-tag spending for a budget period.
@@ -94,10 +94,6 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 	}
 
 	// Generate the list of year-month pairs going backwards from anchor
-	type yearMonth struct {
-		year  int32
-		month int32
-	}
 	window := make([]yearMonth, 0, months)
 	y, m := year, month
 	for i := int32(0); i < months; i++ {

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
@@ -210,7 +211,7 @@ func setupTestRouter(repo *mockFinanceRepository, txBeginner *mockTxBeginner) *g
 	gin.SetMode(gin.TestMode)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger)
+	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 
 	h := NewRESTHandler(financeSvc, logger)
 	r := gin.New()
@@ -306,10 +307,38 @@ func TestCompleteOnboardingHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
+}
+
+func TestCompleteOnboardingHandler_MultiFieldValidationEmitsFields(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	// 50/50/50 sums to 150: a multi-field validation failure (C6). The wire
+	// response must carry field-level detail for every offending percentage,
+	// end to end through apierr.Respond.
+	w := doJSONWithUserID(r, "POST", "/api/finance/onboarding", "user-123", map[string]interface{}{
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    50,
+		"savingsPercent":    50,
+		"currency":          "USD",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
+	assert.Equal(t, map[string]string{
+		"essentialsPercent": "must sum to 100 with desires and savings",
+		"desiresPercent":    "must sum to 100 with essentials and savings",
+		"savingsPercent":    "must sum to 100 with essentials and desires",
+	}, errResp.Fields)
 }
 
 func TestCompleteOnboardingHandler_ZeroPercentAllocations(t *testing.T) {
@@ -416,9 +445,9 @@ func TestCompleteOnboardingHandler_TagSeedingFailureRollsBack(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrInternalServerError, errResp.Code)
+	assert.Equal(t, apierr.CodeInternal, errResp.Code)
 
 	// Verify rollback was called (commit should NOT have been called)
 	tx.AssertCalled(t, "Rollback", mock.Anything)
@@ -507,9 +536,9 @@ func TestGetDefaultsHandler_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrNotFound, errResp.Code)
+	assert.Equal(t, apierr.CodeNotFound, errResp.Code)
 }
 
 // --- GetCurrentPeriod Handler Tests ---
@@ -557,7 +586,7 @@ func TestGetCurrentPeriodHandler_PeriodNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodNotFound, errResp.Code)
 	assert.Contains(t, errResp.Message, "2026-05")
@@ -701,9 +730,9 @@ func TestCreatePeriodHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
@@ -792,9 +821,9 @@ func TestUpdateDefaultsHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 
@@ -878,7 +907,7 @@ func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *m
 	gin.SetMode(gin.TestMode)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expClient)
+	financeSvc := service.NewFinanceService(repo, txBeginner, expClient, time.Now, logger)
 
 	h := NewRESTHandler(financeSvc, logger)
 	r := gin.New()
@@ -941,7 +970,7 @@ func TestGetPeriodSummaryHandler_PeriodNotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodNotFound, errResp.Code)
 }
@@ -1194,7 +1223,7 @@ func TestCreateTagHandler_DuplicateName(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDuplicateTag, errResp.Code)
 }
@@ -1294,7 +1323,7 @@ func TestDeleteTagHandler_DefaultTagForbidden(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrDefaultTag, errResp.Code)
 	assert.Contains(t, errResp.Message, "Default tags cannot be deleted")
@@ -1317,7 +1346,7 @@ func TestDeleteTagHandler_TagInUse(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrTagInUse, errResp.Code)
 	assert.Contains(t, errResp.Message, "5 expense(s)")
@@ -1339,7 +1368,7 @@ func setupTestRouterWithNowFunc(repo *mockFinanceRepository, txBeginner *mockTxB
 	gin.SetMode(gin.TestMode)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, logger).WithExpenseClient(expClient).WithNowFunc(nowFunc)
+	financeSvc := service.NewFinanceService(repo, txBeginner, expClient, nowFunc, logger)
 
 	h := NewRESTHandler(financeSvc, logger)
 	r := gin.New()
@@ -1406,7 +1435,7 @@ func TestUpdatePeriodHandler_PastPeriodLocked(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrPeriodLocked, errResp.Code)
 }
@@ -1428,9 +1457,9 @@ func TestUpdatePeriodHandler_InvalidSplit(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var errResp model.ApiError
+	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, model.ErrValidationError, errResp.Code)
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
 	assert.Contains(t, errResp.Message, "sum to 100%")
 }
 

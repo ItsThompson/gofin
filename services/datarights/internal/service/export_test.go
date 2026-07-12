@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 )
@@ -332,10 +333,10 @@ func TestGetJob_NotFound(t *testing.T) {
 	assert.Nil(t, job)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, 404, svcErr.Status)
-	assert.Equal(t, model.ErrNotFound, svcErr.Code)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
 }
 
 func TestGetJob_DifferentUser(t *testing.T) {
@@ -357,8 +358,8 @@ func TestGetJob_DifferentUser(t *testing.T) {
 	assert.Nil(t, result)
 	require.Error(t, err)
 
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, 404, svcErr.Status)
 }
 

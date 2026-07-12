@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
@@ -191,17 +192,20 @@ func TestCreateExport_RateLimited_Returns429(t *testing.T) {
 
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 
-	var resp model.RateLimitedResponse
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, model.ErrRateLimited, resp.Code)
 	assert.Contains(t, resp.Message, "Export limit reached")
 
+	// C9: retry timing is carried by the standard Retry-After header, not a body field.
 	expectedRetryAfter := fiveDaysAgo.Add(service.RateLimitWindow)
-	assert.Equal(t, expectedRetryAfter.Unix(), resp.RetryAfter.Unix())
+	retryAfter, parseErr := http.ParseTime(rec.Header().Get("Retry-After"))
+	require.NoError(t, parseErr)
+	assert.Equal(t, expectedRetryAfter.Unix(), retryAfter.Unix())
 }
 
-func TestCreateExport_RateLimited_IncludesRetryAfterTimestamp(t *testing.T) {
+func TestCreateExport_RateLimited_SetsRetryAfterHeader(t *testing.T) {
 	mockRepo := new(mockJobRepository)
 	twoDaysAgo := time.Now().UTC().Add(-2 * 24 * time.Hour).Truncate(time.Second)
 
@@ -225,14 +229,14 @@ func TestCreateExport_RateLimited_IncludesRetryAfterTimestamp(t *testing.T) {
 
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 
-	var resp model.RateLimitedResponse
-	err := json.Unmarshal(rec.Body.Bytes(), &resp)
-	require.NoError(t, err)
-
-	// retryAfter should be createdAt + 30 days
+	// C9: the Retry-After header carries createdAt + 30 days; there is no
+	// retryAfter body field.
+	header := rec.Header().Get("Retry-After")
+	require.NotEmpty(t, header)
+	retryAfter, parseErr := http.ParseTime(header)
+	require.NoError(t, parseErr)
 	expectedRetry := twoDaysAgo.Add(30 * 24 * time.Hour)
-	assert.Equal(t, expectedRetry.Unix(), resp.RetryAfter.Unix())
-	assert.False(t, resp.RetryAfter.IsZero())
+	assert.Equal(t, expectedRetry.Unix(), retryAfter.Unix())
 }
 
 func TestCreateExport_DBError_Returns500(t *testing.T) {
@@ -248,10 +252,10 @@ func TestCreateExport_DBError_Returns500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrInternalServerError, resp.Code)
+	assert.Equal(t, apierr.CodeInternal, resp.Code)
 }
 
 func TestCreateExport_Unauthenticated(t *testing.T) {
@@ -265,10 +269,10 @@ func TestCreateExport_Unauthenticated(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrUnauthorized, resp.Code)
+	assert.Equal(t, apierr.CodeUnauthorized, resp.Code)
 }
 
 func TestGetExport_Success(t *testing.T) {
@@ -314,10 +318,10 @@ func TestGetExport_NotFound(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	var resp model.ApiError
+	var resp apierr.APIError
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
-	assert.Equal(t, model.ErrNotFound, resp.Code)
+	assert.Equal(t, apierr.CodeNotFound, resp.Code)
 }
 
 func TestGetExport_DifferentUser(t *testing.T) {

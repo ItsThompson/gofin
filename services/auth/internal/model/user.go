@@ -2,6 +2,12 @@ package model
 
 import "time"
 
+// Role values stored on the user record and carried in JWT claims.
+const (
+	RoleUser  = "user"
+	RoleAdmin = "admin"
+)
+
 // User represents a user in the auth domain.
 type User struct {
 	ID                     string    `json:"id"`

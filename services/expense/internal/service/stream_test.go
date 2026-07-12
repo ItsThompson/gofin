@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
@@ -170,9 +171,8 @@ func TestStreamAllUserExpenses_ValidationErrorForEmptyUserID(t *testing.T) {
 
 	err := svc.StreamAllUserExpenses(context.Background(), "", 10, func(*model.Expense) error { return nil })
 
-	var svcErr *ServiceError
-	require.ErrorAs(t, err, &svcErr)
-	assert.Equal(t, model.ErrValidationError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
 func TestStreamAllUserExpenses_DefaultsPageSizeWhenNonPositive(t *testing.T) {
@@ -220,7 +220,7 @@ func TestStreamAllUserExpenses_ProducerLookAheadBoundedToOnePage(t *testing.T) {
 		page: page,
 		next: repository.ExpenseCursor{CreatedAt: "2026-05-01T00:00:00Z", ID: "exp-9"},
 	}
-	svc := NewExpenseService(repo, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	svc := NewExpenseService(repo, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestExport_DedupesFinanceCalls is the export finance-call deduplication regression: a
-// full export must hit finance for GetAllUserData at most once and never call
-// ListTags. It runs the real provider set through the engine with a finance spy
-// as the raw client; the engine wraps it in a per-job MemoizedFinanceClient.
-// Reverting the dedup (per-provider raw clients, or expenses.buildTagMap calling
-// ListTags) makes this fail.
+// TestExport_DedupesFinanceCalls is the single-fetch guarantee: a full export
+// must fetch finance's GetAllUserData exactly once and never call ListTags. The
+// engine fetches once in execute and hands the resolved response to the
+// finance-backed providers (now pure mappers) and the derived tag map, so the
+// guarantee is structural (by construction), not a memoization side effect.
+// Reverting to per-provider finance fetches (or an expenses provider that
+// fetches its own tag map) makes this fail.
 func TestExport_DedupesFinanceCalls(t *testing.T) {
 	finance := newFinanceSpy(cannedAllUserData(), cannedTagList())
 	repo := newRecordingRepo()
@@ -25,8 +26,8 @@ func TestExport_DedupesFinanceCalls(t *testing.T) {
 		return repo.completedCount() == 1
 	}, 2*time.Second, 10*time.Millisecond, "export job did not complete; failures=%v", repo.failures())
 
-	assert.LessOrEqual(t, finance.Count("GetAllUserData"), 1,
-		"export must fetch GetAllUserData at most once (dedup regressed)")
+	assert.Equal(t, 1, finance.Count("GetAllUserData"),
+		"export must fetch GetAllUserData exactly once (single-fetch guarantee)")
 	assert.Equal(t, 0, finance.Count("ListTags"),
-		"export must not call ListTags; the tag map derives from shared GetAllUserData")
+		"export must not call ListTags; the tag map derives from the single GetAllUserData")
 }

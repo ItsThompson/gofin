@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -8,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
+	"github.com/ItsThompson/gofin/services/httpx"
 )
 
 // RESTHandler handles HTTP requests for the expense service.
@@ -53,27 +56,19 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 
 // CreateExpense handles POST /api/expenses.
 func (h *RESTHandler) CreateExpense(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	var req model.CreateExpenseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	expense, err := h.expenseService.CreateExpense(c.Request.Context(), userID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -84,40 +79,27 @@ func (h *RESTHandler) CreateExpense(c *gin.Context) {
 
 // GetExpenses handles GET /api/expenses?year=YYYY&month=MM&page=1&pageSize=50.
 func (h *RESTHandler) GetExpenses(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	yearStr := c.Query("year")
 	monthStr := c.Query("month")
 	if yearStr == "" || monthStr == "" {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "year and month query parameters are required",
-		})
+		apierr.Respond(c, apierr.Validation("year and month query parameters are required", nil))
 		return
 	}
 
 	year, err := strconv.ParseInt(yearStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "year must be a valid integer",
-		})
+		apierr.Respond(c, apierr.Validation("year must be a valid integer", nil))
 		return
 	}
 
 	month, err := strconv.ParseInt(monthStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "month must be a valid integer",
-		})
+		apierr.Respond(c, apierr.Validation("month must be a valid integer", nil))
 		return
 	}
 
@@ -143,14 +125,9 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 		Month:    int32(month),
 		Page:     int32(page),
 		PageSize: int32(pageSize),
-		Sort:     c.Query("sort"),
-		Type:     c.Query("type"),
-		TagID:    c.Query("tagId"),
-		DateFrom: c.Query("dateFrom"),
-		DateTo:   c.Query("dateTo"),
 	})
 	if svcErr != nil {
-		h.handleError(c, svcErr)
+		h.respondError(c, svcErr)
 		return
 	}
 
@@ -159,24 +136,20 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 
 // GetExpenseSuggestions handles GET /api/expenses/suggestions?page=1&pageSize=50.
 func (h *RESTHandler) GetExpenseSuggestions(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	page, ok := parsePositiveIntQuery(c, "page", 1)
 	if !ok {
-		c.JSON(http.StatusBadRequest, model.ApiError{Code: model.ErrValidationError, Message: "page must be a positive integer"})
+		apierr.Respond(c, apierr.Validation("page must be a positive integer", nil))
 		return
 	}
 
 	pageSize, ok := parsePositiveIntQuery(c, "pageSize", 50)
 	if !ok || pageSize > 100 {
-		c.JSON(http.StatusBadRequest, model.ApiError{Code: model.ErrValidationError, Message: "pageSize must be a positive integer no greater than 100"})
+		apierr.Respond(c, apierr.Validation("pageSize must be a positive integer no greater than 100", nil))
 		return
 	}
 
@@ -186,7 +159,7 @@ func (h *RESTHandler) GetExpenseSuggestions(c *gin.Context) {
 		PageSize: int32(pageSize),
 	})
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -207,19 +180,15 @@ func parsePositiveIntQuery(c *gin.Context, key string, defaultValue int64) (int6
 
 // GetExpense handles GET /api/expenses/:id.
 func (h *RESTHandler) GetExpense(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	id := c.Param("id")
 	expense, err := h.expenseService.GetExpense(c.Request.Context(), userID, id)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -228,51 +197,36 @@ func (h *RESTHandler) GetExpense(c *gin.Context) {
 	})
 }
 
-// handleError maps service errors to HTTP responses following the ApiError contract.
-func (h *RESTHandler) handleError(c *gin.Context, err error) {
-	if svcErr, ok := err.(*service.ServiceError); ok {
-		c.JSON(svcErr.Status, model.ApiError{
-			Code:    svcErr.Code,
-			Message: svcErr.Message,
-			Fields:  svcErr.Fields,
-		})
-		return
+// respondError delegates the wire mapping to apierr.Respond (which classifies
+// via errors.As), logging any unexpected non-*apierr.Error at error level first
+// so 500s stay observable (apierr.Respond takes no logger).
+func (h *RESTHandler) respondError(c *gin.Context, err error) {
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) {
+		h.logger.Error("unexpected error",
+			slog.String("error", err.Error()),
+		)
 	}
-
-	h.logger.Error("unexpected error",
-		slog.String("error", err.Error()),
-	)
-	c.JSON(http.StatusInternalServerError, model.ApiError{
-		Code:    model.ErrInternalServerError,
-		Message: "An unexpected error occurred",
-	})
+	apierr.Respond(c, err)
 }
 
 // CorrectExpense handles POST /api/expenses/:id/correct.
 func (h *RESTHandler) CorrectExpense(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
 	expenseID := c.Param("id")
 
 	var req model.CorrectExpenseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, model.ApiError{
-			Code:    model.ErrValidationError,
-			Message: "Invalid request body",
-		})
+	if !httpx.BindJSON(c, &req) {
 		return
 	}
 
 	expense, err := h.expenseService.CorrectExpense(c.Request.Context(), userID, expenseID, &req)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -283,12 +237,8 @@ func (h *RESTHandler) CorrectExpense(c *gin.Context) {
 
 // GetCorrectionHistory handles GET /api/expenses/:id/history.
 func (h *RESTHandler) GetCorrectionHistory(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
@@ -296,7 +246,7 @@ func (h *RESTHandler) GetCorrectionHistory(c *gin.Context) {
 
 	entries, err := h.expenseService.GetCorrectionHistory(c.Request.Context(), userID, expenseID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 
@@ -307,12 +257,8 @@ func (h *RESTHandler) GetCorrectionHistory(c *gin.Context) {
 
 // GetProRataGroup handles GET /api/expenses/prorata/:groupId.
 func (h *RESTHandler) GetProRataGroup(c *gin.Context) {
-	userID := c.GetHeader("X-User-ID")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, model.ApiError{
-			Code:    model.ErrUnauthorized,
-			Message: "Authentication required",
-		})
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
 		return
 	}
 
@@ -320,7 +266,7 @@ func (h *RESTHandler) GetProRataGroup(c *gin.Context) {
 
 	expenses, err := h.expenseService.GetProRataGroup(c.Request.Context(), userID, groupID)
 	if err != nil {
-		h.handleError(c, err)
+		h.respondError(c, err)
 		return
 	}
 

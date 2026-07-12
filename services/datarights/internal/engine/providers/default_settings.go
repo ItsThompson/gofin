@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
@@ -12,14 +11,16 @@ import (
 // Compile-time check that DefaultSettingsProvider implements DataProvider.
 var _ engine.DataProvider = (*DefaultSettingsProvider)(nil)
 
-// DefaultSettingsProvider fetches the user's default financial settings from the finance service.
+// DefaultSettingsProvider maps the default financial settings in the shared
+// per-job finance response into a single row.
 type DefaultSettingsProvider struct {
-	financeClient financepb.FinanceServiceClient
+	data *financepb.AllUserDataResponse
 }
 
-// NewDefaultSettingsProvider creates a DefaultSettingsProvider backed by the finance gRPC client.
-func NewDefaultSettingsProvider(financeClient financepb.FinanceServiceClient) *DefaultSettingsProvider {
-	return &DefaultSettingsProvider{financeClient: financeClient}
+// NewDefaultSettingsProvider creates a DefaultSettingsProvider over the finance
+// data the export engine fetches once per job.
+func NewDefaultSettingsProvider(data *financepb.AllUserDataResponse) *DefaultSettingsProvider {
+	return &DefaultSettingsProvider{data: data}
 }
 
 // Name returns the CSV filename for this provider.
@@ -35,15 +36,11 @@ func (p *DefaultSettingsProvider) Headers() []string {
 	}
 }
 
-// Collect fetches the user's default settings and returns a single row.
-// Returns an empty result (headers only) if no defaults are configured.
-func (p *DefaultSettingsProvider) Collect(ctx context.Context, userID string) ([][]string, error) {
-	resp, err := p.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
-	if err != nil {
-		return nil, fmt.Errorf("fetching user data for default settings: %w", err)
-	}
-
-	defaults := resp.GetDefaults()
+// Collect maps the pre-fetched user data's default settings into a single row,
+// or an empty result (headers only) if no defaults are configured. It is a pure
+// mapper: the finance fetch happens once in the export engine.
+func (p *DefaultSettingsProvider) Collect(_ context.Context, _ string) ([][]string, error) {
+	defaults := p.data.GetDefaults()
 	if defaults == nil {
 		return [][]string{}, nil
 	}

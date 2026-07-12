@@ -168,7 +168,10 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 
 	expenses := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense := rowToExpense(row)
+		expense, convErr := rowToExpense(row)
+		if convErr != nil {
+			return nil, 0, fmt.Errorf("mapping expense row: %w", convErr)
+		}
 		expenses = append(expenses, expense)
 	}
 
@@ -193,7 +196,11 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 		return nil, nil
 	}
 
-	return rowToExpense(result.Rows[0]), nil
+	expense, err := rowToExpense(result.Rows[0])
+	if err != nil {
+		return nil, fmt.Errorf("mapping expense row: %w", err)
+	}
+	return expense, nil
 }
 
 // CountExpensesByTag returns the count of active expenses referencing the given tag
@@ -247,9 +254,18 @@ func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.C
 	return inputs, nil
 }
 
-// Column order must match the SELECT clause in queries.
-func rowToExpense(row SQLRow) *model.Expense {
+// expenseColumnCount is the number of columns rowToExpense expects in a result
+// row. It must match the expenseSelectColumns list and the ExpenseData schema.
+const expenseColumnCount = 17
+
+// rowToExpense maps a result row to an Expense. The column order must match the
+// SELECT clause in queries. It returns an error on a short/malformed row rather
+// than panicking on an out-of-range index.
+func rowToExpense(row SQLRow) (*model.Expense, error) {
 	values := row.Values
+	if len(values) < expenseColumnCount {
+		return nil, fmt.Errorf("expense row has %d values, want %d", len(values), expenseColumnCount)
+	}
 	return &model.Expense{
 		ID:           values[0].GetString(),
 		UserID:       values[1].GetString(),
@@ -268,7 +284,7 @@ func rowToExpense(row SQLRow) *model.Expense {
 		ProRataIndex: int32(values[14].GetInt()),
 		ProRataTotal: int32(values[15].GetInt()),
 		CreatedAt:    values[16].GetString(),
-	}
+	}, nil
 }
 
 // Column order must match GetActiveExpenseSuggestionInputs SELECT clause.
@@ -374,7 +390,10 @@ func (r *ImmudbExpenseRepository) GetCorrectionHistory(ctx context.Context, expe
 			break
 		}
 
-		next := rowToExpense(result.Rows[0])
+		next, convErr := rowToExpense(result.Rows[0])
+		if convErr != nil {
+			return nil, fmt.Errorf("mapping expense row: %w", convErr)
+		}
 		if visited[next.ID] {
 			break // Safety
 		}
@@ -403,7 +422,11 @@ func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID s
 
 	expenses := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expenses = append(expenses, rowToExpense(row))
+		expense, convErr := rowToExpense(row)
+		if convErr != nil {
+			return nil, fmt.Errorf("mapping expense row: %w", convErr)
+		}
+		expenses = append(expenses, expense)
 	}
 
 	return expenses, nil
@@ -451,7 +474,11 @@ func (r *ImmudbExpenseRepository) GetExpensesByUserAfter(ctx context.Context, us
 
 	rows := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		rows = append(rows, rowToExpense(row))
+		expense, convErr := rowToExpense(row)
+		if convErr != nil {
+			return nil, ExpenseCursor{}, false, fmt.Errorf("mapping expense row: %w", convErr)
+		}
+		rows = append(rows, expense)
 	}
 
 	// The overflow row (pageSize+1th) means more rows remain. Drop it from the

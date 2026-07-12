@@ -14,6 +14,10 @@ COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
 COPY expense/go.mod expense/go.sum* ./expense/
 COPY perf/go.mod ./perf/
+COPY serverkit/go.mod serverkit/go.sum* ./serverkit/
+COPY apierr/go.mod apierr/go.sum* ./apierr/
+COPY httpx/go.mod httpx/go.sum* ./httpx/
+COPY pgutil/go.mod pgutil/go.sum* ./pgutil/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd finance && GOWORK=off go mod download
 
@@ -25,6 +29,10 @@ COPY healthcheck/ ./healthcheck/
 COPY metrics/ ./metrics/
 COPY expense/ ./expense/
 COPY perf/ ./perf/
+COPY serverkit/ ./serverkit/
+COPY apierr/ ./apierr/
+COPY httpx/ ./httpx/
+COPY pgutil/ ./pgutil/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

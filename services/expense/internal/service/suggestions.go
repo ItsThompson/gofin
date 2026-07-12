@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
 
@@ -20,13 +21,13 @@ type suggestionGroup struct {
 // GetExpenseSuggestions returns active-only, exact-name suggestions for a user.
 func (s *ExpenseService) GetExpenseSuggestions(ctx context.Context, req *model.ExpenseSuggestionRequest) (*model.ExpenseSuggestionListResponse, error) {
 	if req.UserID == "" {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "user_id is required", Status: 400}
+		return nil, apierr.Validation("user_id is required", nil)
 	}
 	if req.Page < 1 {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "page must be positive", Status: 400}
+		return nil, apierr.Validation("page must be positive", nil)
 	}
 	if req.PageSize < 1 || req.PageSize > maxSuggestionPageSize {
-		return nil, &ServiceError{Code: model.ErrValidationError, Message: "pageSize must be between 1 and 100", Status: 400}
+		return nil, apierr.Validation("pageSize must be between 1 and 100", nil)
 	}
 
 	inputs, err := s.repo.GetActiveExpenseSuggestionInputs(ctx, req.UserID)

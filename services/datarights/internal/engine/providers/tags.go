@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
@@ -11,14 +10,15 @@ import (
 // Compile-time check that TagsProvider implements DataProvider.
 var _ engine.DataProvider = (*TagsProvider)(nil)
 
-// TagsProvider fetches user tags from the finance service.
+// TagsProvider maps the tags in the shared per-job finance response into rows.
 type TagsProvider struct {
-	financeClient financepb.FinanceServiceClient
+	data *financepb.AllUserDataResponse
 }
 
-// NewTagsProvider creates a TagsProvider backed by the finance gRPC client.
-func NewTagsProvider(financeClient financepb.FinanceServiceClient) *TagsProvider {
-	return &TagsProvider{financeClient: financeClient}
+// NewTagsProvider creates a TagsProvider over the finance data the export engine
+// fetches once per job.
+func NewTagsProvider(data *financepb.AllUserDataResponse) *TagsProvider {
+	return &TagsProvider{data: data}
 }
 
 // Name returns the CSV filename for this provider.
@@ -31,14 +31,10 @@ func (p *TagsProvider) Headers() []string {
 	return []string{"id", "name", "is_default", "created_at"}
 }
 
-// Collect fetches all tags for the user and returns formatted rows.
-func (p *TagsProvider) Collect(ctx context.Context, userID string) ([][]string, error) {
-	resp, err := p.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
-	if err != nil {
-		return nil, fmt.Errorf("fetching user data for tags: %w", err)
-	}
-
-	tags := resp.GetTags()
+// Collect maps the pre-fetched user data's tags into rows. It is a pure mapper:
+// the finance fetch happens once in the export engine, so Collect issues no RPC.
+func (p *TagsProvider) Collect(_ context.Context, _ string) ([][]string, error) {
+	tags := p.data.GetTags()
 	rows := make([][]string, 0, len(tags))
 	for _, tag := range tags {
 		rows = append(rows, []string{

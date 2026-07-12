@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
@@ -135,8 +136,7 @@ func TestCreateProRataExpense_Success(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
 
 	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
 		return req.Name == "Annual subscription" &&
@@ -184,8 +184,7 @@ func TestCreateProRataExpense_YearRollover(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-	svc.WithNowFunc(fixedNow(2026, 11, 1))
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 11, 1))
 
 	expClient.On("CreateExpense", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-11-01T00:00:00Z"}, nil)
@@ -231,9 +230,8 @@ func TestCreateProRataExpense_Validation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := svc.CreateProRataExpense(context.Background(), "user-1", tt.req)
 			require.Error(t, err)
-			svcErr, ok := err.(*ServiceError)
-			require.True(t, ok)
-			assert.Equal(t, model.ErrValidationError, svcErr.Code)
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 			assert.Contains(t, svcErr.Message, tt.msg)
 		})
 	}
@@ -243,8 +241,7 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-	svc.WithNowFunc(fixedNow(2026, 5, 15))
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
 
 	expClient.On("CreateExpense", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
@@ -258,9 +255,8 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	svcErr, ok := err.(*ServiceError)
-	require.True(t, ok)
-	assert.Equal(t, model.ErrInternalServerError, svcErr.Code)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
 	assert.Contains(t, svcErr.Message, "schedule creation failed")
 }
 

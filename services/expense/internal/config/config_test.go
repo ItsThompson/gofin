@@ -60,6 +60,18 @@ func TestLoad_CustomPorts(t *testing.T) {
 	assert.Equal(t, "9998", cfg.GRPCPort)
 }
 
+func TestResolveRESTPort(t *testing.T) {
+	t.Run("defaults when unset", func(t *testing.T) {
+		_ = os.Unsetenv("REST_PORT")
+		assert.Equal(t, DefaultRESTPort, ResolveRESTPort())
+	})
+
+	t.Run("honors REST_PORT override", func(t *testing.T) {
+		t.Setenv("REST_PORT", "9999")
+		assert.Equal(t, "9999", ResolveRESTPort())
+	})
+}
+
 func TestIsProduction(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 

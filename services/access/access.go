@@ -5,19 +5,19 @@
 // from the Registry) can import it without a build dependency on each other.
 //
 // The package owns three things:
-//   - the Access classification applied to every route (access.go),
+//   - the access Level applied to every gateway-facing route (access.go),
 //   - the Registry of concrete routes and their access levels (registry.go),
 //   - a gin-priority path resolver used by the gateway middleware (resolver.go).
 package access
 
-// Access is the classification applied to every gateway-facing route. It
+// Level is the access classification applied to every gateway-facing route. It
 // determines whether a request needs a token and, if so, which role may
 // proceed.
-type Access int
+type Level int
 
 const (
 	// Public routes are reachable with no token.
-	Public Access = iota
+	Public Level = iota
 	// Authenticated routes require any valid token, regardless of role.
 	Authenticated
 	// Personal routes require a valid token acting as a regular user (role == "user").
@@ -32,7 +32,7 @@ const (
 )
 
 // String returns the level name, used for readable logs and test diagnostics.
-func (a Access) String() string {
+func (a Level) String() string {
 	switch a {
 	case Public:
 		return "Public"

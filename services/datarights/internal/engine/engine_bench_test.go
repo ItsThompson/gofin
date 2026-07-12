@@ -15,7 +15,7 @@ import (
 const benchProviderLatency = 10 * time.Millisecond
 
 // BenchmarkEngineCollectionFanout measures a full export run over five providers
-// with differing simulated latency. It drives engine.execute end-to-end;
+// with differing simulated latency. It drives engine.runExport end-to-end;
 // collection dominates because the stub repo, ZIP assembly, and stub sender are
 // effectively instant, so the reported ns/op tracks total collection latency:
 // ≈ max(providers) under the errgroup fan-out versus ≈ sum(providers) under the
@@ -31,11 +31,11 @@ func BenchmarkEngineCollectionFanout(b *testing.B) {
 		}
 	}
 
-	eng := NewEngine(staticProviders(provs...), nil, &mockRepo{}, newMockSender(), 5, time.Minute, newTestLogger())
+	eng := NewEngine(staticProviders(provs...), nopFinance{}, &mockRepo{}, newMockSender(), 5, time.Minute, newTestLogger())
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		eng.execute(context.Background(), "job-bench", "user-1", "alex@example.com")
+		_, _ = eng.runExport(context.Background(), "job-bench", "user-1", "alex@example.com")
 	}
 }

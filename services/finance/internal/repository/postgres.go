@@ -2,15 +2,15 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/db"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/pgutil"
 )
 
 // PostgresFinanceRepository implements FinanceRepository using sqlc-generated queries.
@@ -24,9 +24,9 @@ func NewPostgresFinanceRepository(queries *db.Queries) *PostgresFinanceRepositor
 }
 
 func (r *PostgresFinanceRepository) UpsertDefaults(ctx context.Context, settings *model.DefaultSettings) (*model.DefaultSettings, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(settings.UserID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(settings.UserID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.UpsertDefaults(ctx, db.UpsertDefaultsParams{
@@ -44,14 +44,14 @@ func (r *PostgresFinanceRepository) UpsertDefaults(ctx context.Context, settings
 }
 
 func (r *PostgresFinanceRepository) GetDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.GetDefaults(ctx, uid)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -60,9 +60,9 @@ func (r *PostgresFinanceRepository) GetDefaults(ctx context.Context, userID stri
 }
 
 func (r *PostgresFinanceRepository) CreateTag(ctx context.Context, userID, name string, isDefault bool) (*model.Tag, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.CreateTag(ctx, db.CreateTagParams{
@@ -77,18 +77,18 @@ func (r *PostgresFinanceRepository) CreateTag(ctx context.Context, userID, name 
 }
 
 func (r *PostgresFinanceRepository) GetTag(ctx context.Context, tagID, userID string) (*model.Tag, error) {
-	tid := pgtype.UUID{}
-	if err := tid.Scan(tagID); err != nil {
-		return nil, fmt.Errorf("parsing tag ID: %w", err)
+	tid, err := pgutil.ParseUUID(tagID)
+	if err != nil {
+		return nil, err
 	}
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.GetTagByID(ctx, db.GetTagByIDParams{ID: tid, UserID: uid})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -97,9 +97,9 @@ func (r *PostgresFinanceRepository) GetTag(ctx context.Context, tagID, userID st
 }
 
 func (r *PostgresFinanceRepository) ListTags(ctx context.Context, userID string) ([]*model.Tag, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	rows, err := r.queries.ListTags(ctx, uid)
@@ -115,18 +115,18 @@ func (r *PostgresFinanceRepository) ListTags(ctx context.Context, userID string)
 }
 
 func (r *PostgresFinanceRepository) UpdateTag(ctx context.Context, tagID, userID, name string) (*model.Tag, error) {
-	tid := pgtype.UUID{}
-	if err := tid.Scan(tagID); err != nil {
-		return nil, fmt.Errorf("parsing tag ID: %w", err)
+	tid, err := pgutil.ParseUUID(tagID)
+	if err != nil {
+		return nil, err
 	}
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.UpdateTag(ctx, db.UpdateTagParams{Name: name, ID: tid, UserID: uid})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -135,42 +135,42 @@ func (r *PostgresFinanceRepository) UpdateTag(ctx context.Context, tagID, userID
 }
 
 func (r *PostgresFinanceRepository) DeleteTag(ctx context.Context, tagID, userID string) error {
-	tid := pgtype.UUID{}
-	if err := tid.Scan(tagID); err != nil {
-		return fmt.Errorf("parsing tag ID: %w", err)
+	tid, err := pgutil.ParseUUID(tagID)
+	if err != nil {
+		return err
 	}
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return err
 	}
 	return r.queries.DeleteTag(ctx, db.DeleteTagParams{ID: tid, UserID: uid})
 }
 
 func (r *PostgresFinanceRepository) CountUserTags(ctx context.Context, userID string) (int64, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return 0, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return 0, err
 	}
 
 	return r.queries.CountUserTags(ctx, uid)
 }
 
 func (r *PostgresFinanceRepository) CountTagInProRata(ctx context.Context, tagID, userID string) (int64, error) {
-	tid := pgtype.UUID{}
-	if err := tid.Scan(tagID); err != nil {
-		return 0, fmt.Errorf("parsing tag ID: %w", err)
+	tid, err := pgutil.ParseUUID(tagID)
+	if err != nil {
+		return 0, err
 	}
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return 0, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return 0, err
 	}
 	return r.queries.CountTagInProRata(ctx, db.CountTagInProRataParams{TagID: tid, UserID: uid})
 }
 
 func (r *PostgresFinanceRepository) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.GetCurrentPeriod(ctx, db.GetCurrentPeriodParams{
@@ -179,7 +179,7 @@ func (r *PostgresFinanceRepository) GetCurrentPeriod(ctx context.Context, userID
 		Month:  month,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -188,9 +188,9 @@ func (r *PostgresFinanceRepository) GetCurrentPeriod(ctx context.Context, userID
 }
 
 func (r *PostgresFinanceRepository) CreatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(period.UserID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(period.UserID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.CreatePeriod(ctx, db.CreatePeriodParams{
@@ -209,13 +209,13 @@ func (r *PostgresFinanceRepository) CreatePeriod(ctx context.Context, period *mo
 }
 
 func (r *PostgresFinanceRepository) GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error) {
-	pid := pgtype.UUID{}
-	if err := pid.Scan(periodID); err != nil {
-		return nil, fmt.Errorf("parsing period ID: %w", err)
+	pid, err := pgutil.ParseUUID(periodID)
+	if err != nil {
+		return nil, err
 	}
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.GetPeriodByID(ctx, db.GetPeriodByIDParams{
@@ -223,7 +223,7 @@ func (r *PostgresFinanceRepository) GetPeriodByID(ctx context.Context, periodID,
 		UserID: uid,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -232,13 +232,13 @@ func (r *PostgresFinanceRepository) GetPeriodByID(ctx context.Context, periodID,
 }
 
 func (r *PostgresFinanceRepository) UpdatePeriod(ctx context.Context, period *model.BudgetPeriod) (*model.BudgetPeriod, error) {
-	pid := pgtype.UUID{}
-	if err := pid.Scan(period.ID); err != nil {
-		return nil, fmt.Errorf("parsing period ID: %w", err)
+	pid, err := pgutil.ParseUUID(period.ID)
+	if err != nil {
+		return nil, err
 	}
-	uid := pgtype.UUID{}
-	if err := uid.Scan(period.UserID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(period.UserID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.UpdatePeriod(ctx, db.UpdatePeriodParams{
@@ -250,7 +250,7 @@ func (r *PostgresFinanceRepository) UpdatePeriod(ctx context.Context, period *mo
 		UserID:            uid,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -259,9 +259,9 @@ func (r *PostgresFinanceRepository) UpdatePeriod(ctx context.Context, period *mo
 }
 
 func (r *PostgresFinanceRepository) ListPeriods(ctx context.Context, userID string) ([]*model.BudgetPeriod, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	rows, err := r.queries.ListPeriods(ctx, uid)
@@ -277,14 +277,14 @@ func (r *PostgresFinanceRepository) ListPeriods(ctx context.Context, userID stri
 }
 
 func (r *PostgresFinanceRepository) GetLatestPeriod(ctx context.Context, userID string) (*model.BudgetPeriod, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.GetLatestPeriod(ctx, uid)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if pgutil.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -293,17 +293,17 @@ func (r *PostgresFinanceRepository) GetLatestPeriod(ctx context.Context, userID 
 }
 
 func (r *PostgresFinanceRepository) CreateProRataSchedule(ctx context.Context, schedule *model.ProRataSchedule) (*model.ProRataSchedule, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(schedule.UserID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(schedule.UserID)
+	if err != nil {
+		return nil, err
 	}
-	groupID := pgtype.UUID{}
-	if err := groupID.Scan(schedule.ProRataGroup); err != nil {
-		return nil, fmt.Errorf("parsing pro-rata group: %w", err)
+	groupID, err := pgutil.ParseUUID(schedule.ProRataGroup)
+	if err != nil {
+		return nil, err
 	}
-	tagID := pgtype.UUID{}
-	if err := tagID.Scan(schedule.TagID); err != nil {
-		return nil, fmt.Errorf("parsing tag ID: %w", err)
+	tagID, err := pgutil.ParseUUID(schedule.TagID)
+	if err != nil {
+		return nil, err
 	}
 
 	row, err := r.queries.CreateProRataSchedule(ctx, db.CreateProRataScheduleParams{
@@ -326,9 +326,9 @@ func (r *PostgresFinanceRepository) CreateProRataSchedule(ctx context.Context, s
 }
 
 func (r *PostgresFinanceRepository) GetPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	rows, err := r.queries.GetPendingProRata(ctx, db.GetPendingProRataParams{
@@ -348,17 +348,17 @@ func (r *PostgresFinanceRepository) GetPendingProRata(ctx context.Context, userI
 }
 
 func (r *PostgresFinanceRepository) MarkProRataApplied(ctx context.Context, scheduleID string) error {
-	sid := pgtype.UUID{}
-	if err := sid.Scan(scheduleID); err != nil {
-		return fmt.Errorf("parsing schedule ID: %w", err)
+	sid, err := pgutil.ParseUUID(scheduleID)
+	if err != nil {
+		return err
 	}
 	return r.queries.MarkProRataApplied(ctx, sid)
 }
 
 func (r *PostgresFinanceRepository) GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
 	}
 
 	rows, err := r.queries.GetUpcomingProRata(ctx, uid)
@@ -374,9 +374,9 @@ func (r *PostgresFinanceRepository) GetUpcomingProRata(ctx context.Context, user
 }
 
 func (r *PostgresFinanceRepository) DeleteAllUserData(ctx context.Context, userID string) error {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return fmt.Errorf("parsing user ID: %w", err)
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return err
 	}
 
 	// Delete in consistent order: pro_rata_schedules → tags → budget_periods → default_settings
@@ -398,7 +398,7 @@ func (r *PostgresFinanceRepository) DeleteAllUserData(ctx context.Context, userI
 
 func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 	return &model.DefaultSettings{
-		UserID:            formatUUID(d.UserID.Bytes),
+		UserID:            uuid.UUID(d.UserID.Bytes).String(),
 		BudgetAmount:      d.BudgetAmount,
 		EssentialsPercent: d.EssentialsPercent,
 		DesiresPercent:    d.DesiresPercent,
@@ -411,8 +411,8 @@ func dbDefaultsToModel(d db.FinanceDefaultSetting) *model.DefaultSettings {
 
 func dbTagToModel(t db.FinanceTag) *model.Tag {
 	return &model.Tag{
-		ID:        formatUUID(t.ID.Bytes),
-		UserID:    formatUUID(t.UserID.Bytes),
+		ID:        uuid.UUID(t.ID.Bytes).String(),
+		UserID:    uuid.UUID(t.UserID.Bytes).String(),
 		Name:      t.Name,
 		IsDefault: t.IsDefault,
 		CreatedAt: t.CreatedAt.Time,
@@ -422,8 +422,8 @@ func dbTagToModel(t db.FinanceTag) *model.Tag {
 
 func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 	return &model.BudgetPeriod{
-		ID:                formatUUID(p.ID.Bytes),
-		UserID:            formatUUID(p.UserID.Bytes),
+		ID:                uuid.UUID(p.ID.Bytes).String(),
+		UserID:            uuid.UUID(p.UserID.Bytes).String(),
 		Year:              p.Year,
 		Month:             p.Month,
 		BudgetAmount:      p.BudgetAmount,
@@ -437,14 +437,14 @@ func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 
 func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
 	result := &model.ProRataSchedule{
-		ID:               formatUUID(s.ID.Bytes),
-		UserID:           formatUUID(s.UserID.Bytes),
-		ProRataGroup:     formatUUID(s.ProRataGroup.Bytes),
+		ID:               uuid.UUID(s.ID.Bytes).String(),
+		UserID:           uuid.UUID(s.UserID.Bytes).String(),
+		ProRataGroup:     uuid.UUID(s.ProRataGroup.Bytes).String(),
 		Name:             s.Name,
 		Amount:           s.Amount,
 		Currency:         s.Currency,
 		ExpenseType:      s.ExpenseType,
-		TagID:            formatUUID(s.TagID.Bytes),
+		TagID:            uuid.UUID(s.TagID.Bytes).String(),
 		TargetYear:       s.TargetYear,
 		TargetMonth:      s.TargetMonth,
 		InstallmentIndex: s.InstallmentIndex,
@@ -457,11 +457,6 @@ func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
 		result.AppliedAt = &appliedAt
 	}
 	return result
-}
-
-func formatUUID(b [16]byte) string {
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // PostgresTxBeginner implements TxBeginner using pgxpool.

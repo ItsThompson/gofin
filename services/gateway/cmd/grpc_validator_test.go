@@ -149,18 +149,18 @@ func TestGRPCTokenValidator_MapsResponseFields(t *testing.T) {
 	}{
 		{
 			name: "plain user session",
-			resp: &authpb.ValidateTokenResponse{UserId: "user-1", Role: "user", Username: "alex"},
-			want: access.TokenValidationResult{UserID: "user-1", Role: "user", Username: "alex"},
+			resp: &authpb.ValidateTokenResponse{UserId: "user-1", Role: "user"},
+			want: access.TokenValidationResult{UserID: "user-1", Role: "user"},
 		},
 		{
 			name: "admin session",
-			resp: &authpb.ValidateTokenResponse{UserId: "admin-1", Role: "admin", Username: "root"},
-			want: access.TokenValidationResult{UserID: "admin-1", Role: "admin", Username: "root"},
+			resp: &authpb.ValidateTokenResponse{UserId: "admin-1", Role: "admin"},
+			want: access.TokenValidationResult{UserID: "admin-1", Role: "admin"},
 		},
 		{
 			name: "assumed session carries AssumedBy",
-			resp: &authpb.ValidateTokenResponse{UserId: "target-1", Role: "user", Username: "target", AssumedBy: "admin-1"},
-			want: access.TokenValidationResult{UserID: "target-1", Role: "user", Username: "target", AssumedBy: "admin-1"},
+			resp: &authpb.ValidateTokenResponse{UserId: "target-1", Role: "user", AssumedBy: "admin-1"},
+			want: access.TokenValidationResult{UserID: "target-1", Role: "user", AssumedBy: "admin-1"},
 		},
 	}
 

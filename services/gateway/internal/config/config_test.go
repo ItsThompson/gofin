@@ -61,6 +61,55 @@ func TestLoad_ValidateTimeout_RejectsNonPositive(t *testing.T) {
 	}
 }
 
+// TestResolvePort_DefaultsWhenUnset confirms the probe/listener port falls back
+// to DefaultPort when PORT is not set.
+func TestResolvePort_DefaultsWhenUnset(t *testing.T) {
+	t.Setenv("PORT", "")
+	if got := ResolvePort(); got != DefaultPort {
+		t.Errorf("ResolvePort() = %q, want default %q", got, DefaultPort)
+	}
+}
+
+// TestResolvePort_HonorsOverride confirms a PORT override is returned verbatim,
+// so the --healthcheck probe targets the same port the listener binds
+// (US-PLATFORM-05).
+func TestResolvePort_HonorsOverride(t *testing.T) {
+	t.Setenv("PORT", "9090")
+	if got := ResolvePort(); got != "9090" {
+		t.Errorf("ResolvePort() = %q, want the override 9090", got)
+	}
+}
+
+// TestLoad_PortDefaultsToDefaultPort proves Load sources the listener port from
+// the same ResolvePort helper the probe uses, defaulting to DefaultPort.
+func TestLoad_PortDefaultsToDefaultPort(t *testing.T) {
+	setGatewayEnv(t)
+	t.Setenv("PORT", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Port != DefaultPort {
+		t.Errorf("cfg.Port = %q, want default %q", cfg.Port, DefaultPort)
+	}
+}
+
+// TestLoad_PortHonorsOverride proves a PORT override reaches the listener,
+// matching what the probe resolves.
+func TestLoad_PortHonorsOverride(t *testing.T) {
+	setGatewayEnv(t)
+	t.Setenv("PORT", "9090")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Port != "9090" {
+		t.Errorf("cfg.Port = %q, want the override 9090", cfg.Port)
+	}
+}
+
 // captureDefaultLogger swaps slog's default logger for one writing to the
 // returned buffer (Load emits its oversized-value warning through slog.Warn,
 // i.e. the default logger) and restores it on cleanup.

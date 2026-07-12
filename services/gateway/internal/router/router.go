@@ -24,10 +24,14 @@ type ServiceURLs struct {
 }
 
 // New creates a configured Gin engine with all gateway routes, middleware,
-// and reverse proxy handlers wired up.
+// and reverse proxy handlers wired up. The proxy groups are derived from the
+// injected prefixes (the shared services/access inventory, obtained via
+// sharedaccess.Prefixes()); injecting them keeps New a pure function of its
+// inputs and lets tests construct a wiring without mutating shared state.
 func New(
 	validator access.TokenValidator,
 	serviceURLs *ServiceURLs,
+	prefixes []sharedaccess.ProxyPrefix,
 	logger *slog.Logger,
 	isProduction bool,
 ) *gin.Engine {
@@ -64,12 +68,12 @@ func New(
 		"datarights": proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger),
 	}
 
-	// Derive the proxy wiring from the shared prefix inventory so onboarding a
-	// service is a single edit to services/access.ProxyPrefixes (which the
+	// Derive the proxy wiring from the injected prefix inventory so onboarding a
+	// service is a single edit to services/access.proxyPrefixes (which the
 	// cross-check test pins to the Registry). Access is enforced globally by
 	// AccessControl against the Registry, not per group. Fail fast if a prefix
 	// names a service with no proxy handler.
-	for _, p := range sharedaccess.ProxyPrefixes {
+	for _, p := range prefixes {
 		handler, ok := proxies[p.Service]
 		if !ok {
 			panic(fmt.Sprintf(

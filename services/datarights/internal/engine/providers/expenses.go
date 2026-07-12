@@ -9,7 +9,6 @@ import (
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
-	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
 // Compile-time check that ExpensesProvider implements DataProvider.
@@ -21,20 +20,24 @@ var _ engine.DataProvider = (*ExpensesProvider)(nil)
 // O(expensesPageSize) instead of O(total rows).
 const expensesPageSize = 100
 
-// ExpensesProvider fetches all user expenses with pagination and resolves tag names.
+// ExpensesProvider streams all user expenses with pagination and resolves tag
+// names from a tag map derived once from the shared per-job finance response.
 type ExpensesProvider struct {
 	expenseClient expensepb.ExpenseServiceClient
-	financeClient financepb.FinanceServiceClient
+	tagMap        map[string]string
 }
 
-// NewExpensesProvider creates an ExpensesProvider backed by expense and finance gRPC clients.
+// NewExpensesProvider creates an ExpensesProvider backed by the expense gRPC
+// client. The tag map (tag id -> name) is derived once upfront from the shared
+// finance response, so the expenses provider self-fetches only its expense
+// stream and never calls finance itself.
 func NewExpensesProvider(
 	expenseClient expensepb.ExpenseServiceClient,
-	financeClient financepb.FinanceServiceClient,
+	tagMap map[string]string,
 ) *ExpensesProvider {
 	return &ExpensesProvider{
 		expenseClient: expenseClient,
-		financeClient: financeClient,
+		tagMap:        tagMap,
 	}
 }
 
@@ -54,7 +57,7 @@ func (p *ExpensesProvider) Headers() []string {
 }
 
 // Collect streams every expense for the user in chronological order, resolves
-// tag names, and returns the formatted CSV rows.
+// tag names via the injected tag map, and returns the formatted CSV rows.
 //
 // It consumes the StreamAllUserExpenses server stream and formats each row as it
 // arrives (see streamExpenses) rather than buffering the whole raw-proto history
@@ -62,13 +65,8 @@ func (p *ExpensesProvider) Headers() []string {
 // collects and hands to BuildZIP; a sink that writes each row onward keeps the
 // consumer itself at O(pageSize) (see the bounded-memory benchmark).
 func (p *ExpensesProvider) Collect(ctx context.Context, userID string) ([][]string, error) {
-	tagMap, err := p.buildTagMap(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("fetching tags for name resolution: %w", err)
-	}
-
 	var rows [][]string
-	if err := p.streamExpenses(ctx, userID, tagMap, func(row []string) error {
+	if err := p.streamExpenses(ctx, userID, p.tagMap, func(row []string) error {
 		rows = append(rows, row)
 		return nil
 	}); err != nil {
@@ -76,26 +74,6 @@ func (p *ExpensesProvider) Collect(ctx context.Context, userID string) ([][]stri
 	}
 
 	return rows, nil
-}
-
-// buildTagMap fetches the user's tags and returns a map of tag ID to tag name.
-// It derives the tag map from GetAllUserData().GetTags() (shared with the tags,
-// budget_periods, and default_settings providers via the per-job memoized
-// finance client) instead of a separate ListTags call, so the export hits
-// finance once for this data.
-func (p *ExpensesProvider) buildTagMap(ctx context.Context, userID string) (map[string]string, error) {
-	resp, err := p.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
-	if err != nil {
-		return nil, err
-	}
-
-	tags := resp.GetTags()
-	tagMap := make(map[string]string, len(tags))
-	for _, tag := range tags {
-		tagMap[tag.GetId()] = tag.GetName()
-	}
-
-	return tagMap, nil
 }
 
 // streamExpenses consumes the StreamAllUserExpenses server stream and invokes

@@ -437,7 +437,7 @@ func TestAccessControl_UnknownLevel_DeniesByDefault(t *testing.T) {
 	// A resolve func that returns an out-of-enum access level for every path.
 	// A valid token reaches the middleware's switch with a level that matches
 	// none of the known cases and must fall through to the fail-safe deny.
-	resolve := func(_, _ string) sharedaccess.Access { return sharedaccess.Access(99) }
+	resolve := func(_, _ string) sharedaccess.Level { return sharedaccess.Level(99) }
 
 	engine := gin.New()
 	engine.Use(access.AccessControl(validator, resolve, silentLogger()))
@@ -482,7 +482,7 @@ func TestGatewayResolve(t *testing.T) {
 		name   string
 		method string
 		path   string
-		want   sharedaccess.Access
+		want   sharedaccess.Level
 	}{
 		{"health is public", http.MethodGet, "/health", sharedaccess.Public},
 		{"metrics is public", http.MethodGet, "/metrics", sharedaccess.Public},
@@ -498,6 +498,47 @@ func TestGatewayResolve(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAccessControl_ErrorBodies_MatchApierrWireShape pins that routing the
+// gateway's middleware errors through apierr.Respond preserves the exact
+// {code,message} wire bytes clients already receive, so the migration is not a
+// schema change. Covers the 401 (missing cookie), 403 (denied route), and 503
+// (auth-dependency timeout) paths. Asserts the raw body (not JSONEq) so the
+// byte-for-byte claim is pinned: field order and the absence of a trailing
+// newline are part of the contract.
+func TestAccessControl_ErrorBodies_MatchApierrWireShape(t *testing.T) {
+	t.Run("401 missing cookie", func(t *testing.T) {
+		engine := buildEngine(&fakeValidator{}, silentLogger(), http.MethodGet, "/api/auth/me", okHandler)
+		req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Equal(t, `{"code":"UNAUTHORIZED","message":"Authentication required"}`, rec.Body.String())
+	})
+
+	t.Run("403 denied unclassified route", func(t *testing.T) {
+		engine := buildEngine(&fakeValidator{}, silentLogger(), http.MethodGet, "/api/unclassified", okHandler)
+		req := httptest.NewRequest(http.MethodGet, "/api/unclassified", nil)
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+		assert.Equal(t, `{"code":"FORBIDDEN","message":"Access denied"}`, rec.Body.String())
+	})
+
+	t.Run("503 auth dependency timeout", func(t *testing.T) {
+		validator := &fakeValidator{err: context.DeadlineExceeded}
+		engine := buildEngine(validator, silentLogger(), http.MethodGet, "/api/finance/periods", okHandler)
+		req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+		req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		assert.Equal(t, `{"code":"SERVICE_UNAVAILABLE","message":"Authentication service unavailable"}`, rec.Body.String())
+	})
 }
 
 // bytesBuffer is a minimal io.Writer that also parses the last JSON log line.

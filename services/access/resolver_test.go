@@ -10,7 +10,7 @@ func TestResolve_WorkedExamples(t *testing.T) {
 		name   string
 		method string
 		path   string
-		want   Access
+		want   Level
 	}{
 		{"login is public", "POST", "/api/auth/login", Public},
 		{"register is public", "POST", "/api/auth/register", Public},
@@ -65,6 +65,7 @@ func TestResolve_FallsBackToDeny(t *testing.T) {
 		{"bare admin group", "GET", "/api/admin"},
 		{"bare datarights group", "GET", "/api/datarights"},
 		{"unknown api path", "GET", "/api/unknown"},
+		{"unknown service deep path", "GET", "/api/newservice/records"},
 		{"extra trailing segment", "GET", "/api/finance/tags/abc/extra"},
 	}
 
