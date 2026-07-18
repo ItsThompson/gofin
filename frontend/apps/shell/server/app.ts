@@ -4,6 +4,7 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createHealthzHandler } from "./healthz";
 
 const API_GATEWAY_URL =
   process.env.API_GATEWAY_URL || "http://localhost:8080";
@@ -48,6 +49,19 @@ app.use(
   express.static(path.join(remotesBase, "finance/dist"), {
     maxAge: "1h",
     immutable: false,
+  }),
+);
+
+// Public liveness endpoint for the external health-check cron. Mirrors the
+// gateway's /readyz aggregate (200 when all backend services are healthy, else
+// 503) and never hangs on a slow gateway. Mounted after the /api proxy and
+// before the SSR catch-all so it is not proxied or swallowed by SSR.
+app.get(
+  "/healthz",
+  createHealthzHandler({
+    gatewayUrl: API_GATEWAY_URL,
+    fetchFn: fetch,
+    timeoutMs: 5000,
   }),
 );
 
