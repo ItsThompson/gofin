@@ -486,6 +486,7 @@ func TestGatewayResolve(t *testing.T) {
 	}{
 		{"health is public", http.MethodGet, "/health", sharedaccess.Public},
 		{"metrics is public", http.MethodGet, "/metrics", sharedaccess.Public},
+		{"readyz is public", http.MethodGet, "/readyz", sharedaccess.Public},
 		{"a real personal route keeps its level", http.MethodGet, "/api/finance/periods", sharedaccess.Personal},
 		{"a real admin route keeps its level", http.MethodGet, "/api/admin/users", sharedaccess.Admin},
 		{"an unknown path falls to deny", http.MethodGet, "/api/unknown", sharedaccess.Deny},

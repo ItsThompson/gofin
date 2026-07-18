@@ -132,12 +132,12 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) s
 }
 
 // GatewayResolve is the resolver the gateway injects into AccessControl. It
-// classifies the two gateway-native endpoints (/health, /metrics) as Public
-// and delegates every /api route to the shared registry resolver. Keeping this
-// composition in the gateway is why services/access never needs to know about
-// gateway-owned routes.
+// classifies the gateway-native endpoints (/health, /metrics, /readyz) as
+// Public and delegates every /api route to the shared registry resolver.
+// Keeping this composition in the gateway is why services/access never needs to
+// know about gateway-owned routes.
 func GatewayResolve(method, path string) sharedaccess.Level {
-	if path == "/health" || path == "/metrics" {
+	if path == "/health" || path == "/metrics" || path == "/readyz" {
 		return sharedaccess.Public
 	}
 	return sharedaccess.Resolve(method, path)
