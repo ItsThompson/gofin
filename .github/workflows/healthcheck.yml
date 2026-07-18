@@ -58,7 +58,12 @@ jobs:
               -w "%{http_code}" \
               "$url") || true
             echo "Attempt ${i}/${attempts}: HTTP ${http_code}"
-            if [ "$http_code" = "200" ]; then
+            # A 200 status alone is not sufficient: the shell's React Router SSR
+            # catch-all also answers 200 (HTML) for an unmatched path, so a stale
+            # deploy without /healthz would look "healthy". Require the
+            # readiness-backed JSON body ({"status":"ok"}) so a green run proves
+            # we actually reached /healthz and the backend is up.
+            if [ "$http_code" = "200" ] && grep -q '"status":"ok"' /tmp/healthz_body; then
               echo "healthz OK"
               exit 0
             fi
