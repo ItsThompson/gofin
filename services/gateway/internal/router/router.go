@@ -66,21 +66,30 @@ func New(
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// The canonical service-name -> URL map is the single source of truth that
+	// both the reverse-proxy wiring and the readiness fan-out derive from, so the
+	// two can never drift: onboarding a downstream is one edit (in serviceURLMap),
+	// and both /api proxying and /readyz pick it up together.
+	services := serviceURLMap(serviceURLs)
+
 	// Readiness aggregate (Public via GatewayResolve). Unlike the shallow
 	// /health above, /readyz fans out to every downstream service's /health so a
-	// single probe proves the whole backend is reachable. The service-name keys
-	// are the same canonical names used for the proxy handlers below, so the 503
-	// body and logs name the service the gateway proxies to.
-	checker := readiness.NewChecker(&http.Client{}, servicesFromURLs(serviceURLs), readinessTimeout)
+	// single probe proves the whole backend is reachable. It probes exactly the
+	// services the gateway proxies to (both derive from the shared map above), so
+	// the 503 body and logs name the service the gateway actually routes to.
+	readinessTargets := make(map[string]string, len(services))
+	for name, serviceURL := range services {
+		readinessTargets[name] = serviceURL.String()
+	}
+	checker := readiness.NewChecker(&http.Client{}, readinessTargets, readinessTimeout)
 	engine.GET("/readyz", readiness.Handler(checker, logger))
 
-	// Build one reverse-proxy handler per downstream service, keyed by the
-	// service name used in the shared Registry and ProxyPrefixes.
-	proxies := map[string]http.Handler{
-		"auth":       proxy.NewServiceProxy(serviceURLs.AuthREST, logger),
-		"expense":    proxy.NewServiceProxy(serviceURLs.ExpenseREST, logger),
-		"finance":    proxy.NewServiceProxy(serviceURLs.FinanceREST, logger),
-		"datarights": proxy.NewServiceProxy(serviceURLs.DatarightsREST, logger),
+	// Build one reverse-proxy handler per downstream service from the same shared
+	// map, keyed by the service name used in the shared Registry and
+	// ProxyPrefixes.
+	proxies := make(map[string]http.Handler, len(services))
+	for name, serviceURL := range services {
+		proxies[name] = proxy.NewServiceProxy(serviceURL, logger)
 	}
 
 	// Derive the proxy wiring from the injected prefix inventory so onboarding a
@@ -113,14 +122,17 @@ func ginWrapHandler(handler http.Handler) gin.HandlerFunc {
 	}
 }
 
-// servicesFromURLs builds the canonical service-name -> base URL map the
-// readiness checker fans out over, keyed by the same names as the proxy
-// handlers so /readyz reports the service the gateway actually proxies to.
-func servicesFromURLs(serviceURLs *ServiceURLs) map[string]string {
-	return map[string]string{
-		"auth":       serviceURLs.AuthREST.String(),
-		"expense":    serviceURLs.ExpenseREST.String(),
-		"finance":    serviceURLs.FinanceREST.String(),
-		"datarights": serviceURLs.DatarightsREST.String(),
+// serviceURLMap is the canonical service-name -> URL map for the downstream
+// services. Both the reverse-proxy wiring and the readiness fan-out derive from
+// it, so they share one source of truth: adding a downstream is a single edit
+// here, and because the prefix->proxy wiring panics for a service with no
+// handler, a proxied service that /readyz fails to probe is impossible by
+// construction.
+func serviceURLMap(serviceURLs *ServiceURLs) map[string]*url.URL {
+	return map[string]*url.URL{
+		"auth":       serviceURLs.AuthREST,
+		"expense":    serviceURLs.ExpenseREST,
+		"finance":    serviceURLs.FinanceREST,
+		"datarights": serviceURLs.DatarightsREST,
 	}
 }

@@ -101,10 +101,15 @@ func TestChecker_Unreachable_ReportsUnreachable(t *testing.T) {
 func TestChecker_Timeout_ReportsUnreachableWithinBound(t *testing.T) {
 	auth := newHealthServer(t, http.StatusOK)
 	// A downstream whose /health hangs past the probe timeout must be bounded:
-	// Check returns within the timeout (plus slack) and marks it unreachable.
-	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		time.Sleep(2 * time.Second)
-		w.WriteHeader(http.StatusOK)
+	// Check returns within the timeout (plus slack) and marks it unreachable. The
+	// stub honours request-context cancellation so it unblocks the moment the
+	// probe aborts, keeping t.Cleanup's Close() from waiting out the full sleep.
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-time.After(2 * time.Second):
+			w.WriteHeader(http.StatusOK)
+		case <-r.Context().Done():
+		}
 	}))
 	t.Cleanup(slow.Close)
 

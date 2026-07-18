@@ -13,6 +13,7 @@ package readiness
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -106,7 +107,11 @@ func (c *Checker) probe(ctx context.Context, baseURL string) (string, bool) {
 	if err != nil {
 		return statusUnreachable, false
 	}
-	defer func() { _ = resp.Body.Close() }()
+	// Drain then close so the underlying connection can be reused (keep-alive).
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusOK {
 		return statusOK, true
