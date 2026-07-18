@@ -1,0 +1,101 @@
+# Website health check
+#
+# Standalone scheduled probe of the production site, independent of ci.yml/cd.yml.
+# Every 12h (and on demand) it curls the public, header-gated liveness endpoint
+# https://usegofin.com/healthz, which returns 200 only when the Cloudflare edge,
+# tunnel, shell, gateway, and all four downstream services (auth, expense,
+# finance, datarights) are healthy; 503 (or unreachable) otherwise. On failure
+# the job goes red AND posts exactly one Discord alert. Success is silent.
+#
+# Cloudflare gate: a WAF Custom Rule (action = Skip) bypasses Under Attack Mode for
+#   http.request.uri.path eq "/healthz"
+#     and http.request.headers["x-health-token"][0] eq <HEALTHCHECK_TOKEN>
+# The token value lives only in the GH secret HEALTHCHECK_TOKEN and in the
+# Cloudflare rule expression (never committed). Without the header the same
+# request receives a 403 challenge, so this probe is the only automated client
+# that can reach the origin.
+#
+# Secrets (repo-level GH Actions):
+#   HEALTHCHECK_TOKEN   - edge bypass header value (matches the Cloudflare rule)
+#   DISCORD_WEBHOOK_URL - failure-alert webhook (reuses the Alertmanager webhook)
+
+name: Healthcheck
+
+on:
+  schedule:
+    # Every 12 hours (UTC, best-effort per GitHub's scheduler).
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: healthcheck
+  cancel-in-progress: false
+
+jobs:
+  healthcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production /healthz
+        env:
+          HEALTHCHECK_TOKEN: ${{ secrets.HEALTHCHECK_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="https://usegofin.com/healthz"
+          attempts=3
+          delay=10
+          http_code="000"
+
+          # Bounded retry so a single transient blip (slow deploy, brief network
+          # hiccup) does not raise a false alarm. Success short-circuits.
+          for i in $(seq 1 "$attempts"); do
+            http_code=$(curl -sS -m 15 \
+              -H "X-Health-Token: ${HEALTHCHECK_TOKEN}" \
+              -o /tmp/healthz_body \
+              -w "%{http_code}" \
+              "$url") || true
+            echo "Attempt ${i}/${attempts}: HTTP ${http_code}"
+            if [ "$http_code" = "200" ]; then
+              echo "healthz OK"
+              exit 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              sleep "$delay"
+            fi
+          done
+
+          body="$(cat /tmp/healthz_body 2>/dev/null || true)"
+          echo "healthz FAILED after ${attempts} attempts (last HTTP ${http_code})"
+          echo "Response body: ${body}"
+
+          # Hand the failure detail to the Discord step via the environment file.
+          {
+            echo "HEALTHCHECK_CODE=${http_code}"
+            echo "HEALTHCHECK_BODY<<HEALTHZ_EOF"
+            echo "${body}"
+            echo "HEALTHZ_EOF"
+          } >> "$GITHUB_ENV"
+          exit 1
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          content=$(printf ':rotating_light: gofin production healthcheck FAILED\nRepo: %s\nStatus: %s\nBody: %s\nRun: %s' \
+            "${GITHUB_REPOSITORY}" \
+            "${HEALTHCHECK_CODE:-unreachable}" \
+            "${HEALTHCHECK_BODY:-<none>}" \
+            "${run_url}")
+          # jq builds and escapes the JSON payload so newlines/quotes in the
+          # relayed body cannot break it.
+          payload=$(jq -n --arg content "$content" '{content: $content}')
+          curl -sS -m 15 -X POST \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK_URL"
