@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -12,8 +13,14 @@ import (
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/middleware"
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
+	"github.com/ItsThompson/gofin/services/gateway/internal/readiness"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
+
+// readinessTimeout bounds each downstream /health probe issued by /readyz. It
+// mirrors the healthcheck lib's 2s Docker HEALTHCHECK timeout so /readyz and
+// container liveness share the same notion of "slow enough to be down".
+const readinessTimeout = 2 * time.Second
 
 // ServiceURLs holds the parsed downstream service URLs.
 type ServiceURLs struct {
@@ -59,6 +66,14 @@ func New(
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// Readiness aggregate (Public via GatewayResolve). Unlike the shallow
+	// /health above, /readyz fans out to every downstream service's /health so a
+	// single probe proves the whole backend is reachable. The service-name keys
+	// are the same canonical names used for the proxy handlers below, so the 503
+	// body and logs name the service the gateway proxies to.
+	checker := readiness.NewChecker(&http.Client{}, servicesFromURLs(serviceURLs), readinessTimeout)
+	engine.GET("/readyz", readiness.Handler(checker, logger))
+
 	// Build one reverse-proxy handler per downstream service, keyed by the
 	// service name used in the shared Registry and ProxyPrefixes.
 	proxies := map[string]http.Handler{
@@ -95,5 +110,17 @@ func New(
 func ginWrapHandler(handler http.Handler) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		handler.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
+// servicesFromURLs builds the canonical service-name -> base URL map the
+// readiness checker fans out over, keyed by the same names as the proxy
+// handlers so /readyz reports the service the gateway actually proxies to.
+func servicesFromURLs(serviceURLs *ServiceURLs) map[string]string {
+	return map[string]string{
+		"auth":       serviceURLs.AuthREST.String(),
+		"expense":    serviceURLs.ExpenseREST.String(),
+		"finance":    serviceURLs.FinanceREST.String(),
+		"datarights": serviceURLs.DatarightsREST.String(),
 	}
 }

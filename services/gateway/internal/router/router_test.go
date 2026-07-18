@@ -314,6 +314,61 @@ func TestRouter_HealthEndpoint(t *testing.T) {
 	assert.Contains(t, body, `"status":"ok"`)
 }
 
+// TestRouter_ReadyzEndpoint_AllHealthy_Returns200 pins the happy path: with
+// every downstream answering /health with 200, /readyz aggregates to 200
+// {"status":"ok"} and requires no cookie (Public via GatewayResolve).
+func TestRouter_ReadyzEndpoint_AllHealthy_Returns200(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	resp, body := doRequest(http.MethodGet, "/readyz", nil)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, body, `"status":"ok"`)
+}
+
+// TestRouter_ReadyzEndpoint_DownstreamUnhealthy_Returns503NamingService proves
+// /readyz aggregates downstream health and names the failing service in a 503.
+// Built directly (not via setupGateway) so one downstream can fail its /health
+// while the others stay healthy.
+func TestRouter_ReadyzEndpoint_DownstreamUnhealthy_Returns503NamingService(t *testing.T) {
+	newHealthy := func() *url.URL {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+		u, _ := url.Parse(server.URL)
+		return u
+	}
+
+	unhealthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(unhealthy.Close)
+	expenseURL, _ := url.Parse(unhealthy.URL)
+
+	engine := router.New(userValidator(), &router.ServiceURLs{
+		AuthREST:       newHealthy(),
+		ExpenseREST:    expenseURL,
+		FinanceREST:    newHealthy(),
+		DatarightsREST: newHealthy(),
+	}, sharedaccess.Prefixes(), newSilentLogger(), false)
+
+	gatewayServer := httptest.NewServer(engine)
+	t.Cleanup(gatewayServer.Close)
+
+	resp, err := gatewayServer.Client().Get(gatewayServer.URL + "/readyz")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	assert.Contains(t, string(body), `"status":"unhealthy"`)
+	assert.Contains(t, string(body), "expense", "the 503 body must name the unhealthy service")
+}
+
 // TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's
 // fail-fast contract: because router.New derives its proxy groups from the
 // injected prefix inventory, a prefix naming a service with no proxy handler
