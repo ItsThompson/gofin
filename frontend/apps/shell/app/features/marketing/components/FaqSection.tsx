@@ -9,7 +9,7 @@ import type { FaqContent } from "../types";
 export function FaqSection({ heading, items }: FaqContent) {
   return (
     <section className="mx-auto max-w-3xl px-4 py-16 md:py-24">
-      <h2 className="font-heading text-2xl font-bold tracking-tight">
+      <h2 className="font-heading text-2xl font-bold tracking-tight md:text-3xl">
         {heading}
       </h2>
       <div className="mt-8">

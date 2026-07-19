@@ -8,7 +8,7 @@ import type { FaqItemContent } from "../types";
 export function FaqItem({ question, answer }: FaqItemContent) {
   return (
     <div className="border-t py-6">
-      <h3 className="text-lg font-semibold">{question}</h3>
+      <h3 className="font-heading text-lg font-semibold">{question}</h3>
       <p className="mt-2 text-muted-foreground">{answer}</p>
     </div>
   );
