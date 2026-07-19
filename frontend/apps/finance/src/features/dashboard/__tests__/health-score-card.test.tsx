@@ -1,11 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { HealthScoreCard } from "../components/widgets/HealthScoreCard";
-import type { HealthScore } from "../../../types";
+import type {
+  HealthScore,
+  HealthScoreConfigureBudget,
+  HealthScoreTrendPoint,
+} from "../../../types";
 
 // ResponsiveContainer won't render children without real DOM dimensions.
-// Mock it so the ring chart internals execute in jsdom.
+// Mock it so the ring and sparkline chart internals execute in jsdom.
 vi.mock("recharts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("recharts")>();
   return {
@@ -23,7 +27,7 @@ function buildHealthScore(overrides?: Partial<HealthScore>): HealthScore {
     total: 56,
     band: "amber",
     provisional: false,
-    formulaVersion: 1,
+    formulaVersion: 2,
     components: [
       { key: "savings_achievement", score: 20, max: 30, detail: "Saved $400 of $600 target" },
       { key: "budget_adherence", score: 30, max: 30, detail: "Spent $2,000 of $2,400 plan" },
@@ -39,10 +43,21 @@ function buildHealthScore(overrides?: Partial<HealthScore>): HealthScore {
   };
 }
 
-function renderCard(score: HealthScore | null) {
+function buildTrend(): HealthScoreTrendPoint[] {
+  return [
+    { year: 2026, month: 3, total: 58, band: "amber", provisional: false, formulaVersion: 2 },
+    { year: 2026, month: 4, total: 64, band: "amber", provisional: false, formulaVersion: 2 },
+    { year: 2026, month: 5, total: 56, band: "amber", provisional: true, formulaVersion: 2 },
+  ];
+}
+
+function renderCard(
+  score: HealthScore | HealthScoreConfigureBudget | null,
+  trend?: HealthScoreTrendPoint[] | null,
+) {
   return render(
     <MemoryRouter>
-      <HealthScoreCard score={score} />
+      <HealthScoreCard score={score} trend={trend} />
     </MemoryRouter>,
   );
 }
@@ -71,6 +86,26 @@ describe("HealthScoreCard", () => {
     expect(screen.getByText("Desires 12 pts over target share")).toBeInTheDocument();
 
     expect(screen.getAllByRole("progressbar")).toHaveLength(3);
+  });
+
+  it("renders a fourth bar for spending stability when present", () => {
+    renderCard(
+      buildHealthScore({
+        total: 76,
+        band: "amber",
+        components: [
+          { key: "savings_achievement", score: 17, max: 25, detail: "Saved $400 of $600 target" },
+          { key: "budget_adherence", score: 25, max: 25, detail: "Spent $2,000 of $2,400 plan" },
+          { key: "allocation_balance", score: 20, max: 30, detail: "Desires 8 pts over target share" },
+          { key: "spending_stability", score: 14, max: 20, detail: "Desires spend varied ~29% month to month" },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Spending stability")).toBeInTheDocument();
+    expect(screen.getByText("14/20")).toBeInTheDocument();
+    expect(screen.getByText("Desires spend varied ~29% month to month")).toBeInTheDocument();
+    expect(screen.getAllByRole("progressbar")).toHaveLength(4);
   });
 
   it("highlights the driver bar", () => {
@@ -104,8 +139,35 @@ describe("HealthScoreCard", () => {
     expect(screen.queryByText("Month to date")).toBeNull();
   });
 
+  it("renders the sparkline when trend points are supplied", () => {
+    renderCard(buildHealthScore(), buildTrend());
+    expect(screen.getByText("Score trend")).toBeInTheDocument();
+    expect(screen.getByText("Last 3 months")).toBeInTheDocument();
+  });
+
+  it("omits the sparkline when there is no trend", () => {
+    renderCard(buildHealthScore(), null);
+    expect(screen.queryByText("Score trend")).toBeNull();
+  });
+
+  it("opens the learn-more modal from the header and closes on Escape", () => {
+    renderCard(buildHealthScore());
+    expect(screen.queryByText("About your Financial Health Score")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /about the financial health score/i }),
+    );
+    expect(screen.getByText("About your Financial Health Score")).toBeInTheDocument();
+    // The modal explains the sub-scores and bands (headings are modal-only).
+    expect(screen.getByText("Sub-scores")).toBeInTheDocument();
+    expect(screen.getByText("Bands")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByText("About your Financial Health Score")).toBeNull();
+  });
+
   it("shows the configure-budget prompt with a Budget Settings link", () => {
-    renderCard(buildHealthScore({ configureBudget: true }));
+    renderCard({ configureBudget: true });
     expect(
       screen.getByText("Set a budget to see your health score."),
     ).toBeInTheDocument();
@@ -134,6 +196,46 @@ describe("HealthScoreCard", () => {
     expect(screen.getAllByRole("progressbar")).toHaveLength(2);
     expect(screen.getByText("Savings isn't budgeted this month.")).toBeInTheDocument();
     expect(screen.queryByText("Savings")).toBeNull();
+  });
+
+  it("renders an unknown component key with a humanized label (backward/forward compatible)", () => {
+    const withUnknown = buildHealthScore({
+      components: [
+        { key: "budget_adherence", score: 25, max: 25, detail: "Spent $2,000 of $2,400 plan" },
+        { key: "allocation_balance", score: 20, max: 30, detail: "Balanced across categories" },
+        // A key this build has never seen (a future backend component).
+        { key: "future_component", score: 10, max: 20, detail: "A new signal" },
+      ],
+    });
+    renderCard(withUnknown);
+
+    // Humanized snake_case -> Title Case fallback, no crash.
+    expect(screen.getByText("Future Component")).toBeInTheDocument();
+    expect(screen.getByText("10/20")).toBeInTheDocument();
+    expect(screen.getAllByRole("progressbar")).toHaveLength(3);
+  });
+
+  it("renders a historical v1-shaped snapshot without crashing", () => {
+    // A snapshot from an older formula version (3 components, v1 maxes).
+    const historical = buildHealthScore({
+      formulaVersion: 1,
+      total: 79,
+      band: "amber",
+      components: [
+        { key: "savings_achievement", score: 15, max: 30, detail: "Saved $300 of $600 target" },
+        { key: "budget_adherence", score: 30, max: 30, detail: "Spent $2,200 of $2,400 plan" },
+        { key: "allocation_balance", score: 34, max: 40, detail: "Desires 6 pts over target share" },
+      ],
+      insight: {
+        summary: "Savings is the softest score this month.",
+        driver: "savings_achievement",
+        nudge: "Move an extra $300 to savings to reach your target and lift your score about 15 points.",
+      },
+    });
+    renderCard(historical);
+
+    expect(screen.getByText("79")).toBeInTheDocument();
+    expect(screen.getAllByRole("progressbar")).toHaveLength(3);
   });
 
   it("renders nothing when the score is null", () => {

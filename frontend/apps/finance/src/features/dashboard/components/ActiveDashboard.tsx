@@ -114,7 +114,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         {data.healthScore && (
           <section id="health-score" data-outline-title="Health Score">
             <SectionErrorBoundary sectionName="Health Score">
-              <HealthScoreCard score={data.healthScore} />
+              <HealthScoreCard score={data.healthScore} trend={data.healthScoreTrend} />
             </SectionErrorBoundary>
           </section>
         )}

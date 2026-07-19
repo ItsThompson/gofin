@@ -12,9 +12,14 @@ import type {
   ProRataSchedule,
   TrendPoint,
   HealthScore,
+  HealthScoreConfigureBudget,
+  HealthScoreTrendPoint,
 } from "../../../types";
 import type { PaginatedResponse } from "@gofin/core";
 import { dashboardApi } from "../api";
+
+// The health-score sparkline always shows the last 6 monthly scores.
+const HEALTH_SCORE_TREND_MONTHS = 6;
 
 export interface DashboardData {
   summary: PeriodSummary | null;
@@ -24,7 +29,8 @@ export interface DashboardData {
   comparison: HistoricalComparison | null;
   upcomingProRata: ProRataSchedule[];
   trendData: TrendPoint[] | null;
-  healthScore: HealthScore | null;
+  healthScore: HealthScore | HealthScoreConfigureBudget | null;
+  healthScoreTrend: HealthScoreTrendPoint[] | null;
 }
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
@@ -36,6 +42,7 @@ export const EMPTY_DASHBOARD_DATA: DashboardData = {
   upcomingProRata: [],
   trendData: null,
   healthScore: null,
+  healthScoreTrend: null,
 };
 
 export interface DashboardDataResult {
@@ -95,6 +102,16 @@ export function useDashboardData(
     setData(prev => ({ ...prev, trendData: trendRes?.trends ?? null }));
   }, [year, month, trendMonths]);
 
+  // The health-score sparkline is a non-critical fetch: a failure leaves the
+  // score card intact. It always shows the last 6 monthly scores, independent
+  // of the 6|12 spending-trend selector.
+  const fetchHealthScoreTrend = useCallback(async () => {
+    const res = await dashboardApi
+      .getHealthScoreTrend(year, month, HEALTH_SCORE_TREND_MONTHS)
+      .catch(() => null);
+    setData((prev) => ({ ...prev, healthScoreTrend: res?.trends ?? null }));
+  }, [year, month]);
+
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
@@ -102,6 +119,10 @@ export function useDashboardData(
   useEffect(() => {
     fetchTrendData();
   }, [fetchTrendData]);
+
+  useEffect(() => {
+    fetchHealthScoreTrend();
+  }, [fetchHealthScoreTrend]);
 
   return {
     data,

@@ -14,6 +14,7 @@ import type {
   CreatePeriodResponse,
   UpdatePeriodRequest,
   HealthScoreResponse,
+  HealthScoreTrendResponse,
 } from "../../types";
 
 export const dashboardApi = {
@@ -30,6 +31,11 @@ export const dashboardApi = {
   getHealthScore: (year: number, month: number) =>
     apiClient<HealthScoreResponse>(
       `/api/finance/health-score?year=${year}&month=${month}`,
+    ),
+
+  getHealthScoreTrend: (year: number, month: number, months: number) =>
+    apiClient<HealthScoreTrendResponse>(
+      `/api/finance/health-score/trend?year=${year}&month=${month}&months=${months}`,
     ),
 
   getTagSpending: (year: number, month: number) =>
