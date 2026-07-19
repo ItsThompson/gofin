@@ -68,6 +68,12 @@ describe("LandingPage", () => {
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1); // <footer>
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
 
+    // One <h2> per titled section (HowItWorks, DualMode, FAQ, FinalCta); the
+    // value-prop band is intentionally headingless. No heading skips past <h3>,
+    // so the hierarchy is a contiguous h1 -> h2 -> h3.
+    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(4);
+    expect(screen.queryAllByRole("heading", { level: 4 })).toHaveLength(0);
+
     // How-it-works renders one <h3> card per content step.
     for (const step of landingContent.howItWorks.steps) {
       expect(
