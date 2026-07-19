@@ -67,6 +67,7 @@ var registry = []Route{
 	{ID: "finance.prorata.create", Service: "finance", Method: http.MethodPost, Path: "/api/finance/prorata", Access: Personal},
 	{ID: "finance.prorata.upcoming", Service: "finance", Method: http.MethodGet, Path: "/api/finance/prorata/upcoming", Access: Personal},
 	{ID: "finance.health_score", Service: "finance", Method: http.MethodGet, Path: "/api/finance/health-score", Access: Personal},
+	{ID: "finance.health_score.trend", Service: "finance", Method: http.MethodGet, Path: "/api/finance/health-score/trend", Access: Personal},
 
 	// --- expense service ---
 	{ID: "expense.create", Service: "expense", Method: http.MethodPost, Path: "/api/expenses", Access: Personal},

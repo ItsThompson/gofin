@@ -1,5 +1,5 @@
 import type { HealthComponent } from "../../../../types";
-import { COMPONENT_LABEL } from "./healthScoreDisplay";
+import { componentLabel } from "./healthScoreDisplay";
 
 interface SubScoreBarProps {
   component: HealthComponent;
@@ -9,7 +9,7 @@ interface SubScoreBarProps {
 
 /** One sub-score row: label, score/max, a progress bar, and the detail line. */
 export function SubScoreBar({ component, isDriver }: SubScoreBarProps) {
-  const label = COMPONENT_LABEL[component.key];
+  const label = componentLabel(component.key);
   const fillPercent =
     component.max > 0
       ? Math.min(100, Math.round((component.score / component.max) * 100))

@@ -98,6 +98,31 @@ SELECT * FROM finance.pro_rata_schedules
 WHERE user_id = $1 AND status = 'pending'
 ORDER BY target_year ASC, target_month ASC, installment_index ASC;
 
+-- name: GetHealthScore :one
+SELECT * FROM finance.health_scores
+WHERE user_id = $1 AND year = $2 AND month = $3;
+
+-- name: UpsertHealthScore :one
+INSERT INTO finance.health_scores
+    (user_id, year, month, total, band, score, formula_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (user_id, year, month)
+DO UPDATE SET
+    total = EXCLUDED.total,
+    band = EXCLUDED.band,
+    score = EXCLUDED.score,
+    formula_version = EXCLUDED.formula_version,
+    computed_at = now()
+RETURNING *;
+
+-- name: ListHealthScoreScalars :many
+-- Denormalized scalar columns only (no score JSONB) for the trend read; served
+-- by idx_health_scores_user (user_id, year DESC, month DESC).
+SELECT year, month, total, band, formula_version
+FROM finance.health_scores
+WHERE user_id = $1
+ORDER BY year DESC, month DESC;
+
 -- name: DeleteAllUserProRataSchedules :exec
 DELETE FROM finance.pro_rata_schedules WHERE user_id = $1;
 
@@ -109,3 +134,6 @@ DELETE FROM finance.budget_periods WHERE user_id = $1;
 
 -- name: DeleteAllUserDefaultSettings :exec
 DELETE FROM finance.default_settings WHERE user_id = $1;
+
+-- name: DeleteAllUserHealthScores :exec
+DELETE FROM finance.health_scores WHERE user_id = $1;

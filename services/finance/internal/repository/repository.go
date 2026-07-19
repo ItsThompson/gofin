@@ -27,6 +27,9 @@ type FinanceRepository interface {
 	GetPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error)
 	MarkProRataApplied(ctx context.Context, scheduleID string) error
 	GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error)
+	GetHealthScore(ctx context.Context, userID string, year, month int32) (*model.HealthScore, error)
+	UpsertHealthScore(ctx context.Context, userID string, score *model.HealthScore) (*model.HealthScore, error)
+	ListHealthScoreScalars(ctx context.Context, userID string) ([]*model.HealthScoreTrendPoint, error)
 	DeleteAllUserData(ctx context.Context, userID string) error
 }
 

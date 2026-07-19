@@ -1,15 +1,25 @@
 /** Color band for the health-score total. */
 export type HealthBand = "green" | "amber" | "red";
 
-/** Contributing sub-score keys. Mirrors the backend model constants. */
+/**
+ * Known contributing sub-score keys. Mirrors the backend model constants. The
+ * key on {@link HealthComponent} is an OPEN union, so a future or historical
+ * component the current build has never seen is still representable.
+ */
 export type HealthComponentKey =
   | "savings_achievement"
   | "budget_adherence"
-  | "allocation_balance";
+  | "allocation_balance"
+  | "spending_stability";
 
 /** One contributing sub-score. Score is in [0, max]; max is the weight. */
 export interface HealthComponent {
-  key: HealthComponentKey;
+  /**
+   * Component key. Open union: the backend may add or rename components across
+   * formula versions, and historical snapshots may carry a key this build has
+   * never seen. `componentLabel()` humanizes any unknown key.
+   */
+  key: HealthComponentKey | (string & {});
   /** Points earned (0-max). */
   score: number;
   /** Full-mark points for this component. */
@@ -37,11 +47,32 @@ export interface HealthScore {
   formulaVersion: number;
   components: HealthComponent[];
   insight: HealthInsight;
-  /** True when the period has no budget configured; numeric fields are unset. */
-  configureBudget?: boolean;
 }
 
-/** Response from GET /api/finance/health-score. */
+/** Returned instead of a score when the period has no budget configured. */
+export interface HealthScoreConfigureBudget {
+  configureBudget: true;
+}
+
+/**
+ * Response from GET /api/finance/health-score. A discriminated union: either a
+ * full score or the configure-budget prompt.
+ */
 export interface HealthScoreResponse {
-  healthScore: HealthScore;
+  healthScore: HealthScore | HealthScoreConfigureBudget;
+}
+
+/** One month in the health-score trend sparkline. */
+export interface HealthScoreTrendPoint {
+  year: number;
+  month: number;
+  total: number;
+  band: HealthBand;
+  provisional: boolean;
+  formulaVersion: number;
+}
+
+/** Response from GET /api/finance/health-score/trend. */
+export interface HealthScoreTrendResponse {
+  trends: HealthScoreTrendPoint[];
 }

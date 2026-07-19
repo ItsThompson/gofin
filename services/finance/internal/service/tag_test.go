@@ -151,6 +151,30 @@ func (m *mockRepo) DeleteAllUserData(ctx context.Context, userID string) error {
 	return args.Error(0)
 }
 
+func (m *mockRepo) GetHealthScore(ctx context.Context, userID string, year, month int32) (*model.HealthScore, error) {
+	args := m.Called(ctx, userID, year, month)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.HealthScore), args.Error(1)
+}
+
+func (m *mockRepo) UpsertHealthScore(ctx context.Context, userID string, score *model.HealthScore) (*model.HealthScore, error) {
+	args := m.Called(ctx, userID, score)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.HealthScore), args.Error(1)
+}
+
+func (m *mockRepo) ListHealthScoreScalars(ctx context.Context, userID string) ([]*model.HealthScoreTrendPoint, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.HealthScoreTrendPoint), args.Error(1)
+}
+
 func (m *mockRepo) GetPeriodByID(ctx context.Context, periodID, userID string) (*model.BudgetPeriod, error) {
 	args := m.Called(ctx, periodID, userID)
 	if args.Get(0) == nil {

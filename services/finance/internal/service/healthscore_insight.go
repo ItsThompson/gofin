@@ -18,6 +18,7 @@ type insightInputs struct {
 	maxSavings     int32
 	maxBudget      int32
 	maxAlloc       int32
+	maxStability   int32
 	allocDevs      []categoryDev
 	symbol         string
 }
@@ -91,6 +92,15 @@ func buildInsight(components []model.HealthComponent, in insightInputs) model.He
 			Summary: "Your category balance is the softest score this month.",
 			Driver:  driver.Key,
 			Nudge:   fmt.Sprintf("Rebalancing your categories could recover up to %d points.", points),
+		}
+
+	case model.HealthKeyStability:
+		points := in.maxStability - driver.Score
+		return model.HealthInsight{
+			Summary: "Spending stability is the softest score this month.",
+			Driver:  driver.Key,
+			Nudge: fmt.Sprintf(
+				"Steadier discretionary spending month to month could lift your score about %d points.", points),
 		}
 	}
 

@@ -94,6 +94,10 @@ Tracks future installments of pro-rata expenses. Each row represents a single in
 
 All installments in a pro-rata group share a `pro_rata_group` UUID, enabling queries that retrieve the full set of related installments.
 
+### `finance.health_scores`
+
+One row per user per closed month, keyed by `(user_id, year, month)`. Stores the full computed health score as `score` (JSONB) plus denormalized `total`, `band`, and `formula_version` scalar columns for cheap trend reads. Closed months are written lazily on read (compute-and-upsert on a miss or a stale formula version); the current provisional month is never stored. The JSONB is the single source of truth and shares the shape of the versioned golden snapshots under `services/finance/internal/service/testdata/healthscore/`.
+
 ## Expense Ledger (immudb)
 
 The expense service creates its schema at startup (`CREATE TABLE IF NOT EXISTS`). Schema evolution is additive only: columns can be added but never modified or removed, consistent with immudb's immutability guarantees.

@@ -15,6 +15,9 @@ export function SubScoreBars({ components, driverKey }: SubScoreBarsProps) {
   const savingsDropped = !components.some(
     (component) => component.key === "savings_achievement",
   );
+  const buildingBaseline = !components.some(
+    (component) => component.key === "spending_stability",
+  );
 
   return (
     <div className="space-y-1.5">
@@ -28,6 +31,11 @@ export function SubScoreBars({ components, driverKey }: SubScoreBarsProps) {
       {savingsDropped && (
         <p className="px-2 text-xs text-muted-foreground">
           Savings isn&apos;t budgeted this month.
+        </p>
+      )}
+      {buildingBaseline && (
+        <p className="px-2 text-xs text-muted-foreground">
+          Building baseline: spending stability needs 3+ months of history.
         </p>
       )}
     </div>

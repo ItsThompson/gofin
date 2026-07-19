@@ -435,6 +435,69 @@ function clampRound(value: number, max: number): number {
   return Math.min(max, Math.max(0, Math.round(value)));
 }
 
+// Phase 2 v2 weights and stability tuning: mirror the authoritative Go formula
+// in services/finance/internal/service/healthscore.go. dev-mock has no backend,
+// so this port must stay faithful to keep the card representative.
+const HEALTH_BASE_WEIGHTS = { savings: 25, budget: 25, allocation: 30, stability: 20 };
+const STABILITY_MIN_MONTHS = 3;
+const STABILITY_COV_CAP = 1.0;
+
+// Synthetic recent closed-month desires totals (cents) so the stability
+// sub-score computes in dev-mock. Real values come from the backend.
+const mockDesiresWindow = [21000, 19200, 22500, 18700, 20100];
+
+interface HealthWeights {
+  savings: number;
+  budget: number;
+  allocation: number;
+  stability: number;
+  maxSavings: number;
+  maxBudget: number;
+  maxAllocation: number;
+  maxStability: number;
+}
+
+// resolveMockWeights renormalizes the base weights over the present set by
+// division, rounding the remainder into allocation, exactly like resolveWeights
+// on the backend.
+function resolveMockWeights(savingsPresent: boolean, stabilityPresent: boolean): HealthWeights {
+  const base = HEALTH_BASE_WEIGHTS;
+  let denom = base.budget + base.allocation;
+  if (savingsPresent) denom += base.savings;
+  if (stabilityPresent) denom += base.stability;
+  const eff = (weight: number) => (100 * weight) / denom;
+
+  const savings = savingsPresent ? eff(base.savings) : 0;
+  const budget = eff(base.budget);
+  const allocation = eff(base.allocation);
+  const stability = stabilityPresent ? eff(base.stability) : 0;
+
+  const maxSavings = savingsPresent ? Math.round(savings) : 0;
+  const maxBudget = Math.round(budget);
+  const maxStability = stabilityPresent ? Math.round(stability) : 0;
+  const maxAllocation = 100 - (maxSavings + maxBudget + maxStability);
+
+  return { savings, budget, allocation, stability, maxSavings, maxBudget, maxAllocation, maxStability };
+}
+
+// mockStability ports stabilityComponent: full marks for a zero mean, otherwise
+// weight * clamp(1 - CoV / cap, 0, 1) with a sample (n-1) standard deviation.
+function mockStability(window: number[], weight: number): { score: number; detail: string } {
+  const mean = window.reduce((sum, value) => sum + value, 0) / window.length;
+  if (mean === 0) return { score: weight, detail: "Desires spend held steady month to month" };
+
+  const variance =
+    window.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (window.length - 1);
+  const cov = Math.sqrt(variance) / mean;
+  const ratio = Math.min(1, Math.max(0, 1 - cov / STABILITY_COV_CAP));
+  const pct = Math.round(cov * 100);
+  const detail =
+    pct <= 0
+      ? "Desires spend held steady month to month"
+      : `Desires spend varied ~${pct}% month to month`;
+  return { score: weight * ratio, detail };
+}
+
 export function computeMockHealthScore(): HealthScore {
   const budget = mockPeriod.budgetAmount;
   const savingsTarget = Math.floor((budget * mockPeriod.savingsPercent) / 100);
@@ -452,10 +515,8 @@ export function computeMockHealthScore(): HealthScore {
   const edActual = essentialsActual + desiresActual;
 
   const savingsDropped = savingsTarget === 0;
-  const budgetWeight = savingsDropped ? 30 + 30 * (30 / 70) : 30;
-  const allocWeight = savingsDropped ? 40 + 30 * (40 / 70) : 40;
-  const maxBudget = savingsDropped ? Math.round(budgetWeight) : 30;
-  const maxAlloc = savingsDropped ? 100 - maxBudget : 40;
+  const stabilityPresent = mockDesiresWindow.length >= STABILITY_MIN_MONTHS;
+  const w = resolveMockWeights(!savingsDropped, stabilityPresent);
 
   const components: HealthComponent[] = [];
 
@@ -463,8 +524,8 @@ export function computeMockHealthScore(): HealthScore {
     const ratio = Math.min(1, savingsActual / savingsTarget);
     components.push({
       key: "savings_achievement",
-      score: clampRound(30 * ratio, 30),
-      max: 30,
+      score: clampRound(w.savings * ratio, w.maxSavings),
+      max: w.maxSavings,
       detail: `Saved ${formatHealthMoney(savingsActual)} of ${formatHealthMoney(savingsTarget)} target`,
     });
   }
@@ -474,8 +535,8 @@ export function computeMockHealthScore(): HealthScore {
     budgetRatio <= 1 ? 1 : budgetRatio >= 1.5 ? 0 : (1.5 - budgetRatio) / 0.5;
   components.push({
     key: "budget_adherence",
-    score: clampRound(budgetWeight * budgetFactor, maxBudget),
-    max: maxBudget,
+    score: clampRound(w.budget * budgetFactor, w.maxBudget),
+    max: w.maxBudget,
     detail: `Spent ${formatHealthMoney(edActual)} of ${formatHealthMoney(combinedTarget)} plan`,
   });
 
@@ -483,7 +544,7 @@ export function computeMockHealthScore(): HealthScore {
   const percentSum = savingsDropped
     ? mockPeriod.essentialsPercent + mockPeriod.desiresPercent
     : 100;
-  let allocScore = allocWeight;
+  let allocScore = w.allocation;
   let allocDetail = "Balanced across categories";
   const devs: { label: string; dev: number }[] = [];
   if (spendDenom > 0) {
@@ -496,7 +557,7 @@ export function computeMockHealthScore(): HealthScore {
       wdev += (devS < 0 ? 1 : 0.5) * Math.abs(devS);
       devs.push({ label: "Savings", dev: devS });
     }
-    allocScore = allocWeight * (1 - Math.min(1, wdev));
+    allocScore = w.allocation * (1 - Math.min(1, wdev));
     const over = devs.filter((d) => d.dev > 0).sort((a, b) => b.dev - a.dev)[0];
     if (over && Math.round(over.dev * 100) > 0) {
       allocDetail = `${over.label} ${Math.round(over.dev * 100)} pts over target share`;
@@ -504,10 +565,20 @@ export function computeMockHealthScore(): HealthScore {
   }
   components.push({
     key: "allocation_balance",
-    score: clampRound(allocScore, maxAlloc),
-    max: maxAlloc,
+    score: clampRound(allocScore, w.maxAllocation),
+    max: w.maxAllocation,
     detail: allocDetail,
   });
+
+  if (stabilityPresent) {
+    const stability = mockStability(mockDesiresWindow, w.stability);
+    components.push({
+      key: "spending_stability",
+      score: clampRound(stability.score, w.maxStability),
+      max: w.maxStability,
+      detail: stability.detail,
+    });
+  }
 
   const total = components.reduce((sum, component) => sum + component.score, 0);
   const band = total >= 80 ? "green" : total >= 55 ? "amber" : "red";
@@ -519,9 +590,10 @@ export function computeMockHealthScore(): HealthScore {
     savingsGap: savingsTarget - savingsActual,
     overspend: edActual - combinedTarget,
     devs,
-    maxSavings: 30,
-    maxBudget,
-    maxAlloc,
+    maxSavings: w.maxSavings,
+    maxBudget: w.maxBudget,
+    maxAllocation: w.maxAllocation,
+    maxStability: w.maxStability,
   });
 
   return {
@@ -530,7 +602,7 @@ export function computeMockHealthScore(): HealthScore {
     total,
     band,
     provisional: true,
-    formulaVersion: 1,
+    formulaVersion: 2,
     components,
     insight,
   };
@@ -544,7 +616,8 @@ function buildMockInsight(
     devs: { label: string; dev: number }[];
     maxSavings: number;
     maxBudget: number;
-    maxAlloc: number;
+    maxAllocation: number;
+    maxStability: number;
   },
 ): HealthInsight {
   if (driver.key === "savings_achievement") {
@@ -564,6 +637,13 @@ function buildMockInsight(
           : "Keep essentials and desires within your plan to lift this score.",
     };
   }
+  if (driver.key === "spending_stability") {
+    return {
+      summary: "Spending stability is the softest score this month.",
+      driver: driver.key,
+      nudge: `Steadier discretionary spending month to month could lift your score about ${ctx.maxStability - driver.score} points.`,
+    };
+  }
   const over = ctx.devs.filter((d) => d.dev > 0).sort((a, b) => b.dev - a.dev)[0];
   const under = ctx.devs.filter((d) => d.dev < 0).sort((a, b) => a.dev - b.dev)[0];
   return {
@@ -571,12 +651,50 @@ function buildMockInsight(
     driver: driver.key,
     nudge:
       over && under
-        ? `${over.label} is running ${Math.round(over.dev * 100)} pts over its target share. Shifting spend toward ${under.label} could recover up to ${ctx.maxAlloc - driver.score} points.`
-        : `Rebalancing your categories could recover up to ${ctx.maxAlloc - driver.score} points.`,
+        ? `${over.label} is running ${Math.round(over.dev * 100)} pts over its target share. Shifting spend toward ${under.label} could recover up to ${ctx.maxAllocation - driver.score} points.`
+        : `Rebalancing your categories could recover up to ${ctx.maxAllocation - driver.score} points.`,
   };
 }
 
 export const mockHealthScore: HealthScore = computeMockHealthScore();
+
+interface HealthScoreTrendPoint {
+  year: number;
+  month: number;
+  total: number;
+  band: string;
+  provisional: boolean;
+  formulaVersion: number;
+}
+
+// Sample historical totals for the sparkline (oldest first). The current month
+// uses the real computed total and is flagged provisional as the last point.
+const MOCK_TREND_TOTALS = [55, 61, 58, 66, 72, 69, 74, 70, 63, 68, 71];
+
+export function computeMockHealthScoreTrend(months: number): HealthScoreTrendPoint[] {
+  // Match the Go service clamp policy (AC4): default 6, cap 12.
+  const requested = Number.isFinite(months) ? months : 6;
+  const count = requested < 1 ? 6 : Math.min(requested, 12);
+  const bandFor = (total: number) => (total >= 80 ? "green" : total >= 55 ? "amber" : "red");
+
+  const points: HealthScoreTrendPoint[] = [];
+  for (let offset = count - 1; offset >= 0; offset--) {
+    let year = currentYear;
+    let month = currentMonth - offset;
+    while (month <= 0) {
+      month += 12;
+      year -= 1;
+    }
+    const provisional = offset === 0;
+    const total = provisional
+      ? mockHealthScore.total
+      : MOCK_TREND_TOTALS[(count - 1 - offset) % MOCK_TREND_TOTALS.length];
+    points.push({ year, month, total, band: bandFor(total), provisional, formulaVersion: 2 });
+  }
+  return points;
+}
+
+export const mockHealthScoreTrend: HealthScoreTrendPoint[] = computeMockHealthScoreTrend(6);
 
 // --- Upcoming Pro-rata ---
 

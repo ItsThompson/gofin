@@ -8,6 +8,7 @@ import {
   mockSummary,
   mockComparison,
   mockHealthScore,
+  computeMockHealthScoreTrend,
   mockUpcomingProRata,
   allUsers,
   computeTagSpending,
@@ -314,6 +315,13 @@ export const handlers = [
   http.get("/api/finance/health-score", async () => {
     await simulateLatency();
     return HttpResponse.json({ healthScore: mockHealthScore });
+  }),
+
+  http.get("/api/finance/health-score/trend", async ({ request }) => {
+    await simulateLatency();
+    const url = new URL(request.url);
+    const months = Number(url.searchParams.get("months") ?? "6");
+    return HttpResponse.json({ trends: computeMockHealthScoreTrend(months) });
   }),
 
   http.get("/api/finance/spending/trends", async ({ request }) => {

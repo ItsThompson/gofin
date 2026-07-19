@@ -32,6 +32,17 @@ type FinanceDefaultSetting struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type FinanceHealthScore struct {
+	UserID         pgtype.UUID        `json:"user_id"`
+	Year           int32              `json:"year"`
+	Month          int32              `json:"month"`
+	Total          int32              `json:"total"`
+	Band           string             `json:"band"`
+	Score          []byte             `json:"score"`
+	FormulaVersion int32              `json:"formula_version"`
+	ComputedAt     pgtype.Timestamptz `json:"computed_at"`
+}
+
 type FinanceProRataSchedule struct {
 	ID               pgtype.UUID        `json:"id"`
 	UserID           pgtype.UUID        `json:"user_id"`

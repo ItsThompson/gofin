@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -373,6 +374,83 @@ func (r *PostgresFinanceRepository) GetUpcomingProRata(ctx context.Context, user
 	return schedules, nil
 }
 
+// GetHealthScore reads the persisted closed-month score, returning nil when no
+// row exists. The full model.HealthScore (components and insight) is the score
+// JSONB column; the scalar columns are denormalized copies for trend reads.
+func (r *PostgresFinanceRepository) GetHealthScore(ctx context.Context, userID string, year, month int32) (*model.HealthScore, error) {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := r.queries.GetHealthScore(ctx, db.GetHealthScoreParams{UserID: uid, Year: year, Month: month})
+	if err != nil {
+		if pgutil.IsNoRows(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return dbHealthScoreToModel(row)
+}
+
+// UpsertHealthScore persists a closed-month score. The full score is stored as
+// the score JSONB column (the single source of truth) and total/band/
+// formula_version are denormalized into scalar columns for cheap trend reads.
+func (r *PostgresFinanceRepository) UpsertHealthScore(ctx context.Context, userID string, score *model.HealthScore) (*model.HealthScore, error) {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := json.Marshal(score)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling health score: %w", err)
+	}
+
+	row, err := r.queries.UpsertHealthScore(ctx, db.UpsertHealthScoreParams{
+		UserID:         uid,
+		Year:           score.Year,
+		Month:          score.Month,
+		Total:          score.Total,
+		Band:           score.Band,
+		Score:          payload,
+		FormulaVersion: score.FormulaVersion,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return dbHealthScoreToModel(row)
+}
+
+// ListHealthScoreScalars reads the denormalized scalar columns for every stored
+// month (no score JSONB), served by idx_health_scores_user. Stored rows are
+// always closed months, so Provisional is false. It feeds the trend read, which
+// only needs total/band/formula_version and avoids per-point JSONB deserialize.
+func (r *PostgresFinanceRepository) ListHealthScoreScalars(ctx context.Context, userID string) ([]*model.HealthScoreTrendPoint, error) {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.queries.ListHealthScoreScalars(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	scalars := make([]*model.HealthScoreTrendPoint, len(rows))
+	for i, row := range rows {
+		scalars[i] = &model.HealthScoreTrendPoint{
+			Year:           row.Year,
+			Month:          row.Month,
+			Total:          row.Total,
+			Band:           row.Band,
+			Provisional:    false,
+			FormulaVersion: row.FormulaVersion,
+		}
+	}
+	return scalars, nil
+}
+
 func (r *PostgresFinanceRepository) DeleteAllUserData(ctx context.Context, userID string) error {
 	uid, err := pgutil.ParseUUID(userID)
 	if err != nil {
@@ -388,6 +466,9 @@ func (r *PostgresFinanceRepository) DeleteAllUserData(ctx context.Context, userI
 	}
 	if err := r.queries.DeleteAllUserBudgetPeriods(ctx, uid); err != nil {
 		return fmt.Errorf("deleting budget_periods: %w", err)
+	}
+	if err := r.queries.DeleteAllUserHealthScores(ctx, uid); err != nil {
+		return fmt.Errorf("deleting health_scores: %w", err)
 	}
 	if err := r.queries.DeleteAllUserDefaultSettings(ctx, uid); err != nil {
 		return fmt.Errorf("deleting default_settings: %w", err)
@@ -433,6 +514,14 @@ func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 		CreatedAt:         p.CreatedAt.Time,
 		UpdatedAt:         p.UpdatedAt.Time,
 	}
+}
+
+func dbHealthScoreToModel(h db.FinanceHealthScore) (*model.HealthScore, error) {
+	var score model.HealthScore
+	if err := json.Unmarshal(h.Score, &score); err != nil {
+		return nil, fmt.Errorf("unmarshaling health score: %w", err)
+	}
+	return &score, nil
 }
 
 func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
