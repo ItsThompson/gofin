@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -11,11 +9,13 @@ import (
 
 // Health-score formula constants. All are gathered here so tuning the scoring
 // model is a one-line change. Weights are the full-mark points per component;
-// the coefficients tune the asymmetric allocation penalty.
+// the coefficients tune the asymmetric allocation penalty. v2 rebalances the
+// weights and adds spending stability.
 const (
-	weightSavings = 30.0
-	weightBudget  = 30.0
-	weightAlloc   = 40.0
+	weightSavings   = 25.0
+	weightBudget    = 25.0
+	weightAlloc     = 30.0
+	weightStability = 20.0
 
 	// budgetFloorRatio is the spend-to-target ratio at which budget adherence
 	// scores 0 (150% of plan). Below it the factor ramps linearly from 1.0.
@@ -31,51 +31,80 @@ const (
 
 	// allocDevCap is the weighted deviation at which allocation scores 0.
 	allocDevCap = 1.0
+
+	// stabilityMinMonths is the closed-month desires history required before the
+	// spending-stability sub-score is scored. Below it, stability is dropped and
+	// the card shows "building baseline".
+	stabilityMinMonths = 3
+	// stabilityWindowMonths caps the recent closed months of desires used for the
+	// coefficient of variation.
+	stabilityWindowMonths = 6
+	// stabilityCoVCap is the coefficient of variation at which stability scores 0;
+	// below it the factor ramps linearly from full marks at CoV 0.
+	stabilityCoVCap = 1.0
 )
 
 // defaultCurrency is used when a user's default settings are missing or carry no
 // currency (VC3: currency is set at onboarding, so this is a safety net).
 const defaultCurrency = "USD"
 
-// weightResolution holds the effective (float) weights and the integer maxes for
-// the present components. The maxes always sum to 100 in both branches.
+// weightResolution holds the effective (float) weights and integer maxes for the
+// components present this month. The maxes always sum to 100. A component is
+// "present" by rule (savings dropped when savingsTarget == 0; stability dropped
+// with fewer than stabilityMinMonths of history), never because its score is
+// zero, so a legitimately-zero component keeps its weight.
 type weightResolution struct {
-	savingsDropped bool
-	savingsWeight  float64
-	budgetWeight   float64
-	allocWeight    float64
-	maxSavings     int32
-	maxBudget      int32
-	maxAlloc       int32
+	savingsDropped   bool
+	stabilityDropped bool
+	savingsWeight    float64
+	budgetWeight     float64
+	allocWeight      float64
+	stabilityWeight  float64
+	maxSavings       int32
+	maxBudget        int32
+	maxAlloc         int32
+	maxStability     int32
 }
 
-// resolveWeights returns the effective weights and integer maxes (Formula D).
-// When savingsTarget is 0 the savings component is dropped and its weight is
-// redistributed proportionally across budget and allocation. The redistribution
-// remainder is assigned to allocation so the maxes always sum to 100 (no
-// independent-rounding drift). savingsTarget == 0 covers both savings_percent = 0
-// and the tiny-budget integer-division-to-zero corner (E2).
-func resolveWeights(savingsTarget int64) weightResolution {
-	if savingsTarget == 0 {
-		budgetWeight := weightBudget + weightSavings*(weightBudget/(weightBudget+weightAlloc))
-		allocWeight := weightAlloc + weightSavings*(weightAlloc/(weightBudget+weightAlloc))
-		maxBudget := int32(math.Round(budgetWeight))
-		return weightResolution{
-			savingsDropped: true,
-			budgetWeight:   budgetWeight,
-			allocWeight:    allocWeight,
-			maxBudget:      maxBudget,
-			maxAlloc:       100 - maxBudget,
-		}
+// resolveWeights renormalizes the base weights over the present component set by
+// division (Formula D). Each present component's effective weight is
+// 100 * base / Σ(base of present); its integer max is that value rounded. Any
+// rounding remainder is assigned to the largest-base present component (always
+// allocation, base 30, which is never dropped), so the integer maxes sum to
+// exactly 100 for every present-set. Budget and allocation are always present;
+// savings and stability are present per the drop rules keyed by the caller.
+func resolveWeights(savingsPresent, stabilityPresent bool) weightResolution {
+	denom := weightBudget + weightAlloc
+	if savingsPresent {
+		denom += weightSavings
 	}
-	return weightResolution{
-		savingsWeight: weightSavings,
-		budgetWeight:  weightBudget,
-		allocWeight:   weightAlloc,
-		maxSavings:    int32(weightSavings),
-		maxBudget:     int32(weightBudget),
-		maxAlloc:      int32(weightAlloc),
+	if stabilityPresent {
+		denom += weightStability
 	}
+
+	effWeight := func(base float64) float64 { return 100 * base / denom }
+
+	res := weightResolution{
+		savingsDropped:   !savingsPresent,
+		stabilityDropped: !stabilityPresent,
+		budgetWeight:     effWeight(weightBudget),
+		allocWeight:      effWeight(weightAlloc),
+		maxBudget:        int32(math.Round(effWeight(weightBudget))),
+		maxAlloc:         int32(math.Round(effWeight(weightAlloc))),
+	}
+	if savingsPresent {
+		res.savingsWeight = effWeight(weightSavings)
+		res.maxSavings = int32(math.Round(effWeight(weightSavings)))
+	}
+	if stabilityPresent {
+		res.stabilityWeight = effWeight(weightStability)
+		res.maxStability = int32(math.Round(effWeight(weightStability)))
+	}
+
+	// Absorb the rounding remainder into allocation (the unique largest base,
+	// always present) so the integer maxes sum to exactly 100.
+	res.maxAlloc += 100 - (res.maxSavings + res.maxBudget + res.maxAlloc + res.maxStability)
+	return res
 }
 
 // roundClamp rounds a component's float score and clamps it to [0, max].
@@ -115,9 +144,12 @@ func isProvisional(year, month int32, now time.Time) bool {
 // ComputeHealthScore is the pure computation for the monthly health score.
 // Exported for direct testing without service/repo dependencies. It assumes a
 // configured budget (period.BudgetAmount > 0); the service short-circuits the
-// zero-budget case before reaching here. now controls the clock so provisional
-// stays deterministic in tests; currency selects the insight money symbol.
-func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, year, month int32, now time.Time, currency string) *model.HealthScore {
+// zero-budget case before reaching here. desiresWindow holds the recent closed
+// months' discretionary (desires) totals that feed the stability sub-score;
+// fewer than stabilityMinMonths entries drops stability (building baseline).
+// now controls the clock so provisional stays deterministic in tests; currency
+// selects the insight money symbol.
+func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, desiresWindow []int64, year, month int32, now time.Time, currency string) *model.HealthScore {
 	essentialsActual, desiresActual, savingsActual := sumActualsByType(expenses)
 	edActual := essentialsActual + desiresActual
 
@@ -126,10 +158,15 @@ func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, year
 	savingsTarget := budget * int64(period.SavingsPercent) / 100
 	combinedTarget := budget * int64(period.EssentialsPercent+period.DesiresPercent) / 100
 
-	weights := resolveWeights(savingsTarget)
+	// Drops are decided by rule: savings when its target rounds to 0 (the single
+	// predicate that also keys the allocation category set), stability when there
+	// is too little closed-month history.
+	savingsPresent := savingsTarget != 0
+	stabilityPresent := len(desiresWindow) >= stabilityMinMonths
+	weights := resolveWeights(savingsPresent, stabilityPresent)
 	symbol := currencySymbol(currency)
 
-	components := make([]model.HealthComponent, 0, 3)
+	components := make([]model.HealthComponent, 0, 4)
 	if !weights.savingsDropped {
 		scoreFloat, detail := savingsComponent(savingsActual, savingsTarget, weights.savingsWeight, symbol)
 		components = append(components, model.HealthComponent{
@@ -150,6 +187,13 @@ func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, year
 	components = append(components, model.HealthComponent{
 		Key: model.HealthKeyAllocation, Score: roundClamp(allocFloat, weights.maxAlloc), Max: weights.maxAlloc, Detail: allocDetail,
 	})
+
+	if !weights.stabilityDropped {
+		stabilityFloat, stabilityDetail, _ := stabilityComponent(desiresWindow, weights.stabilityWeight)
+		components = append(components, model.HealthComponent{
+			Key: model.HealthKeyStability, Score: roundClamp(stabilityFloat, weights.maxStability), Max: weights.maxStability, Detail: stabilityDetail,
+		})
+	}
 
 	var total int32
 	for _, component := range components {
@@ -172,6 +216,7 @@ func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, year
 		maxSavings:     weights.maxSavings,
 		maxBudget:      weights.maxBudget,
 		maxAlloc:       weights.maxAlloc,
+		maxStability:   weights.maxStability,
 		allocDevs:      allocDevs,
 		symbol:         symbol,
 	})
@@ -186,35 +231,4 @@ func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, year
 		Components:     components,
 		Insight:        insight,
 	}
-}
-
-// GetHealthScore computes the monthly health score for a budget period. It
-// fetches the period (404 PERIOD_NOT_FOUND when none exists), short-circuits the
-// zero-budget case with a configure-budget response, reads the user currency
-// from defaults, then delegates to the pure ComputeHealthScore.
-func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year, month int32) (*model.HealthScore, error) {
-	period, err := s.GetCurrentPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, err
-	}
-
-	if period.BudgetAmount == 0 {
-		return &model.HealthScore{Year: year, Month: month, ConfigureBudget: true}, nil
-	}
-
-	currency := defaultCurrency
-	defaults, err := s.repo.GetDefaults(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("getting defaults: %w", err)
-	}
-	if defaults != nil && defaults.Currency != "" {
-		currency = defaults.Currency
-	}
-
-	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, fmt.Errorf("fetching expenses: %w", err)
-	}
-
-	return ComputeHealthScore(period, expenses, year, month, s.nowFunc(), currency), nil
 }

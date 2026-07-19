@@ -99,3 +99,50 @@ func TestHealthScore_ConfigureBudgetShape(t *testing.T) {
 		t.Errorf("expected configureBudget true, got %v: %s", hs["configureBudget"], raw)
 	}
 }
+
+func TestFormulaVersion_IsTwo(t *testing.T) {
+	if FormulaVersion != 2 {
+		t.Errorf("FormulaVersion = %d, want 2 for Phase 2", FormulaVersion)
+	}
+}
+
+func TestHealthKeyStability(t *testing.T) {
+	if HealthKeyStability != "spending_stability" {
+		t.Errorf("HealthKeyStability = %q, want \"spending_stability\"", HealthKeyStability)
+	}
+}
+
+func TestHealthScoreTrendResponse_MarshalsShape(t *testing.T) {
+	raw, err := json.Marshal(HealthScoreTrendResponse{
+		Trends: []HealthScoreTrendPoint{
+			{Year: 2026, Month: 5, Total: 70, Band: HealthBandAmber, Provisional: false, FormulaVersion: FormulaVersion},
+			{Year: 2026, Month: 6, Total: 82, Band: HealthBandGreen, Provisional: true, FormulaVersion: FormulaVersion},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	trends, ok := decoded["trends"].([]any)
+	if !ok {
+		t.Fatalf("response missing trends array: %s", raw)
+	}
+	if len(trends) != 2 {
+		t.Fatalf("want 2 trend points, got %d: %s", len(trends), raw)
+	}
+
+	first, ok := trends[0].(map[string]any)
+	if !ok {
+		t.Fatalf("trend point is not an object: %s", raw)
+	}
+	for _, key := range []string{"year", "month", "total", "band", "provisional", "formulaVersion"} {
+		if _, ok := first[key]; !ok {
+			t.Errorf("trend point JSON missing key %q: %s", key, raw)
+		}
+	}
+}

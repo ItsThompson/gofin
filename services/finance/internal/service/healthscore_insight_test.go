@@ -44,7 +44,7 @@ func TestComputeHealthScore_SavingsDriverNudge(t *testing.T) {
 		healthExpense("desires", 90000),
 		healthExpense("savings", 30000),
 	}
-	score := ComputeHealthScore(period, expenses, 2026, 5, currentMonthNow, "USD")
+	score := ComputeHealthScore(period, expenses, nil, 2026, 5, currentMonthNow, "USD")
 
 	assert.Equal(t, int32(79), score.Total)
 	assert.Equal(t, model.HealthBandAmber, score.Band)
@@ -64,7 +64,7 @@ func TestComputeHealthScore_BudgetOverspentNudge(t *testing.T) {
 		healthExpense("desires", 100000),
 		healthExpense("savings", 60000),
 	}
-	score := ComputeHealthScore(period, expenses, 2026, 5, currentMonthNow, "USD")
+	score := ComputeHealthScore(period, expenses, nil, 2026, 5, currentMonthNow, "USD")
 
 	assert.Equal(t, model.HealthKeyBudget, score.Insight.Driver)
 	assert.Equal(t, "Budget adherence is the softest score this month.", score.Insight.Summary)
@@ -83,12 +83,12 @@ func TestComputeHealthScore_AllocationDriverNudge_DerivedDirection(t *testing.T)
 		healthExpense("desires", 150000),
 		healthExpense("savings", 60000),
 	}
-	score := ComputeHealthScore(period, expenses, 2026, 5, currentMonthNow, "USD")
+	score := ComputeHealthScore(period, expenses, nil, 2026, 5, currentMonthNow, "USD")
 
 	assert.Equal(t, model.HealthKeyAllocation, score.Insight.Driver)
 	assert.Equal(t, "Your category balance is the softest score this month.", score.Insight.Summary)
 	assert.Equal(t,
-		"Desires is running 30 pts over its target share. Shifting spend toward Essentials could recover up to 20 points.",
+		"Desires is running 30 pts over its target share. Shifting spend toward Essentials could recover up to 19 points.",
 		score.Insight.Nudge)
 }
 
@@ -132,4 +132,21 @@ func TestBuildInsight_BudgetDriverNotOverspent(t *testing.T) {
 	})
 	assert.Equal(t, model.HealthKeyBudget, insight.Driver)
 	assert.Equal(t, "Keep essentials and desires within your plan to lift this score.", insight.Nudge)
+}
+
+// --- Stability-driver insight ---
+
+func TestBuildInsight_StabilityDriver(t *testing.T) {
+	components := []model.HealthComponent{
+		{Key: model.HealthKeySavings, Score: 25, Max: 25},
+		{Key: model.HealthKeyBudget, Score: 25, Max: 25},
+		{Key: model.HealthKeyAllocation, Score: 30, Max: 30},
+		{Key: model.HealthKeyStability, Score: 8, Max: 20},
+	}
+	insight := buildInsight(components, insightInputs{maxStability: 20, symbol: "$"})
+	assert.Equal(t, model.HealthKeyStability, insight.Driver)
+	assert.Equal(t, "Spending stability is the softest score this month.", insight.Summary)
+	assert.Equal(t,
+		"Steadier discretionary spending month to month could lift your score about 12 points.",
+		insight.Nudge)
 }

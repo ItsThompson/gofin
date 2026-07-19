@@ -63,6 +63,7 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 		"finance.prorata.create":      h.CreateProRataExpense,
 		"finance.prorata.upcoming":    h.GetUpcomingProRata,
 		"finance.health_score":        h.GetHealthScore,
+		"finance.health_score.trend":  h.GetHealthScoreTrend,
 	}
 }
 
@@ -334,6 +335,31 @@ func (h *RESTHandler) GetHealthScore(c *gin.Context) {
 
 	c.JSON(http.StatusOK, model.HealthScoreResponse{
 		HealthScore: score,
+	})
+}
+
+// GetHealthScoreTrend handles GET /api/finance/health-score/trend?year=YYYY&month=MM&months=6|12.
+func (h *RESTHandler) GetHealthScoreTrend(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	monthsStr := c.DefaultQuery("months", "6")
+	months, err := strconv.ParseInt(monthsStr, 10, 32)
+	if err != nil || months < 1 || months > 12 {
+		apierr.Respond(c, apierr.Validation("months must be between 1 and 12", map[string]string{"months": "must be between 1 and 12"}))
+		return
+	}
+
+	trends, err := h.financeService.GetHealthScoreTrend(c.Request.Context(), userID, year, month, int32(months))
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.HealthScoreTrendResponse{
+		Trends: trends,
 	})
 }
 

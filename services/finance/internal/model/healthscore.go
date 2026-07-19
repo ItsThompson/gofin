@@ -3,8 +3,8 @@ package model
 // FormulaVersion is the health-score formula version. A closed month recomputes
 // to the same numbers only within the same version. It is serialized into the
 // response so persisted or recomputed scores stay comparable across formula
-// changes.
-const FormulaVersion int32 = 1
+// changes. v2 adds the spending-stability sub-score and rebalances the weights.
+const FormulaVersion int32 = 2
 
 // Health-score component keys. These are domain truths shared by the compute
 // logic, the insight driver, and the frontend, so they live on the model.
@@ -12,6 +12,7 @@ const (
 	HealthKeySavings    = "savings_achievement"
 	HealthKeyBudget     = "budget_adherence"
 	HealthKeyAllocation = "allocation_balance"
+	HealthKeyStability  = "spending_stability"
 )
 
 // Health-score band names.
@@ -64,6 +65,24 @@ type HealthScore struct {
 // HealthScoreResponse is the JSON body returned for GET /api/finance/health-score.
 type HealthScoreResponse struct {
 	HealthScore *HealthScore `json:"healthScore"`
+}
+
+// HealthScoreTrendPoint is one month in the health-score trend sparkline. It
+// carries only the denormalized scalars the sparkline needs, not the full
+// component breakdown, so the trend read stays cheap.
+type HealthScoreTrendPoint struct {
+	Year           int32  `json:"year"`
+	Month          int32  `json:"month"`
+	Total          int32  `json:"total"`
+	Band           string `json:"band"`
+	Provisional    bool   `json:"provisional"`
+	FormulaVersion int32  `json:"formulaVersion"`
+}
+
+// HealthScoreTrendResponse is the JSON body returned for
+// GET /api/finance/health-score/trend.
+type HealthScoreTrendResponse struct {
+	Trends []HealthScoreTrendPoint `json:"trends"`
 }
 
 // Band maps a total to its color band. Green >= 80, amber 55-79, red <= 54.
