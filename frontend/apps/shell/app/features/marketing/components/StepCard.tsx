@@ -15,7 +15,7 @@ export function StepCard({ ordinal, icon, title, body }: StepContent) {
     <Card className="gap-3 p-6">
       <div className="flex items-center gap-3">
         <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-          <Icon aria-hidden className="size-5" />
+          <Icon aria-hidden={true} className="size-5" />
         </div>
         <span className="text-sm font-medium text-muted-foreground">
           {ordinal}
