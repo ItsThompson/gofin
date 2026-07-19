@@ -23,4 +23,10 @@ describe("/ route SEO metadata (home.tsx meta export)", () => {
       content: landingContent.meta.description,
     });
   });
+
+  it("emits exactly the title and description descriptors", () => {
+    // Pin the set size so a spurious or duplicate descriptor (e.g. a second,
+    // wrong title) is caught alongside the toContainEqual wiring checks.
+    expect(descriptors).toHaveLength(2);
+  });
 });
