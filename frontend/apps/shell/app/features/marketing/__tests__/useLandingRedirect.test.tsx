@@ -1,10 +1,13 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { buildUser } from "@gofin/test-utils";
-import type { User } from "@gofin/core";
-import { useNavigate } from "react-router";
-import { useAuthStore } from "@/stores/auth-store";
 import { useLandingRedirect } from "../hooks/useLandingRedirect";
+import {
+  mockNavigate,
+  checkAuth,
+  setAuthStore,
+  resetAuthMocks,
+} from "./auth-mocks";
 
 // The hook reads auth state from the store (which owns the /api/auth/me call)
 // and navigates via react-router. Both are boundaries: mock them so the hook's
@@ -20,27 +23,11 @@ vi.mock("@/stores/auth-store", () => ({
   useAuthStore: vi.fn(),
 }));
 
-const mockNavigate = vi.fn();
-const checkAuth = vi.fn();
-
-interface StoreState {
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  user: User | null;
-}
-
-function setStore(state: StoreState) {
-  (useAuthStore as unknown as Mock).mockReturnValue({ ...state, checkAuth });
-}
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  (useNavigate as unknown as Mock).mockReturnValue(mockNavigate);
-});
+beforeEach(resetAuthMocks);
 
 describe("useLandingRedirect", () => {
   it("runs checkAuth once on mount", () => {
-    setStore({ isLoading: true, isAuthenticated: false, user: null });
+    setAuthStore({ isLoading: true, isAuthenticated: false, user: null });
 
     renderHook(() => useLandingRedirect());
 
@@ -48,7 +35,7 @@ describe("useLandingRedirect", () => {
   });
 
   it("does not navigate while auth is still loading", () => {
-    setStore({ isLoading: true, isAuthenticated: false, user: null });
+    setAuthStore({ isLoading: true, isAuthenticated: false, user: null });
 
     renderHook(() => useLandingRedirect());
 
@@ -56,7 +43,7 @@ describe("useLandingRedirect", () => {
   });
 
   it("does not navigate for a resolved unauthenticated visitor", () => {
-    setStore({ isLoading: false, isAuthenticated: false, user: null });
+    setAuthStore({ isLoading: false, isAuthenticated: false, user: null });
 
     renderHook(() => useLandingRedirect());
 
@@ -64,7 +51,7 @@ describe("useLandingRedirect", () => {
   });
 
   it("redirects a resolved authenticated regular user to /dashboard with replace", () => {
-    setStore({
+    setAuthStore({
       isLoading: false,
       isAuthenticated: true,
       user: buildUser({ role: "user" }),
@@ -77,7 +64,7 @@ describe("useLandingRedirect", () => {
   });
 
   it("redirects a resolved authenticated admin to /admin with replace", () => {
-    setStore({
+    setAuthStore({
       isLoading: false,
       isAuthenticated: true,
       user: buildUser({ role: "admin" }),
@@ -90,7 +77,7 @@ describe("useLandingRedirect", () => {
   });
 
   it("does not navigate when authenticated but the user is not yet resolved", () => {
-    setStore({ isLoading: false, isAuthenticated: true, user: null });
+    setAuthStore({ isLoading: false, isAuthenticated: true, user: null });
 
     renderHook(() => useLandingRedirect());
 

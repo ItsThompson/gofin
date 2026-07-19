@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, useNavigate } from "react-router";
+import { MemoryRouter } from "react-router";
 import { buildUser } from "@gofin/test-utils";
-import type { User } from "@gofin/core";
-import { useAuthStore } from "@/stores/auth-store";
 import { LandingPage } from "../LandingPage";
 import { landingContent } from "../content";
+import { mockNavigate, setAuthStore, resetAuthMocks } from "./auth-mocks";
 
 // The `/` route decision: an unauthenticated visitor keeps the marketing page;
 // an authenticated visitor is redirected via getLandingPath. The store and
@@ -20,19 +19,6 @@ vi.mock("@/stores/auth-store", () => ({
   useAuthStore: vi.fn(),
 }));
 
-const mockNavigate = vi.fn();
-const checkAuth = vi.fn();
-
-interface StoreState {
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  user: User | null;
-}
-
-function setStore(state: StoreState) {
-  (useAuthStore as unknown as Mock).mockReturnValue({ ...state, checkAuth });
-}
-
 function renderLandingPage() {
   return render(
     <MemoryRouter>
@@ -41,14 +27,11 @@ function renderLandingPage() {
   );
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  (useNavigate as unknown as Mock).mockReturnValue(mockNavigate);
-});
+beforeEach(resetAuthMocks);
 
 describe("LandingPage", () => {
   it("renders the marketing page and does not redirect an unauthenticated visitor", () => {
-    setStore({ isLoading: false, isAuthenticated: false, user: null });
+    setAuthStore({ isLoading: false, isAuthenticated: false, user: null });
 
     renderLandingPage();
 
@@ -68,7 +51,7 @@ describe("LandingPage", () => {
   });
 
   it("redirects an authenticated regular user to /dashboard with replace", () => {
-    setStore({
+    setAuthStore({
       isLoading: false,
       isAuthenticated: true,
       user: buildUser({ role: "user" }),
@@ -80,7 +63,7 @@ describe("LandingPage", () => {
   });
 
   it("redirects an authenticated admin to /admin with replace", () => {
-    setStore({
+    setAuthStore({
       isLoading: false,
       isAuthenticated: true,
       user: buildUser({ role: "admin" }),
