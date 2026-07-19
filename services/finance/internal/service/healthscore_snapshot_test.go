@@ -28,10 +28,9 @@ var updateSnapshots = flag.Bool("update", false, "regenerate the current-version
 const snapshotDir = "testdata/healthscore"
 
 // Note: -update (and the version-gated test) only ever writes
-// v{FormulaVersion}.json. testdata/healthscore/v1.json is a hand-authored,
-// frozen historical fixture (v1 is not reproducible from the current code); it
-// exists so the backward-compat test proves an older-version snapshot still
-// deserializes into the current model.
+// v{FormulaVersion}.json. Earlier vN.json files are frozen historical fixtures:
+// they are never regenerated, and they exist so the backward-compat test proves
+// an older-version snapshot still deserializes into the current model.
 
 // canonicalHealthScore is a fixed, representative input for the golden snapshot:
 // a closed month with a configured budget and a full desires window so every
