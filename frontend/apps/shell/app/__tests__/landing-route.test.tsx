@@ -5,12 +5,11 @@ import { buildUser } from "@gofin/test-utils";
 import { LandingPage, landingContent } from "@/features/marketing";
 import { setAuthStore } from "@/features/marketing/__tests__/auth-mocks";
 
-// The `/` route decision (US-ROUTE-01/02): an unauthenticated visitor keeps the
-// marketing page; an authenticated visitor is redirected to getLandingPath(user)
-// via useLandingRedirect. Unlike the LandingPage component test (which mocks
-// useNavigate), this drives real navigation through a memory router so the
-// redirect can be observed to leave no marketing mounted afterward. The auth
-// store is the boundary (mocked); the router and Link stay real.
+// The `/` route no longer redirects (US-ROUTE-01/02): both unauthenticated and
+// authenticated visitors get the marketing page. Unlike the LandingPage
+// component test, this drives the page through a real memory router so we can
+// assert the URL stays at `/` and no other route mounts. The auth store is the
+// boundary (mocked); the router and Link stay real.
 vi.mock("@/stores/auth-store", () => ({
   useAuthStore: vi.fn(),
 }));
@@ -38,14 +37,14 @@ beforeEach(() => {
 });
 
 describe("/ route decision", () => {
-  it("renders the full marketing page for an unauthenticated visitor and does not redirect to /login", () => {
+  it("renders the full marketing page for an unauthenticated visitor", () => {
     setAuthStore({ isLoading: false, isAuthenticated: false, user: null });
 
     const router = renderAtRoot();
 
     // The assembled marketing page renders at /: header, hero, every titled
     // section, and the footer landmark (exhaustive counts live in
-    // LandingPage.test.tsx per §08).
+    // LandingPage.test.tsx).
     expect(screen.getByRole("main")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
@@ -55,6 +54,8 @@ describe("/ route decision", () => {
     ).toBeInTheDocument();
     for (const heading of [
       landingContent.howItWorks.heading,
+      landingContent.threeWaySplit.heading,
+      landingContent.featureShowcase.heading,
       landingContent.dualMode.heading,
       landingContent.faq.heading,
       landingContent.finalCta.heading,
@@ -65,48 +66,45 @@ describe("/ route decision", () => {
     }
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
 
-    // Stayed on the public front door: no client redirect to /login.
+    // Stayed on the public front door; the Log in link is shown, not consumed.
     expect(router.state.location.pathname).toBe("/");
     expect(screen.queryByText(LOGIN_CONTENT)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: landingContent.login.label }),
+    ).toHaveAttribute("href", "/login");
   });
 
-  it("redirects an authenticated regular user to /dashboard and leaves no marketing mounted", async () => {
+  it("keeps an authenticated regular user on the marketing page (no redirect)", () => {
     setAuthStore({
       isLoading: false,
       isAuthenticated: true,
-      user: buildUser({ role: "user" }),
+      user: buildUser({ role: "user", username: "ada" }),
     });
 
     const router = renderAtRoot();
 
-    expect(await screen.findByText(DASHBOARD_CONTENT)).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/dashboard");
-    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.queryByText(DASHBOARD_CONTENT)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", {
-        level: 1,
-        name: landingContent.hero.heading,
-      }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Open account menu" }),
+    ).toBeInTheDocument();
   });
 
-  it("redirects an authenticated admin to /admin and leaves no marketing mounted", async () => {
+  it("keeps an authenticated admin on the marketing page with a role-aware Dashboard link", () => {
     setAuthStore({
       isLoading: false,
       isAuthenticated: true,
-      user: buildUser({ role: "admin" }),
+      user: buildUser({ role: "admin", username: "ops" }),
     });
 
     const router = renderAtRoot();
 
-    expect(await screen.findByText(ADMIN_CONTENT)).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/admin");
-    expect(screen.queryByRole("main")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", {
-        level: 1,
-        name: landingContent.hero.heading,
-      }),
-    ).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.queryByText(ADMIN_CONTENT)).not.toBeInTheDocument();
+
+    const dashboardLinks = screen.getAllByRole("link", { name: "Dashboard" });
+    expect(dashboardLinks[0]).toHaveAttribute("href", "/admin");
   });
 });
