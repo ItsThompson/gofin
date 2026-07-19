@@ -7,6 +7,7 @@ import {
   mockTags,
   mockSummary,
   mockComparison,
+  mockHealthScore,
   mockUpcomingProRata,
   allUsers,
   computeTagSpending,
@@ -308,6 +309,11 @@ export const handlers = [
   http.get("/api/finance/spending/comparison", async () => {
     await simulateLatency();
     return HttpResponse.json({ comparison: mockComparison });
+  }),
+
+  http.get("/api/finance/health-score", async () => {
+    await simulateLatency();
+    return HttpResponse.json({ healthScore: mockHealthScore });
   }),
 
   http.get("/api/finance/spending/trends", async ({ request }) => {

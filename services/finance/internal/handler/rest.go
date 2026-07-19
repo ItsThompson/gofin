@@ -62,6 +62,7 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 		"finance.spending.trends":     h.GetSpendingTrends,
 		"finance.prorata.create":      h.CreateProRataExpense,
 		"finance.prorata.upcoming":    h.GetUpcomingProRata,
+		"finance.health_score":        h.GetHealthScore,
 	}
 }
 
@@ -315,6 +316,24 @@ func (h *RESTHandler) GetPeriodSummary(c *gin.Context) {
 
 	c.JSON(http.StatusOK, model.SummaryResponse{
 		Summary: summary,
+	})
+}
+
+// GetHealthScore handles GET /api/finance/health-score?year=YYYY&month=MM.
+func (h *RESTHandler) GetHealthScore(c *gin.Context) {
+	userID, year, month, ok := h.parseUserAndPeriodParams(c)
+	if !ok {
+		return
+	}
+
+	score, err := h.financeService.GetHealthScore(c.Request.Context(), userID, year, month)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, model.HealthScoreResponse{
+		HealthScore: score,
 	})
 }
 

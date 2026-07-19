@@ -121,7 +121,7 @@ The business logic hub, orchestrating budgets, tags, and dashboard data:
 - Budget period lifecycle (creation, missed-month backfill, E/D/S allocation)
 - Pro-rata scheduling: stores future installment schedules in PostgreSQL, creates ledger entries via Expense Service gRPC when periods are created
 - Tag CRUD with lazy-seeded defaults
-- Dashboard aggregation: period summary, pacing, category breakdowns, cumulative spend, historical comparison
+- Dashboard aggregation: period summary, pacing, category breakdowns, cumulative spend, historical comparison, monthly financial health score
 
 ### Datarights Service (Node 2)
 

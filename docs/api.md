@@ -137,7 +137,7 @@ Error codes:
 
 ### Finance (`/api/finance/*`)
 
-Budget period lifecycle (get current, create, update, list history), default settings management, onboarding setup, tag CRUD, pro-rata expense creation and scheduling, and all dashboard aggregation endpoints (period summary, spending by tag, cumulative spend, historical comparison).
+Budget period lifecycle (get current, create, update, list history), default settings management, onboarding setup, tag CRUD, pro-rata expense creation and scheduling, and dashboard aggregation endpoints (period summary, spending by tag, cumulative spend, historical comparison, and a compute-on-read monthly financial health score that returns a configure-budget prompt when no budget is set).
 
 ### Datarights (`/api/datarights/*`)
 

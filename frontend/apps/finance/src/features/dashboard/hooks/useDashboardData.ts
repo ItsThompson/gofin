@@ -11,6 +11,7 @@ import type {
   HistoricalComparison,
   ProRataSchedule,
   TrendPoint,
+  HealthScore,
 } from "../../../types";
 import type { PaginatedResponse } from "@gofin/core";
 import { dashboardApi } from "../api";
@@ -23,6 +24,7 @@ export interface DashboardData {
   comparison: HistoricalComparison | null;
   upcomingProRata: ProRataSchedule[];
   trendData: TrendPoint[] | null;
+  healthScore: HealthScore | null;
 }
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
@@ -33,6 +35,7 @@ export const EMPTY_DASHBOARD_DATA: DashboardData = {
   comparison: null,
   upcomingProRata: [],
   trendData: null,
+  healthScore: null,
 };
 
 export interface DashboardDataResult {
@@ -60,7 +63,7 @@ export function useDashboardData(
     // doesn't prevent the rest of the dashboard from rendering.
     // Critical sections use toastCall (shows error toast to user).
     // Non-critical sections (comparison, proRata) fail silently with fallbacks.
-    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes] =
+    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes, healthRes] =
       await Promise.all([
         toastCall(() => dashboardApi.getSummary(year, month)) as Promise<SummaryResponse | undefined>,
         toastCall(() => dashboardApi.getTagSpending(year, month)) as Promise<TagSpendingResponse | undefined>,
@@ -68,6 +71,7 @@ export function useDashboardData(
         toastCall(() => dashboardApi.getRecentExpenses(year, month, 5)) as Promise<PaginatedResponse<Expense> | undefined>,
         dashboardApi.getComparison(year, month).catch(() => null),
         dashboardApi.getUpcomingProRata().catch(() => ({ schedules: [] as ProRataSchedule[] })),
+        dashboardApi.getHealthScore(year, month).catch(() => null),
       ]);
 
     setData((prev) => ({
@@ -78,6 +82,7 @@ export function useDashboardData(
       recentExpenses: expensesRes?.data ?? [],
       comparison: comparisonRes?.comparison ?? null,
       upcomingProRata: upcomingRes?.schedules ?? [],
+      healthScore: healthRes?.healthScore ?? null,
     }));
 
     setLoading(false);
