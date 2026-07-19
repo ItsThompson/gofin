@@ -13,7 +13,7 @@ export function FeatureColumn({ icon, title, body }: FeatureColumnContent) {
     <Card>
       <CardContent className="flex flex-col gap-4">
         <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-          <Icon aria-hidden />
+          <Icon aria-hidden className="size-6" />
         </div>
         <h3 className="font-heading text-lg font-medium">{title}</h3>
         <p className="text-muted-foreground">{body}</p>

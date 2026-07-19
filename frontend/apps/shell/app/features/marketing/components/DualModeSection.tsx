@@ -9,7 +9,7 @@ import type { DualModeContent } from "../types";
 export function DualModeSection({ heading, columns }: DualModeContent) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 md:py-24">
-      <h2 className="font-heading text-2xl font-bold tracking-tight">
+      <h2 className="font-heading text-2xl font-bold tracking-tight md:text-3xl">
         {heading}
       </h2>
       <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
