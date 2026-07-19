@@ -1,4 +1,4 @@
-export type { User, ApiError, PaginatedResponse } from "./types";
+export type * from "./types";
 export {
   EXPENSE_TYPES,
   DEFAULT_BUDGET_SPLIT,
