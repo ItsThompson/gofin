@@ -4,7 +4,7 @@ import { LandingFooter } from "../components/LandingFooter";
 import { landingContent } from "../content";
 
 describe("LandingFooter", () => {
-  it("renders a footer landmark with the brand wordmark and the tagline", () => {
+  it("renders the brand, tagline, and t-industri.es attribution", () => {
     render(
       <LandingFooter
         brand={landingContent.brand}
@@ -12,15 +12,26 @@ describe("LandingFooter", () => {
       />,
     );
 
-    expect(screen.getByRole("contentinfo")).toBeInTheDocument();
+    const footer = screen.getByRole("contentinfo");
+    expect(footer).toBeInTheDocument();
     expect(screen.getByText(landingContent.brand)).toBeInTheDocument();
     expect(screen.getByText(landingContent.tagline)).toBeInTheDocument();
 
-    const year = new Date().getFullYear();
-    expect(
-      screen.getByText(
-        `© ${year} ${landingContent.brand}. All rights reserved.`,
-      ),
-    ).toBeInTheDocument();
+    // Attribution reads "A t-industri.es project" with t-industri.es linked.
+    expect(footer).toHaveTextContent("A t-industri.es project");
+    const attributionLink = screen.getByRole("link", { name: "t-industri.es" });
+    expect(attributionLink).toHaveAttribute("href", "https://t-industri.es/");
+  });
+
+  it("renders no copyright line", () => {
+    render(
+      <LandingFooter
+        brand={landingContent.brand}
+        tagline={landingContent.tagline}
+      />,
+    );
+
+    expect(screen.queryByText(/all rights reserved/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/©/)).not.toBeInTheDocument();
   });
 });
