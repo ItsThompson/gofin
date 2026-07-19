@@ -6,6 +6,8 @@
  * content.ts pure data that downstream sections consume as props.
  */
 
+import type { User } from "@gofin/core";
+
 /** A call-to-action link. Always rendered as a real <Link>/<a href>. */
 export interface CtaLink {
   label: string;
@@ -138,13 +140,28 @@ export interface LandingContent {
   finalCta: FinalCtaContent;
 }
 
-/** Props for the landing header (brand wordmark + login link). */
+/** Props for the landing header (brand wordmark + auth-aware action slot). */
 export interface LandingHeaderProps {
   brand: string;
   login: CtaLink;
+  auth: LandingAuth;
 }
 
-/** Props for the hero placeholder visual. */
-export interface HeroVisualProps {
+/** Resolved auth state the header reads to pick its view. */
+export interface LandingAuth {
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  user: User | null;
+  logout: () => Promise<void>;
+}
+
+/** Props for the logged-in header view (Dashboard link + avatar dropdown). */
+export interface LandingUserMenuProps {
+  user: User;
+  logout: () => Promise<void>;
+}
+
+/** Props for the animated hero scene. */
+export interface HeroAnimationProps {
   alt: string;
 }
