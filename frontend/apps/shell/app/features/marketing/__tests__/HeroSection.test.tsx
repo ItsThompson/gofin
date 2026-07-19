@@ -5,7 +5,7 @@ import { HeroSection } from "../components/HeroSection";
 import { landingContent } from "../content";
 
 describe("HeroSection", () => {
-  it("renders one <h1>, the subheading, the CTA to /register, microcopy, and the hero visual", () => {
+  it("renders one <h1>, the subheading, the CTA to /register, and the hero animation", () => {
     render(
       <MemoryRouter>
         <HeroSection {...landingContent.hero} />
@@ -17,13 +17,13 @@ describe("HeroSection", () => {
     expect(headings[0]).toHaveTextContent(landingContent.hero.heading);
 
     expect(screen.getByText(landingContent.hero.subheading)).toBeInTheDocument();
-    expect(screen.getByText(landingContent.hero.ctaFootnote)).toBeInTheDocument();
 
     const cta = screen.getByRole("link", {
       name: landingContent.hero.primaryCta.label,
     });
     expect(cta).toHaveAttribute("href", "/register");
 
+    // The animated hero scene is announced as one labelled image.
     expect(
       screen.getByRole("img", { name: landingContent.hero.visualAlt }),
     ).toBeInTheDocument();

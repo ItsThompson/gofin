@@ -6,6 +6,8 @@
  * content.ts pure data that downstream sections consume as props.
  */
 
+import type { User } from "@gofin/core";
+
 /** A call-to-action link. Always rendered as a real <Link>/<a href>. */
 export interface CtaLink {
   label: string;
@@ -18,15 +20,19 @@ export type LandingIcon =
   | "pieChart" // category breakdown
   | "target" // goals / intention
   | "wallet" // everyday tracking
-  | "lineChart"; // trends / bigger picture
+  | "lineChart" // trends / bigger picture
+  | "gauge" // pacing: on-track indicator
+  | "calendarClock" // spreading a large expense across months
+  | "house" // essentials bucket
+  | "sparkles" // desires bucket
+  | "piggyBank"; // savings bucket
 
 /** Hero section content. */
 export interface HeroContent {
   heading: string; // the single <h1>
   subheading: string; // supporting paragraph
   primaryCta: CtaLink; // -> /register
-  ctaFootnote: string; // microcopy beneath the CTA
-  visualAlt: string; // alt text for HeroVisual (placeholder illustration)
+  visualAlt: string; // aria-label for the animated hero scene
 }
 
 /** One numbered step in "How it works". */
@@ -51,6 +57,24 @@ export interface FeatureColumnContent {
   body: string;
 }
 
+/** A category accent that maps to an essentials/desires/savings color token. */
+export type SplitAccent = "essentials" | "desires" | "savings";
+
+/** One bucket in "The three-way split". */
+export interface SplitBucketContent {
+  accent: SplitAccent; // maps to the category color token
+  icon: LandingIcon;
+  title: string;
+  body: string;
+}
+
+/** One feature in "Feature showcase" (text + icon, no mock UI). */
+export interface ShowcaseFeatureContent {
+  icon: LandingIcon;
+  title: string;
+  body: string;
+}
+
 /** One FAQ entry. */
 export interface FaqItemContent {
   question: string;
@@ -67,6 +91,19 @@ export interface LandingMeta {
 export interface HowItWorksContent {
   heading: string;
   steps: StepContent[];
+}
+
+/** "The three-way split" section content. */
+export interface ThreeWaySplitContent {
+  heading: string;
+  intro: string;
+  buckets: SplitBucketContent[];
+}
+
+/** "Feature showcase" section content. */
+export interface FeatureShowcaseContent {
+  heading: string;
+  features: ShowcaseFeatureContent[];
 }
 
 /** Dual-mode split section content. */
@@ -96,18 +133,35 @@ export interface LandingContent {
   hero: HeroContent;
   howItWorks: HowItWorksContent;
   valueProp: ValuePropContent;
+  threeWaySplit: ThreeWaySplitContent;
+  featureShowcase: FeatureShowcaseContent;
   dualMode: DualModeContent;
   faq: FaqContent;
   finalCta: FinalCtaContent;
 }
 
-/** Props for the landing header (brand wordmark + login link). */
+/** Props for the landing header (brand wordmark + auth-aware action slot). */
 export interface LandingHeaderProps {
   brand: string;
   login: CtaLink;
+  auth: LandingAuth;
 }
 
-/** Props for the hero placeholder visual. */
-export interface HeroVisualProps {
+/** Resolved auth state the header reads to pick its view. */
+export interface LandingAuth {
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  user: User | null;
+  logout: () => Promise<void>;
+}
+
+/** Props for the logged-in header view (Dashboard link + avatar dropdown). */
+export interface LandingUserMenuProps {
+  user: User;
+  logout: () => Promise<void>;
+}
+
+/** Props for the animated hero scene. */
+export interface HeroAnimationProps {
   alt: string;
 }

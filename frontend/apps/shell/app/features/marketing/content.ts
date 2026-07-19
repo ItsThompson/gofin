@@ -22,7 +22,6 @@ export const landingContent: LandingContent = {
     subheading:
       "GoFin sorts every expense into essentials, desires, and savings, so you can see your spending clearly and decide with intention.",
     primaryCta: { label: "Get started", href: "/register" },
-    ctaFootnote: "Free to start. Set up your first budget in minutes.",
     visualAlt:
       "A GoFin spending breakdown split into essentials, desires, and savings.",
   },
@@ -33,7 +32,7 @@ export const landingContent: LandingContent = {
         ordinal: "01",
         icon: "receipt",
         title: "Log your expenses",
-        body: "Add an expense in seconds from any device, or bring in a batch at once.",
+        body: "Log, categorize, and tag your expenses in seconds from any device.",
       },
       {
         ordinal: "02",
@@ -53,7 +52,52 @@ export const landingContent: LandingContent = {
     quote: "Every dollar has a job: essential, desired, or saved.",
     body: "GoFin frames each expense against a simple three-way split, so you always know whether a purchase moves you toward your goals or away from them.",
     footnote:
-      "Built around intentional budgeting: clarity first, discipline follows.",
+      "Seeing your expenses clearly makes spending with intention stop feeling like work.",
+  },
+  threeWaySplit: {
+    heading: "Every expense fits one of three buckets",
+    intro:
+      "GoFin sorts your spending into three simple categories, so every purchase has a clear place.",
+    buckets: [
+      {
+        accent: "essentials",
+        icon: "house",
+        title: "Essentials",
+        body: "The non-negotiables: rent, groceries, bills. The spending that keeps life running.",
+      },
+      {
+        accent: "desires",
+        icon: "sparkles",
+        title: "Desires",
+        body: "The wants: eating out, subscriptions, the occasional impulse buy. Enjoyable, as long as it's intentional.",
+      },
+      {
+        accent: "savings",
+        icon: "piggyBank",
+        title: "Savings",
+        body: "Money you set aside first, so your goals aren't just whatever's left over.",
+      },
+    ],
+  },
+  featureShowcase: {
+    heading: "Built to keep you intentional",
+    features: [
+      {
+        icon: "gauge",
+        title: "Know if you're on track",
+        body: "GoFin paces your budget across the month, so you can see whether you're ahead or overspending before it's too late.",
+      },
+      {
+        icon: "calendarClock",
+        title: "Big purchase? Spread it out",
+        body: "Log a large expense once and spread it across several months, so one purchase doesn't blow up a single month's budget.",
+      },
+      {
+        icon: "lineChart",
+        title: "Watch your habits change",
+        body: "Track spending month over month to see where your money really goes, and how your choices shift over time.",
+      },
+    ],
   },
   dualMode: {
     heading: "One view, built for how you actually spend",
@@ -74,9 +118,9 @@ export const landingContent: LandingContent = {
     heading: "Questions",
     items: [
       {
-        question: "Is GoFin free to start?",
+        question: "How is GoFin different from my banking app?",
         answer:
-          "Yes. Create an account and set up your first budget without paying anything.",
+          "Your bank lists what you spent. GoFin sorts every expense into essentials, desires, and savings, so you can see whether your spending matches your priorities, not just your balance.",
       },
       {
         question: "How are my expenses categorized?",

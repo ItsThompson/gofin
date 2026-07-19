@@ -4,17 +4,11 @@ import { MemoryRouter } from "react-router";
 import { buildUser } from "@gofin/test-utils";
 import { LandingPage } from "../LandingPage";
 import { landingContent } from "../content";
-import { mockNavigate, setAuthStore, resetAuthMocks } from "./auth-mocks";
+import { setAuthStore, resetAuthMocks } from "./auth-mocks";
 
-// The `/` route decision: an unauthenticated visitor keeps the marketing page;
-// an authenticated visitor is redirected via getLandingPath. The store and
-// useNavigate are the boundaries; MemoryRouter/Link stay real so CTA hrefs are
-// asserted against the rendered anchors.
-vi.mock("react-router", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("react-router")>()),
-  useNavigate: vi.fn(),
-}));
-
+// The redirect is gone: both logged-out and logged-in visitors see the
+// marketing page. The store is the boundary (mocked); MemoryRouter/Link stay
+// real so CTA and nav hrefs are asserted against the rendered anchors.
 vi.mock("@/stores/auth-store", () => ({
   useAuthStore: vi.fn(),
 }));
@@ -30,7 +24,7 @@ function renderLandingPage() {
 beforeEach(resetAuthMocks);
 
 describe("LandingPage", () => {
-  it("renders the marketing page and does not redirect an unauthenticated visitor", () => {
+  it("renders the marketing page with a Log in link for a logged-out visitor", () => {
     setAuthStore({ isLoading: false, isAuthenticated: false, user: null });
 
     renderLandingPage();
@@ -43,8 +37,11 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("link", { name: landingContent.login.label }),
     ).toHaveAttribute("href", "/login");
+    expect(
+      screen.queryByRole("button", { name: "Open account menu" }),
+    ).not.toBeInTheDocument();
 
-    // The hero and final CTAs share the "Get started" label; both must point at
+    // The hero and final CTAs share the "Get started" label; both point at
     // /register (the assembled page renders two of them).
     const getStartedLinks = screen.getAllByRole("link", {
       name: landingContent.hero.primaryCta.label,
@@ -53,11 +50,48 @@ describe("LandingPage", () => {
     for (const link of getStartedLinks) {
       expect(link).toHaveAttribute("href", "/register");
     }
-
-    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("assembles a single landmark set, one h1, and every section's content", () => {
+  it("keeps an authenticated visitor on the page and shows the avatar menu + Dashboard link", () => {
+    setAuthStore({
+      isLoading: false,
+      isAuthenticated: true,
+      user: buildUser({ role: "user", username: "ada" }),
+    });
+
+    renderLandingPage();
+
+    // No redirect: the marketing page is still mounted.
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: landingContent.hero.heading }),
+    ).toBeInTheDocument();
+
+    // Auth-aware header: avatar menu + Dashboard link, no Log in link.
+    expect(
+      screen.getByRole("button", { name: "Open account menu" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: landingContent.login.label }),
+    ).not.toBeInTheDocument();
+    const dashboardLinks = screen.getAllByRole("link", { name: "Dashboard" });
+    expect(dashboardLinks[0]).toHaveAttribute("href", "/dashboard");
+  });
+
+  it("routes the Dashboard link to /admin for an authenticated admin", () => {
+    setAuthStore({
+      isLoading: false,
+      isAuthenticated: true,
+      user: buildUser({ role: "admin", username: "ops" }),
+    });
+
+    renderLandingPage();
+
+    const dashboardLinks = screen.getAllByRole("link", { name: "Dashboard" });
+    expect(dashboardLinks[0]).toHaveAttribute("href", "/admin");
+  });
+
+  it("assembles a single landmark set, one h1, and every section in order", () => {
     setAuthStore({ isLoading: false, isAuthenticated: false, user: null });
 
     renderLandingPage();
@@ -68,64 +102,37 @@ describe("LandingPage", () => {
     expect(screen.getAllByRole("contentinfo")).toHaveLength(1); // <footer>
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
 
-    // One <h2> per titled section (HowItWorks, DualMode, FAQ, FinalCta); the
-    // value-prop band is intentionally headingless. No heading skips past <h3>,
-    // so the hierarchy is a contiguous h1 -> h2 -> h3.
-    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(4);
+    // Titled sections in document order; the value-prop band is headingless.
+    const h2Text = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(h2Text).toEqual([
+      landingContent.howItWorks.heading,
+      landingContent.threeWaySplit.heading,
+      landingContent.featureShowcase.heading,
+      landingContent.dualMode.heading,
+      landingContent.faq.heading,
+      landingContent.finalCta.heading,
+    ]);
+
+    // No heading skips past <h3>; the h3 count is the sum of the data-driven
+    // section entries, guarding against a section dropping or duplicating cards.
     expect(screen.queryAllByRole("heading", { level: 4 })).toHaveLength(0);
-
-    // How-it-works renders one <h3> card per content step.
-    for (const step of landingContent.howItWorks.steps) {
-      expect(
-        screen.getByRole("heading", { level: 3, name: step.title }),
-      ).toBeInTheDocument();
-    }
-
-    // Dual-mode renders exactly two columns, one <h3> each.
-    expect(landingContent.dualMode.columns).toHaveLength(2);
-    for (const column of landingContent.dualMode.columns) {
-      expect(
-        screen.getByRole("heading", { level: 3, name: column.title }),
-      ).toBeInTheDocument();
-    }
-
-    // FAQ renders one <h3> entry per content item.
-    for (const item of landingContent.faq.items) {
-      expect(
-        screen.getByRole("heading", { level: 3, name: item.question }),
-      ).toBeInTheDocument();
-    }
-
-    // No stray <h3>s beyond the three data-driven sections above: guards
-    // against a section silently dropping or duplicating content entries.
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(
       landingContent.howItWorks.steps.length +
+        landingContent.threeWaySplit.buckets.length +
+        landingContent.featureShowcase.features.length +
         landingContent.dualMode.columns.length +
         landingContent.faq.items.length,
     );
   });
 
-  it("redirects an authenticated regular user to /dashboard with replace", () => {
-    setAuthStore({
-      isLoading: false,
-      isAuthenticated: true,
-      user: buildUser({ role: "user" }),
-    });
+  it("renders no 'free' or 'without paying' copy anywhere on the page", () => {
+    setAuthStore({ isLoading: false, isAuthenticated: false, user: null });
 
-    renderLandingPage();
+    const { container } = renderLandingPage();
 
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard", { replace: true });
-  });
-
-  it("redirects an authenticated admin to /admin with replace", () => {
-    setAuthStore({
-      isLoading: false,
-      isAuthenticated: true,
-      user: buildUser({ role: "admin" }),
-    });
-
-    renderLandingPage();
-
-    expect(mockNavigate).toHaveBeenCalledWith("/admin", { replace: true });
+    expect(container.textContent ?? "").not.toMatch(/\bfree\b/i);
+    expect(container.textContent ?? "").not.toMatch(/without paying/i);
   });
 });
