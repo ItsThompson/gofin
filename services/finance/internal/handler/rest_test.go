@@ -1008,6 +1008,101 @@ func TestGetPeriodSummaryHandler_MissingUserID(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// --- Health Score Handler Tests ---
+
+func TestGetHealthScoreHandler_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return(&model.BudgetPeriod{
+			ID: "period-h", UserID: "user-123", Year: 2026, Month: 5,
+			BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		}, nil)
+	repo.On("GetDefaults", mock.Anything, "user-123").
+		Return(&model.DefaultSettings{UserID: "user-123", Currency: "USD"}, nil)
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return([]service.ExpenseData{
+			{ID: "e1", Amount: 140000, ExpenseType: "essentials", ExpenseDate: "2026-05-05"},
+			{ID: "e2", Amount: 80000, ExpenseType: "desires", ExpenseDate: "2026-05-06"},
+			{ID: "e3", Amount: 40000, ExpenseType: "savings", ExpenseDate: "2026-05-07"},
+		}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/health-score?year=2026&month=5", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.HealthScoreResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.NotNil(t, resp.HealthScore)
+	assert.Equal(t, int32(2026), resp.HealthScore.Year)
+	assert.Equal(t, int32(5), resp.HealthScore.Month)
+	assert.Len(t, resp.HealthScore.Components, 3)
+	assert.GreaterOrEqual(t, resp.HealthScore.Total, int32(0))
+	assert.LessOrEqual(t, resp.HealthScore.Total, int32(100))
+	assert.Equal(t, model.FormulaVersion, resp.HealthScore.FormulaVersion)
+	assert.False(t, resp.HealthScore.ConfigureBudget)
+
+	// total must equal the sum of components (AC).
+	var sum int32
+	for _, component := range resp.HealthScore.Components {
+		sum += component.Score
+	}
+	assert.Equal(t, sum, resp.HealthScore.Total)
+}
+
+func TestGetHealthScoreHandler_ConfigureBudget(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+		Return(&model.BudgetPeriod{ID: "period-0", UserID: "user-123", Year: 2026, Month: 5, BudgetAmount: 0}, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/health-score?year=2026&month=5", "user-123", nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.HealthScoreResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.NotNil(t, resp.HealthScore)
+	assert.True(t, resp.HealthScore.ConfigureBudget)
+	assert.Empty(t, resp.HealthScore.Components)
+}
+
+func TestGetHealthScoreHandler_PeriodNotFound(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2026), int32(6)).Return(nil, nil)
+
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/health-score?year=2026&month=6", "user-123", nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrPeriodNotFound, errResp.Code)
+}
+
+func TestGetHealthScoreHandler_MissingParams(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	w := doJSONWithUserID(r, "GET", "/api/finance/health-score?year=2026", "user-123", nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestGetSpendingByTagHandler_Success(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
