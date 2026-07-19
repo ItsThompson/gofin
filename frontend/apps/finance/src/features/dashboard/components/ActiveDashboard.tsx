@@ -28,6 +28,7 @@ import { CumulativeSpendChart } from "./widgets/CumulativeSpendChart";
 import { RecentExpenses } from "./widgets/RecentExpenses";
 import { HistoricalComparisonWidget } from "./widgets/HistoricalComparisonWidget";
 import { UpcomingProRataSection } from "./widgets/UpcomingProRataSection";
+import { HealthScoreCard } from "./widgets/HealthScoreCard";
 
 export interface ActiveDashboardProps {
   period: BudgetPeriod;
@@ -109,6 +110,15 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
       )}
 
       <div ref={dashboardContentRef} className="space-y-6">
+        {/* Financial Health Score: first section, visible on mobile. */}
+        {data.healthScore && (
+          <section id="health-score" data-outline-title="Health Score">
+            <SectionErrorBoundary sectionName="Health Score">
+              <HealthScoreCard score={data.healthScore} />
+            </SectionErrorBoundary>
+          </section>
+        )}
+
         {/* Summary Bar */}
         <section id="summary" data-outline-title="Summary" className="space-y-6">
           <SectionErrorBoundary sectionName="Summary">
