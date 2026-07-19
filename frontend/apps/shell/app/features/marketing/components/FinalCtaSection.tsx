@@ -15,11 +15,9 @@ export function FinalCtaSection({ heading, primaryCta }: FinalCtaContent) {
         <h2 className="font-heading text-2xl font-bold tracking-tight md:text-3xl">
           {heading}
         </h2>
-        <div>
-          <Button asChild size="lg">
-            <Link to={primaryCta.href}>{primaryCta.label}</Link>
-          </Button>
-        </div>
+        <Button asChild size="lg">
+          <Link to={primaryCta.href}>{primaryCta.label}</Link>
+        </Button>
       </Card>
     </section>
   );
