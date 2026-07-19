@@ -4,6 +4,8 @@ import { LandingHeader } from "./components/LandingHeader";
 import { HeroSection } from "./components/HeroSection";
 import { HowItWorksSection } from "./components/HowItWorksSection";
 import { ValuePropSection } from "./components/ValuePropSection";
+import { ThreeWaySplitSection } from "./components/ThreeWaySplitSection";
+import { FeatureShowcaseSection } from "./components/FeatureShowcaseSection";
 import { DualModeSection } from "./components/DualModeSection";
 import { FaqSection } from "./components/FaqSection";
 import { FinalCtaSection } from "./components/FinalCtaSection";
@@ -26,6 +28,8 @@ export function LandingPage() {
         <HeroSection {...content.hero} />
         <HowItWorksSection {...content.howItWorks} />
         <ValuePropSection {...content.valueProp} />
+        <ThreeWaySplitSection {...content.threeWaySplit} />
+        <FeatureShowcaseSection {...content.featureShowcase} />
         <DualModeSection {...content.dualMode} />
         <FaqSection {...content.faq} />
         <FinalCtaSection {...content.finalCta} />
