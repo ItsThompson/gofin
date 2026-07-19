@@ -345,11 +345,12 @@ func (h *RESTHandler) GetHealthScoreTrend(c *gin.Context) {
 		return
 	}
 
-	monthsStr := c.DefaultQuery("months", "6")
-	months, err := strconv.ParseInt(monthsStr, 10, 32)
-	if err != nil || months < 1 || months > 12 {
-		apierr.Respond(c, apierr.Validation("months must be between 1 and 12", map[string]string{"months": "must be between 1 and 12"}))
-		return
+	// months follows the AC4 clamp policy (default 6, cap 12): a non-numeric value
+	// defaults to 6 and the service clamps the range, so the handler, service, and
+	// mock all agree.
+	months, err := strconv.ParseInt(c.DefaultQuery("months", "6"), 10, 32)
+	if err != nil {
+		months = 6
 	}
 
 	trends, err := h.financeService.GetHealthScoreTrend(c.Request.Context(), userID, year, month, int32(months))

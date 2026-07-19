@@ -422,6 +422,35 @@ func (r *PostgresFinanceRepository) UpsertHealthScore(ctx context.Context, userI
 	return dbHealthScoreToModel(row)
 }
 
+// ListHealthScoreScalars reads the denormalized scalar columns for every stored
+// month (no score JSONB), served by idx_health_scores_user. Stored rows are
+// always closed months, so Provisional is false. It feeds the trend read, which
+// only needs total/band/formula_version and avoids per-point JSONB deserialize.
+func (r *PostgresFinanceRepository) ListHealthScoreScalars(ctx context.Context, userID string) ([]*model.HealthScoreTrendPoint, error) {
+	uid, err := pgutil.ParseUUID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.queries.ListHealthScoreScalars(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	scalars := make([]*model.HealthScoreTrendPoint, len(rows))
+	for i, row := range rows {
+		scalars[i] = &model.HealthScoreTrendPoint{
+			Year:           row.Year,
+			Month:          row.Month,
+			Total:          row.Total,
+			Band:           row.Band,
+			Provisional:    false,
+			FormulaVersion: row.FormulaVersion,
+		}
+	}
+	return scalars, nil
+}
+
 func (r *PostgresFinanceRepository) DeleteAllUserData(ctx context.Context, userID string) error {
 	uid, err := pgutil.ParseUUID(userID)
 	if err != nil {

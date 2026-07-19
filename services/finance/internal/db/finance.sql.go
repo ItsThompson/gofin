@@ -467,6 +467,49 @@ func (q *Queries) GetUpcomingProRata(ctx context.Context, userID pgtype.UUID) ([
 	return items, nil
 }
 
+const listHealthScoreScalars = `-- name: ListHealthScoreScalars :many
+SELECT year, month, total, band, formula_version
+FROM finance.health_scores
+WHERE user_id = $1
+ORDER BY year DESC, month DESC
+`
+
+type ListHealthScoreScalarsRow struct {
+	Year           int32  `json:"year"`
+	Month          int32  `json:"month"`
+	Total          int32  `json:"total"`
+	Band           string `json:"band"`
+	FormulaVersion int32  `json:"formula_version"`
+}
+
+// Denormalized scalar columns only (no score JSONB) for the trend read; served
+// by idx_health_scores_user (user_id, year DESC, month DESC).
+func (q *Queries) ListHealthScoreScalars(ctx context.Context, userID pgtype.UUID) ([]ListHealthScoreScalarsRow, error) {
+	rows, err := q.db.Query(ctx, listHealthScoreScalars, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListHealthScoreScalarsRow{}
+	for rows.Next() {
+		var i ListHealthScoreScalarsRow
+		if err := rows.Scan(
+			&i.Year,
+			&i.Month,
+			&i.Total,
+			&i.Band,
+			&i.FormulaVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPeriods = `-- name: ListPeriods :many
 SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE user_id = $1

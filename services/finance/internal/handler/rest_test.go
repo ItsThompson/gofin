@@ -190,6 +190,14 @@ func (m *mockFinanceRepository) UpsertHealthScore(ctx context.Context, userID st
 	return args.Get(0).(*model.HealthScore), args.Error(1)
 }
 
+func (m *mockFinanceRepository) ListHealthScoreScalars(ctx context.Context, userID string) ([]*model.HealthScoreTrendPoint, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.HealthScoreTrendPoint), args.Error(1)
+}
+
 // mockTxBeginner implements repository.TxBeginner.
 type mockTxBeginner struct {
 	mock.Mock
@@ -1136,22 +1144,22 @@ func TestGetHealthScoreTrendHandler_Success(t *testing.T) {
 			BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 		}
 	}
-	stored := func(month, total int32, band string) *model.HealthScore {
-		return &model.HealthScore{
+	scalar := func(month, total int32, band string) *model.HealthScoreTrendPoint {
+		return &model.HealthScoreTrendPoint{
 			Year: 2026, Month: month, Total: total, Band: band,
 			Provisional: false, FormulaVersion: model.FormulaVersion,
-			Components: []model.HealthComponent{{Key: model.HealthKeyBudget, Score: total, Max: 100}},
 		}
 	}
 
 	repo.On("ListPeriods", mock.Anything, "user-123").
 		Return([]*model.BudgetPeriod{periodFor(6), periodFor(5)}, nil)
-	repo.On("GetHealthScore", mock.Anything, "user-123", int32(2026), int32(6)).
-		Return(stored(6, 82, model.HealthBandGreen), nil)
-	repo.On("GetHealthScore", mock.Anything, "user-123", int32(2026), int32(5)).
-		Return(stored(5, 70, model.HealthBandAmber), nil)
+	repo.On("ListHealthScoreScalars", mock.Anything, "user-123").
+		Return([]*model.HealthScoreTrendPoint{
+			scalar(6, 82, model.HealthBandGreen),
+			scalar(5, 70, model.HealthBandAmber),
+		}, nil)
 
-	// November 2026: both May and June are closed, so both come from storage.
+	// November 2026: both May and June are closed, so both come from the scalar read.
 	r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, func() time.Time {
 		return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 	})
@@ -1180,14 +1188,25 @@ func TestGetHealthScoreTrendHandler_MissingParams(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestGetHealthScoreTrendHandler_InvalidMonths(t *testing.T) {
+func TestGetHealthScoreTrendHandler_ClampsMonths(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
 	expClient := new(mockExpenseClient)
-	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	// months=99 is clamped, not rejected (AC4 "cap 12"). With no periods the trend
+	// is empty and the request still succeeds.
+	repo.On("ListPeriods", mock.Anything, "user-123").Return([]*model.BudgetPeriod{}, nil)
+	repo.On("ListHealthScoreScalars", mock.Anything, "user-123").Return([]*model.HealthScoreTrendPoint{}, nil)
+	r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, func() time.Time {
+		return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	})
 
 	w := doJSONWithUserID(r, "GET", "/api/finance/health-score/trend?year=2026&month=6&months=99", "user-123", nil)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp model.HealthScoreTrendResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Empty(t, resp.Trends)
 }
 
 func TestGetSpendingByTagHandler_Success(t *testing.T) {

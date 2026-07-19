@@ -53,7 +53,7 @@ func (s *FinanceService) resolveHealthScore(ctx context.Context, userID string, 
 	// logged and the freshly computed score is still returned.
 	if _, err := s.repo.UpsertHealthScore(ctx, userID, result); err != nil {
 		s.logger.Error("upserting health score",
-			slog.String("method", "GetHealthScore"),
+			slog.String("method", "resolveHealthScore"),
 			slog.String("user_id", userID),
 			slog.Int("year", int(year)),
 			slog.Int("month", int(month)),

@@ -115,6 +115,14 @@ DO UPDATE SET
     computed_at = now()
 RETURNING *;
 
+-- name: ListHealthScoreScalars :many
+-- Denormalized scalar columns only (no score JSONB) for the trend read; served
+-- by idx_health_scores_user (user_id, year DESC, month DESC).
+SELECT year, month, total, band, formula_version
+FROM finance.health_scores
+WHERE user_id = $1
+ORDER BY year DESC, month DESC;
+
 -- name: DeleteAllUserProRataSchedules :exec
 DELETE FROM finance.pro_rata_schedules WHERE user_id = $1;
 

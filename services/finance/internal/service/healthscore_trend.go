@@ -11,14 +11,14 @@ import (
 // for the up-to-`months` most recent budgeted periods at or before
 // (year, month). Months with no budget period are skipped (only existing
 // periods appear), and zero-budget months carry no score so they are skipped
-// too. Each point reuses the single-month persistence policy: closed months are
-// served from storage (recomputed and upserted on a miss or a stale formula
-// version) and the current provisional month is computed live as the last
-// point. months is clamped to [1, 12] (default 6).
+// too. months is clamped to [1, 12] (default 6).
 //
-// Steady state is cheap: every closed point is a single stored-row read. Only a
-// cold cache (a month never read before) recomputes, which reuses the same
-// compute-and-upsert path the single-month card warms.
+// Stored closed months at the current formula version are read in a single
+// batched scalar query (total/band/formula_version only, no score JSONB), served
+// by idx_health_scores_user. Only a cold cache (a month never read, or a stale
+// version) or the current provisional month falls back to the shared
+// compute-and-upsert path (resolveHealthScore), which the single-month card also
+// warms.
 func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string, year, month, months int32) ([]model.HealthScoreTrendPoint, error) {
 	if months < 1 {
 		months = 6
@@ -30,6 +30,15 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 	periods, err := s.repo.ListPeriods(ctx, userID) // year DESC, month DESC
 	if err != nil {
 		return nil, fmt.Errorf("listing periods: %w", err)
+	}
+
+	scalars, err := s.repo.ListHealthScoreScalars(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing health score scalars: %w", err)
+	}
+	scalarByMonth := make(map[[2]int32]*model.HealthScoreTrendPoint, len(scalars))
+	for _, scalar := range scalars {
+		scalarByMonth[[2]int32{scalar.Year, scalar.Month}] = scalar
 	}
 
 	// Take the up-to-`months` most recent budgeted periods at or before the
@@ -51,8 +60,19 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 		selected[i], selected[j] = selected[j], selected[i]
 	}
 
+	now := s.nowFunc()
 	points := make([]model.HealthScoreTrendPoint, len(selected))
 	for i, period := range selected {
+		// A stored current-version scalar for a closed month is used directly (no
+		// JSONB deserialize, no compute). The provisional month is never stored, so
+		// it always falls through to a live compute.
+		if !isProvisional(period.Year, period.Month, now) {
+			if scalar := scalarByMonth[[2]int32{period.Year, period.Month}]; scalar != nil && scalar.FormulaVersion == model.FormulaVersion {
+				points[i] = *scalar
+				continue
+			}
+		}
+
 		score, err := s.resolveHealthScore(ctx, userID, period, period.Year, period.Month)
 		if err != nil {
 			return nil, err
