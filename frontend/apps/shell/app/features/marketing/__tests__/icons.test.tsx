@@ -3,13 +3,7 @@ import { render } from "@testing-library/react";
 import { landingIcons } from "../icons";
 import type { LandingIcon } from "../types";
 
-const ICON_KEYS: LandingIcon[] = [
-  "receipt",
-  "pieChart",
-  "target",
-  "wallet",
-  "lineChart",
-];
+const ICON_KEYS = Object.keys(landingIcons) as LandingIcon[];
 
 describe("landingIcons", () => {
   it("maps every LandingIcon key to a renderable lucide component", () => {
@@ -18,6 +12,18 @@ describe("landingIcons", () => {
       const { container, unmount } = render(<Icon />);
       expect(container.querySelector("svg")).toBeInTheDocument();
       unmount();
+    }
+  });
+
+  it("covers the icon keys added for the new sections", () => {
+    for (const key of [
+      "gauge",
+      "calendarClock",
+      "house",
+      "sparkles",
+      "piggyBank",
+    ] as const) {
+      expect(landingIcons[key]).toBeDefined();
     }
   });
 });

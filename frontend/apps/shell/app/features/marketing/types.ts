@@ -18,15 +18,19 @@ export type LandingIcon =
   | "pieChart" // category breakdown
   | "target" // goals / intention
   | "wallet" // everyday tracking
-  | "lineChart"; // trends / bigger picture
+  | "lineChart" // trends / bigger picture
+  | "gauge" // pacing: on-track indicator
+  | "calendarClock" // spreading a large expense across months
+  | "house" // essentials bucket
+  | "sparkles" // desires bucket
+  | "piggyBank"; // savings bucket
 
 /** Hero section content. */
 export interface HeroContent {
   heading: string; // the single <h1>
   subheading: string; // supporting paragraph
   primaryCta: CtaLink; // -> /register
-  ctaFootnote: string; // microcopy beneath the CTA
-  visualAlt: string; // alt text for HeroVisual (placeholder illustration)
+  visualAlt: string; // aria-label for the animated hero scene
 }
 
 /** One numbered step in "How it works". */
@@ -51,6 +55,24 @@ export interface FeatureColumnContent {
   body: string;
 }
 
+/** A category accent that maps to an essentials/desires/savings color token. */
+export type SplitAccent = "essentials" | "desires" | "savings";
+
+/** One bucket in "The three-way split". */
+export interface SplitBucketContent {
+  accent: SplitAccent; // maps to the category color token
+  icon: LandingIcon;
+  title: string;
+  body: string;
+}
+
+/** One feature in "Feature showcase" (text + icon, no mock UI). */
+export interface ShowcaseFeatureContent {
+  icon: LandingIcon;
+  title: string;
+  body: string;
+}
+
 /** One FAQ entry. */
 export interface FaqItemContent {
   question: string;
@@ -67,6 +89,19 @@ export interface LandingMeta {
 export interface HowItWorksContent {
   heading: string;
   steps: StepContent[];
+}
+
+/** "The three-way split" section content. */
+export interface ThreeWaySplitContent {
+  heading: string;
+  intro: string;
+  buckets: SplitBucketContent[];
+}
+
+/** "Feature showcase" section content. */
+export interface FeatureShowcaseContent {
+  heading: string;
+  features: ShowcaseFeatureContent[];
 }
 
 /** Dual-mode split section content. */
@@ -96,6 +131,8 @@ export interface LandingContent {
   hero: HeroContent;
   howItWorks: HowItWorksContent;
   valueProp: ValuePropContent;
+  threeWaySplit: ThreeWaySplitContent;
+  featureShowcase: FeatureShowcaseContent;
   dualMode: DualModeContent;
   faq: FaqContent;
   finalCta: FinalCtaContent;
