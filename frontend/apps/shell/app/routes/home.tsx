@@ -1,13 +1,12 @@
-import { Navigate } from "react-router";
-import { getLandingPath } from "@gofin/core";
-import { useAuthStore } from "@/stores/auth-store";
-import { accessHandle } from "@/lib/route-access";
+import type { Route } from "./+types/home";
+import { LandingPage, landingContent } from "@/features/marketing";
 
-/** Root index route: send each identity to its role-aware landing path. */
-export const handle = accessHandle("authenticated");
+/** SEO metadata for `/`, server-rendered via root.tsx's <Meta />. */
+export const meta: Route.MetaFunction = () => [
+  { title: landingContent.meta.title },
+  { name: "description", content: landingContent.meta.description },
+];
 
-export default function HomePage() {
-  const { user } = useAuthStore();
-  if (!user) return null;
-  return <Navigate to={getLandingPath(user)} replace />;
+export default function HomeRoute() {
+  return <LandingPage />;
 }

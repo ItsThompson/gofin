@@ -6,13 +6,14 @@ import {
 } from "@react-router/dev/routes";
 
 export default [
-  // Public routes (no auth required, redirect if already logged in)
+  // Public routes (no auth required)
+  // Marketing landing page; redirects authenticated visitors client-side.
+  index("routes/home.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
 
   // Authenticated routes wrapped in auth layout (navbar, auth guard)
   layout("routes/auth-layout.tsx", [
-    index("routes/home.tsx"),
     route("dashboard", "routes/dashboard.tsx"),
     route("onboarding", "routes/onboarding.tsx"),
     route("expenses", "routes/expenses.tsx"),
