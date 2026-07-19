@@ -183,6 +183,15 @@ func (q *Queries) DeleteAllUserDefaultSettings(ctx context.Context, userID pgtyp
 	return err
 }
 
+const deleteAllUserHealthScores = `-- name: DeleteAllUserHealthScores :exec
+DELETE FROM finance.health_scores WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAllUserHealthScores(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAllUserHealthScores, userID)
+	return err
+}
+
 const deleteAllUserProRataSchedules = `-- name: DeleteAllUserProRataSchedules :exec
 DELETE FROM finance.pro_rata_schedules WHERE user_id = $1
 `
@@ -260,6 +269,33 @@ func (q *Queries) GetDefaults(ctx context.Context, userID pgtype.UUID) (FinanceD
 		&i.Currency,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getHealthScore = `-- name: GetHealthScore :one
+SELECT user_id, year, month, total, band, score, formula_version, computed_at FROM finance.health_scores
+WHERE user_id = $1 AND year = $2 AND month = $3
+`
+
+type GetHealthScoreParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Year   int32       `json:"year"`
+	Month  int32       `json:"month"`
+}
+
+func (q *Queries) GetHealthScore(ctx context.Context, arg GetHealthScoreParams) (FinanceHealthScore, error) {
+	row := q.db.QueryRow(ctx, getHealthScore, arg.UserID, arg.Year, arg.Month)
+	var i FinanceHealthScore
+	err := row.Scan(
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.Total,
+		&i.Band,
+		&i.Score,
+		&i.FormulaVersion,
+		&i.ComputedAt,
 	)
 	return i, err
 }
@@ -623,6 +659,54 @@ func (q *Queries) UpsertDefaults(ctx context.Context, arg UpsertDefaultsParams) 
 		&i.Currency,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertHealthScore = `-- name: UpsertHealthScore :one
+INSERT INTO finance.health_scores
+    (user_id, year, month, total, band, score, formula_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (user_id, year, month)
+DO UPDATE SET
+    total = EXCLUDED.total,
+    band = EXCLUDED.band,
+    score = EXCLUDED.score,
+    formula_version = EXCLUDED.formula_version,
+    computed_at = now()
+RETURNING user_id, year, month, total, band, score, formula_version, computed_at
+`
+
+type UpsertHealthScoreParams struct {
+	UserID         pgtype.UUID `json:"user_id"`
+	Year           int32       `json:"year"`
+	Month          int32       `json:"month"`
+	Total          int32       `json:"total"`
+	Band           string      `json:"band"`
+	Score          []byte      `json:"score"`
+	FormulaVersion int32       `json:"formula_version"`
+}
+
+func (q *Queries) UpsertHealthScore(ctx context.Context, arg UpsertHealthScoreParams) (FinanceHealthScore, error) {
+	row := q.db.QueryRow(ctx, upsertHealthScore,
+		arg.UserID,
+		arg.Year,
+		arg.Month,
+		arg.Total,
+		arg.Band,
+		arg.Score,
+		arg.FormulaVersion,
+	)
+	var i FinanceHealthScore
+	err := row.Scan(
+		&i.UserID,
+		&i.Year,
+		&i.Month,
+		&i.Total,
+		&i.Band,
+		&i.Score,
+		&i.FormulaVersion,
+		&i.ComputedAt,
 	)
 	return i, err
 }
