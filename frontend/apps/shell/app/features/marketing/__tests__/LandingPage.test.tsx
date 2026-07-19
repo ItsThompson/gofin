@@ -43,9 +43,16 @@ describe("LandingPage", () => {
     expect(
       screen.getByRole("link", { name: landingContent.login.label }),
     ).toHaveAttribute("href", "/login");
-    expect(
-      screen.getByRole("link", { name: landingContent.hero.primaryCta.label }),
-    ).toHaveAttribute("href", "/register");
+
+    // The hero and final CTAs share the "Get started" label; both must point at
+    // /register (the assembled page renders two of them).
+    const getStartedLinks = screen.getAllByRole("link", {
+      name: landingContent.hero.primaryCta.label,
+    });
+    expect(getStartedLinks).toHaveLength(2);
+    for (const link of getStartedLinks) {
+      expect(link).toHaveAttribute("href", "/register");
+    }
 
     expect(mockNavigate).not.toHaveBeenCalled();
   });
