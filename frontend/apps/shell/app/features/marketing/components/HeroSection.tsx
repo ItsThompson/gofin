@@ -1,18 +1,17 @@
 import { Link } from "react-router";
 import { Button } from "@gofin/ui/components/button";
-import { HeroVisual } from "./HeroVisual";
+import { HeroAnimation } from "./HeroAnimation";
 import type { HeroContent } from "../types";
 
 /**
- * Hero: two-column on md+ (copy left, visual right), stacked with copy first
+ * Hero: two-column on md+ (copy left, animation right), stacked with copy first
  * below md. Renders the single page <h1>, the subheading, the primary CTA as a
- * real link, the CTA microcopy, and the placeholder HeroVisual.
+ * real link, and the looping HeroAnimation.
  */
 export function HeroSection({
   heading,
   subheading,
   primaryCta,
-  ctaFootnote,
   visualAlt,
 }: HeroContent) {
   return (
@@ -22,16 +21,13 @@ export function HeroSection({
           {heading}
         </h1>
         <p className="text-lg text-muted-foreground">{subheading}</p>
-        <div className="flex flex-col gap-2">
-          <div>
-            <Button asChild size="lg">
-              <Link to={primaryCta.href}>{primaryCta.label}</Link>
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground">{ctaFootnote}</p>
+        <div>
+          <Button asChild size="lg">
+            <Link to={primaryCta.href}>{primaryCta.label}</Link>
+          </Button>
         </div>
       </div>
-      <HeroVisual alt={visualAlt} />
+      <HeroAnimation alt={visualAlt} />
     </section>
   );
 }
