@@ -15,5 +15,12 @@ describe("LandingFooter", () => {
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
     expect(screen.getByText(landingContent.brand)).toBeInTheDocument();
     expect(screen.getByText(landingContent.tagline)).toBeInTheDocument();
+
+    const year = new Date().getFullYear();
+    expect(
+      screen.getByText(
+        `© ${year} ${landingContent.brand}. All rights reserved.`,
+      ),
+    ).toBeInTheDocument();
   });
 });
