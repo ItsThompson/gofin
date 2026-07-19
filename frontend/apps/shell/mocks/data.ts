@@ -672,7 +672,9 @@ interface HealthScoreTrendPoint {
 const MOCK_TREND_TOTALS = [55, 61, 58, 66, 72, 69, 74, 70, 63, 68, 71];
 
 export function computeMockHealthScoreTrend(months: number): HealthScoreTrendPoint[] {
-  const count = Math.min(Math.max(months || 6, 1), 12);
+  // Match the Go service clamp policy (AC4): default 6, cap 12.
+  const requested = Number.isFinite(months) ? months : 6;
+  const count = requested < 1 ? 6 : Math.min(requested, 12);
   const bandFor = (total: number) => (total >= 80 ? "green" : total >= 55 ? "amber" : "red");
 
   const points: HealthScoreTrendPoint[] = [];
