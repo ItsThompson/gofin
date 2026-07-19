@@ -13,4 +13,12 @@ describe("ValuePropSection", () => {
       screen.getByText(landingContent.valueProp.footnote),
     ).toBeInTheDocument();
   });
+
+  it("exposes the band as a region named by its quote", () => {
+    render(<ValuePropSection {...landingContent.valueProp} />);
+
+    expect(
+      screen.getByRole("region", { name: landingContent.valueProp.quote }),
+    ).toBeInTheDocument();
+  });
 });
