@@ -106,6 +106,16 @@ describe("HealthScoreCard", () => {
     expect(screen.getByText("14/20")).toBeInTheDocument();
     expect(screen.getByText("Desires spend varied ~29% month to month")).toBeInTheDocument();
     expect(screen.getAllByRole("progressbar")).toHaveLength(4);
+    // Stability present -> not the building-baseline state.
+    expect(screen.queryByText(/Building baseline/)).toBeNull();
+  });
+
+  it("labels the building-baseline state when spending stability is absent", () => {
+    // The default fixture has three components (no stability) -> building baseline.
+    renderCard(buildHealthScore());
+    expect(
+      screen.getByText(/Building baseline: spending stability needs 3\+ months/),
+    ).toBeInTheDocument();
   });
 
   it("highlights the driver bar", () => {
