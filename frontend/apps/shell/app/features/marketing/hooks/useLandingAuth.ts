@@ -4,11 +4,11 @@ import type { LandingAuth } from "../types";
 
 /**
  * Runs the auth check on mount and returns the current auth state for the
- * marketing page. Unlike the former useLandingRedirect, it never navigates: an
- * authenticated visitor stays on `/` and the header renders the logged-in view.
+ * marketing page. It never navigates: an authenticated visitor stays on `/`
+ * and the header renders the logged-in view.
  *
- * checkAuth still runs on mount so the header knows the auth state; the
- * navigate effect is gone entirely rather than gated behind a flag.
+ * checkAuth still runs on mount so the header knows the auth state; the page
+ * simply reads the resolved state rather than redirecting on it.
  */
 export function useLandingAuth(): LandingAuth {
   const { isLoading, isAuthenticated, user, logout, checkAuth } =

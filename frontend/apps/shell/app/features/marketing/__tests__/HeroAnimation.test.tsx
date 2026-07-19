@@ -4,7 +4,7 @@ import { HeroAnimation } from "../components/HeroAnimation";
 
 const ALT = "A GoFin spending breakdown split into essentials, desires, and savings.";
 
-/** Drive framer-motion's reduced-motion detection by faking matchMedia.matches. */
+/** Drive the hero's reduced-motion detection by faking matchMedia.matches. */
 function setPrefersReducedMotion(reduce: boolean): void {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: reduce && query.includes("prefers-reduced-motion"),

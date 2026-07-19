@@ -19,6 +19,8 @@ export function LandingFooter({ brand, tagline }: LandingFooterProps) {
           A{" "}
           <a
             href="https://t-industri.es/"
+            target="_blank"
+            rel="noopener noreferrer"
             className="underline underline-offset-4 hover:text-foreground"
           >
             t-industri.es
