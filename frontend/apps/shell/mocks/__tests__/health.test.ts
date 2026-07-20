@@ -43,10 +43,12 @@ describe("GET /api/finance/health-score", () => {
       healthScoreHandlers,
       "/api/finance/health-score",
     );
-    const body = (await res.json()) as HealthScoreResponse;
+    const { healthScore } = (await res.json()) as HealthScoreResponse;
 
-    expect(body.healthScore).toBeDefined();
-    const healthScore = body.healthScore as HealthScore;
+    // Narrow the discriminated union to the score variant via `in` rather than a cast.
+    if ("configureBudget" in healthScore) {
+      throw new Error("expected the score variant, got the configure-budget prompt");
+    }
     expect(healthScore.components).toHaveLength(4);
     expect(["green", "amber", "red"]).toContain(healthScore.band);
   });

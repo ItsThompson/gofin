@@ -31,9 +31,10 @@ function clampRound(value: number, max: number): number {
   return Math.min(max, Math.max(0, Math.round(value)));
 }
 
-// Phase 2 v2 weights and stability tuning: mirror the authoritative Go formula
-// in services/finance/internal/service/healthscore.go. dev-mock has no backend,
-// so this port must stay faithful to keep the card representative.
+// Weights and stability tuning for health-score formula version 2: mirror the
+// authoritative Go formula in services/finance/internal/service/healthscore.go.
+// dev-mock has no backend, so this port must stay faithful to keep the card
+// representative.
 const HEALTH_BASE_WEIGHTS = { savings: 25, budget: 25, allocation: 30, stability: 20 };
 const STABILITY_MIN_MONTHS = 3;
 const STABILITY_COV_CAP = 1.0;
