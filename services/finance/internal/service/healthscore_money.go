@@ -26,7 +26,7 @@ func currencySymbol(code string) string {
 
 // formatMoney renders a minor-unit (cents) amount for an insight string. Whole
 // dollars carry thousands separators and no decimals ($2,480); a non-whole
-// amount shows two decimals ($12.34). Matches the ticket examples ($420, $2,480).
+// amount shows two decimals ($12.34). Whole-dollar examples: $420, $2,480.
 func formatMoney(cents int64, symbol string) string {
 	negative := cents < 0
 	if negative {

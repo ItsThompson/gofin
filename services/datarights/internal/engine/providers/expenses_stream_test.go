@@ -106,14 +106,14 @@ func retainedHeapBytes(build func() any) uint64 {
 // primitive paired with a non-buffering sink: given a sink that writes each row
 // onward (an incremental ZIP writer), the primitive retains nothing, so its peak
 // memory stays O(pageSize) as the row count grows 50x. The buffered contrast
-// (append every formatted row, as the old buffered consumer did) retains O(N) and
+// (append every formatted row) retains O(N) and
 // blows past the bound, so reverting to buffered collection fails this test.
 //
 // This bound is a property of the primitive + sink, NOT of production Collect:
 // Collect adapts the primitive with an append sink to satisfy the DataProvider
 // [][]string contract, so it (and thus the export engine, which buffers each
-// provider before BuildZIP) stays O(total) until the export engine is changed
-// to stream directly to the ZIP writer. See perf/baseline/stream-consumer.txt.
+// provider before BuildZIP) stays O(total); making the whole export O(pageSize)
+// would require streaming each provider straight into the ZIP writer.
 func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 	const (
 		smallRows           = 1000
@@ -148,7 +148,7 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 				out = append(out, row)
 				return nil
 			}))
-			return out // retains O(N): the old buffer-all shape
+			return out // retains O(N): the buffered shape
 		}
 	}
 

@@ -25,7 +25,7 @@ func healthPeriodMonth(year, month int32) *model.BudgetPeriod {
 }
 
 func TestGetHealthScore_ConfigureBudget(t *testing.T) {
-	// Edge 1: budget_amount = 0 -> configure-budget response, no components.
+	// budget_amount = 0 -> configure-budget response, no components.
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
@@ -80,7 +80,7 @@ func TestGetHealthScore_Success_UsesDefaultsCurrency(t *testing.T) {
 }
 
 func TestGetHealthScore_DefaultsCurrencyFallback(t *testing.T) {
-	// VC3: nil defaults -> currency falls back to USD.
+	// nil defaults -> currency falls back to USD.
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
@@ -105,7 +105,7 @@ func TestGetHealthScore_DefaultsCurrencyFallback(t *testing.T) {
 }
 
 func TestGetHealthScore_PeriodNotFound(t *testing.T) {
-	// Edge 2: no period -> PERIOD_NOT_FOUND (404).
+	// no period -> PERIOD_NOT_FOUND (404).
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
@@ -119,7 +119,7 @@ func TestGetHealthScore_PeriodNotFound(t *testing.T) {
 	assert.Equal(t, model.ErrPeriodNotFound, apiErr.Code)
 }
 
-// --- Persistence path (Step 8, VC-P6) ---
+// --- Persistence path ---
 
 func storedScore(version int32) *model.HealthScore {
 	return &model.HealthScore{
@@ -156,7 +156,7 @@ func TestGetHealthScore_ClosedStoredCurrentVersionReturnsStored(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int32(88), score.Total)
-	// Insight comes back intact from the stored payload (B1 resolution).
+	// Insight comes back intact from the stored payload.
 	assert.Equal(t, "Spending stability is the softest score this month.", score.Insight.Summary)
 	assert.NotEmpty(t, score.Insight.Nudge)
 	// Stored hit: no recompute, no expense read, no upsert.
@@ -191,7 +191,7 @@ func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
 }
 
 func TestGetHealthScore_StaleVersionRecomputesAndUpserts(t *testing.T) {
-	// VC-P6: a stored v1 row is recomputed to the current version and upserted.
+	// A stored stale-version row is recomputed to the current version and upserted.
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
@@ -200,7 +200,7 @@ func TestGetHealthScore_StaleVersionRecomputesAndUpserts(t *testing.T) {
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(healthPeriod(300000, 50, 30, 20), nil)
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).
-		Return(storedScore(1), nil) // stale v1
+		Return(storedScore(1), nil) // stale version
 	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
@@ -239,7 +239,7 @@ func TestGetHealthScore_ProvisionalNotStored(t *testing.T) {
 	repo.AssertNotCalled(t, "UpsertHealthScore", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// --- Stability window feed (Step 6, VC-P1) ---
+// --- Stability window feed ---
 
 func TestGetHealthScore_StabilityPresentReadsWindowOncePerMonth(t *testing.T) {
 	// With four prior closed months of desires, stability is present. Each
@@ -277,6 +277,6 @@ func TestGetHealthScore_StabilityPresentReadsWindowOncePerMonth(t *testing.T) {
 	require.Len(t, score.Components, 4, "stability is present with >= 3 closed months")
 	assert.Equal(t, model.HealthKeyStability, score.Components[3].Key)
 	assert.Equal(t, int32(20), score.Components[3].Score, "steady desires earn full stability marks")
-	// VC-P1: one read for the target plus one per windowed month (Apr..Jan) = 5.
+	// one read for the target plus one per windowed month (Apr..Jan) = 5.
 	expClient.AssertNumberOfCalls(t, "GetExpensesForPeriod", 5)
 }

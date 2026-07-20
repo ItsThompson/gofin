@@ -44,7 +44,7 @@ func providerCSV(t testing.TB, p engine.DataProvider) []byte {
 
 // TestExportProviders_CSVByteIdentical guards the byte-identical export guarantee:
 // every provider's CSV output (headers + rows) for a fixed input
-// must match the committed pre-dedup fixture. Regenerate with `-update`.
+// must match the committed golden fixture. Regenerate with `-update`.
 func TestExportProviders_CSVByteIdentical(t *testing.T) {
 	auth := &stubAuthClient{user: cannedUser()}
 	expense := &stubExpenseClient{pages: cannedExpensePages()}
@@ -66,7 +66,7 @@ func TestExportProviders_CSVByteIdentical(t *testing.T) {
 }
 
 // BenchmarkExportCollection measures serial collection across the full provider
-// set. After the fetch-once refactor the finance-backed providers are pure
+// set. The finance-backed providers are pure
 // mappers over the response the engine fetches once (in execute), so collection
 // itself issues no finance RPC; this benchmark isolates the per-provider mapping
 // plus expense-stream formatting cost. BenchmarkEngineCollectionFanout measures

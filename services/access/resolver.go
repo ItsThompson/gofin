@@ -17,8 +17,7 @@ import "strings"
 // construction. Because every Registry pattern is a concrete route with exact
 // static segments, a sibling path like "/api/datarights/exports-admin" cannot
 // borrow "/api/datarights/exports"'s level: static segments must match
-// byte-for-byte. This makes the leading-substring bug that segment-boundary
-// prefix matching guarded against (commit ca37e4c) impossible by construction.
+// byte-for-byte.
 func Resolve(method, path string) Level {
 	var best *Route
 	for i := range registry {

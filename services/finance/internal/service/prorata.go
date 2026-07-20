@@ -54,7 +54,6 @@ func monthLabel(year int32, month int32) string {
 // CreateProRataExpense creates a pro-rata expense: writes the first installment via
 // gRPC to the expense service, then creates PostgreSQL schedules for months 2-N.
 func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string, req *model.CreateProRataRequest) (*model.ProRataResponse, error) {
-	// Validate inputs
 	if strings.TrimSpace(req.Name) == "" {
 		return nil, apierr.Validation("Name is required", map[string]string{"name": "required"})
 	}
@@ -85,7 +84,6 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	currentYear := int32(now.Year())
 	currentMonth := int32(now.Month())
 
-	// Step 1: Create the first installment via expense service gRPC
 	created, err := s.expenseClient.CreateExpense(ctx, CreateExpenseInput{
 		UserID:       userID,
 		Name:         req.Name,
@@ -105,7 +103,6 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		return nil, fmt.Errorf("creating first installment via expense service: %w", err)
 	}
 
-	// Step 2: Create schedule records for months 2-N in PostgreSQL
 	schedules := make([]*model.ProRataSchedule, 0, req.Months-1)
 	targetYear, targetMonth := currentYear, currentMonth
 	for i := int32(2); i <= req.Months; i++ {
@@ -125,8 +122,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 			InstallmentTotal: req.Months,
 		})
 		if err != nil {
-			// Expense was already written but schedule creation failed.
-			// Log the inconsistency and return error per acceptance criteria.
+			// Log the inconsistency and return an error (the first installment is already written).
 			s.logger.Error("pro-rata schedule creation failed after expense write",
 				slog.String("method", "CreateProRataExpense"),
 				slog.String("user_id", userID),
@@ -260,7 +256,6 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	var autoCreatedMonths []string
 	var allAppliedProRata []*model.ProRataSchedule
 
-	// Detect missed months
 	latestPeriod, err := s.repo.GetLatestPeriod(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting latest period: %w", err)
@@ -275,7 +270,6 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 				return nil, fmt.Errorf("getting defaults for missed months: %w", err)
 			}
 
-			// Use fallback defaults if none exist
 			if defaults == nil {
 				defaults = &model.DefaultSettings{
 					BudgetAmount:      0,
@@ -321,7 +315,6 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		}
 	}
 
-	// Create the requested period
 	period, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
 		UserID:            userID,
 		Year:              req.Year,

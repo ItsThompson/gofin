@@ -101,18 +101,15 @@ describe("SectionErrorBoundary", () => {
       </SectionErrorBoundary>,
     );
 
-    // Should be in error state
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Could not load Budget")).toBeInTheDocument();
 
     // Fix the child before retry
     shouldThrow = false;
 
-    // Click retry
     const retryButton = screen.getByRole("button", { name: /try again/i });
     await user.click(retryButton);
 
-    // Should now render recovered content
     expect(screen.getByText("Recovered content")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

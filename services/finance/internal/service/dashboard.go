@@ -31,7 +31,6 @@ func (s *FinanceService) GetPeriodSummary(ctx context.Context, userID string, ye
 
 // GetSpendingByTag computes per-tag spending for a budget period.
 func (s *FinanceService) GetSpendingByTag(ctx context.Context, userID string, year, month int32) ([]model.TagSpending, error) {
-	// Validate period exists
 	_, err := s.GetCurrentPeriod(ctx, userID, year, month)
 	if err != nil {
 		return nil, err
@@ -87,7 +86,6 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 		return nil, fmt.Errorf("listing periods: %w", err)
 	}
 
-	// Build a map of year-month -> period for quick lookup
 	periodMap := make(map[[2]int32]*model.BudgetPeriod, len(periods))
 	for _, p := range periods {
 		periodMap[[2]int32{p.Year, p.Month}] = p
@@ -105,7 +103,6 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 		}
 	}
 
-	// Reverse to chronological order
 	for i, j := 0, len(window)-1; i < j; i, j = i+1, j-1 {
 		window[i], window[j] = window[j], window[i]
 	}
@@ -230,14 +227,13 @@ func (s *FinanceService) computeHistoricalComparison(
 		priorPeriods = append(priorPeriods, periods[i])
 	}
 
-	// Build the distinct set of periods whose spend the result actually needs,
-	// mirroring the serial reads: the current period always; priorPeriods[0] when
-	// any prior exists (it feeds both "previous" and the first rolling-average
-	// term); priorPeriods[1..2] only when a full 3-period rolling average is
-	// possible. Each period is therefore read exactly once (the serial code read
-	// priorPeriods[0] twice). These reads are independent, so they fan out under a
-	// bounded errgroup with index-addressed result slots; the change-percent and
-	// rolling-average math runs after the g.Wait() barrier, unchanged.
+	// Build the distinct set of periods whose spend the result needs: the current
+	// period always; priorPeriods[0] when any prior exists (it feeds both
+	// "previous" and the first rolling-average term); priorPeriods[1..2] only when
+	// a full 3-period rolling average is possible. Each period is read exactly
+	// once. These reads are independent, so they fan out under a bounded errgroup
+	// with index-addressed result slots; the change-percent and rolling-average
+	// math runs after the g.Wait() barrier.
 	hasRollingAverage := len(priorPeriods) >= 3
 	targets := []*model.BudgetPeriod{periods[requestedIdx]}
 	if len(priorPeriods) > 0 {
@@ -269,12 +265,10 @@ func (s *FinanceService) computeHistoricalComparison(
 		CurrentSpent: spent[0],
 	}
 
-	// Previous period spent
 	if len(priorPeriods) > 0 {
 		prevSpent := spent[1]
 		result.PreviousSpent = prevSpent
 
-		// Change percent
 		if prevSpent > 0 {
 			result.ChangePercent = math.Round(float64(spent[0]-prevSpent)/float64(prevSpent)*10000) / 100
 		} else if spent[0] > 0 {
@@ -312,7 +306,6 @@ func ComputePeriodSummary(period *model.BudgetPeriod, expenses []ExpenseData, ye
 	daysInPeriod := daysInMonth(year, month)
 	daysElapsed := computeDaysElapsed(year, month, daysInPeriod, now)
 
-	// Sum expenses by type
 	var totalSpent, essentialsSpent, desiresSpent, savingsSpent int64
 	for _, exp := range expenses {
 		totalSpent += exp.Amount
@@ -336,7 +329,6 @@ func ComputePeriodSummary(period *model.BudgetPeriod, expenses []ExpenseData, ye
 
 	remaining := period.BudgetAmount - totalSpent
 
-	// Pacing
 	var dailySpendRate int64
 	if daysElapsed > 0 {
 		dailySpendRate = totalSpent / int64(daysElapsed)
@@ -381,7 +373,6 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 		return []model.TagSpending{}
 	}
 
-	// Aggregate by tag
 	tagAmounts := make(map[string]int64)
 	var totalSpent int64
 	for _, exp := range expenses {
@@ -389,7 +380,6 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 		totalSpent += exp.Amount
 	}
 
-	// Build result
 	result := make([]model.TagSpending, 0, len(tagAmounts))
 	for tagID, amount := range tagAmounts {
 		tagName := tagNames[tagID]
@@ -408,7 +398,6 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 		})
 	}
 
-	// Sort by amount descending
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Amount > result[j].Amount
 	})
@@ -421,7 +410,6 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 // The year and month parameters identify the budget period so that cross-month
 // expenses (e.g., April expenses assigned to a May period) are clamped to day 1.
 func ComputeCumulativeSpend(expenses []ExpenseData, totalBudget int64, year, month, daysInPeriod int32) []model.CumulativeSpendPoint {
-	// Build day-by-day spend map
 	daySpend := make(map[int32]int64)
 	for _, exp := range expenses {
 		day := parseDayForPeriod(exp.ExpenseDate, year, month)
@@ -448,7 +436,7 @@ func ComputeCumulativeSpend(expenses []ExpenseData, totalBudget int64, year, mon
 
 // allocateCategories distributes the budget across E/D/S categories.
 // When the percentages don't divide evenly, the largest category absorbs
-// the rounding remainder per spec.
+// the rounding remainder.
 func allocateCategories(budget int64, essentialsPct, desiresPct, savingsPct int32) (int64, int64, int64) {
 	if budget == 0 {
 		return 0, 0, 0

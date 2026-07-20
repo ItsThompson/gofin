@@ -8,7 +8,7 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
-// --- Insight driver selection & tie-break (Formula F, E4) ---
+// --- Insight driver selection & tie-break ---
 
 func TestSelectDriver_LowestWithPrecedence(t *testing.T) {
 	// Savings and budget tie at the min -> savings wins (precedence).
@@ -118,7 +118,7 @@ func TestBuildInsight_AllocationDirectionFromDevSigns(t *testing.T) {
 		atypical.Nudge)
 }
 
-// --- E5: budget driver but not overspent -> qualitative fallback ---
+// --- Budget driver but not overspent -> qualitative fallback ---
 
 func TestBuildInsight_BudgetDriverNotOverspent(t *testing.T) {
 	components := []model.HealthComponent{

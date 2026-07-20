@@ -95,12 +95,10 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     const user = userEvent.setup();
     await user.click(screen.getByLabelText("Budget Settings"));
 
-    // Modify budget amount
     const budgetInput = screen.getByLabelText("Monthly Budget");
     await user.clear(budgetInput);
     await user.type(budgetInput, "4000");
 
-    // Modify split
     const essentialsInput = screen.getByLabelText("Essentials %");
     await user.clear(essentialsInput);
     await user.type(essentialsInput, "60");

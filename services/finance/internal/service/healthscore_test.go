@@ -30,7 +30,7 @@ var currentMonthNow = time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 // stability is present and earns full marks.
 var steadyWindow = []int64{80000, 80000, 80000}
 
-// --- Money formatter (Formula F helper) ---
+// --- Money formatter ---
 
 func TestFormatMoney(t *testing.T) {
 	tests := []struct {
@@ -65,7 +65,7 @@ func TestCurrencySymbol(t *testing.T) {
 	assert.Equal(t, "CAD ", currencySymbol("CAD"))
 }
 
-// --- Savings achievement (Formula B) ---
+// --- Savings achievement ---
 
 func TestSavingsComponent(t *testing.T) {
 	tests := []struct {
@@ -90,7 +90,7 @@ func TestSavingsComponent(t *testing.T) {
 	assert.Equal(t, "Saved $420 of $600 target", detail)
 }
 
-// --- Budget adherence (Formula C) ---
+// --- Budget adherence ---
 
 func TestBudgetComponent(t *testing.T) {
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestBudgetComponent(t *testing.T) {
 	assert.Equal(t, "Spent $2,480 of $2,400 plan", detail)
 }
 
-// --- Allocation balance (Formula A) ---
+// --- Allocation balance ---
 
 func TestAllocationComponent_WorkedChecks(t *testing.T) {
 	// Perfect match -> full marks, balanced detail.
@@ -137,7 +137,7 @@ func TestAllocationComponent_WorkedChecks(t *testing.T) {
 }
 
 func TestAllocationComponent_ZeroSpendFullMarks(t *testing.T) {
-	// E3: no spend over the surviving categories -> full marks.
+	// no spend over the surviving categories -> full marks.
 	score, detail, devs := allocationComponent(0, 0, 0, 50, 30, 20, false, weightAlloc)
 	assert.InDelta(t, 30, score, 0.0001)
 	assert.Equal(t, allocBalancedDetail, detail)
@@ -150,7 +150,7 @@ func TestAllocationComponent_SavingsDroppedExcludesSavings(t *testing.T) {
 	assert.InDelta(t, 30, score, 0.0001)
 	assert.Len(t, devs, 2, "savings must not be a surviving category when dropped")
 
-	// E2: with savings dropped, the savings actual must not enter the denominator.
+	// with savings dropped, the savings actual must not enter the denominator.
 	// Two calls that differ only in savingsActual must produce identical scores.
 	scoreNoSavings, _, _ := allocationComponent(50000, 50000, 0, 50, 49, 1, true, weightAlloc)
 	scoreHugeSavings, _, _ := allocationComponent(50000, 50000, 999999, 50, 49, 1, true, weightAlloc)
@@ -158,7 +158,7 @@ func TestAllocationComponent_SavingsDroppedExcludesSavings(t *testing.T) {
 		"savings actual must be excluded from the allocation denominator when dropped")
 }
 
-// --- Weight resolution (Formula D): division renorm over the present set ---
+// --- Weight resolution: division renorm over the present set ---
 
 func TestResolveWeights_AllPresent(t *testing.T) {
 	w := resolveWeights(true, true)
@@ -215,7 +215,7 @@ func TestRoundClamp(t *testing.T) {
 	assert.Equal(t, int32(15), roundClamp(15.4, 30))
 }
 
-// --- Aggregate (Formula E) via ComputeHealthScore ---
+// --- Aggregate via ComputeHealthScore ---
 
 func TestComputeHealthScore_BuildingBaseline(t *testing.T) {
 	// Fewer than stabilityMinMonths of history -> stability dropped, three
@@ -320,7 +320,7 @@ func TestComputeHealthScore_ProvisionalFlipsWithClock(t *testing.T) {
 }
 
 func TestComputeHealthScore_NoExpenses(t *testing.T) {
-	// Edge 6: configured budget, no expenses, building baseline -> savings 0,
+	// configured budget, no expenses, building baseline -> savings 0,
 	// budget full (31), allocation full (38) -> total 69, driver savings.
 	period := healthPeriod(300000, 50, 30, 20)
 	score := ComputeHealthScore(period, nil, nil, 2026, 5, currentMonthNow, "USD")
@@ -331,7 +331,7 @@ func TestComputeHealthScore_NoExpenses(t *testing.T) {
 }
 
 func TestComputeHealthScore_SavingsDroppedStructure(t *testing.T) {
-	// Edge 5: savings_percent = 0, building baseline -> two components with maxes
+	// savings_percent = 0, building baseline -> two components with maxes
 	// 45 and 55 (renorm over budget 25 + allocation 30).
 	period := healthPeriod(300000, 60, 40, 0)
 	expenses := []ExpenseData{
@@ -379,7 +379,7 @@ func TestComputeHealthScore_SavingsDroppedWithStability(t *testing.T) {
 }
 
 func TestComputeHealthScore_TinyBudgetDropsSavings(t *testing.T) {
-	// E2: savings_percent > 0 but savingsTarget integer-divides to 0 -> savings
+	// savings_percent > 0 but savingsTarget integer-divides to 0 -> savings
 	// dropped, allocation over E/D only. budget 99, 50/49/1 -> savingsTarget = 0,
 	// combinedTarget = 98 (budget still scored).
 	period := healthPeriod(99, 50, 49, 1)

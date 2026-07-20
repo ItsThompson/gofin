@@ -35,21 +35,16 @@ const (
 )
 
 // AccessControl is the single gin middleware that enforces the gateway access
-// policy, replacing the former Auth + RequireAdmin + AdminRouteGuard trio.
+// policy.
 //
 // It takes an injected resolve func rather than a policy value so the shared
 // services/access module stays ignorant of gateway-native routes: the gateway
 // composes GatewayResolve (health/metrics -> Public, else access.Resolve) and
 // passes it in ("inject strategy, don't branch on context").
 //
-// For every request it:
-//  1. strips the spoofable identity headers,
-//  2. resolves the route's access level via the injected resolver,
-//  3. short-circuits Public routes with no token read,
-//  4. short-circuits Deny (an unclassified route) with a 403 and no token read,
-//  5. otherwise validates the gofin_access cookie (401 on missing/invalid),
-//  6. injects the validated identity as downstream headers, and
-//  7. enforces the per-level role check (403 when the role is wrong).
+// Identity headers are stripped first so a client can never spoof them. Public
+// and Deny routes short-circuit before any token read; every other level
+// validates the gofin_access cookie, then applies the per-level role check.
 //
 // The per-level switch is fail-safe: only Authenticated passes without a role
 // check, and any level that is not explicitly allowed is denied (403).
@@ -164,7 +159,7 @@ func setIdentityHeaders(c *gin.Context, result *TokenValidationResult) {
 	}
 }
 
-// abortUnauthorized ends the request with the unchanged 401 contract, encoded
+// abortUnauthorized ends the request with the 401 contract, encoded
 // through the shared apierr wire struct. c.Abort halts the middleware chain
 // (apierr.Respond only writes the body/status; it does not abort).
 func abortUnauthorized(c *gin.Context, message string) {
@@ -202,10 +197,8 @@ func abortUnavailable(c *gin.Context) {
 	c.Abort()
 }
 
-// rejectForbidden ends the request with the unchanged 403 code contract (the
-// machine-readable "FORBIDDEN" code is preserved; the human-facing message text
-// was consolidated to a generic "Access denied"), preserving the role-denied
-// warn log formerly emitted by middleware.rejectNonAdmin.
+// rejectForbidden ends the request with the 403 FORBIDDEN / "Access denied"
+// contract and emits a role-denied warn log.
 func rejectForbidden(c *gin.Context, logger *slog.Logger, result *TokenValidationResult) {
 	logger.Warn("access denied",
 		slog.String("method", c.Request.Method),

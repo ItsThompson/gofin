@@ -6,12 +6,9 @@ import (
 	"time"
 )
 
-// TestRun_RESTBindFailure_ReturnsError is the gateway's slice of the C5
-// zombie-on-bind-failure fix (US-PLATFORM-02): when the REST listener cannot
-// bind (its port is already in use), run() must return a non-nil error so
-// main() exits non-zero and the container restarts, instead of lingering with
-// no listener. serverkit.Serve surfaces the bind error; this pins that the
-// gateway's run() propagates it rather than swallowing it in a goroutine.
+// TestRun_RESTBindFailure_ReturnsError pins that when the REST listener cannot
+// bind (its port is already in use), run() returns a non-nil error so main()
+// exits non-zero and the container restarts, instead of lingering with no listener.
 func TestRun_RESTBindFailure_ReturnsError(t *testing.T) {
 	// Occupy the wildcard port the gateway will try to bind (":PORT"). Binding
 	// the same wildcard address is what makes the conflict deterministic: a

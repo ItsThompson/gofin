@@ -32,7 +32,6 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExpenseServiceClient interface {
-	// Implemented in this ticket
 	CreateExpense(ctx context.Context, in *CreateExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	GetExpensesForPeriod(ctx context.Context, in *GetExpensesForPeriodRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
 	GetExpense(ctx context.Context, in *GetExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
@@ -42,13 +41,6 @@ type ExpenseServiceClient interface {
 	// for a user in chronological order (created_at ASC, id ASC). The server pages
 	// internally with a keyset cursor, bounding server memory to O(page_size); the
 	// client writes rows incrementally.
-	//
-	// WIRE BREAK: this replaced a unary GetAllUserExpenses RPC (renamed, request
-	// message swapped, field number 2 reused for page_size). It is an intentional
-	// atomic internal break: the sole consumer (datarights export) is cut over in
-	// the same change and no proto bytes are persisted, so there is no
-	// cross-version wire path and the reserve-field rules for incremental rollout
-	// do not apply.
 	StreamAllUserExpenses(ctx context.Context, in *StreamAllUserExpensesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExpenseData], error)
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error)
@@ -147,7 +139,6 @@ func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectEx
 // All implementations must embed UnimplementedExpenseServiceServer
 // for forward compatibility.
 type ExpenseServiceServer interface {
-	// Implemented in this ticket
 	CreateExpense(context.Context, *CreateExpenseRequest) (*ExpenseResponse, error)
 	GetExpensesForPeriod(context.Context, *GetExpensesForPeriodRequest) (*ExpenseListResponse, error)
 	GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error)
@@ -157,13 +148,6 @@ type ExpenseServiceServer interface {
 	// for a user in chronological order (created_at ASC, id ASC). The server pages
 	// internally with a keyset cursor, bounding server memory to O(page_size); the
 	// client writes rows incrementally.
-	//
-	// WIRE BREAK: this replaced a unary GetAllUserExpenses RPC (renamed, request
-	// message swapped, field number 2 reused for page_size). It is an intentional
-	// atomic internal break: the sole consumer (datarights export) is cut over in
-	// the same change and no proto bytes are persisted, so there is no
-	// cross-version wire path and the reserve-field rules for incremental rollout
-	// do not apply.
 	StreamAllUserExpenses(*StreamAllUserExpensesRequest, grpc.ServerStreamingServer[ExpenseData]) error
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error)

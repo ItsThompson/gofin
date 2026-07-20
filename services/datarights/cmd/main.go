@@ -45,13 +45,11 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// Set up structured logging
 	logger := serverkit.NewLogger(cfg.LogLevel, "datarights")
 	slog.SetDefault(logger)
 
@@ -63,7 +61,6 @@ func run() error {
 	defer pool.Close()
 	logger.Info("connected to PostgreSQL")
 
-	// Connect to auth service gRPC
 	authConn, err := grpc.NewClient(
 		cfg.AuthServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -79,7 +76,6 @@ func run() error {
 
 	authClient := authpb.NewAuthServiceClient(authConn)
 
-	// Connect to expense service gRPC
 	expenseConn, err := grpc.NewClient(
 		cfg.ExpenseServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -91,7 +87,6 @@ func run() error {
 
 	expenseClient := expensepb.NewExpenseServiceClient(expenseConn)
 
-	// Connect to finance service gRPC
 	financeConn, err := grpc.NewClient(
 		cfg.FinanceServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -108,7 +103,6 @@ func run() error {
 		slog.String("finance_service_addr", cfg.FinanceServiceAddr),
 	)
 
-	// Build dependency graph
 	repo := repository.NewPostgresJobRepository(pool)
 
 	// Set up export engine with a per-job provider factory. The engine fetches
@@ -128,7 +122,6 @@ func run() error {
 		}
 	}
 
-	// Set up email sender
 	emailSender, err := buildEmailSender(cfg, logger)
 	if err != nil {
 		return fmt.Errorf("setting up email sender: %w", err)
@@ -227,7 +220,7 @@ func run() error {
 
 	// Serve blocks until ctx is cancelled or the HTTP server fails to bind.
 	// A bind failure returns non-nil so run() (and main) exit non-zero instead
-	// of lingering as a zombie with no listener (C5). datarights runs no gRPC
+	// of lingering as a zombie with no listener. datarights runs no gRPC
 	// server, so both gRPC arguments are nil.
 	return serverkit.Serve(ctx, httpServer, nil, nil)
 }

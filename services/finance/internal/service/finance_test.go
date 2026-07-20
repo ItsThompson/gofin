@@ -53,7 +53,7 @@ func TestValidateEDSSplit_Invalid(t *testing.T) {
 	}
 }
 
-// TestValidateEDSSplit_FieldsPopulated locks in C6: a multi-field validation
+// TestValidateEDSSplit_FieldsPopulated locks in that a multi-field validation
 // failure carries every offending field in Fields, not just a flat message.
 func TestValidateEDSSplit_FieldsPopulated(t *testing.T) {
 	t.Run("sum mismatch names all three percentages", func(t *testing.T) {

@@ -58,8 +58,8 @@ func (h *GRPCHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRe
 	}, nil
 }
 
-// Register is exposed via gRPC for the gateway. The REST handler is the primary
-// consumer, but the gateway may call via gRPC in the future.
+// Register returns codes.Unimplemented; the REST endpoint POST /api/auth/register
+// is the sole implementation. The RPC exists to satisfy the generated interface.
 func (h *GRPCHandler) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.AuthResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "use REST endpoint POST /api/auth/register")
 }
@@ -141,7 +141,6 @@ func (h *GRPCHandler) DeleteUserData(ctx context.Context, req *pb.DeleteUserData
 		return nil, status.Error(codes.Internal, "failed to delete refresh tokens")
 	}
 
-	// Delete the user row
 	if err := h.authService.DeleteUserRow(ctx, userID); err != nil {
 		h.logger.Error("failed to delete user row",
 			slog.String("method", "DeleteUserData"),

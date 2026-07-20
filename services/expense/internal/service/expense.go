@@ -162,7 +162,6 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		return nil, err
 	}
 
-	// Fetch the original expense
 	original, err := s.repo.GetExpenseByID(ctx, expenseID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("fetching expense for correction: %w", err)
@@ -171,7 +170,6 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
 	}
 
-	// Check if already corrected
 	if original.Status != "active" {
 		return nil, apierr.Conflict(model.ErrAlreadyCorrected, "this expense has already been corrected")
 	}
@@ -188,7 +186,6 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		}
 	}
 
-	// Build the correction entry
 	correction := &model.Expense{
 		ID:           uuid.New().String(),
 		UserID:       userID,
@@ -307,9 +304,7 @@ func (s *ExpenseService) StreamAllUserExpenses(ctx context.Context, userID strin
 //
 // It holds at most one page at a time (the current page slice plus the
 // pageSize-buffered rows channel), so producer-side memory stays O(pageSize)
-// regardless of total history size. The end-to-end retained-heap bound is
-// verified by the datarights streaming consumer growth-ratio test in
-// services/datarights/internal/engine/providers/expenses_stream_test.go.
+// regardless of total history size.
 func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string, pageSize int32, rows chan<- *model.Expense, errc chan<- error) {
 	defer close(rows)
 

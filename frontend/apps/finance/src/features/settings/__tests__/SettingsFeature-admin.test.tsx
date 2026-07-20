@@ -117,8 +117,7 @@ describe("SettingsFeature - admin composition", () => {
     );
 
     // The fallback resolves activeDefinition to tabList[0] (Profile), so the
-    // desktop card renders the profile form instead of an empty card. With the
-    // old optional chaining this would render nothing.
+    // desktop card renders the profile form instead of an empty card.
     const usernameInputs = screen.getAllByLabelText("Username") as HTMLInputElement[];
     expect(usernameInputs.length).toBeGreaterThanOrEqual(1);
     expect(usernameInputs[0].value).toBe("operator");

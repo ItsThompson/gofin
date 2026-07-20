@@ -2,9 +2,8 @@ package access
 
 import "testing"
 
-// TestResolve_WorkedExamples ports the acceptance-criteria worked examples from
-// the former gateway resolver suite to the Registry-backed pattern resolver.
-// Each is a real route, so the outcome must be preserved exactly.
+// TestResolve_WorkedExamples checks that representative real routes resolve to
+// the access level the Registry declares for them.
 func TestResolve_WorkedExamples(t *testing.T) {
 	cases := []struct {
 		name   string

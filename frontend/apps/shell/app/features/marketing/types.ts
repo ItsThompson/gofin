@@ -30,7 +30,7 @@ export type LandingIcon =
 /** Hero section content. */
 export interface HeroContent {
   heading: string; // the single <h1>
-  subheading: string; // supporting paragraph
+  subheading: string;
   primaryCta: CtaLink; // -> /register
   visualAlt: string; // aria-label for the animated hero scene
 }
@@ -126,8 +126,8 @@ export interface FinalCtaContent {
 
 /** The single source of all landing copy, links, and section data. */
 export interface LandingContent {
-  brand: string; // "GoFin"
-  tagline: string; // footer tagline
+  brand: string;
+  tagline: string;
   meta: LandingMeta; // SEO title + description (read by the route `meta`)
   login: CtaLink; // header "Log in" -> /login
   hero: HeroContent;

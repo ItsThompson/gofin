@@ -53,21 +53,21 @@ type FinanceServiceClient interface {
 	GetAllUserData(ctx context.Context, in *GetAllUserDataRequest, opts ...grpc.CallOption) (*AllUserDataResponse, error)
 	// Data deletion (datarights support)
 	DeleteAllUserData(ctx context.Context, in *DeleteAllUserDataRequest, opts ...grpc.CallOption) (*DeleteAllUserDataResponse, error)
-	// Budget period operations (stubs for later tickets)
+	// Budget period operations
 	GetCurrentPeriod(ctx context.Context, in *GetCurrentPeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
 	CreatePeriod(ctx context.Context, in *CreatePeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
 	UpdatePeriod(ctx context.Context, in *UpdatePeriodRequest, opts ...grpc.CallOption) (*PeriodResponse, error)
 	ListPeriods(ctx context.Context, in *ListPeriodsRequest, opts ...grpc.CallOption) (*PeriodListResponse, error)
-	// Tag operations (stubs for later tickets)
+	// Tag operations
 	ListTags(ctx context.Context, in *ListTagsRequest, opts ...grpc.CallOption) (*TagListResponse, error)
 	CreateTag(ctx context.Context, in *CreateTagRequest, opts ...grpc.CallOption) (*TagResponse, error)
 	UpdateTag(ctx context.Context, in *UpdateTagRequest, opts ...grpc.CallOption) (*TagResponse, error)
 	DeleteTag(ctx context.Context, in *DeleteTagRequest, opts ...grpc.CallOption) (*DeleteTagResponse, error)
 	CheckTagUsage(ctx context.Context, in *CheckTagUsageRequest, opts ...grpc.CallOption) (*TagUsageResponse, error)
-	// Pro-rata (stubs for later tickets)
+	// Pro-rata
 	CreateProRataExpense(ctx context.Context, in *CreateProRataExpenseRequest, opts ...grpc.CallOption) (*ProRataResponse, error)
 	GetUpcomingProRata(ctx context.Context, in *GetUpcomingProRataRequest, opts ...grpc.CallOption) (*UpcomingProRataListResponse, error)
-	// Dashboard aggregation (stubs for later tickets)
+	// Dashboard aggregation
 	GetPeriodSummary(ctx context.Context, in *GetPeriodSummaryRequest, opts ...grpc.CallOption) (*PeriodSummaryResponse, error)
 	GetSpendingByTag(ctx context.Context, in *GetSpendingByTagRequest, opts ...grpc.CallOption) (*TagSpendingListResponse, error)
 	GetCumulativeSpend(ctx context.Context, in *GetCumulativeSpendRequest, opts ...grpc.CallOption) (*CumulativeSpendResponse, error)
@@ -294,21 +294,21 @@ type FinanceServiceServer interface {
 	GetAllUserData(context.Context, *GetAllUserDataRequest) (*AllUserDataResponse, error)
 	// Data deletion (datarights support)
 	DeleteAllUserData(context.Context, *DeleteAllUserDataRequest) (*DeleteAllUserDataResponse, error)
-	// Budget period operations (stubs for later tickets)
+	// Budget period operations
 	GetCurrentPeriod(context.Context, *GetCurrentPeriodRequest) (*PeriodResponse, error)
 	CreatePeriod(context.Context, *CreatePeriodRequest) (*PeriodResponse, error)
 	UpdatePeriod(context.Context, *UpdatePeriodRequest) (*PeriodResponse, error)
 	ListPeriods(context.Context, *ListPeriodsRequest) (*PeriodListResponse, error)
-	// Tag operations (stubs for later tickets)
+	// Tag operations
 	ListTags(context.Context, *ListTagsRequest) (*TagListResponse, error)
 	CreateTag(context.Context, *CreateTagRequest) (*TagResponse, error)
 	UpdateTag(context.Context, *UpdateTagRequest) (*TagResponse, error)
 	DeleteTag(context.Context, *DeleteTagRequest) (*DeleteTagResponse, error)
 	CheckTagUsage(context.Context, *CheckTagUsageRequest) (*TagUsageResponse, error)
-	// Pro-rata (stubs for later tickets)
+	// Pro-rata
 	CreateProRataExpense(context.Context, *CreateProRataExpenseRequest) (*ProRataResponse, error)
 	GetUpcomingProRata(context.Context, *GetUpcomingProRataRequest) (*UpcomingProRataListResponse, error)
-	// Dashboard aggregation (stubs for later tickets)
+	// Dashboard aggregation
 	GetPeriodSummary(context.Context, *GetPeriodSummaryRequest) (*PeriodSummaryResponse, error)
 	GetSpendingByTag(context.Context, *GetSpendingByTagRequest) (*TagSpendingListResponse, error)
 	GetCumulativeSpend(context.Context, *GetCumulativeSpendRequest) (*CumulativeSpendResponse, error)

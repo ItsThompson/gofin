@@ -167,8 +167,8 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 	return &SQLResult{Rows: rows}
 }
 
-// buildTestExpense constructs an expense row for repository tests, defaulting
-// all required fields and applying overrides.
+// buildTestExpense constructs an expense row for repository tests with the given
+// id, userID, and createdAt and default values for the remaining fields.
 func buildTestExpense(id, userID, createdAt string) *model.Expense {
 	return &model.Expense{
 		ID:          id,

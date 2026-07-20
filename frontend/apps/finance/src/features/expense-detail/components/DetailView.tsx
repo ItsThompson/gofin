@@ -33,20 +33,17 @@ export function DetailView({
   const canCorrect = expense.status === "active" && isCurrentPeriod;
   const hasCorrections = history.length > 1;
 
-  // Find the correction that supersedes this expense (if corrected)
   const correctedBy =
     expense.status === "corrected"
       ? history.find((entry) => entry.correctsId === expense.id)
       : null;
 
-  // Find the expense this one corrects (if it's a correction)
   const correctsEntry = expense.correctsId
     ? history.find((entry) => entry.id === expense.correctsId)
     : null;
 
   return (
     <div className="space-y-4">
-      {/* Correction Notices */}
       {correctedBy && (
         <div className="rounded-lg bg-yellow-100 p-3 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           This expense was corrected. See correction: {correctedBy.name} (
@@ -61,7 +58,6 @@ export function DetailView({
         </div>
       )}
 
-      {/* Detail Fields */}
       <div className="grid gap-3">
         <DetailField label="Name" value={expense.name} />
         <DetailField
@@ -166,7 +162,6 @@ export function DetailView({
         </div>
       )}
 
-      {/* Correct Button */}
       {canCorrect && (
         <div className="border-t pt-4">
           <Button onClick={onCorrectClick} className="w-full">

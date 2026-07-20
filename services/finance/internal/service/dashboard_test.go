@@ -707,7 +707,7 @@ func newFanoutService(repo repository.FinanceRepository, exp ExpenseClient) *Fin
 
 // TestGetSpendingTrends_FanOutByteIdentical seeds a full 2026 window with two
 // gaps (no period for April/September) and asserts the fan-out produces the
-// serial result: chronological order preserved, per-month aggregation correct,
+// expected result: chronological order preserved, per-month aggregation correct,
 // gaps left as zero slots, exactly one read per non-nil period, and no read for
 // the gaps.
 func TestGetSpendingTrends_FanOutByteIdentical(t *testing.T) {
@@ -793,8 +793,7 @@ func TestGetSpendingTrends_FanOutWrapsError(t *testing.T) {
 // entry-time context check) instead of every period being read to completion.
 // If the production goroutines passed the parent ctx (not gctx) to
 // GetExpensesForPeriod, the siblings would not observe the cancellation and all
-// twelve reads would complete, failing this assertion. This is the spec-09
-// sibling-cancellation row the other fan-out tests miss.
+// twelve reads would complete, failing this assertion.
 func TestGetSpendingTrends_FanOutCancelsSiblings(t *testing.T) {
 	const window = 12
 	exp := newCountingExpenseClient()
@@ -818,9 +817,9 @@ func historicalRepo(periods []*model.BudgetPeriod) *fakeFanoutRepo {
 }
 
 // TestGetHistoricalComparison_FanOutByteIdentical asserts the fan-out yields the
-// serial values (current/previous/change/rolling) while reading each distinct
-// needed period exactly once. The serial path read priorPeriods[0] twice; the
-// fan-out reads it once, and the unused 4th prior is never read.
+// expected values (current/previous/change/rolling) while reading each distinct
+// needed period exactly once. The fan-out reads priorPeriods[0] once, and the
+// unused 4th prior is never read.
 func TestGetHistoricalComparison_FanOutByteIdentical(t *testing.T) {
 	exp := newCountingExpenseClient()
 	periods := []*model.BudgetPeriod{

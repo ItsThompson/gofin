@@ -45,9 +45,9 @@ const passwordTab: SettingsTabDefinition = {
 // here, so they are never rendered or called on the admin render path.
 export const adminTabs: SettingsTabDefinition[] = [profileTab, passwordTab];
 
-// Regular-user tabs: unchanged from the pre-refactor behavior. The finance-only
-// sections are referenced exclusively by these definitions; the Profile tab
-// additionally renders the data-export section.
+// Regular-user tabs. The finance-only sections are referenced exclusively by
+// these definitions; the Profile tab additionally renders the data-export
+// section.
 export const userTabs: SettingsTabDefinition[] = [
   {
     id: "budget",

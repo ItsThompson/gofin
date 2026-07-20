@@ -30,8 +30,7 @@ function deepestAccess(matches: UIMatch[]): RouteAccess {
 
 /**
  * useAuthLayoutGuards derives the layout's behavior from auth state and the
- * matched route's `handle.access`, replacing the old FINANCE_ROUTES array and
- * the hasCompletedOnboarding redirect hack.
+ * matched route's `handle.access`.
  *
  * Precedence: loading -> unauthenticated -> access (403) -> onboarding. The
  * access check runs before onboarding, so a direct admin on a personal route

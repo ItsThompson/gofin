@@ -227,9 +227,8 @@ func TestRouter_AdminRoutes_RejectNonAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
-// TestRouter_PersonalRoutes_RejectDirectAdmin is the observable cutover: a
-// direct admin (role=="admin", not an assumed session) is now forbidden from
-// Personal APIs, where the old admin-as-superset model let them through. The
+// TestRouter_PersonalRoutes_RejectDirectAdmin pins that a direct admin
+// (role=="admin", not an assumed session) is forbidden from Personal APIs: the
 // request is denied at the gateway and never reaches the downstream service.
 // Every path here is a concrete registered route (the resolver classifies exact
 // gin patterns, so a non-real trailing-slash path like "/api/expenses/" would
@@ -297,8 +296,8 @@ func TestRouter_UnauthenticatedRoutes_NoCookieNeeded(t *testing.T) {
 
 // TestRouter_AuthenticatedRoute_NoCookie_Returns401 targets a real Authenticated
 // route: with no cookie the gateway must 401 (identity required) before any
-// proxying. (A non-real path like "/api/expenses/" is now Deny -> 403, so it
-// would no longer exercise the missing-cookie 401 path.)
+// proxying. (A non-real path like "/api/expenses/" resolves to Deny -> 403, so
+// it would not exercise the missing-cookie 401 path.)
 func TestRouter_AuthenticatedRoute_NoCookie_Returns401(t *testing.T) {
 	doRequest := setupGateway(t, userValidator())
 

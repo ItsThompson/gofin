@@ -4,17 +4,9 @@ import { validateEDSSplit } from "@gofin/core";
 /**
  * Budget validation divergence tests.
  *
- * The DashboardPage's CreatePeriodPrompt validates that E/D/S percentages are
- * both non-negative AND sum to 100%. The SettingsPage's inline `validateEDSSplit`
- * only checks the sum, allowing negative values to pass validation.
- *
- * This is a latent bug: a user could enter -10/60/50 in Settings (sums to 100)
- * and it would save successfully, but the same values would be rejected in the
- * Dashboard's period creation form.
- *
- * Ticket #15 will fix this divergence by having SettingsPage use the shared
- * `validateEDSSplit` from `@/lib/validation.ts` (which includes the non-negative
- * check).
+ * `validateEDSSplit` (shared, from `@gofin/core`) rejects percentages that are
+ * negative OR that do not sum to 100%. These tests pin the non-negative rule so
+ * a split like -10/60/50 (sums to 100) cannot pass validation.
  */
 describe("validateEDSSplit", () => {
   describe("non-negative validation (present in DashboardPage, missing in SettingsPage)", () => {

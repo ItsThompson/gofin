@@ -11,7 +11,7 @@ import (
 // TestExport_DedupesFinanceCalls is the single-fetch guarantee: a full export
 // must fetch finance's GetAllUserData exactly once and never call ListTags. The
 // engine fetches once in execute and hands the resolved response to the
-// finance-backed providers (now pure mappers) and the derived tag map, so the
+// finance-backed providers (pure mappers) and the derived tag map, so the
 // guarantee is structural (by construction), not a memoization side effect.
 // Reverting to per-provider finance fetches (or an expenses provider that
 // fetches its own tag map) makes this fail.

@@ -14,7 +14,7 @@ func newBenchRepo(client ImmudbClient) *ImmudbExpenseRepository {
 	return NewImmudbExpenseRepository(client, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 }
 
-// exportViaKeyset walks the full export using the NEW keyset cursor path
+// exportViaKeyset walks the full export using the keyset cursor path
 // (GetExpensesByUserAfter): no OFFSET, no per-page COUNT.
 func exportViaKeyset(b *testing.B, repo *ImmudbExpenseRepository, pageSize int32) {
 	b.Helper()
@@ -39,8 +39,9 @@ func exportViaKeyset(b *testing.B, repo *ImmudbExpenseRepository, pageSize int32
 //   - counts/export:  COUNT(*) queries issued for a full export
 //
 // Keyset issues P queries (one data query per page, zero COUNT) and never
-// rescans (O(P) rows scanned), versus the removed OFFSET path's 2*P queries and
-// O(P^2) rows scanned (recorded in perf/baseline/read.txt). The rows-scanned
+// rescans (O(P) rows scanned). An OFFSET-based export would instead issue 2*P
+// queries and scan O(P^2) rows (baseline recorded in perf/baseline/read.txt).
+// The rows-scanned
 // shape is an execution property of the real database; it is analytical (immudb
 // 1.11.0 exposes no EXPLAIN to assert it directly). The integration test
 // confirms keyset ordering and the absence of OFFSET against real immudb; the

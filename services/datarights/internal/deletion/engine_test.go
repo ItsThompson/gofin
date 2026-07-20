@@ -201,11 +201,9 @@ func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 	assert.Equal(t, "job-1", updates[0].JobID)
 	assert.Equal(t, "running", updates[0].Status)
 
-	// Verify completion
 	completed := repo.getCompletedJobs()
 	assert.Equal(t, "job-1", completed[0])
 
-	// Verify no failures
 	assert.Empty(t, repo.getFailedJobs())
 }
 

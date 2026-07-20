@@ -1,25 +1,23 @@
 # gofin perf baseline
-path: datarights/stream-consumer  (expenses export stream cutover)
+path: datarights/stream-consumer  (expenses export stream consumer)
 captured_against: ft/latency-refactor (buffered shape vs streamed shape)
 machine: Apple M4 Pro, 14 cores, macOS  (wall-clock / B/op are same-machine references only)
 date: 2026-07-10
 
-# What changed
-# Before (StreamAllUserExpenses RPC existed but the datarights consumer still buffered):
-#   ExpensesProvider fetched every page of the unary GetAllUserExpenses RPC into
-#   one []*ExpenseData slice, then formatted all rows -> peak memory O(total rows).
-# After: ExpensesProvider consumes StreamAllUserExpenses via a
-#   Recv() loop and emits each formatted row to a sink as it arrives. Given a sink
-#   that writes each row onward (an incremental CSV/ZIP writer) the consumer
-#   retains nothing -> peak memory O(pageSize).
+# What this measures
+# ExpensesProvider consumes StreamAllUserExpenses via a Recv() loop and emits each
+#   formatted row to a sink as it arrives. Given a sink that writes each row onward
+#   (an incremental CSV/ZIP writer) the consumer retains nothing -> peak memory
+#   O(pageSize). A buffer-all consumer would instead hold every row in one
+#   []*ExpenseData slice -> peak memory O(total rows).
 #
 # SCOPE OF THE BOUND: the O(pageSize) result below is a property of the
 #   streamExpenses primitive + a non-buffering sink. Production Collect adapts
 #   that primitive with an append sink to satisfy the DataProvider [][]string
 #   contract, and the export engine buffers each provider's rows before BuildZIP,
-#   so END-TO-END export memory stays O(total rows) until a follow-up engine-level
-#   streaming cutover. This baseline bounds and proves the *consumer primitive*;
-#   the metric must not be read as an end-to-end production figure.
+#   so END-TO-END export memory stays O(total rows). This baseline bounds and
+#   proves the *consumer primitive*; the metric must not be read as an end-to-end
+#   production figure.
 
 # Environment-independent structural signal (gated in test-backend CI):
 #   Peak *retained* heap of the streamExpenses primitive (with a non-buffering
@@ -30,7 +28,7 @@ date: 2026-07-10
 # Retained heap bytes (discarding CSV sink; GC-fenced HeapAlloc delta):
 #   streamed[rows=1000]:    0        # O(pageSize): retains nothing
 #   streamed[rows=50000]:   0        # FLAT as rows grow 50x  -> the memory bound
-#   buffered[rows=50000]:   ~2.1 MB  # O(total rows): the old buffered shape
+#   buffered[rows=50000]:   ~2.1 MB  # O(total rows): a buffer-all shape
 #   assertion bound:        512 KB   # max(streamed_small, 64KB) * 8
 
 # Wall-clock / total-allocation reference (same-machine only, NOT a threshold).

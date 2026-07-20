@@ -14,7 +14,7 @@ func TestRegistry_IDsAreUnique(t *testing.T) {
 	}
 }
 
-// TestRegistry_EveryEntryResolvesToItsAccess derives the acceptance assertion
+// TestRegistry_EveryEntryResolvesToItsAccess derives the assertion
 // directly from the Registry (no second hand-list): every entry's own
 // method+path must resolve to the Access it declares.
 func TestRegistry_EveryEntryResolvesToItsAccess(t *testing.T) {

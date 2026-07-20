@@ -8,7 +8,6 @@ export interface UserDeletionState {
   deletingUser: { id: string; username: string } | null;
   /** Map of user IDs to their deletion status (for inline status display). */
   deletionStates: DeletionStateMap;
-  /** Whether a deletion job is actively being polled. */
   isPolling: boolean;
 }
 

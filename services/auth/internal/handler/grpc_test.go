@@ -41,8 +41,8 @@ func newTestGRPCHandlerWithBlacklist() (*GRPCHandler, *mockUserRepository, *mock
 	return NewGRPCHandler(authSvc, logger), repo, blacklistRepo
 }
 
-// TestIsMissingUser_ClassifiesWrappedTypedError locks in the C7 gRPC change:
-// the handlers classify the service's "user not found" signal with errors.As,
+// TestIsMissingUser_ClassifiesWrappedTypedError asserts that the handlers classify
+// the service's "user not found" signal with errors.As,
 // so a %w-wrapped *apierr.Error (401) is still recognized and mapped to
 // codes.NotFound, while unrelated errors and non-401 apierr.Errors are not.
 func TestIsMissingUser_ClassifiesWrappedTypedError(t *testing.T) {

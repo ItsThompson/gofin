@@ -63,7 +63,7 @@ func NewFinanceService(
 
 // ValidateEDSSplit checks that essentials + desires + savings == 100. On
 // failure it returns an *apierr.Error whose Fields map names every offending
-// percentage, so the response carries field-level detail (C6).
+// percentage, so the response carries field-level detail.
 func ValidateEDSSplit(essentials, desires, savings int32) *apierr.Error {
 	if negFields := negativeEDSFields(essentials, desires, savings); len(negFields) > 0 {
 		return apierr.Validation("E/D/S percentages must be non-negative", negFields)
@@ -135,7 +135,6 @@ func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, 
 
 	txRepo := tx.Repo()
 
-	// Upsert default settings
 	defaults, err := txRepo.UpsertDefaults(ctx, &model.DefaultSettings{
 		UserID:            userID,
 		BudgetAmount:      req.BudgetAmount,
@@ -148,7 +147,6 @@ func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, 
 		return nil, fmt.Errorf("upserting defaults: %w", err)
 	}
 
-	// Seed default tags
 	for _, tagName := range DefaultTags {
 		_, err := txRepo.CreateTag(ctx, userID, tagName, true)
 		if err != nil {

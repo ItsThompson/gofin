@@ -52,11 +52,9 @@ export interface NewExpenseFormActions {
 
 /**
  * Manages new expense form state: field values, validation,
- * tag fetching, and submission (including pro-rata).
- *
- * Composes useExpenseFields for field state and useFormMutation
- * for submission lifecycle. Total useState count: 4
- * (tags, tagsLoading, isProRata, proRataMonths).
+ * tag fetching, and submission (including pro-rata). Composes
+ * useExpenseFields for field state and useFormMutation for the
+ * submission lifecycle.
  */
 export function useNewExpenseForm(currency: string): {
   state: NewExpenseFormState;

@@ -198,7 +198,7 @@ func TestCreateExport_RateLimited_Returns429(t *testing.T) {
 	assert.Equal(t, model.ErrRateLimited, resp.Code)
 	assert.Contains(t, resp.Message, "Export limit reached")
 
-	// C9: retry timing is carried by the standard Retry-After header, not a body field.
+	// Retry timing is carried by the standard Retry-After header, not a body field.
 	expectedRetryAfter := fiveDaysAgo.Add(service.RateLimitWindow)
 	retryAfter, parseErr := http.ParseTime(rec.Header().Get("Retry-After"))
 	require.NoError(t, parseErr)
@@ -229,7 +229,7 @@ func TestCreateExport_RateLimited_SetsRetryAfterHeader(t *testing.T) {
 
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 
-	// C9: the Retry-After header carries createdAt + 30 days; there is no
+	// The Retry-After header carries createdAt + 30 days; there is no
 	// retryAfter body field.
 	header := rec.Header().Get("Retry-After")
 	require.NotEmpty(t, header)

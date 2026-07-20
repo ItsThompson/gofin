@@ -70,7 +70,6 @@ func TestResendSender_HTMLTemplateRendering(t *testing.T) {
 	assert.Contains(t, html, "2026-05-09")
 	assert.Contains(t, html, "gofin-export-2026-05-09.zip")
 
-	// Verify structure
 	assert.Contains(t, html, "Your data export is ready")
 	assert.Contains(t, html, "gofin")
 	assert.Contains(t, html, "<!DOCTYPE html>")
@@ -89,7 +88,6 @@ func TestResendSender_TextTemplateRendering(t *testing.T) {
 	assert.Contains(t, text, "2026-05-09")
 	assert.Contains(t, text, "gofin-export-2026-05-09.zip")
 
-	// Verify structure
 	assert.Contains(t, text, "Your gofin data export is ready")
 	assert.Contains(t, text, "CSV files with all your gofin data")
 	assert.Contains(t, text, "Export date:")

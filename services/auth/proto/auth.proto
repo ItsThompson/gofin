@@ -5,7 +5,6 @@ package auth;
 option go_package = "github.com/ItsThompson/gofin/services/auth/proto/authpb";
 
 service AuthService {
-  // Implemented in this ticket
   rpc Register(RegisterRequest) returns (AuthResponse);
   rpc Login(LoginRequest) returns (AuthResponse);
   rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
@@ -14,7 +13,6 @@ service AuthService {
   rpc VerifyPassword(VerifyPasswordRequest) returns (VerifyPasswordResponse);
   rpc DeleteUserData(DeleteUserDataRequest) returns (DeleteUserDataResponse);
 
-  // Stubs: implemented in later tickets
   rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
   rpc AssumeIdentity(AssumeIdentityRequest) returns (AuthResponse);
@@ -80,7 +78,7 @@ message ValidateTokenResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Stubs (messages defined, RPCs return Unimplemented)
+// Messages for RPCs that return Unimplemented (served over REST).
 // ---------------------------------------------------------------------------
 
 message RefreshTokenRequest {

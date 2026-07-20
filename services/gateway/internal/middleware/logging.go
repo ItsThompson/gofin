@@ -26,7 +26,7 @@ func RequestLogger(logger *slog.Logger) gin.HandlerFunc {
 			slog.String("client_ip", c.ClientIP()),
 		}
 
-		// Include user_id when the auth middleware has set it in the Gin context.
+		// Include user_id when AccessControl has set it in the Gin context.
 		if userID, exists := c.Get("X-User-ID"); exists {
 			attrs = append(attrs, slog.String("user_id", userID.(string)))
 		}

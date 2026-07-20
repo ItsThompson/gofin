@@ -5,7 +5,6 @@ package expense;
 option go_package = "github.com/ItsThompson/gofin/services/expense/proto/expensepb";
 
 service ExpenseService {
-  // Implemented in this ticket
   rpc CreateExpense(CreateExpenseRequest) returns (ExpenseResponse);
   rpc GetExpensesForPeriod(GetExpensesForPeriodRequest) returns (ExpenseListResponse);
   rpc GetExpense(GetExpenseRequest) returns (ExpenseResponse);
@@ -17,13 +16,6 @@ service ExpenseService {
   // for a user in chronological order (created_at ASC, id ASC). The server pages
   // internally with a keyset cursor, bounding server memory to O(page_size); the
   // client writes rows incrementally.
-  //
-  // WIRE BREAK: this replaced a unary GetAllUserExpenses RPC (renamed, request
-  // message swapped, field number 2 reused for page_size). It is an intentional
-  // atomic internal break: the sole consumer (datarights export) is cut over in
-  // the same change and no proto bytes are persisted, so there is no
-  // cross-version wire path and the reserve-field rules for incremental rollout
-  // do not apply.
   rpc StreamAllUserExpenses(StreamAllUserExpensesRequest) returns (stream ExpenseData);
 
   // GDPR: anonymize all expenses for a user (field redaction, not deletion)
@@ -125,11 +117,8 @@ message CorrectExpenseRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Messages retained without an RPC. GetCorrectionHistory and GetProRataGroup
-// were removed (they hardcoded an empty user scope and had no consumer); the
-// correction-history and pro-rata reads are served over REST. These generated
-// types are kept because an out-of-service gRPC client mock still references
-// them.
+// Messages with no RPC: correction-history and pro-rata reads are served over
+// REST. Retained because an external gRPC client mock still references these types.
 // ---------------------------------------------------------------------------
 
 message GetCorrectionHistoryRequest {

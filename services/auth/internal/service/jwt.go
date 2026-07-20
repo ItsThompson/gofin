@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// AccessTokenClaims matches the spec in 05-auth-system.md.
+// AccessTokenClaims are the custom claims carried in an access token.
 type AccessTokenClaims struct {
 	jwt.RegisteredClaims
 	Role      string `json:"role"`
@@ -16,7 +16,7 @@ type AccessTokenClaims struct {
 	AssumedBy string `json:"assumedBy,omitempty"`
 }
 
-// RefreshTokenClaims matches the spec in 05-auth-system.md.
+// RefreshTokenClaims are the registered claims carried in a refresh token.
 type RefreshTokenClaims struct {
 	jwt.RegisteredClaims
 }

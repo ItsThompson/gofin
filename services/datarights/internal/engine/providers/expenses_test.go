@@ -136,7 +136,7 @@ func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
 	tagMap := map[string]string{"tag-1": "Food"}
 
 	// The server streams every expense in one ordered pass (chronological:
-	// created_at ASC, id ASC); the consumer no longer pages.
+	// created_at ASC, id ASC); the consumer does not page.
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{Id: "exp-1", Name: "First", Amount: 100, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 1, CreatedAt: "2026-01-01T00:00:00Z"},
@@ -153,7 +153,7 @@ func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
 	assert.Equal(t, "exp-1", rows[0][0])
 	assert.Equal(t, "exp-2", rows[1][0])
 	assert.Equal(t, "exp-3", rows[2][0])
-	// A single StreamAllUserExpenses call replaces the old per-page unary loop.
+	// One StreamAllUserExpenses call fetches the whole history (no per-page loop).
 	assert.Equal(t, 1, expenseClient.callCount)
 	assert.Equal(t, int32(expensesPageSize), expenseClient.lastStreamReq.GetPageSize())
 }

@@ -41,13 +41,11 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// Set up structured logging
 	logger := serverkit.NewLogger(cfg.LogLevel, "finance")
 	slog.SetDefault(logger)
 
@@ -72,7 +70,6 @@ func run() error {
 		slog.String("addr", cfg.ExpenseServiceAddr),
 	)
 
-	// Build dependency graph
 	queries := db.New(pool)
 	repo := repository.NewPostgresFinanceRepository(queries)
 	txBeginner := repository.NewPostgresTxBeginner(pool)
@@ -91,7 +88,6 @@ func run() error {
 		return fmt.Errorf("listening on gRPC port %s: %w", cfg.GRPCPort, err)
 	}
 
-	// Build the REST router and server.
 	router := serverkit.NewRouter("finance", cfg.IsProduction())
 	restHandler := handler.NewRESTHandler(financeSvc, logger)
 	restHandler.RegisterRoutes(router)
@@ -107,6 +103,6 @@ func run() error {
 	)
 
 	// Serve blocks until ctx is cancelled or a server fails fatally (e.g. a REST
-	// bind failure), returning that error so the process exits non-zero (C5).
+	// bind failure), returning that error so the process exits non-zero.
 	return serverkit.Serve(ctx, httpServer, grpcServer, grpcLis)
 }

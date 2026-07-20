@@ -108,8 +108,8 @@ func run() error {
 	)
 
 	// serverkit.Serve owns the serve/shutdown lifecycle and returns any fatal
-	// bind error so run() exits non-zero instead of lingering with no listener
-	// (the C5 zombie bug). The gateway runs no gRPC server, so both gRPC args
+	// bind error so run() exits non-zero instead of lingering with no listener.
+	// The gateway runs no gRPC server, so both gRPC args
 	// are nil.
 	return serverkit.Serve(ctx, server, nil, nil)
 }

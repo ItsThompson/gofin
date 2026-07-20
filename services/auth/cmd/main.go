@@ -108,7 +108,7 @@ func run() error {
 	)
 
 	// Serve blocks until ctx is cancelled or a server fails to bind; a fatal
-	// serve error propagates so run() exits non-zero (fixes the C5 zombie).
+	// serve error propagates so run() exits non-zero instead of leaving a zombie process.
 	return serverkit.Serve(ctx, httpServer, grpcServer, grpcLis)
 }
 

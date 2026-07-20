@@ -9,11 +9,10 @@ type funcProvider struct {
 	fn   func(ctx context.Context, userID string) error
 }
 
-// NewFuncProvider builds a Provider from a name and a deletion function. It
-// collapses the near-identical per-domain provider structs (auth, expense,
-// finance) that each wrapped a single gRPC delete call. The function must be
-// idempotent (see Provider): repeated calls for a user whose data is already
-// gone must return nil.
+// NewFuncProvider builds a Provider from a name and a deletion function, so a
+// caller registers a data domain without declaring a dedicated struct. The
+// function must be idempotent (see Provider): repeated calls for a user whose
+// data is already gone must return nil.
 func NewFuncProvider(name string, fn func(ctx context.Context, userID string) error) Provider {
 	return &funcProvider{name: name, fn: fn}
 }

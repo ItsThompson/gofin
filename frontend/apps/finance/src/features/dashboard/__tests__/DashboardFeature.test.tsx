@@ -284,7 +284,6 @@ describe("DashboardFeature", () => {
         expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument();
       });
 
-      // Switch to Repeated Expenses via the breakdown Select
       const breakdownTrigger = screen.getByLabelText("Select breakdown chart");
       await user.click(breakdownTrigger);
       const repeatedOption = await screen.findByRole("option", { name: "Repeated Expenses" });
@@ -322,7 +321,6 @@ describe("DashboardFeature", () => {
         expect(screen.getByText("No expenses yet")).toBeInTheDocument();
       });
 
-      // Switch to Repeated Expenses via the breakdown Select
       const breakdownTrigger = screen.getByLabelText("Select breakdown chart");
       await user.click(breakdownTrigger);
       const repeatedOption = await screen.findByRole("option", { name: "Repeated Expenses" });
@@ -351,7 +349,6 @@ describe("DashboardFeature", () => {
         expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
       });
 
-      // Switch to Repeated Expenses via the breakdown Select
       const breakdownTrigger = screen.getByLabelText("Select breakdown chart");
       await user.click(breakdownTrigger);
       const repeatedOption = await screen.findByRole("option", { name: "Repeated Expenses" });
@@ -812,18 +809,15 @@ describe("DashboardFeature", () => {
         expect(screen.getByTestId("gauge-essentials")).toBeInTheDocument();
       });
 
-      // Essentials gauge
       const essentialsGauge = screen.getByTestId("gauge-essentials");
       expect(within(essentialsGauge).getByText("Essentials")).toBeInTheDocument();
       expect(within(essentialsGauge).getByText("33%")).toBeInTheDocument();
       expect(within(essentialsGauge).getByText(/\$500\.00 of \$1,500\.00/)).toBeInTheDocument();
 
-      // Desires gauge
       const desiresGauge = screen.getByTestId("gauge-desires");
       expect(within(desiresGauge).getByText("Desires")).toBeInTheDocument();
       expect(within(desiresGauge).getByText("5%")).toBeInTheDocument();
 
-      // Savings gauge
       const savingsGauge = screen.getByTestId("gauge-savings");
       expect(within(savingsGauge).getByText("Savings")).toBeInTheDocument();
       expect(within(savingsGauge).getByText("0%")).toBeInTheDocument();

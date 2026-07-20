@@ -5,8 +5,8 @@ import { buildUser } from "@gofin/test-utils";
 import { LandingPage, landingContent } from "@/features/marketing";
 import { setAuthStore } from "@/features/marketing/__tests__/auth-mocks";
 
-// The `/` route no longer redirects (US-ROUTE-01/02): both unauthenticated and
-// authenticated visitors get the marketing page. Unlike the LandingPage
+// The `/` route serves the marketing page to both unauthenticated and
+// authenticated visitors. Unlike the LandingPage
 // component test, this drives the page through a real memory router so we can
 // assert the URL stays at `/` and no other route mounts. The auth store is the
 // boundary (mocked); the router and Link stay real.

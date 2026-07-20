@@ -3,7 +3,7 @@ package model
 // FormulaVersion is the health-score formula version. A closed month recomputes
 // to the same numbers only within the same version. It is serialized into the
 // response so persisted or recomputed scores stay comparable across formula
-// changes. v2 adds the spending-stability sub-score and rebalances the weights.
+// changes. This version includes the spending-stability sub-score in the weighting.
 const FormulaVersion int32 = 2
 
 // Health-score component keys. These are domain truths shared by the compute

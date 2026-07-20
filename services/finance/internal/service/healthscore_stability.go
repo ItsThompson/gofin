@@ -7,7 +7,7 @@ import (
 
 const stabilitySteadyDetail = "Desires spend held steady month to month"
 
-// stabilityComponent computes the spending-stability sub-score (Formula G) from a
+// stabilityComponent computes the spending-stability sub-score from a
 // window of recent closed months' discretionary (desires) totals. Stability
 // rewards a low coefficient of variation (CoV = sample standard deviation /
 // mean): steady month-to-month desires spend earns full marks and the factor

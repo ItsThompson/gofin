@@ -9,8 +9,8 @@ import (
 
 // Health-score formula constants. All are gathered here so tuning the scoring
 // model is a one-line change. Weights are the full-mark points per component;
-// the coefficients tune the asymmetric allocation penalty. v2 rebalances the
-// weights and adds spending stability.
+// the coefficients tune the asymmetric allocation penalty. The four weighted
+// components are savings, budget, allocation, and stability.
 const (
 	weightSavings   = 25.0
 	weightBudget    = 25.0
@@ -45,7 +45,7 @@ const (
 )
 
 // defaultCurrency is used when a user's default settings are missing or carry no
-// currency (VC3: currency is set at onboarding, so this is a safety net).
+// currency (currency is set at onboarding, so this is a safety net).
 const defaultCurrency = "USD"
 
 // weightResolution holds the effective (float) weights and integer maxes for the
@@ -67,7 +67,7 @@ type weightResolution struct {
 }
 
 // resolveWeights renormalizes the base weights over the present component set by
-// division (Formula D). Each present component's effective weight is
+// division. Each present component's effective weight is
 // 100 * base / Σ(base of present); its integer max is that value rounded. Any
 // rounding remainder is assigned to the largest-base present component (always
 // allocation, base 30, which is never dropped), so the integer maxes sum to

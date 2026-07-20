@@ -44,15 +44,12 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Receipt className="size-6 text-primary" />
         <h1 className="text-2xl font-bold">Expense Log</h1>
       </div>
 
-      {/* Controls Row */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Period Selector */}
         <div className="flex items-center gap-2">
           <label htmlFor="period-select" className="text-sm font-medium">
             Period:
@@ -90,7 +87,6 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
           </select>
         </div>
 
-        {/* Filter Toggle */}
         <Button
           variant={filters.showFilters ? "default" : "outline"}
           size="sm"
@@ -115,18 +111,15 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
           </Button>
         )}
 
-        {/* Total count */}
         <span className="ml-auto text-sm text-muted-foreground">
           {data.expenses.length} expense{data.expenses.length !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Filter Panel */}
       {filters.showFilters && (
         <FilterPanel filters={filters} tags={data.tags} />
       )}
 
-      {/* Table / List */}
       {data.expenses.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -152,12 +145,10 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
             />
           </div>
 
-          {/* Pagination */}
           <PaginationControls table={table} />
         </>
       )}
 
-      {/* Expense Detail Modal */}
       <ExpenseDetailModal
         expenseId={selectedExpenseId}
         currency={user.currency}

@@ -983,10 +983,9 @@ func TestUpdateProfile_SameEmailSameUser_Succeeds(t *testing.T) {
 	assert.Equal(t, "user-123", user.ID)
 }
 
-// TestUpdateProfile_OwnRecordMissing_Returns401 locks in the C8 fix: when the
-// caller's own record is missing, UpdateProfile returns 401 UNAUTHORIZED to
-// match GetUserByID / RefreshToken / CompleteOnboarding / ChangePassword (the
-// four-method majority), not the 404 it returned before.
+// TestUpdateProfile_OwnRecordMissing_Returns401 asserts that when the caller's
+// own record is missing, UpdateProfile returns 401 UNAUTHORIZED, matching
+// GetUserByID, RefreshToken, CompleteOnboarding, and ChangePassword.
 func TestUpdateProfile_OwnRecordMissing_Returns401(t *testing.T) {
 	repo := new(mockUserRepository)
 	svc := newTestAuthService(repo)

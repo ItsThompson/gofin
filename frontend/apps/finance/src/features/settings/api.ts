@@ -68,7 +68,6 @@ export const settingsApi = {
   deleteTag: (tagId: string) =>
     apiClient(`/api/finance/tags/${tagId}`, { method: "DELETE" }),
 
-  // Datarights
   createExport: () =>
     apiClient<ExportJobResponse>("/api/datarights/exports", {
       method: "POST",

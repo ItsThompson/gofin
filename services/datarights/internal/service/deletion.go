@@ -95,27 +95,22 @@ func (s *DeletionService) CreateJob(ctx context.Context, userID, adminUserID, pa
 		slog.String("admin_user_id", adminUserID),
 	)
 
-	// Guard 1: Verify admin password
 	if err := s.verifyPassword(ctx, adminUserID, password); err != nil {
 		return nil, err
 	}
 
-	// Guard 2: Self-deletion prevention
 	if userID == adminUserID {
 		return nil, apierr.Validation("Cannot delete your own account", nil)
 	}
 
-	// Guard 3: Protected username enforcement
 	if err := s.checkProtectedUsername(ctx, userID); err != nil {
 		return nil, err
 	}
 
-	// Guard 4: Export conflict detection
 	if err := s.checkExportConflict(ctx, userID); err != nil {
 		return nil, err
 	}
 
-	// Guard 5: Idempotent dedup
 	existing, err := s.repo.GetInProgressJob(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("checking in-progress deletion job: %w", err)

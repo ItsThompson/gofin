@@ -345,7 +345,7 @@ func (h *RESTHandler) GetHealthScoreTrend(c *gin.Context) {
 		return
 	}
 
-	// months follows the AC4 clamp policy (default 6, cap 12): a non-numeric value
+	// months follows the clamp policy (default 6, cap 12): a non-numeric value
 	// defaults to 6 and the service clamps the range, so the handler, service, and
 	// mock all agree.
 	months, err := strconv.ParseInt(c.DefaultQuery("months", "6"), 10, 32)

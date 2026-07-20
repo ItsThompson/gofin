@@ -10,28 +10,9 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
 
-// immudbClientAdapter wraps the immudb native Go client to satisfy the
-// repository.ImmudbClient interface. The actual immudb SDK import
-// (github.com/codenotary/immudb/pkg/client) is resolved at Docker build
-// time via go mod download. For local development without immudb, tests
-// use mock implementations of the repository.ExpenseRepository interface.
-//
-// When the immudb dependency is available, this file compiles as-is.
-// Until then, local `go build ./cmd/...` succeeds because this file
-// uses only our own repository types.
-
-// connectImmudb establishes a connection to immudb and returns a client
-// that satisfies repository.ImmudbClient.
-//
-// The connection flow:
-//  1. Create immudb client targeting the configured address
-//  2. Login with credentials
-//  3. Use the default database
-//
-// For now, this returns a stub client that will be replaced with the
-// real immudb client when the dependency is available in the Docker build.
-// The service architecture (repository interface) means all business logic
-// and handlers are fully testable without the real immudb client.
+// connectImmudb returns the build-tagged ImmudbClient (in-memory stub for
+// non-docker builds, real immudb client under the docker tag). The repository
+// interface keeps business logic and handlers testable without a live immudb.
 func connectImmudb(ctx context.Context, cfg *config.Config, logger *slog.Logger) (repository.ImmudbClient, error) {
 	logger.Info("connecting to immudb",
 		slog.String("addr", cfg.ImmudbAddr),
@@ -59,13 +40,6 @@ func connectImmudb(ctx context.Context, cfg *config.Config, logger *slog.Logger)
 // newImmudbClient creates a new immudb client connection.
 // This is separated from connectImmudb to support retry logic.
 func newImmudbClient(ctx context.Context, cfg *config.Config) (repository.ImmudbClient, error) {
-	// The actual immudb client is created here. When building in Docker
-	// with the immudb dependency available, this uses:
-	//   immudb.NewImmuClient(immudb.DefaultOptions().WithAddress(host).WithPort(port))
-	//   client.Login(ctx, username, password)
-	//   client.UseDatabase(ctx, &schema.Database{DatabaseName: "defaultdb"})
-	//
-	// For local builds without the immudb SDK, we provide a compile-time
-	// implementation. The Docker build fetches all dependencies.
+	// newImmudbClientImpl is supplied by the build-tagged file (immudb_local.go or immudb_prod.go).
 	return newImmudbClientImpl(ctx, cfg)
 }

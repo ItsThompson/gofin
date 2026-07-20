@@ -7,20 +7,9 @@ import (
 	"time"
 )
 
-// defaultValidateTimeout is a hung-dependency / availability BACKSTOP: it bounds
-// the catastrophic-hang tail of the gateway's ValidateToken gRPC call so a hung
-// auth service returns a fast error instead of blocking the worker
-// indefinitely. It is deliberately generous: it must comfortably exceed a
-// healthy ValidateToken (a JWT check plus a DB lookup, low milliseconds) so it
-// never trips in normal operation, and only fires when the dependency is
-// effectively hung.
-//
-// This is NOT p99/tail-latency control in the "Tail at Scale" sense. Trimming
-// the p99 tail toward the auth service's measured P99 (a 100-300 ms starting
-// point near the auth P99) is explicitly out of scope for P1 and left as
-// possible future work once that percentile is measured. The earlier "2-5s
-// band" framing is superseded: 3s is a hang backstop, not a percentile-derived
-// bound. Override with GATEWAY_VALIDATE_TIMEOUT.
+// defaultValidateTimeout is a hung-dependency backstop, not p99/tail-latency
+// control: 3s comfortably exceeds a healthy ValidateToken so it only fires when
+// the dependency is effectively hung. Override with GATEWAY_VALIDATE_TIMEOUT.
 const defaultValidateTimeout = 3 * time.Second
 
 // maxRecommendedValidateTimeout is the largest GATEWAY_VALIDATE_TIMEOUT that
@@ -31,7 +20,7 @@ const maxRecommendedValidateTimeout = 30 * time.Second
 
 // DefaultPort is the gateway's default HTTP listen port. It is the single
 // source of truth shared by Load (the listener) and the --healthcheck probe so
-// the two can never desync (US-PLATFORM-05).
+// the two can never desync.
 const DefaultPort = "8080"
 
 // Config holds all configuration for the API gateway, loaded from environment variables.
@@ -126,7 +115,7 @@ func (c *Config) IsProduction() bool {
 // ResolvePort returns the configured HTTP port: the PORT env override when set,
 // else DefaultPort. Both the listener (via Load) and the --healthcheck probe
 // call this, so overriding PORT moves them together instead of desyncing the
-// probe from a hardcoded literal (US-PLATFORM-05). It is standalone (not a
+// probe from a hardcoded literal. It is standalone (not a
 // Config method) so the pre-config --healthcheck branch can call it without a
 // full Load.
 func ResolvePort() string {

@@ -180,9 +180,9 @@ func TestGetAllUserData_GetDefaultsError(t *testing.T) {
 // --- Fan-out regression tests ---
 
 // TestGetAllUserData_FanOutByteIdentical asserts the fan-out assembles exactly
-// the serial result over seeded fixtures while reading each source exactly once
+// the fully-assembled result over seeded fixtures while reading each source exactly once
 // (tags, periods, defaults). It fails if the fan-out drops, duplicates, or
-// reorders a read, or diverges from the serial assembly.
+// reorders a read, or diverges from the expected assembly.
 func TestGetAllUserData_FanOutByteIdentical(t *testing.T) {
 	repo := seedAllUserData(0)
 	svc := newFanoutService(repo, nil)
@@ -205,7 +205,7 @@ func TestGetAllUserData_FanOutByteIdentical(t *testing.T) {
 
 // TestGetAllUserData_FanOutNormalizesNilSlicesAfterBarrier confirms the nil ->
 // empty-slice normalization (and nil defaults passthrough) runs after g.Wait(),
-// matching the serial version, when every read returns nil. Each source is still
+// running after the barrier, when every read returns nil. Each source is still
 // read exactly once.
 func TestGetAllUserData_FanOutNormalizesNilSlicesAfterBarrier(t *testing.T) {
 	repo := newCountingAllUserDataRepo() // tags/periods nil, defaults nil

@@ -82,7 +82,7 @@ func TestEngine_FanOut_ZIPOrderDeterministic(t *testing.T) {
 
 // TestEngine_FanOut_RunsProvidersConcurrently is the deterministic, machine-
 // independent form of "max, not sum": it asserts every provider is in flight at
-// the same time. A serial loop would peak at one concurrent provider.
+// the same time. A non-concurrent run would peak at one provider in flight.
 func TestEngine_FanOut_RunsProvidersConcurrently(t *testing.T) {
 	const n = 5
 	var running, maxSeen atomic.Int32

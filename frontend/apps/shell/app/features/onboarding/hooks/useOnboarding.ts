@@ -111,7 +111,7 @@ export function useOnboarding(): { state: OnboardingState; actions: OnboardingAc
     setDesires: (value: string) => form.setField("desires", value),
     setSavings: (value: string) => form.setField("savings", value),
     splitError: form.splitError,
-    clearSplitError: () => {},  // No-op: splitError is now derived (auto-clears when fields become valid)
+    clearSplitError: () => {},  // No-op: splitError is derived and auto-clears when fields become valid
   };
 
   return {

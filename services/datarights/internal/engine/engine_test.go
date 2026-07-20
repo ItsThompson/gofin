@@ -203,7 +203,6 @@ func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 	}), nopFinance{}, repo, newMockSender(), 5, 5*time.Minute, newTestLogger())
 	eng.Submit("job-1", "user-1", "alex@example.com")
 
-	// Wait for async completion
 	require.Eventually(t, func() bool {
 		return len(repo.getCompletedJobs()) == 1
 	}, 2*time.Second, 10*time.Millisecond)
@@ -214,7 +213,6 @@ func TestEngine_HappyPath_CompletesJob(t *testing.T) {
 	assert.Equal(t, "job-1", updates[0].JobID)
 	assert.Equal(t, "running", updates[0].Status)
 
-	// Verify completion
 	completed := repo.getCompletedJobs()
 	assert.Equal(t, "job-1", completed[0].JobID)
 	assert.Greater(t, completed[0].FileSizeBytes, int64(0))
