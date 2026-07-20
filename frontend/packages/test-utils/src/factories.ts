@@ -1,105 +1,13 @@
-import type { User } from "@gofin/core";
-
-/** Budget period for a single month. */
-interface BudgetPeriod {
-  id: string;
-  userId: string;
-  year: number;
-  month: number;
-  budgetAmount: number;
-  essentialsPercent: number;
-  desiresPercent: number;
-  savingsPercent: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Expense entry. */
-interface Expense {
-  id: string;
-  userId: string;
-  name: string;
-  amount: number;
-  currency: string;
-  expenseType: "essentials" | "desires" | "savings";
-  tagId: string;
-  expenseDate: string;
-  periodYear: number;
-  periodMonth: number;
-  status: "active" | "corrected";
-  correctsId?: string;
-  isProRata: boolean;
-  proRataGroup?: string;
-  proRataIndex?: number;
-  proRataTotal?: number;
-  createdAt: string;
-}
-
-/** A user-owned expense tag. */
-interface Tag {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Category breakdown within a period summary. */
-interface CategorySummary {
-  allocated: number;
-  spent: number;
-  remaining: number;
-  percentUsed: number;
-}
-
-/** Full period summary. */
-interface PeriodSummary {
-  periodId: string;
-  year: number;
-  month: number;
-  totalBudget: number;
-  totalSpent: number;
-  remaining: number;
-  daysInPeriod: number;
-  daysElapsed: number;
-  dailySpendRate: number;
-  budgetPace: number;
-  isOnTrack: boolean;
-  essentials: CategorySummary;
-  desires: CategorySummary;
-  savings: CategorySummary;
-}
-
-/** User's default budget settings. */
-interface DefaultSettings {
-  userId: string;
-  budgetAmount: number;
-  essentialsPercent: number;
-  desiresPercent: number;
-  savingsPercent: number;
-  currency: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Pro-rata schedule record. */
-interface ProRataSchedule {
-  id: string;
-  userId: string;
-  proRataGroup: string;
-  name: string;
-  amount: number;
-  currency: string;
-  expenseType: "essentials" | "desires" | "savings";
-  tagId: string;
-  targetYear: number;
-  targetMonth: number;
-  installmentIndex: number;
-  installmentTotal: number;
-  status: "pending" | "applied";
-  createdAt: string;
-  appliedAt: string | null;
-}
+import type {
+  User,
+  BudgetPeriod,
+  Expense,
+  Tag,
+  CategorySummary,
+  PeriodSummary,
+  DefaultSettings,
+  ProRataSchedule,
+} from "@gofin/core";
 
 const FIXED_DATE = "2026-01-15T00:00:00Z";
 

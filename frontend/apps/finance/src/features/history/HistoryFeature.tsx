@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import type { BudgetPeriod } from "../../types";
+import type { BudgetPeriod } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Card, CardContent } from "@gofin/ui/components/card";
 import { History, ArrowLeft, Loader2 } from "lucide-react";
-import type { FinancePageProps } from "../../types/pages";
+import type { FinancePageProps } from "../../types";
 import { ActiveDashboard } from "../dashboard";
 import { useHistoryData } from "./hooks/useHistoryData";
 import { PeriodRow } from "./components/PeriodRow";

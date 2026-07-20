@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Tag } from "@/types";
+import type { Tag } from "@gofin/core";
 import { createExpenseSuggestionPatch } from "../suggestionAutofill";
 import type { ExpenseSuggestion } from "../types";
 

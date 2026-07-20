@@ -30,6 +30,8 @@ Thumbs.db
 
 # Docker volumes
 data/
+# ...but not the shell MSW mock fixtures, which live in a data/ folder.
+!frontend/apps/shell/mocks/data/
 
 # Turborepo cache
 .turbo/

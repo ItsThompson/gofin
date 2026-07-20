@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useApiToast } from "@gofin/api";
-import type { BudgetPeriod, Expense, Tag } from "../../../types";
+import type { BudgetPeriod, Expense, Tag } from "@gofin/core";
 import { expenseLogApi } from "../api";
 import { resolveTagNames, type ExpenseRow } from "../../../lib/expense-table-columns";
 import type { FilterCriteria } from "./useExpenseFilters";

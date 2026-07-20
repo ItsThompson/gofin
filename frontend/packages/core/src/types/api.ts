@@ -1,14 +1,3 @@
-/** Core user model returned by the auth API. */
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  role: "user" | "admin";
-  currency: string;
-  hasCompletedOnboarding: boolean;
-  createdAt: string;
-}
-
 /** API error response shape. All API errors follow this contract. */
 export interface ApiError {
   /** Machine-readable error code (e.g., "VALIDATION_ERROR", "NOT_FOUND"). */

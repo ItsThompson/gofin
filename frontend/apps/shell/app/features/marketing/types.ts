@@ -6,7 +6,7 @@
  * content.ts pure data that downstream sections consume as props.
  */
 
-import type { User } from "@gofin/core";
+import type { User, ExpenseType } from "@gofin/core";
 
 /** A call-to-action link. Always rendered as a real <Link>/<a href>. */
 export interface CtaLink {
@@ -58,7 +58,7 @@ export interface FeatureColumnContent {
 }
 
 /** A category accent that maps to an essentials/desires/savings color token. */
-export type SplitAccent = "essentials" | "desires" | "savings";
+export type SplitAccent = ExpenseType;
 
 /** One bucket in "The three-way split". */
 export interface SplitBucketContent {

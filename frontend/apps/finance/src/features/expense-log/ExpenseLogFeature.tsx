@@ -3,7 +3,7 @@ import { Receipt, Filter, X } from "lucide-react";
 import { Button } from "@gofin/ui/components/button";
 import { Card, CardContent } from "@gofin/ui/components/card";
 import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
-import type { FinancePageProps } from "../../types/pages";
+import type { FinancePageProps } from "../../types";
 import type { ExpenseRow } from "../../lib/expense-table-columns";
 import { useExpenseFilters } from "./hooks/useExpenseFilters";
 import { useExpenseLogData } from "./hooks/useExpenseLogData";

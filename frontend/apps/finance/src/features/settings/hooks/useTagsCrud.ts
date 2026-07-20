@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type FormEvent } from "react";
 import { ApiRequestError, useFormMutation } from "@gofin/api";
-import type { Tag } from "../../../types";
+import type { Tag } from "@gofin/core";
 import { settingsApi } from "../api";
 
 export interface EditingTag {

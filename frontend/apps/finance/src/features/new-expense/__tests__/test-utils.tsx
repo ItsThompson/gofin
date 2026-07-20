@@ -12,7 +12,7 @@ import {
 } from "../__mocks__";
 import type { FetchResponder, ResponderOrResult } from "../__mocks__";
 import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
-import type { Tag } from "../../../types";
+import type { Tag } from "@gofin/core";
 
 export function countFetchCalls(path: string): number {
   return mockFetch.mock.calls.filter(

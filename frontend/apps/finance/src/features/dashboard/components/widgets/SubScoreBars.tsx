@@ -1,4 +1,4 @@
-import type { HealthComponent, HealthComponentKey } from "../../../../types";
+import type { HealthComponent, HealthComponentKey } from "@gofin/core";
 import { SubScoreBar } from "./SubScoreBar";
 
 interface SubScoreBarsProps {

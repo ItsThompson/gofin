@@ -4,7 +4,7 @@ import type {
   BudgetPeriod,
   PeriodListResponse,
   SummaryResponse,
-} from "../../../types";
+} from "@gofin/core";
 
 export interface HistoricalPeriodRow {
   period: BudgetPeriod;

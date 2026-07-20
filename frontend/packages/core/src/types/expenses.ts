@@ -1,3 +1,8 @@
+import type { ExpenseType } from "../constants";
+
+/** Lifecycle status of a ledger expense. */
+export type ExpenseStatus = "active" | "corrected";
+
 /** Expense entry from the immutable ledger. */
 export interface Expense {
   id: string;
@@ -8,13 +13,13 @@ export interface Expense {
   /** ISO 4217 currency code. */
   currency: string;
   /** One of: "essentials", "desires", "savings". */
-  expenseType: "essentials" | "desires" | "savings";
+  expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
   expenseDate: string;
   periodYear: number;
   periodMonth: number;
-  status: "active" | "corrected";
+  status: ExpenseStatus;
   correctsId?: string;
   isProRata: boolean;
   proRataGroup?: string;
@@ -34,7 +39,7 @@ export interface CreateExpenseRequest {
   /** Amount in minor units (cents). */
   amount: number;
   currency: string;
-  expenseType: "essentials" | "desires" | "savings";
+  expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
   expenseDate: string;
@@ -47,7 +52,7 @@ export interface CorrectExpenseRequest {
   name: string;
   /** Amount in minor units (cents). */
   amount: number;
-  expenseType: "essentials" | "desires" | "savings";
+  expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
   expenseDate: string;

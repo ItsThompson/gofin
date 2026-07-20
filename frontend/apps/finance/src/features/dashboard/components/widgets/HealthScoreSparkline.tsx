@@ -6,7 +6,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { HealthScoreTrendPoint } from "../../../../types";
+import type { HealthScoreTrendPoint } from "@gofin/core";
 import { BAND_COLOR_CLASS } from "./healthScoreDisplay";
 
 interface HealthScoreSparklineProps {

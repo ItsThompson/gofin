@@ -1,6 +1,6 @@
 import { Button } from "@gofin/ui/components/button";
 import { Loader2, UserCheck, Trash2 } from "lucide-react";
-import type { AdminUser } from "../../types";
+import type { AdminUserSummary } from "@gofin/core";
 import type { DeletionStatus } from "../../components/DeleteUserDialog/types";
 
 const PROTECTED_USERNAMES = ["admin", "thompson"];
@@ -10,11 +10,11 @@ function isProtectedUser(username: string): boolean {
 }
 
 interface UserActionsCellProps {
-  user: AdminUser;
+  user: AdminUserSummary;
   deletionState: { jobId: string; status: DeletionStatus; error?: string } | undefined;
   assumingUserId: string | null;
   onAssume: (userId: string) => void;
-  onDelete: (user: AdminUser) => void;
+  onDelete: (user: AdminUserSummary) => void;
 }
 
 export function UserActionsCell({

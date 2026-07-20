@@ -1,5 +1,5 @@
 import { formatCurrency } from "@gofin/core";
-import type { Expense, Tag } from "../../../types";
+import type { Expense, Tag } from "@gofin/core";
 import { ArrowRight } from "lucide-react";
 import { computeChanges } from "../utils/computeChanges";
 

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { ExpenseDetailModal } from "@/features/expense-detail";
-import type { Expense, Tag } from "@/types";
+import type { Expense, Tag } from "@gofin/core";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

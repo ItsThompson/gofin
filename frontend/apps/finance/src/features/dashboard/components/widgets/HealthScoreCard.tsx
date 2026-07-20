@@ -10,7 +10,7 @@ import type {
   HealthScore,
   HealthScoreConfigureBudget,
   HealthScoreTrendPoint,
-} from "../../../../types";
+} from "@gofin/core";
 import { ScoreRing } from "./ScoreRing";
 import { SubScoreBars } from "./SubScoreBars";
 import { InsightPanel } from "./InsightPanel";

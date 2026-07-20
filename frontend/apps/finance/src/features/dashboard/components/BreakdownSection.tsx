@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TagSpending } from "../../../types";
+import type { TagSpending } from "@gofin/core";
 import {
   Select,
   SelectContent,

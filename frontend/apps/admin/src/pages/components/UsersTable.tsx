@@ -6,12 +6,11 @@ import {
   CardDescription,
 } from "@gofin/ui/components/card";
 import { UserActionsCell } from "./UserActionsCell";
-import type { AdminUser } from "../../types";
 import type { UserDeletionState } from "../../hooks/useUserDeletion";
-import type { User } from "@gofin/core";
+import type { User, AdminUserSummary } from "@gofin/core";
 
 interface UsersTableProps {
-  users: AdminUser[];
+  users: AdminUserSummary[];
   currentUser: User | null;
   assumingUserId: string | null;
   deletionStates: UserDeletionState["deletionStates"];

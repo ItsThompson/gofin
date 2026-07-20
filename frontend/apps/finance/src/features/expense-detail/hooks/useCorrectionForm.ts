@@ -1,6 +1,6 @@
 import { useCallback, type FormEvent } from "react";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
-import type { Expense, CorrectExpenseRequest, Tag } from "../../../types";
+import type { Expense, CorrectExpenseRequest, Tag } from "@gofin/core";
 import {
   createExpenseSuggestionPatch,
   type ExpenseSuggestion,

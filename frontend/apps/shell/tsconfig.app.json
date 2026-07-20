@@ -1,6 +1,6 @@
 {
   "extends": "@gofin/config/tsconfig/base.json",
-  "include": ["app", "server", ".react-router/types/**/*"],
+  "include": ["app", "server", "mocks", ".react-router/types/**/*"],
   "compilerOptions": {
     "noEmit": true,
     "ignoreDeprecations": "6.0",

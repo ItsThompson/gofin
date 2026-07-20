@@ -2,7 +2,7 @@ import { type FormEvent } from "react";
 import { getCurrencySymbol } from "@gofin/core";
 import { useBudgetSplitForm } from "@gofin/api";
 import type { User } from "@gofin/core";
-import type { DefaultSettings, CreatePeriodRequest } from "../../../types";
+import type { DefaultSettings, CreatePeriodRequest } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

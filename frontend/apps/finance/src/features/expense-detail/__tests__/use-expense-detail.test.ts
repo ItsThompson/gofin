@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useExpenseDetail } from "@/features/expense-detail";
-import type { Expense } from "@/types";
+import type { Expense } from "@gofin/core";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCorrectionForm } from "../hooks/useCorrectionForm";
-import type { Expense, Tag } from "@/types";
+import type { Expense, Tag } from "@gofin/core";
 import type { ExpenseSuggestion } from "../../expense-autocomplete";
 
 const mockTags: Tag[] = [

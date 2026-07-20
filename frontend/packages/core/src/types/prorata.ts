@@ -1,3 +1,9 @@
+import type { ExpenseType } from "../constants";
+import type { Expense } from "./expenses";
+
+/** Lifecycle status of a pro-rata schedule installment. */
+export type ProRataStatus = "pending" | "applied";
+
 /** Pro-rata schedule record from the finance service. */
 export interface ProRataSchedule {
   id: string;
@@ -7,13 +13,13 @@ export interface ProRataSchedule {
   /** Installment amount in minor units (cents). */
   amount: number;
   currency: string;
-  expenseType: "essentials" | "desires" | "savings";
+  expenseType: ExpenseType;
   tagId: string;
   targetYear: number;
   targetMonth: number;
   installmentIndex: number;
   installmentTotal: number;
-  status: "pending" | "applied";
+  status: ProRataStatus;
   createdAt: string;
   appliedAt: string | null;
 }
@@ -24,7 +30,7 @@ export interface CreateProRataRequest {
   /** Total amount in minor units (cents). */
   totalAmount: number;
   currency: string;
-  expenseType: "essentials" | "desires" | "savings";
+  expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
   expenseDate: string;
@@ -34,22 +40,7 @@ export interface CreateProRataRequest {
 
 /** Response from POST /api/finance/prorata. */
 export interface ProRataResponse {
-  expense: {
-    id: string;
-    name: string;
-    amount: number;
-    currency: string;
-    expenseType: string;
-    tagId: string;
-    expenseDate: string;
-    periodYear: number;
-    periodMonth: number;
-    isProRata: boolean;
-    proRataGroup: string;
-    proRataIndex: number;
-    proRataTotal: number;
-    createdAt: string;
-  };
+  expense: Expense;
   schedules: ProRataSchedule[];
 }
 

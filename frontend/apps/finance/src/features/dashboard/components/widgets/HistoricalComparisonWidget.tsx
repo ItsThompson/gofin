@@ -1,5 +1,5 @@
 import { formatCurrency } from "@gofin/core";
-import type { HistoricalComparison } from "../../../../types";
+import type { HistoricalComparison } from "@gofin/core";
 import {
   Card,
   CardContent,

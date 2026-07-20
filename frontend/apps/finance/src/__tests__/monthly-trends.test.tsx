@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TrendsSection } from "@/features/dashboard";
-import type { TrendPoint } from "@/types";
+import type { TrendPoint } from "@gofin/core";
 
 const mockTrendData: TrendPoint[] = [
   {
