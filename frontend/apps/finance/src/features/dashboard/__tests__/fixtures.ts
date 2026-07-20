@@ -65,7 +65,7 @@ export const testCumulativeData = Array.from({ length: 31 }, (_, index) => ({
   ideal: Math.round((300000 / 31) * (index + 1)),
 }));
 
-export const testExpenseSuggestions = [
+const testExpenseSuggestions = [
   {
     name: "Groceries",
     amount: 50000,
