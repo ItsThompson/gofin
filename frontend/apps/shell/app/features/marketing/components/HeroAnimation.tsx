@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import { LogExpenseCard } from "./LogExpenseCard";
 import { DashboardPreviewCard } from "./DashboardPreviewCard";
+import {
+  LOOP_DURATION,
+  CROSSFADE_TIMES,
+  LOG_OPACITY_KEYFRAMES,
+  DASH_OPACITY_KEYFRAMES,
+} from "./heroTimeline";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import type { HeroAnimationProps } from "../types";
-
-/** Full loop duration (seconds) for the log -> dashboard crossfade. */
-const LOOP_DURATION = 6;
-/** Shared keyframe times for the crossfade timeline. */
-const CROSSFADE_TIMES = [0, 0.4, 0.55, 0.92, 1];
 
 /**
  * The hero visual: a looping, animated scene that shows logging an expense and
@@ -36,24 +37,24 @@ export function HeroAnimation({ alt }: HeroAnimationProps) {
     <div role="img" aria-label={alt} className="relative aspect-[4/3] w-full">
       <motion.div
         className="absolute inset-0"
-        animate={{ opacity: [1, 1, 0, 0, 1] }}
+        animate={{ opacity: LOG_OPACITY_KEYFRAMES }}
         transition={{
           duration: LOOP_DURATION,
           times: CROSSFADE_TIMES,
           repeat: Infinity,
-          ease: "easeInOut",
+          ease: "linear",
         }}
       >
         <LogExpenseCard />
       </motion.div>
       <motion.div
         className="absolute inset-0"
-        animate={{ opacity: [0, 0, 1, 1, 0] }}
+        animate={{ opacity: DASH_OPACITY_KEYFRAMES }}
         transition={{
           duration: LOOP_DURATION,
           times: CROSSFADE_TIMES,
           repeat: Infinity,
-          ease: "easeInOut",
+          ease: "linear",
         }}
       >
         <DashboardPreviewCard />
