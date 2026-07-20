@@ -11,3 +11,14 @@ export interface User {
   hasCompletedOnboarding: boolean;
   createdAt: string;
 }
+
+/** Subset of {@link User} shown in the admin user list. */
+export type AdminUserSummary = Pick<
+  User,
+  "id" | "username" | "email" | "role" | "createdAt"
+>;
+
+/** Response shape from GET /api/admin/users. */
+export interface AdminUsersResponse {
+  users: AdminUserSummary[];
+}

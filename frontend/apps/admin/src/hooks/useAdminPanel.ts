@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { apiClient, useApiToast } from "@gofin/api";
 import { useUserDeletion } from "./useUserDeletion";
 import type { UserDeletionState, UserDeletionActions } from "./useUserDeletion";
-import type { AdminUser, AdminUsersResponse } from "../types";
-import type { User } from "@gofin/core";
+import type { User, AdminUserSummary, AdminUsersResponse } from "@gofin/core";
 
 type AdminLoadState = "loading" | "error" | "success";
 
@@ -11,7 +10,7 @@ export interface AdminPanelState {
   /** Page load state. */
   loadState: AdminLoadState;
   /** List of registered users. */
-  users: AdminUser[];
+  users: AdminUserSummary[];
   /** User ID currently being assumed (for loading indicator). */
   assumingUserId: string | null;
   /** Deletion workflow state. */
@@ -39,10 +38,10 @@ export function useAdminPanel(options: UseAdminPanelOptions): {
   actions: AdminPanelActions;
 } {
   const { onAssumeIdentity } = options;
-  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [loadState, setLoadState] = useState<AdminLoadState>("loading");
   const [assumingUserId, setAssumingUserId] = useState<string | null>(null);
-  const { call: toastCall } = useApiToast();
+  const { call: toastCall } = useApiToast<AdminUsersResponse>();
 
   const handleUserRemoved = useCallback((userId: string) => {
     setUsers((prev) => prev.filter((user) => user.id !== userId));
