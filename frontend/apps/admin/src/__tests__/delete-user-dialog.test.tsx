@@ -130,11 +130,9 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    // Step 1
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
 
-    // Step 2
     await user.type(screen.getByLabelText("Your Password"), "mypassword");
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
@@ -169,11 +167,9 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    // Step 1
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
 
-    // Step 2
     await user.type(screen.getByLabelText("Your Password"), "wrongpassword");
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
@@ -181,7 +177,6 @@ describe("DeleteUserDialog", () => {
       expect(screen.getByText("Invalid password")).toBeInTheDocument();
     });
 
-    // Dialog stays open
     expect(mockOnOpenChange).not.toHaveBeenCalledWith(false);
     expect(mockOnSuccess).not.toHaveBeenCalled();
   });
@@ -301,12 +296,10 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    // Navigate to step 2
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByLabelText("Your Password")).toBeInTheDocument();
 
-    // Close
     rerender(
       <DeleteUserDialog
         open={false}
@@ -316,7 +309,6 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    // Reopen
     rerender(
       <DeleteUserDialog
         open={true}
@@ -326,7 +318,6 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    // Should be back on step 1
     expect(screen.getByLabelText("Confirmation")).toBeInTheDocument();
   });
 });

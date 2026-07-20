@@ -44,7 +44,6 @@ func NewAuthService(
 // and hashing the password. Returns the user and a token pair.
 func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) (*model.User, *model.TokenPair, error) {
 
-	// Validate password strength
 	if err := ValidatePasswordStrength(req.Password); err != nil {
 		return nil, nil, &apierr.Error{
 			Code:    model.ErrWeakPassword,
@@ -75,13 +74,11 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 		return nil, nil, apierr.Conflict(model.ErrDuplicateUsername, "This username is already taken")
 	}
 
-	// Hash password
 	hash, err := s.password.HashPassword(req.Password)
 	if err != nil {
 		return nil, nil, fmt.Errorf("hashing password: %w", err)
 	}
 
-	// Create user
 	user, err := s.repo.CreateUser(ctx, username, email, hash, model.RoleUser, "USD")
 	if err != nil {
 		var dupErr *repository.DuplicateError
@@ -99,7 +96,6 @@ func (s *AuthService) Register(ctx context.Context, req *model.RegisterRequest) 
 		slog.String("user_id", user.ID),
 	)
 
-	// Generate tokens
 	accessToken, refreshToken, err := s.jwt.GenerateTokenPair(user.ID, user.Role, user.Username)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating tokens: %w", err)
@@ -117,7 +113,6 @@ func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 
-	// Look up user by email
 	user, err := s.repo.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, nil, fmt.Errorf("looking up user: %w", err)
@@ -132,7 +127,6 @@ func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 		}
 	}
 
-	// Verify password
 	if !s.password.CheckPassword(req.Password, user.PasswordHash) {
 		return nil, nil, &apierr.Error{
 			Code:    model.ErrInvalidCredentials,
@@ -146,7 +140,6 @@ func (s *AuthService) Login(ctx context.Context, req *model.LoginRequest) (*mode
 		slog.String("user_id", user.ID),
 	)
 
-	// Generate tokens
 	accessToken, refreshToken, err := s.jwt.GenerateTokenPair(user.ID, user.Role, user.Username)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating tokens: %w", err)
@@ -214,7 +207,6 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID string) (*model.Us
 // RefreshToken validates a refresh token, atomically consumes it (blacklists
 // to prevent reuse), and generates a new access + refresh token pair.
 func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString string) (*model.User, *model.TokenPair, error) {
-	// Validate the refresh token JWT
 	claims, err := s.jwt.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
 		return nil, nil, apierr.Unauthorized("Invalid or expired refresh token")
@@ -235,7 +227,6 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 		return nil, nil, apierr.Unauthorized("Refresh token has been revoked")
 	}
 
-	// Look up the user
 	user, err := s.repo.GetUserByID(ctx, claims.Subject)
 	if err != nil {
 		return nil, nil, fmt.Errorf("looking up user for refresh: %w", err)
@@ -244,7 +235,6 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 		return nil, nil, apierr.Unauthorized("User not found")
 	}
 
-	// Generate new token pair
 	accessToken, refreshToken, err := s.jwt.GenerateTokenPair(user.ID, user.Role, user.Username)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating tokens: %w", err)
@@ -346,9 +336,9 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req *mod
 		return nil, fmt.Errorf("updating user: %w", err)
 	}
 	if user == nil {
-		// C8: an own-record-missing lookup returns 401 to match GetUserByID/
-		// RefreshToken/CompleteOnboarding/ChangePassword (the four-method
-		// majority), not the 404 used for admin lookups of another user.
+		// An own-record-missing lookup returns 401 to match GetUserByID,
+		// RefreshToken, CompleteOnboarding, and ChangePassword, not the 404
+		// used for admin lookups of another user.
 		return nil, apierr.Unauthorized("User not found")
 	}
 
@@ -504,7 +494,6 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *mo
 		return nil, nil, apierr.Unauthorized("User not found")
 	}
 
-	// Verify current password
 	if !s.password.CheckPassword(req.CurrentPassword, user.PasswordHash) {
 		return nil, nil, &apierr.Error{
 			Code:    model.ErrInvalidCredentials,
@@ -513,7 +502,6 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *mo
 		}
 	}
 
-	// Validate new password strength
 	if err := ValidatePasswordStrength(req.NewPassword); err != nil {
 		return nil, nil, &apierr.Error{
 			Code:    model.ErrWeakPassword,
@@ -522,13 +510,11 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID string, req *mo
 		}
 	}
 
-	// Hash new password
 	hash, err := s.password.HashPassword(req.NewPassword)
 	if err != nil {
 		return nil, nil, fmt.Errorf("hashing new password: %w", err)
 	}
 
-	// Update the password
 	if err := s.repo.UpdatePassword(ctx, userID, hash); err != nil {
 		return nil, nil, fmt.Errorf("updating password: %w", err)
 	}

@@ -342,7 +342,7 @@ func TestCompleteOnboardingHandler_MultiFieldValidationEmitsFields(t *testing.T)
 	txBeginner := new(mockTxBeginner)
 	r := setupTestRouter(repo, txBeginner)
 
-	// 50/50/50 sums to 150: a multi-field validation failure (C6). The wire
+	// 50/50/50 sums to 150: a multi-field validation failure. The wire
 	// response must carry field-level detail for every offending percentage,
 	// end to end through apierr.Respond.
 	w := doJSONWithUserID(r, "POST", "/api/finance/onboarding", "user-123", map[string]interface{}{
@@ -1076,7 +1076,7 @@ func TestGetHealthScoreHandler_Success(t *testing.T) {
 	assert.Equal(t, model.FormulaVersion, resp.HealthScore.FormulaVersion)
 	assert.False(t, resp.HealthScore.ConfigureBudget)
 
-	// total must equal the sum of components (AC).
+	// total must equal the sum of components.
 	var sum int32
 	for _, component := range resp.HealthScore.Components {
 		sum += component.Score
@@ -1193,7 +1193,7 @@ func TestGetHealthScoreTrendHandler_ClampsMonths(t *testing.T) {
 	txBeginner := new(mockTxBeginner)
 	expClient := new(mockExpenseClient)
 
-	// months=99 is clamped, not rejected (AC4 "cap 12"). With no periods the trend
+	// months=99 is clamped, not rejected (capped at 12). With no periods the trend
 	// is empty and the request still succeeds.
 	repo.On("ListPeriods", mock.Anything, "user-123").Return([]*model.BudgetPeriod{}, nil)
 	repo.On("ListHealthScoreScalars", mock.Anything, "user-123").Return([]*model.HealthScoreTrendPoint{}, nil)
@@ -1248,10 +1248,8 @@ func TestGetSpendingByTagHandler_Success(t *testing.T) {
 	var resp model.TagSpendingResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Len(t, resp.TagSpending, 2)
-	// Sorted by amount descending: Food (50000), Bills (50000). Bills first alphabetically? No, Bills = 50000, Food = 50000.
-	// Actually: food = 30000+20000 = 50000, bills = 50000. Same amount.
-	// But sort is by amount desc. They have same amount. Order is map-iteration dependent.
-	// Check that both exist and amounts are correct.
+	// Food and Bills both total 50000; tie order is map-iteration dependent, so
+	// assert per-tag amounts rather than slice position.
 	var foodTag, billsTag model.TagSpending
 	for _, tag := range resp.TagSpending {
 		switch tag.TagName {

@@ -40,7 +40,7 @@ describe("FaqSection", () => {
   it("renders a static list with no expand/collapse controls", () => {
     render(<FaqSection {...landingContent.faq} />);
 
-    // No accordion/disclosure: the AC forbids introducing interaction state.
+    // Static list: no accordion/disclosure controls, so no buttons render.
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

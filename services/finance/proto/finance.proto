@@ -16,24 +16,24 @@ service FinanceService {
   // Data deletion (datarights support)
   rpc DeleteAllUserData(DeleteAllUserDataRequest) returns (DeleteAllUserDataResponse);
 
-  // Budget period operations (stubs for later tickets)
+  // Budget period operations
   rpc GetCurrentPeriod(GetCurrentPeriodRequest) returns (PeriodResponse);
   rpc CreatePeriod(CreatePeriodRequest) returns (PeriodResponse);
   rpc UpdatePeriod(UpdatePeriodRequest) returns (PeriodResponse);
   rpc ListPeriods(ListPeriodsRequest) returns (PeriodListResponse);
 
-  // Tag operations (stubs for later tickets)
+  // Tag operations
   rpc ListTags(ListTagsRequest) returns (TagListResponse);
   rpc CreateTag(CreateTagRequest) returns (TagResponse);
   rpc UpdateTag(UpdateTagRequest) returns (TagResponse);
   rpc DeleteTag(DeleteTagRequest) returns (DeleteTagResponse);
   rpc CheckTagUsage(CheckTagUsageRequest) returns (TagUsageResponse);
 
-  // Pro-rata (stubs for later tickets)
+  // Pro-rata
   rpc CreateProRataExpense(CreateProRataExpenseRequest) returns (ProRataResponse);
   rpc GetUpcomingProRata(GetUpcomingProRataRequest) returns (UpcomingProRataListResponse);
 
-  // Dashboard aggregation (stubs for later tickets)
+  // Dashboard aggregation
   rpc GetPeriodSummary(GetPeriodSummaryRequest) returns (PeriodSummaryResponse);
   rpc GetSpendingByTag(GetSpendingByTagRequest) returns (TagSpendingListResponse);
   rpc GetCumulativeSpend(GetCumulativeSpendRequest) returns (CumulativeSpendResponse);
@@ -104,7 +104,7 @@ message DeleteAllUserDataRequest {
 message DeleteAllUserDataResponse {}
 
 // ---------------------------------------------------------------------------
-// Budget periods (stubs)
+// Budget periods
 // ---------------------------------------------------------------------------
 
 message PeriodData {
@@ -160,7 +160,7 @@ message PeriodListResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Tags (stubs)
+// Tags
 // ---------------------------------------------------------------------------
 
 message TagData {
@@ -210,7 +210,7 @@ message TagListResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Pro-rata (stubs)
+// Pro-rata
 // ---------------------------------------------------------------------------
 
 message CreateProRataExpenseRequest {
@@ -237,7 +237,7 @@ message UpcomingProRataListResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard aggregation (stubs)
+// Dashboard aggregation
 // ---------------------------------------------------------------------------
 
 message GetPeriodSummaryRequest {

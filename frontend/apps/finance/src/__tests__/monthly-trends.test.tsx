@@ -172,7 +172,6 @@ describe("TrendsSection", () => {
       />,
     );
 
-    // Open Select and choose Category Split
     const trigger = screen.getByLabelText("Select trend chart");
     await user.click(trigger);
     const categorySplitOption = await screen.findByRole("option", { name: "Category Split" });

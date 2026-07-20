@@ -92,7 +92,7 @@ func (s *FinanceService) computeHealthScore(ctx context.Context, userID string, 
 // buildDesiresWindow returns the discretionary (desires) totals for the up-to-
 // stabilityWindowMonths most recent CLOSED months at or before (year, month),
 // which feed the stability sub-score. The current provisional month is excluded
-// (its month-to-date desires would swing the CoV and break AC3 determinism), so
+// (its month-to-date desires would swing the CoV and break determinism), so
 // a provisional target's window is the trailing closed months. The per-period
 // desires reads are independent and fan out under the shared dashboard limit.
 func (s *FinanceService) buildDesiresWindow(ctx context.Context, userID string, year, month int32) ([]int64, error) {

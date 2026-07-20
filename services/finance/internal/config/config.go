@@ -7,7 +7,7 @@ import (
 
 // DefaultRESTPort is the single source of truth for the finance REST port
 // default. It backs both the listener (via Load) and the --healthcheck probe
-// (via ResolveRESTPort) so the two never desync (US-PLATFORM-05).
+// (via ResolveRESTPort) so the two never desync.
 const DefaultRESTPort = "8083"
 
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to

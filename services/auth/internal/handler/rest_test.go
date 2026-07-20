@@ -286,8 +286,7 @@ func TestRegisterHandler_MissingFields(t *testing.T) {
 }
 
 // TestRegisterHandler_ValidationFields_C6 asserts that a validator-detected
-// field error now surfaces the offending field in the response `fields` map
-// (the wire slot auth dropped before the apierr/httpx migration: C6).
+// field error surfaces the offending field in the response `fields` map.
 func TestRegisterHandler_ValidationFields_C6(t *testing.T) {
 	repo := new(mockUserRepository)
 	r := setupTestRouter(repo)

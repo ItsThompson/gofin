@@ -16,7 +16,6 @@ import (
 // Prometheus scrapes.
 func HTTPMetrics() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Skip instrumentation of the metrics endpoint itself.
 		if c.Request.URL.Path == "/metrics" {
 			c.Next()
 			return

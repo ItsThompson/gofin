@@ -3,7 +3,7 @@ import type { FaqItemContent } from "../types";
 /**
  * A single FAQ entry: an <h3> question above a muted paragraph answer, sitting
  * beneath a top-border divider. Static Q/A only (no disclosure/expand-collapse
- * interaction; the accordion is out of scope per spec §09).
+ * interaction).
  */
 export function FaqItem({ question, answer }: FaqItemContent) {
   return (

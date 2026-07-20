@@ -349,7 +349,7 @@ func TestAccessControl_ValidationTimeout_Returns503(t *testing.T) {
 
 // TestAccessControl_NonDeadlineGRPCError_Returns401 proves only the deadline is
 // special-cased: every other gRPC status (here Unauthenticated) still returns
-// the unchanged 401 contract.
+// the 401 contract.
 func TestAccessControl_NonDeadlineGRPCError_Returns401(t *testing.T) {
 	validator := &fakeValidator{err: status.Error(codes.Unauthenticated, "invalid token")}
 	engine := buildEngine(validator, silentLogger(), http.MethodGet, "/api/finance/periods", okHandler)
@@ -503,8 +503,8 @@ func TestGatewayResolve(t *testing.T) {
 
 // TestAccessControl_ErrorBodies_MatchApierrWireShape pins that routing the
 // gateway's middleware errors through apierr.Respond preserves the exact
-// {code,message} wire bytes clients already receive, so the migration is not a
-// schema change. Covers the 401 (missing cookie), 403 (denied route), and 503
+// {code,message} wire bytes clients already receive. Covers the 401 (missing
+// cookie), 403 (denied route), and 503
 // (auth-dependency timeout) paths. Asserts the raw body (not JSONEq) so the
 // byte-for-byte claim is pinned: field order and the absence of a trailing
 // newline are part of the contract.

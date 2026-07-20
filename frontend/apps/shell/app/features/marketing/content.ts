@@ -1,12 +1,9 @@
 import type { LandingContent } from "./types";
 
 /**
- * The single source of all landing-page copy, links, and section data.
- *
- * Every string here is placeholder GoFin positioning built around the app's
- * essentials / desires / savings model and is expected to be refined by the
- * product owner: refinement is a single-file edit that never touches JSX. The
- * `href` values (`/register`, `/login`) are real routes, not placeholder copy.
+ * All landing copy lives here as data, built around the app's essentials /
+ * desires / savings model, so editing copy is a single-file change that never
+ * touches JSX. The `href` values (`/register`, `/login`) are real routes.
  */
 export const landingContent: LandingContent = {
   brand: "GoFin",

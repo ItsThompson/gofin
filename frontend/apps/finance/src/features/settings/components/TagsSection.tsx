@@ -29,7 +29,6 @@ export function TagsSection() {
         <p className="text-sm text-red-600" role="alert">{state.error}</p>
       )}
 
-      {/* Add Tag Form */}
       <form onSubmit={actions.handleAddTag} className="flex gap-2">
         <Input
           type="text"
@@ -46,7 +45,6 @@ export function TagsSection() {
         </Button>
       </form>
 
-      {/* Tags List */}
       <ul className="divide-y" role="list">
         {state.tags.map((tag) => (
           <li key={tag.id} className="flex items-center justify-between py-2 gap-2">

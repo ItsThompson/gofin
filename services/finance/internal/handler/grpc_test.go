@@ -26,7 +26,7 @@ func setupGRPCHandler(repo *mockFinanceRepository) *GRPCHandler {
 	return NewGRPCHandler(financeSvc, logger)
 }
 
-// TestGetDefaults_WrappedTypedErrorClassifies locks in C7: a typed *apierr.Error
+// TestGetDefaults_WrappedTypedErrorClassifies verifies that a typed *apierr.Error
 // that has been %w-wrapped before reaching the gRPC handler must still classify
 // via errors.As (not collapse to codes.Internal). The service wraps every repo
 // error with %w ("getting defaults: %w"), so a typed NOT_FOUND returned by the
@@ -81,14 +81,12 @@ func TestGetAllUserData_Success(t *testing.T) {
 	resp, err := handler.GetAllUserData(context.Background(), &pb.GetAllUserDataRequest{UserId: "user-1"})
 	require.NoError(t, err)
 
-	// Tags
 	require.Len(t, resp.Tags, 2)
 	assert.Equal(t, "tag-1", resp.Tags[0].Id)
 	assert.Equal(t, "Bills", resp.Tags[0].Name)
 	assert.True(t, resp.Tags[0].IsDefault)
 	assert.Equal(t, "2026-03-15T10:30:00Z", resp.Tags[0].CreatedAt)
 
-	// Periods
 	require.Len(t, resp.Periods, 1)
 	assert.Equal(t, "period-1", resp.Periods[0].Id)
 	assert.Equal(t, int32(2026), resp.Periods[0].Year)
@@ -96,7 +94,6 @@ func TestGetAllUserData_Success(t *testing.T) {
 	assert.Equal(t, int64(500000), resp.Periods[0].BudgetAmount)
 	assert.Equal(t, "2026-03-15T10:30:00Z", resp.Periods[0].CreatedAt)
 
-	// Defaults
 	require.NotNil(t, resp.Defaults)
 	assert.Equal(t, "user-1", resp.Defaults.UserId)
 	assert.Equal(t, int64(500000), resp.Defaults.BudgetAmount)

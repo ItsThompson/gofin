@@ -11,7 +11,7 @@ import (
 // DefaultProtectedUsernames is the fallback protected-username list used when
 // PROTECTED_USERNAMES is unset. These accounts cannot be deleted via the
 // datarights deletion flow. The check itself is owned by the datarights
-// service (moved from auth).
+// service.
 var DefaultProtectedUsernames = []string{"admin", "thompson"}
 
 // Config holds all configuration for the datarights service.
@@ -35,7 +35,7 @@ type Config struct {
 
 // DefaultRESTPort is the datarights REST listener port used when REST_PORT is
 // unset. It is the single source of truth shared by the server listener and the
-// --healthcheck probe so a REST_PORT override never desyncs them (US-PLATFORM-05).
+// --healthcheck probe so a REST_PORT override never desyncs them.
 const DefaultRESTPort = "8084"
 
 // RESTPort returns the configured REST port, honoring REST_PORT with

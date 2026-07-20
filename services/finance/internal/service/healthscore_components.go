@@ -14,7 +14,7 @@ type categoryDev struct {
 
 const allocBalancedDetail = "Balanced across categories"
 
-// savingsComponent computes savings achievement (Formula B). The caller drops
+// savingsComponent computes savings achievement. The caller drops
 // this component when savingsTarget is 0, so savingsTarget is > 0 here. The
 // ratio caps at 1.0: beating the target earns full marks, never a bonus.
 func savingsComponent(savingsActual, savingsTarget int64, weight float64, symbol string) (float64, string) {
@@ -27,7 +27,7 @@ func savingsComponent(savingsActual, savingsTarget int64, weight float64, symbol
 	return scoreFloat, detail
 }
 
-// budgetComponent computes budget adherence (Formula C). Spending at or under
+// budgetComponent computes budget adherence. Spending at or under
 // the combined essentials+desires target earns full marks; the factor ramps
 // linearly to 0 at budgetFloorRatio (150%) of target and stays 0 beyond it.
 func budgetComponent(edActual, combinedTarget int64, weight float64, symbol string) (float64, string) {
@@ -57,7 +57,7 @@ func budgetFactor(edActual, combinedTarget int64) float64 {
 	}
 }
 
-// allocationComponent computes allocation balance (Formula A). It compares
+// allocationComponent computes allocation balance. It compares
 // actual category proportions against target proportions over the surviving
 // categories (essentials/desires only when savings is dropped, else all three),
 // applies the asymmetric penalty coefficients, and returns the score, a detail

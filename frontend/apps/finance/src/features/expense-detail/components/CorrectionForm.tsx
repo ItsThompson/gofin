@@ -44,7 +44,6 @@ export function CorrectionForm({
 
   return (
     <Form onSubmit={onSubmit}>
-      {/* Name */}
       <FormField>
         <FormLabel htmlFor="correct-name">Name</FormLabel>
         <ExpenseNameCombobox
@@ -56,7 +55,6 @@ export function CorrectionForm({
         />
       </FormField>
 
-      {/* Amount */}
       <FormField>
         <FormLabel htmlFor="correct-amount">Amount</FormLabel>
         <div className="relative">
@@ -79,7 +77,6 @@ export function CorrectionForm({
         <FormMessage>{fieldErrors.amount}</FormMessage>
       </FormField>
 
-      {/* Expense Type */}
       <FormField>
         <FormLabel>Type</FormLabel>
         <div
@@ -106,7 +103,6 @@ export function CorrectionForm({
         </div>
       </FormField>
 
-      {/* Tag */}
       <FormField>
         <FormLabel htmlFor="correct-tag">Tag</FormLabel>
         <select
@@ -125,7 +121,6 @@ export function CorrectionForm({
         <FormMessage>{fieldErrors.tagId}</FormMessage>
       </FormField>
 
-      {/* Date */}
       <FormField>
         <FormLabel htmlFor="correct-date">Date</FormLabel>
         <Input
@@ -140,10 +135,8 @@ export function CorrectionForm({
         <FormMessage>{fieldErrors.expenseDate}</FormMessage>
       </FormField>
 
-      {/* Error */}
       {submitError && <FormMessage>{submitError}</FormMessage>}
 
-      {/* Actions */}
       <div className="flex gap-2">
         <Button
           type="button"

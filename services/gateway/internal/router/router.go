@@ -54,8 +54,7 @@ func New(
 	// AccessControl is the single global gate: it resolves each route against the
 	// shared services/access registry (via GatewayResolve, which also classifies
 	// the gateway-native /health and /metrics as Public) and enforces
-	// Public/Authenticated/Personal/Admin, replacing the former per-request auth +
-	// per-group admin guards.
+	// Public/Authenticated/Personal/Admin.
 	engine.Use(access.AccessControl(validator, access.GatewayResolve, logger))
 
 	// Prometheus metrics endpoint (Public via GatewayResolve).

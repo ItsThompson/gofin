@@ -1,6 +1,5 @@
 import type { User } from "@gofin/core";
 
-/** Props for the AdminPanelPage component. */
 export interface AdminPanelPageProps {
   currentUser: User | null;
   onAssumeIdentity: (userId: string) => Promise<void>;

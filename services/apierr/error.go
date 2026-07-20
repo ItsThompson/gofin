@@ -3,8 +3,7 @@ package apierr
 import "net/http"
 
 // Error is the single typed service error. It carries everything the wire
-// contract can express, including Fields (the field-level validation detail
-// that most services drop today).
+// contract can express, including optional field-level validation detail (Fields).
 type Error struct {
 	Code    string            // maps to the "code" wire field
 	Message string            // maps to "message"

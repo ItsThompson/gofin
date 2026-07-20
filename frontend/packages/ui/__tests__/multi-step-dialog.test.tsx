@@ -116,15 +116,12 @@ describe("MultiStepDialog", () => {
     const user = userEvent.setup();
     const { rerender } = render(<TestDialog open={true} onOpenChange={() => {}} />);
 
-    // Navigate to step 2
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Step 2 Content")).toBeInTheDocument();
 
-    // Close the dialog
     rerender(<TestDialog open={false} onOpenChange={() => {}} />);
     expect(screen.queryByText("Step 2 Content")).not.toBeInTheDocument();
 
-    // Reopen: should be back at step 1
     rerender(<TestDialog open={true} onOpenChange={() => {}} />);
     expect(screen.getByText("Step 1 Content")).toBeInTheDocument();
     expect(screen.getByTestId("step-info")).toHaveTextContent("Step 1 of 3");

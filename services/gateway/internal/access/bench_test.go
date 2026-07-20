@@ -14,9 +14,8 @@ import (
 //
 // The absolute allocs/op is a same-machine reference, not a CI gate (see the
 // services/perf README): this path's regression guard is behavioral (the
-// bounded-timeout test), not an allocation count. The benchmark exists so the
-// baseline file records a concrete "before" number alongside the note that the
-// pre-change ValidateToken call had no upper latency bound.
+// bounded-timeout test), not an allocation count. The benchmark records a
+// concrete allocation reference for the validation happy path.
 func BenchmarkValidateHappyPath(b *testing.B) {
 	validator := &fakeValidator{
 		result: &access.TokenValidationResult{UserID: "user-1", Role: "user"},

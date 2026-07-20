@@ -13,7 +13,7 @@ type TokenValidationResult struct {
 
 // TokenValidator abstracts the gRPC call to the auth service's ValidateToken
 // RPC. Its canonical home is this package because AccessControl consumes it.
-// The concrete gRPC client is unchanged and satisfies this interface
+// The concrete gRPC client satisfies this interface
 // structurally. Defining the interface here (rather than in middleware) keeps
 // the access model self-contained and lets AccessControl be unit-tested with a
 // fake validator, no gRPC connection required.

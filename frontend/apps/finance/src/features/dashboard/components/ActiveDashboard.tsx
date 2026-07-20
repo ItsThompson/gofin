@@ -97,7 +97,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         </div>
       </div>
 
-      {/* Budget Settings Editor */}
       {showSettings && !readOnly && (
         <SectionErrorBoundary sectionName="Budget Settings">
           <BudgetSettingsEditor
@@ -119,7 +118,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           </section>
         )}
 
-        {/* Summary Bar */}
         <section id="summary" data-outline-title="Summary" className="space-y-6">
           <SectionErrorBoundary sectionName="Summary">
             <SummaryBar
@@ -139,7 +137,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
             />
           </SectionErrorBoundary>
 
-          {/* Category Gauges */}
           {data.summary && (
             <section id="budget-allocations" data-outline-title="Budget Allocations">
               <SectionErrorBoundary sectionName="Category Gauges">
@@ -172,7 +169,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           )}
         </section>
 
-        {/* Upcoming Pro-rata */}
         <SectionErrorBoundary sectionName="Upcoming Pro-rata">
           {data.upcomingProRata.length > 0 && (
             <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
@@ -181,9 +177,8 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
           )}
         </SectionErrorBoundary>
 
-        {/* Charts: hidden on mobile per US-DASH-09 */}
+        {/* Charts: hidden on mobile */}
         <div className="hidden md:block space-y-6">
-          {/* Trends Section */}
           {data.trendData && data.trendData.length > 0 && (
             <section id="trends" data-outline-title="Trends">
               <SectionErrorBoundary sectionName="Monthly Trends">
@@ -197,7 +192,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
             </section>
           )}
 
-          {/* Breakdown Section */}
           <section id="breakdown" data-outline-title="Breakdown">
             <SectionErrorBoundary sectionName="Breakdown">
               <BreakdownSection
@@ -208,7 +202,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
             </SectionErrorBoundary>
           </section>
 
-          {/* Cumulative Spend Chart */}
           {data.cumulativeData.length > 0 && (
             <section id="cumulative-spending" data-outline-title="Cumulative Spending">
               <SectionErrorBoundary sectionName="Cumulative Spending">

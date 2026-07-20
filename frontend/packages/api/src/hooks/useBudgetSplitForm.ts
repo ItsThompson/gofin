@@ -57,10 +57,7 @@ function buildInitialFields(options?: BudgetSplitFormOptions): BudgetSplitFields
 
 /**
  * Shared hook for budget split form state, validation, and payload construction.
- *
- * Consolidates duplicated form logic from CreatePeriodPrompt, BudgetSettingsEditor,
- * DefaultBudgetSection, and SplitStep. Includes the non-negative validation check
- * that was previously missing in the settings page.
+ * Enforces non-negative percentages and a non-negative budget amount.
  */
 export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSplitForm {
   const [fields, setFields] = useState<BudgetSplitFields>(() =>
@@ -87,11 +84,9 @@ export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSpli
     const d = parseInt(fields.desires, 10) || 0;
     const s = parseInt(fields.savings, 10) || 0;
 
-    // Non-negative check for percentages (delegated to validateEDSSplit)
     const edsSplitError = validateEDSSplit(e, d, s);
     if (edsSplitError) return edsSplitError;
 
-    // Budget non-negative check
     const budgetValue = parseFloat(fields.budgetDollars) || 0;
     if (budgetValue < 0) {
       return "Budget amount must be non-negative";

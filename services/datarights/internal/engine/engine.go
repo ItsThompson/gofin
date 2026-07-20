@@ -299,8 +299,7 @@ func (e *Engine) recordFailure(jobID, userID, errMsg, stage string, jobStart tim
 
 // failure is a terminal export error whose message is the final, PII-free text
 // persisted to the job's error column. Storing the text in a field (not an
-// errors.New/fmt.Errorf literal) keeps the user-facing capitalized phrasing
-// without tripping ST1005.
+// errors.New/fmt.Errorf literal) keeps the user-facing capitalized phrasing.
 type failure struct{ reason string }
 
 func (f *failure) Error() string { return f.reason }

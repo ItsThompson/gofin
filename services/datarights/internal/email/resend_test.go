@@ -35,10 +35,8 @@ func TestResendSender_HTTPInteraction_Success(t *testing.T) {
 	sender, err := NewResendSender("re_test_key_123", "gofin <noreply@usegofin.com>", tokens, testLogger())
 	require.NoError(t, err)
 
-	// Override the HTTP client to point at our test server
 	sender.httpClient = server.Client()
-	// We need to override the URL. Since ResendSender hardcodes it, let's use a
-	// custom approach: set up a transport that rewrites the URL.
+	// ResendSender hardcodes the Resend URL; rewrite it to the test server.
 	sender.httpClient.Transport = &rewriteTransport{
 		base:    server.Client().Transport,
 		baseURL: server.URL,

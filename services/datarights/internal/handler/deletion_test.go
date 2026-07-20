@@ -490,7 +490,7 @@ func TestCreateDeletion_MissingUserId_Returns400(t *testing.T) {
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, apierr.CodeValidation, resp.Code)
-	// C6: bind failures now carry field-level validation detail.
+	// Bind failures carry field-level validation detail.
 	assert.Equal(t, "required", resp.Fields["UserID"])
 }
 
@@ -512,7 +512,7 @@ func TestCreateDeletion_MissingPassword_Returns400(t *testing.T) {
 	err := json.Unmarshal(rec.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, apierr.CodeValidation, resp.Code)
-	// C6: bind failures now carry field-level validation detail.
+	// Bind failures carry field-level validation detail.
 	assert.Equal(t, "required", resp.Fields["Password"])
 }
 

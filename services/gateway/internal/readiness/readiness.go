@@ -31,9 +31,9 @@ const (
 )
 
 // Checker probes a fixed set of downstream services by issuing a concurrent GET
-// {baseURL}/health to each, bounded by a per-probe timeout. It is a deep module:
-// callers build it once with NewChecker and call Check; the fan-out, timeout,
-// and result classification are hidden behind a single method.
+// {baseURL}/health to each, bounded by a per-probe timeout. Callers build it
+// once with NewChecker and call Check; the fan-out, timeout, and result
+// classification are hidden behind a single method.
 type Checker struct {
 	client   *http.Client
 	services map[string]string // service name -> base URL

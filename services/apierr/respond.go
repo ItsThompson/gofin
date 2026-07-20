@@ -8,9 +8,7 @@ import (
 )
 
 // APIError is the JSON wire shape for every error response: {code, message,
-// fields?}. It is byte-identical to what the services emit today; only the
-// exported name adopts the APIError initialism (US-HARDEN-04). JSON tags are
-// unchanged.
+// fields?}. All GoFin API services emit this identical error shape.
 type APIError struct {
 	Code    string            `json:"code"`
 	Message string            `json:"message"`

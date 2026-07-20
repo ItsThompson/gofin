@@ -71,8 +71,7 @@ func TestResolvePort_DefaultsWhenUnset(t *testing.T) {
 }
 
 // TestResolvePort_HonorsOverride confirms a PORT override is returned verbatim,
-// so the --healthcheck probe targets the same port the listener binds
-// (US-PLATFORM-05).
+// so the --healthcheck probe targets the same port the listener binds.
 func TestResolvePort_HonorsOverride(t *testing.T) {
 	t.Setenv("PORT", "9090")
 	if got := ResolvePort(); got != "9090" {
@@ -122,7 +121,7 @@ func captureDefaultLogger(t *testing.T) *strings.Builder {
 	return buf
 }
 
-// TestLoad_ValidateTimeout_WarnsAboveCeiling proves the GW-4 soft bound: a value
+// TestLoad_ValidateTimeout_WarnsAboveCeiling proves a value
 // above the recommended ceiling is accepted unchanged (no hard clamp) but logs
 // a visible warning so a "1h"-style typo that defeats the backstop is caught.
 func TestLoad_ValidateTimeout_WarnsAboveCeiling(t *testing.T) {

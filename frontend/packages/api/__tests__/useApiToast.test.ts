@@ -3,7 +3,6 @@ import { renderHook, act } from "@testing-library/react";
 import { useApiToast } from "../src/hooks/useApiToast";
 import { ApiRequestError } from "../src/client";
 
-// Mock sonner toast
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),

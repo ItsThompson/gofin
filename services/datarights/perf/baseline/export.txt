@@ -1,5 +1,5 @@
 # gofin perf baseline
-path: datarights/export-collection  (finance-call dedup, P2a)
+path: datarights/export-collection  (finance-call dedup)
 captured_against: ft/latency-refactor @ 1825b89  (pre-dedup; BenchmarkExportCollection over the full provider set)
 machine: Apple M4 Pro, 14 cores, macOS  (wall-clock reference only)
 date: 2026-07-10
@@ -18,9 +18,9 @@ ns_op:                     1395
 bytes_op:                  3883
 allocs_op:                 58
 
-# Structural single-fetch (ticket #13): the export engine fetches GetAllUserData
+# Structural single-fetch: the export engine fetches GetAllUserData
 # exactly once in execute and passes the resolved response to the finance-backed
-# providers (now pure response->rows mappers); the expenses tag map derives from
+# providers (pure response->rows mappers); the expenses tag map derives from
 # that same GetAllUserData().GetTags(), so ListTags is never called. The
 # guarantee is structural (one call site), not a memoization wrapper:
 #   get_all_user_data_calls: 1   (exactly once, by construction)
@@ -28,7 +28,7 @@ allocs_op:                 58
 # Enforced by TestExport_DedupesFinanceCalls in internal/engine (test-backend CI).
 
 # ---------------------------------------------------------------------------
-# Collection fan-out (P2b, ticket #6)
+# Collection fan-out
 # ---------------------------------------------------------------------------
 # path: datarights/export-collection-scaling
 # BenchmarkEngineCollectionFanout drives engine.execute over five providers with
@@ -47,7 +47,7 @@ allocs_op:                 58
 #   ns_op:     154835733   (~155ms  ~= sum)
 #   bytes_op:  143614
 #   allocs_op: 181
-# after  (errgroup fan-out, this ticket):
+# after  (errgroup fan-out):
 #   ns_op:     51121856    (~51ms  ~= max)
 #   bytes_op:  416401
 #   allocs_op: 202

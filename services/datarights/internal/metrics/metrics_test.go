@@ -117,8 +117,6 @@ func TestExportDataCollectionDurationSeconds_RecordsProviderLabel(t *testing.T) 
 	// Verify that observations for different providers are recorded separately
 	// by checking the metric count per label value.
 	profileCount := testutil.CollectAndCount(ExportDataCollectionDurationSeconds, "export_data_collection_duration_seconds")
-	// CollectAndCount returns the total number of metric samples (buckets + sum + count per label).
-	// With default buckets (11) + _sum + _count = 13 per label, 2 labels = 26 minimum.
 	assert.GreaterOrEqual(t, profileCount, 2, "expected metric samples for both providers")
 
 	// Verify the histogram is populated by gathering and inspecting the family

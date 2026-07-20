@@ -12,7 +12,7 @@ import (
 )
 
 // fullHealthScore is a complete v2 score (components AND insight), used to verify
-// the JSONB round-trip preserves everything, especially the insight (the B1 gap).
+// the JSONB round-trip preserves everything, especially the insight.
 func fullHealthScore() *model.HealthScore {
 	return &model.HealthScore{
 		Year: 2026, Month: 3, Total: 77, Band: model.HealthBandAmber,
@@ -31,7 +31,7 @@ func fullHealthScore() *model.HealthScore {
 	}
 }
 
-// TestHealthScoreJSONBRoundTrip is the DB-free half of VC-P2: the score column is
+// TestHealthScoreJSONBRoundTrip is the DB-free half of the persistence check: the score column is
 // stored as marshaled JSON (UpsertHealthScore) and read back via
 // dbHealthScoreToModel, so marshaling then unmarshaling must reproduce the full
 // score, insight included. A live-Postgres deep-equal upsert/read is gated on

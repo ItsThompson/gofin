@@ -258,7 +258,7 @@ func newTagTestServiceNow(repo *mockRepo, txBeg *mockTxBeg, expClient *mockExpCl
 
 // requireAPIError asserts err is (or wraps) an *apierr.Error and returns it, so
 // tests read the classified Code/Status/Message. Using errors.As keeps the
-// assertion robust to a future %w-wrap of the typed error (C7).
+// assertion robust to a future %w-wrap of the typed error.
 func requireAPIError(t *testing.T, err error) *apierr.Error {
 	t.Helper()
 	var apiErr *apierr.Error

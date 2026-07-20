@@ -7,29 +7,22 @@ import type { User, AdminUserSummary, AdminUsersResponse } from "@gofin/core";
 type AdminLoadState = "loading" | "error" | "success";
 
 export interface AdminPanelState {
-  /** Page load state. */
   loadState: AdminLoadState;
-  /** List of registered users. */
   users: AdminUserSummary[];
   /** User ID currently being assumed (for loading indicator). */
   assumingUserId: string | null;
-  /** Deletion workflow state. */
   deletion: UserDeletionState;
 }
 
 export interface AdminPanelActions {
-  /** Assume identity of a user. */
   handleAssume: (userId: string) => void;
   /** Retry fetching users after error. */
   retry: () => void;
-  /** Deletion workflow actions. */
   deletion: UserDeletionActions;
 }
 
 export interface UseAdminPanelOptions {
-  /** Current authenticated admin user. */
   currentUser: User | null;
-  /** Callback to execute identity assumption. */
   onAssumeIdentity: (userId: string) => Promise<void>;
 }
 

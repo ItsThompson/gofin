@@ -49,7 +49,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
         </CardHeader>
         <CardContent>
           <Form onSubmit={actions.handleSubmit}>
-            {/* Name */}
             <FormField>
               <FormLabel htmlFor="expense-name">Name</FormLabel>
               <ExpenseNameCombobox
@@ -63,7 +62,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               />
             </FormField>
 
-            {/* Amount */}
             <FormField>
               <FormLabel htmlFor="expense-amount">Amount</FormLabel>
               <div className="relative">
@@ -87,7 +85,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <FormMessage>{state.fieldErrors.amount}</FormMessage>
             </FormField>
 
-            {/* Expense Type (Radio) */}
             <FormField>
               <FormLabel>Type</FormLabel>
               <div
@@ -114,7 +111,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               </div>
             </FormField>
 
-            {/* Tag (Dropdown) */}
             <FormField>
               <FormLabel htmlFor="expense-tag">Tag</FormLabel>
               <select
@@ -139,7 +135,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <FormMessage>{state.fieldErrors.tagId}</FormMessage>
             </FormField>
 
-            {/* Date */}
             <FormField>
               <FormLabel htmlFor="expense-date">Date</FormLabel>
               <Input
@@ -154,7 +149,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               <FormMessage>{state.fieldErrors.expenseDate}</FormMessage>
             </FormField>
 
-            {/* Pro-rata Toggle */}
             <FormField>
               <label className="flex cursor-pointer items-center gap-2">
                 <input
@@ -171,7 +165,6 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               </label>
             </FormField>
 
-            {/* Pro-rata Months */}
             {state.isProRata && (
               <FormField>
                 <FormLabel htmlFor="pro-rata-months">
@@ -194,10 +187,8 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
               </FormField>
             )}
 
-            {/* Error Message */}
             {state.error && <FormMessage>{state.error}</FormMessage>}
 
-            {/* Submit */}
             <Button
               type="submit"
               className="w-full"

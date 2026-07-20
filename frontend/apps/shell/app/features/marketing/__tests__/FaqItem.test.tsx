@@ -21,7 +21,7 @@ describe("FaqItem", () => {
     );
     expect(answer.tagName).toBe("P");
 
-    // The divider is a top border on the entry wrapper (§06 border-t dividers).
+    // The divider is a top border on the entry wrapper.
     expect(container.firstElementChild).toHaveClass("border-t");
   });
 });

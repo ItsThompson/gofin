@@ -17,7 +17,6 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
   return (
     <Card>
       <CardContent className="flex flex-wrap gap-6 py-4">
-        {/* Type filter */}
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             Expense Type
@@ -40,7 +39,6 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
           </div>
         </div>
 
-        {/* Tag filter */}
         {tags.length > 0 && (
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">
@@ -65,7 +63,6 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
           </div>
         )}
 
-        {/* Date range filter */}
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">
             Date Range

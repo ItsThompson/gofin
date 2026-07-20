@@ -34,7 +34,6 @@ describe("handleSessionExpiry", () => {
 
   beforeEach(() => {
     sessionStorage.clear();
-    // Mock window.location
     Object.defineProperty(window, "location", {
       writable: true,
       value: { pathname: "/budget/2024/01", href: "" },

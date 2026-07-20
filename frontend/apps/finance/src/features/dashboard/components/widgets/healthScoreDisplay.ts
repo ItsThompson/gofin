@@ -11,7 +11,7 @@ export const BAND_COLOR_CLASS: Record<HealthBand, string> = {
   red: "text-red-500",
 };
 
-/** Short human label for each band (ticket wording). */
+/** Short human label for each band. */
 export const BAND_LABEL: Record<HealthBand, string> = {
   green: "On plan",
   amber: "Drifting",
@@ -29,9 +29,7 @@ const COMPONENT_LABEL: Record<string, string> = {
 /**
  * Human label for a sub-score key. Falls back to a humanized form of the raw key
  * (snake_case -> Title Case) so an unknown or future component still renders a
- * sensible label instead of crashing. This is what keeps the card
- * backward-compatible with historical snapshots and forward-compatible with new
- * components the backend may add.
+ * sensible label instead of crashing.
  */
 export function componentLabel(key: string): string {
   return COMPONENT_LABEL[key] ?? humanizeKey(key);

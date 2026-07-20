@@ -63,12 +63,10 @@ describe("NewExpenseFeature", () => {
     expect(screen.getByLabelText("Date")).toBeInTheDocument();
     expect(screen.getByLabelText("Tag")).toBeInTheDocument();
 
-    // Radio buttons for expense type
     expect(screen.getByLabelText("essentials")).toBeInTheDocument();
     expect(screen.getByLabelText("desires")).toBeInTheDocument();
     expect(screen.getByLabelText("savings")).toBeInTheDocument();
 
-    // Submit button
     expect(
       screen.getByRole("button", { name: "Log Expense" }),
     ).toBeInTheDocument();

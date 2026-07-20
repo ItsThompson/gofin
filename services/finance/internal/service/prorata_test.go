@@ -55,7 +55,7 @@ func TestCalculateInstallments_LargeRemainder(t *testing.T) {
 }
 
 func TestCalculateInstallments_SpecExample(t *testing.T) {
-	// Spec example: $100 over 3 months = 3400 + 3300 + 3300 cents
+	// $100 over 3 months: base 3333, first installment absorbs the +1 remainder -> 3334 + 3333 + 3333
 	result := CalculateInstallments(10000, 3)
 	assert.Equal(t, []int64{3334, 3333, 3333}, result)
 	assert.Equal(t, int64(10000), result[0]+result[1]+result[2])

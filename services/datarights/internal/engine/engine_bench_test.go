@@ -18,8 +18,7 @@ const benchProviderLatency = 10 * time.Millisecond
 // with differing simulated latency. It drives engine.runExport end-to-end;
 // collection dominates because the stub repo, ZIP assembly, and stub sender are
 // effectively instant, so the reported ns/op tracks total collection latency:
-// ≈ max(providers) under the errgroup fan-out versus ≈ sum(providers) under the
-// old serial loop.
+// ≈ max(providers) under the errgroup fan-out rather than the ≈ sum(providers) a serial loop would cost.
 func BenchmarkEngineCollectionFanout(b *testing.B) {
 	provs := make([]DataProvider, 5)
 	for i := range provs {

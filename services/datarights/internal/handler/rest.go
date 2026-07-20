@@ -77,9 +77,8 @@ func (h *RESTHandler) CreateExport(c *gin.Context) {
 				slog.Time("next_allowed_at", rateLimitErr.RetryAfter),
 				slog.String("method", "handler.CreateExport"),
 			)
-			// C9: the retry timing moves to the standard Retry-After header and
-			// the body becomes the standard {code, message}. datarights pre-maps
-			// its RateLimitError here so apierr.Respond stays generic.
+			// datarights pre-maps its RateLimitError to the standard Retry-After
+			// header and {code, message} body here so apierr.Respond stays generic.
 			c.Header("Retry-After", rateLimitErr.RetryAfter.UTC().Format(http.TimeFormat))
 			apierr.Respond(c, &apierr.Error{
 				Code:    model.ErrRateLimited,

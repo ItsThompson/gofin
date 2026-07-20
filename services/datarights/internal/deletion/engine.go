@@ -59,7 +59,6 @@ func (e *Engine) execute(ctx context.Context, jobID, userID string) error {
 		slog.String("method", "deletion.engine.execute"),
 	)
 
-	// Execute each provider in registration order.
 	for _, provider := range e.registry.All() {
 		attempts, err := e.executeProvider(ctx, provider, jobID, userID)
 		if err != nil {

@@ -4,7 +4,7 @@ import type { FaqContent } from "../types";
 /**
  * FAQ section: an <h2> heading above a divided list of FaqItems, one per entry
  * in content.faq.items. Purely data-driven: adding or removing a question is a
- * content.ts edit and requires no change here. Static list, no accordion (§09).
+ * content.ts edit and requires no change here. Static list, no accordion.
  */
 export function FaqSection({ heading, items }: FaqContent) {
   return (

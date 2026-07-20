@@ -207,7 +207,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     });
 
-    // Second fetch succeeds
     mockFetchSuccess();
     await user.click(screen.getByRole("button", { name: /retry/i }));
 
@@ -294,7 +293,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    // Trigger deletion
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -322,7 +320,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    // Trigger deletion
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -335,7 +332,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("Deleting...")).toBeInTheDocument();
     });
 
-    // Simulate polling returning "completed"
     mockDeletionPollResponse("completed");
     await act(async () => {
       vi.advanceTimersByTime(2500);
@@ -345,7 +341,6 @@ describe("AdminPanelPage", () => {
       expect(screen.queryByText("alice")).not.toBeInTheDocument();
     });
 
-    // Other users still present
     expect(screen.getByText("bob")).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith('User "alice" has been deleted');
     vi.useRealTimers();
@@ -362,7 +357,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    // Trigger deletion
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
     await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -375,7 +369,6 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("Deleting...")).toBeInTheDocument();
     });
 
-    // Simulate polling returning "failed"
     mockDeletionPollResponse("failed", "Provider finance failed: connection timeout");
     await act(async () => {
       vi.advanceTimersByTime(2500);

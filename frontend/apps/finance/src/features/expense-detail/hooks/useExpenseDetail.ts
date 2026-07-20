@@ -33,7 +33,6 @@ export function useExpenseDetail(
       setExpense(expenseResp.expense);
       setHistory(historyResp.entries);
 
-      // Fetch pro-rata group if this is a pro-rata expense
       if (expenseResp.expense.isProRata && expenseResp.expense.proRataGroup) {
         try {
           const groupResp = await expenseDetailApi.getProRataGroup(

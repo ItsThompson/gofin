@@ -42,8 +42,8 @@ const BANDS: { band: keyof typeof BAND_LABEL; range: string }[] = [
 
 /**
  * Learn-more modal explaining the health score, its sub-scores, the color bands,
- * and the provisional and building-baseline states. Static content sourced from
- * the ticket wording; reuses the shared Dialog (backdrop + focus trap + Escape).
+ * and the provisional and building-baseline states. Reuses the shared Dialog
+ * (backdrop + focus trap + Escape).
  */
 export function HealthScoreInfoModal({ open, onClose }: HealthScoreInfoModalProps) {
   return (

@@ -1,9 +1,9 @@
 /**
  * Module Federation host configuration for the shell app.
  *
- * The shell is the MF host that loads finance and admin remotes at runtime.
- * Remote loading is wired in ticket 8: for now, this config declares the
- * remotes and shared singletons so the MF boundary is established.
+ * This config declares the finance and admin remotes plus the shared
+ * singletons (react, react-dom, react-router, zustand) that define the
+ * Module Federation boundary for the shell host.
  */
 export const moduleFederationConfig = {
   name: "shell",

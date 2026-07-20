@@ -55,7 +55,6 @@ function CategoryGauge({
             {category.percentUsed.toFixed(0)}%
           </span>
         </div>
-        {/* Progress bar */}
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
             className={`h-full rounded-full transition-all ${isOverBudget ? "bg-red-500" : "bg-primary"}`}

@@ -14,9 +14,9 @@ func newTestInMemoryClient() *inMemoryImmudbClient {
 	return &inMemoryImmudbClient{rows: make([]map[string]interface{}, 0)}
 }
 
-// TestInMemoryClient_UpdateReturnsExplicitError locks in C3: the local stub no
-// longer silently no-ops an UPDATE (which would leave a corrected expense's
-// original row active and double-count); it fails loudly instead.
+// TestInMemoryClient_UpdateReturnsExplicitError asserts the local stub fails
+// loudly on UPDATE rather than silently no-opping, which would leave a
+// corrected expense's original row active and double-count.
 func TestInMemoryClient_UpdateReturnsExplicitError(t *testing.T) {
 	client := newTestInMemoryClient()
 
@@ -29,9 +29,9 @@ func TestInMemoryClient_UpdateReturnsExplicitError(t *testing.T) {
 	assert.Contains(t, err.Error(), "unsupported in the local in-memory immudb stub")
 }
 
-// TestInMemoryClient_SelectByIDIsUserScoped locks in the C2 dev-client fix: the
-// empty-userID OR-bypass on select-by-id is removed, so the stub can no longer
-// return another user's row (or any row) under an empty user scope.
+// TestInMemoryClient_SelectByIDIsUserScoped asserts select-by-id is scoped to
+// the requesting user: the stub returns no row under an empty user scope and
+// never returns another user's row.
 func TestInMemoryClient_SelectByIDIsUserScoped(t *testing.T) {
 	ctx := context.Background()
 	client := newTestInMemoryClient()
@@ -43,7 +43,7 @@ func TestInMemoryClient_SelectByIDIsUserScoped(t *testing.T) {
 
 	const selectByID = "SELECT id, user_id, status FROM expenses WHERE id = @id AND user_id = @user_id;"
 
-	// Empty user scope: the old bypass would have returned user-a's row.
+	// Empty user scope must return no row.
 	emptyScope, err := client.SQLQuery(ctx, selectByID,
 		map[string]interface{}{"id": "exp-1", "user_id": ""})
 	require.NoError(t, err)

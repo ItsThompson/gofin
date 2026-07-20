@@ -34,7 +34,7 @@ const snapshotDir = "testdata/healthscore"
 
 // canonicalHealthScore is a fixed, representative input for the golden snapshot:
 // a closed month with a configured budget and a full desires window so every
-// v2 component (savings, budget, allocation, stability) and the insight appear.
+// current-version component (savings, budget, allocation, stability) and the insight appear.
 func canonicalHealthScore() *model.HealthScore {
 	period := &model.BudgetPeriod{
 		Year: 2026, Month: 3, BudgetAmount: 300000,
@@ -79,7 +79,7 @@ func TestHealthScoreGolden_CurrentVersion(t *testing.T) {
 		"v%d output drifted; a formula or shape change requires a FormulaVersion bump and a new snapshot", model.FormulaVersion)
 }
 
-// TestHealthScoreGolden_Deterministic covers VC-P3: the marshaled snapshot is
+// TestHealthScoreGolden_Deterministic asserts the marshaled snapshot is
 // byte-identical across runs (components is a slice and the insight is a flat
 // struct, so there is no map-ordering nondeterminism).
 func TestHealthScoreGolden_Deterministic(t *testing.T) {
@@ -109,7 +109,7 @@ func TestHealthScoreSnapshots_Immutable(t *testing.T) {
 	}
 }
 
-// TestHealthScoreSnapshots_BackwardCompatible covers AC7 (Go half): every
+// TestHealthScoreSnapshots_BackwardCompatible asserts every
 // committed historical snapshot deserializes into the current model.HealthScore
 // and carries the expected fields, so a persisted row (same shape) stays
 // readable across versions.

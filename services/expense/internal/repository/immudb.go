@@ -309,7 +309,6 @@ func rowToExpenseSuggestionInput(row SQLRow) *model.ExpenseSuggestionInput {
 // multi-statement ExecAll; each statement is individually atomic in its MVCC
 // model. For a single-user personal finance app, sequential execution is safe.
 func (r *ImmudbExpenseRepository) CorrectExpense(ctx context.Context, original *model.Expense, correction *model.Expense) (*model.Expense, error) {
-	// Step 1: Mark the original as corrected
 	updateQuery := `UPDATE expenses SET status = 'corrected' WHERE id = @id;`
 	_, err := r.client.SQLExec(ctx, updateQuery, map[string]interface{}{
 		"id": original.ID,
@@ -318,7 +317,6 @@ func (r *ImmudbExpenseRepository) CorrectExpense(ctx context.Context, original *
 		return nil, fmt.Errorf("marking original expense as corrected: %w", err)
 	}
 
-	// Step 2: Insert the correction entry
 	created, err := r.CreateExpense(ctx, correction)
 	if err != nil {
 		return nil, fmt.Errorf("inserting correction entry: %w", err)

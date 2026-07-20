@@ -25,11 +25,9 @@ func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	return NewGRPCHandler(expenseSvc, logger)
 }
 
-// TestGRPC_RemovedReadRPCsAreNotRegistered locks in C2: the GetCorrectionHistory
-// and GetProRataGroup RPCs hardcoded an empty ("") user scope and had no
-// consumer, so they were removed from the proto and the generated service
-// descriptor. The correction-history and pro-rata reads are served over REST.
-// This guards against re-introducing an unscoped read RPC.
+// TestGRPC_RemovedReadRPCsAreNotRegistered asserts GetCorrectionHistory and
+// GetProRataGroup are served over REST, not gRPC. This guards against
+// re-introducing an unscoped read RPC on the gRPC surface.
 func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	registered := make(map[string]bool)
 	for _, m := range pb.ExpenseService_ServiceDesc.Methods {
@@ -52,12 +50,9 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	assert.Contains(t, registered, "StreamAllUserExpenses")
 }
 
-// TestGRPC_GetExpense_WrappedTypedErrorClassifies locks in C7 (gRPC): a typed
-// *apierr.Error that the service %w-wraps before it reaches the gRPC handler must
-// still classify via errors.As (not collapse to codes.Internal). GetExpense
-// wraps every repo error with %w ("getting expense: %w"), so a typed NOT_FOUND
-// returned by the repo reaches the handler wrapped; mapServiceError must still
-// map it to codes.NotFound.
+// TestGRPC_GetExpense_WrappedTypedErrorClassifies asserts a typed *apierr.Error
+// that the service %w-wraps before it reaches the gRPC handler must still
+// classify via errors.As (not collapse to codes.Internal).
 func TestGRPC_GetExpense_WrappedTypedErrorClassifies(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	handler := newTestGRPCHandler(repo)

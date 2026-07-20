@@ -24,7 +24,7 @@ type insightInputs struct {
 }
 
 // buildInsight selects the driver (lowest present component) and templates the
-// summary and nudge (Formula F).
+// summary and nudge.
 //
 // The recoverable "points" figure is each driver component's own max-minus-score
 // and is exact for that component. It is deliberately per-component, not a total
@@ -108,7 +108,7 @@ func buildInsight(components []model.HealthComponent, in insightInputs) model.He
 }
 
 // selectDriver returns the lowest-scoring present component. Components are
-// appended in Formula F precedence order (savings, budget, allocation), so
+// appended in precedence order (savings, budget, allocation), so
 // picking the first strict minimum yields the required tie-break.
 func selectDriver(components []model.HealthComponent) model.HealthComponent {
 	driver := components[0]

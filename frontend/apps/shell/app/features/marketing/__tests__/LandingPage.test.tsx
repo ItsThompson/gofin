@@ -6,8 +6,8 @@ import { LandingPage } from "../LandingPage";
 import { landingContent } from "../content";
 import { setAuthStore, resetAuthMocks } from "./auth-mocks";
 
-// The redirect is gone: both logged-out and logged-in visitors see the
-// marketing page. The store is the boundary (mocked); MemoryRouter/Link stay
+// Both logged-out and logged-in visitors see the marketing page (no redirect).
+// The store is the boundary (mocked); MemoryRouter/Link stay
 // real so CTA and nav hrefs are asserted against the rendered anchors.
 vi.mock("@/stores/auth-store", () => ({
   useAuthStore: vi.fn(),

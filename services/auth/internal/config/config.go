@@ -10,7 +10,7 @@ import (
 )
 
 // DefaultRESTPort is the REST listener port used when REST_PORT is unset. It is
-// also the port the --healthcheck probe targets (US-PLATFORM-05), so both the
+// also the port the --healthcheck probe targets, so both the
 // server and its probe share one source of truth.
 const DefaultRESTPort = "8081"
 
@@ -40,7 +40,7 @@ type Config struct {
 
 // RESTPort returns the configured REST port from REST_PORT, or DefaultRESTPort.
 // It is exported so the --healthcheck probe, which runs before the full config
-// Load, targets the same port the server listens on (US-PLATFORM-05).
+// Load, targets the same port the server listens on.
 func RESTPort() string {
 	if p := os.Getenv("REST_PORT"); p != "" {
 		return p

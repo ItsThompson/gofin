@@ -228,7 +228,6 @@ describe("useAdminPanel", () => {
       });
     });
 
-    // Simulate polling returning "completed"
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
