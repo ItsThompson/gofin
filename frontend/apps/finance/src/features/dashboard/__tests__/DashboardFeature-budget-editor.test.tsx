@@ -1,51 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DashboardFeature } from "../index";
-import {
-  buildUser,
-  buildPeriod,
-  buildPeriodSummary,
-  createMockApi,
-  renderWithRouter,
-} from "@gofin/test-utils";
-
-const testUser = buildUser({
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  currency: "USD",
-});
-
-const testPeriod = buildPeriod({
-  id: "period-abc",
-  userId: "user-1",
-  year: 2026,
-  month: 5,
-  budgetAmount: 300000,
-  essentialsPercent: 50,
-  desiresPercent: 30,
-  savingsPercent: 20,
-  createdAt: "2026-05-01T00:00:00Z",
-  updatedAt: "2026-05-01T00:00:00Z",
-});
-
-const testSummary = buildPeriodSummary({
-  periodId: "period-abc",
-  year: 2026,
-  month: 5,
-  totalBudget: 300000,
-  totalSpent: 54500,
-  remaining: 245500,
-  daysInPeriod: 31,
-  daysElapsed: 3,
-  dailySpendRate: 18166,
-  budgetPace: 8767,
-  isOnTrack: false,
-  essentials: { allocated: 150000, spent: 50000, remaining: 100000, percentUsed: 33.33 },
-  desires: { allocated: 90000, spent: 4500, remaining: 85500, percentUsed: 5.0 },
-  savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0.0 },
-});
+import { buildPeriod, createMockApi } from "@gofin/test-utils";
+import { renderDashboard } from "./render";
+import { testPeriod, testSummary } from "./fixtures";
 
 function dashboardDataRoutes() {
   return {
@@ -60,10 +18,6 @@ function dashboardDataRoutes() {
     "/api/finance/prorata/upcoming": { body: { schedules: [] } },
     "/api/finance/spending/trends": { body: { trends: [] } },
   };
-}
-
-function renderDashboard(user = testUser) {
-  return renderWithRouter(<DashboardFeature user={user} />, { route: "/dashboard" });
 }
 
 describe("DashboardFeature - Budget Settings Editor Save", () => {
