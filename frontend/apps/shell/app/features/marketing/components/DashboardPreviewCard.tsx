@@ -1,4 +1,9 @@
 import { motion } from "framer-motion";
+import {
+  LOOP_DURATION,
+  barFillKeyframes,
+  totalRiseKeyframes,
+} from "./heroTimeline";
 
 interface DashboardPreviewCardProps {
   /** When true, render the final state with no animation (reduced-motion path). */
@@ -14,9 +19,11 @@ const CATEGORY_BARS = [
 
 /**
  * Scene 3 of the hero: a stylized dashboard preview showing a monthly total and
- * the three category bars filling left to right. Marketing-only, no real data.
- * With reducedMotion the bars render at their final width and the numbers show
- * their end value, which doubles as the static end state and the tested markup.
+ * the three category bars filling left to right. On the animated path the bars
+ * and total are phase-locked to the hero loop: they fill/rise as the card is
+ * revealed and hold full through the dwell. Marketing-only, no real data. With
+ * reducedMotion the bars render at their final width and the numbers show their
+ * end value, which doubles as the static end state and the tested markup.
  */
 export function DashboardPreviewCard({ reducedMotion }: DashboardPreviewCardProps) {
   return (
@@ -28,40 +35,55 @@ export function DashboardPreviewCard({ reducedMotion }: DashboardPreviewCardProp
         <motion.span
           className="font-heading text-2xl font-bold"
           initial={reducedMotion ? false : { opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={reducedMotion ? undefined : { duration: 0.5, delay: 0.2 }}
+          animate={
+            reducedMotion
+              ? { opacity: 1, y: 0 }
+              : { opacity: totalRiseKeyframes.opacity, y: totalRiseKeyframes.y }
+          }
+          transition={
+            reducedMotion
+              ? undefined
+              : {
+                  duration: LOOP_DURATION,
+                  times: totalRiseKeyframes.times,
+                  repeat: Infinity,
+                  ease: "linear",
+                }
+          }
         >
           $1,240
         </motion.span>
       </div>
 
       <div className="flex flex-col gap-3">
-        {CATEGORY_BARS.map((bar, index) => (
-          <div key={bar.label} className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">
-              {bar.label}
-            </span>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-              <motion.div
-                className={`h-full rounded-full ${bar.token}`}
-                style={{ width: bar.width, transformOrigin: "left" }}
-                initial={reducedMotion ? false : { scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                transition={
-                  reducedMotion
-                    ? undefined
-                    : {
-                        duration: 1.1,
-                        delay: 0.3 + index * 0.15,
-                        repeat: Infinity,
-                        repeatType: "reverse",
-                        repeatDelay: 1.6,
-                      }
-                }
-              />
+        {CATEGORY_BARS.map((bar, index) => {
+          const barFill = barFillKeyframes(index);
+          return (
+            <div key={bar.label} className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                {bar.label}
+              </span>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                <motion.div
+                  className={`h-full rounded-full ${bar.token}`}
+                  style={{ width: bar.width, transformOrigin: "left" }}
+                  initial={reducedMotion ? false : { scaleX: 0 }}
+                  animate={{ scaleX: reducedMotion ? 1 : barFill.values }}
+                  transition={
+                    reducedMotion
+                      ? undefined
+                      : {
+                          duration: LOOP_DURATION,
+                          times: barFill.times,
+                          repeat: Infinity,
+                          ease: "linear",
+                        }
+                  }
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <p className="mt-auto text-xs font-medium text-muted-foreground">

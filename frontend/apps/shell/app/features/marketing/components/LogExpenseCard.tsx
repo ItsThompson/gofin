@@ -1,4 +1,13 @@
 import { motion } from "framer-motion";
+import {
+  reverseCycleRepeatDelay,
+  loopCycleRepeatDelay,
+} from "./heroTimeline";
+
+/** Duration of a single field's fill/slide-in. */
+const FIELD_FILL_SECONDS = 0.4;
+/** Duration of the button's press keyframe sequence. */
+const BUTTON_PRESS_SECONDS = 0.6;
 
 /** The expense fields that autofill in scene 1, revealed in sequence. */
 const EXPENSE_FIELDS = [
@@ -29,11 +38,11 @@ export function LogExpenseCard() {
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{
-              duration: 0.4,
+              duration: FIELD_FILL_SECONDS,
               delay: 0.2 + index * 0.35,
               repeat: Infinity,
               repeatType: "reverse",
-              repeatDelay: 2.4,
+              repeatDelay: reverseCycleRepeatDelay(FIELD_FILL_SECONDS),
             }}
           >
             <span className="text-xs font-medium text-muted-foreground">
@@ -48,10 +57,10 @@ export function LogExpenseCard() {
         className="mt-auto rounded-lg bg-primary px-4 py-2 text-center text-sm font-medium text-primary-foreground"
         animate={{ scale: [1, 1, 0.96, 1] }}
         transition={{
-          duration: 0.6,
+          duration: BUTTON_PRESS_SECONDS,
           delay: 1.8,
           repeat: Infinity,
-          repeatDelay: 2.2,
+          repeatDelay: loopCycleRepeatDelay(BUTTON_PRESS_SECONDS),
         }}
       >
         Log Expense
