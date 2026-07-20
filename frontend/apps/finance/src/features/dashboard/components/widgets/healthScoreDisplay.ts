@@ -1,4 +1,4 @@
-import type { HealthBand } from "../../../../types";
+import type { HealthBand } from "@gofin/core";
 
 /**
  * Band color as a Tailwind text-color class. The ring reads it via

@@ -1,4 +1,4 @@
-import type { Expense, CorrectExpenseRequest } from "../../types";
+import type { Expense, CorrectExpenseRequest } from "@gofin/core";
 
 /** Correction-related state, available only when expense data is loaded. */
 export interface CorrectionState {

@@ -1,4 +1,4 @@
-import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "../../types";
+import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "@gofin/core";
 
 /** Base properties available in all period states. */
 interface PeriodStateBase {

@@ -5,7 +5,7 @@ import type {
   ExpenseResponse,
   CorrectionHistoryResponse,
   CorrectExpenseRequest,
-} from "../../types";
+} from "@gofin/core";
 
 export const expenseDetailApi = {
   getExpense: (expenseId: string) =>

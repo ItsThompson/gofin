@@ -1,4 +1,4 @@
-import type { HealthComponent } from "../../../../types";
+import type { HealthComponent } from "@gofin/core";
 import { componentLabel } from "./healthScoreDisplay";
 
 interface SubScoreBarProps {

@@ -1,13 +1,11 @@
 import { formatCurrency } from "@gofin/core";
-import type { Expense, Tag } from "../../../types";
+import type { Expense, Tag, ExpenseType } from "@gofin/core";
 
 export interface ExpenseChange {
   field: string;
   from: string;
   to: string;
 }
-
-type ExpenseType = "essentials" | "desires" | "savings";
 
 interface CorrectionValues {
   name: string;

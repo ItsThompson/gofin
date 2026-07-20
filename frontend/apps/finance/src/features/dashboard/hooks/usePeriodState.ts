@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ApiRequestError, useApiToast, useFormMutation } from "@gofin/api";
-import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "../../../types";
+import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "@gofin/core";
 import type { PeriodStateResult } from "../types";
 import { dashboardApi } from "../api";
 

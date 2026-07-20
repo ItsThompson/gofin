@@ -14,7 +14,7 @@ import type {
   HealthScore,
   HealthScoreConfigureBudget,
   HealthScoreTrendPoint,
-} from "../../../types";
+} from "@gofin/core";
 import type { PaginatedResponse } from "@gofin/core";
 import { dashboardApi } from "../api";
 

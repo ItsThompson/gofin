@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TrendPoint } from "../../../types";
+import type { TrendPoint } from "@gofin/core";
 import {
   Select,
   SelectContent,

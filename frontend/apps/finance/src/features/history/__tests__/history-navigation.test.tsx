@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { HistoryFeature } from "../index";
 import type { User } from "@gofin/core";
-import type { BudgetPeriod } from "@/types";
+import type { BudgetPeriod } from "@gofin/core";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;

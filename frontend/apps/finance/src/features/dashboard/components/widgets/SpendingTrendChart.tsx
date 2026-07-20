@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@gofin/ui/components/card";
 import { formatCurrency, getCurrencySymbol } from "@gofin/core";
-import type { TrendPoint } from "../../../../types";
+import type { TrendPoint } from "@gofin/core";
 import { MONTH_LABELS } from "../../../../lib/trend-utils";
 
 interface SpendingTrendChartProps {

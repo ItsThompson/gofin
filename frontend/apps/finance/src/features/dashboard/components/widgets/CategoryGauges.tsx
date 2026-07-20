@@ -1,5 +1,5 @@
 import { formatCurrency } from "@gofin/core";
-import type { PeriodSummary } from "../../../../types";
+import type { PeriodSummary } from "@gofin/core";
 import {
   Card,
   CardContent,

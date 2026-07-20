@@ -1,7 +1,7 @@
 import { buildUser, buildTag } from "@gofin/test-utils";
 
 import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
-import type { Tag } from "../../../types";
+import type { Tag } from "@gofin/core";
 
 export const mockUser = buildUser({
   id: "user-1",

@@ -6,7 +6,7 @@ import type {
   HealthScore,
   HealthScoreConfigureBudget,
   HealthScoreTrendPoint,
-} from "../../../types";
+} from "@gofin/core";
 
 // ResponsiveContainer won't render children without real DOM dimensions.
 // Mock it so the ring and sparkline chart internals execute in jsdom.

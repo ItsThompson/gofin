@@ -1,5 +1,5 @@
 import { Lightbulb } from "lucide-react";
-import type { HealthInsight } from "../../../../types";
+import type { HealthInsight } from "@gofin/core";
 
 interface InsightPanelProps {
   insight: HealthInsight;

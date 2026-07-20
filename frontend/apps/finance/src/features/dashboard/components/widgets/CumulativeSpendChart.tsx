@@ -1,5 +1,5 @@
 import { getCurrencySymbol } from "@gofin/core";
-import type { CumulativeSpendPoint } from "../../../../types";
+import type { CumulativeSpendPoint } from "@gofin/core";
 import { insertCrossoverPoints } from "../../../../lib/insertCrossoverPoints";
 import {
   tooltipFormatter,

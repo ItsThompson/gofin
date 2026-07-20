@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 import { getCurrencySymbol, EXPENSE_TYPES } from "@gofin/core";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
-import type { Tag } from "../../../types";
+import type { Tag } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {

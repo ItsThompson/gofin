@@ -4,7 +4,7 @@ import {
   PolarAngleAxis,
   ResponsiveContainer,
 } from "recharts";
-import type { HealthBand } from "../../../../types";
+import type { HealthBand } from "@gofin/core";
 import { BAND_COLOR_CLASS, BAND_LABEL } from "./healthScoreDisplay";
 
 interface ScoreRingProps {

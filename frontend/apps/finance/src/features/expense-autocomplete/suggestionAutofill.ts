@@ -1,4 +1,4 @@
-import type { Tag } from "../../types";
+import type { Tag } from "@gofin/core";
 import type { ExpenseSuggestion, ExpenseSuggestionPatch } from "./types";
 
 function formatMinorUnits(amount: number): string {

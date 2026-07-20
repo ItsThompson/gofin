@@ -10,7 +10,7 @@ import type {
   ProRataResponse,
   Tag,
   TagListResponse,
-} from "../../../types";
+} from "@gofin/core";
 import {
   createExpenseSuggestionPatch,
   type ExpenseSuggestion,

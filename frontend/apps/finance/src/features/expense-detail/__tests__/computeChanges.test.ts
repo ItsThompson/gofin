@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeChanges } from "../utils/computeChanges";
-import type { Expense, Tag } from "@/types";
+import type { Expense, Tag } from "@gofin/core";
 
 const baseTags: Tag[] = [
   { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef, type FormEvent } from "react";
 import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
-import type { UpdateDefaultsRequest } from "../../../types";
+import type { UpdateDefaultsRequest } from "@gofin/core";
 import { settingsApi } from "../api";
 
 export interface DefaultBudgetState {

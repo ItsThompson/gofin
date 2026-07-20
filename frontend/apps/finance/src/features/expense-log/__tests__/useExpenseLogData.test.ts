@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useExpenseLogData, EMPTY_FETCH_RESULT } from "../hooks/useExpenseLogData";
 import type { FilterCriteria } from "../hooks/useExpenseFilters";
-import type { Expense, Tag, BudgetPeriod } from "@/types";
+import type { Expense, Tag, BudgetPeriod } from "@gofin/core";
 
 // Mock the API module
 vi.mock("../api", () => ({

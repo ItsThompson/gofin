@@ -15,7 +15,7 @@ import type {
   UpdatePeriodRequest,
   HealthScoreResponse,
   HealthScoreTrendResponse,
-} from "../../types";
+} from "@gofin/core";
 
 export const dashboardApi = {
   getCurrentPeriod: (year: number, month: number) =>
