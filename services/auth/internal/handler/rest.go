@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/httpx"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
@@ -201,16 +201,13 @@ func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 
 // handleError logs unexpected (non-apierr) errors before delegating to
 // apierr.Respond, which owns the {code, message, fields?} wire mapping.
-// apierr.Respond takes no logger, so logging here preserves the 500
-// observability the service relies on.
+// It reports an unclassified failure through the shared httpx helper, which names
+// the operation from this route's Registry ID.
 func (h *RESTHandler) handleError(c *gin.Context, err error) {
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) {
-		h.logger.Error("unexpected error",
-			slog.String("error", err.Error()),
-		)
-	}
-	apierr.Respond(c, err)
+	httpx.RespondError(c, err, errkit.Meta{
+		Domain: "auth",
+		Msg:    "unexpected error",
+	})
 }
 
 // clearAuthCookies removes both auth cookies by setting MaxAge to -1

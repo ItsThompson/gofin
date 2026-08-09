@@ -87,7 +87,7 @@ func (h *RESTHandler) CreateExport(c *gin.Context) {
 			})
 			return
 		}
-		respondError(c, h.logger, err)
+		respondError(c, err)
 		return
 	}
 
@@ -130,7 +130,7 @@ func (h *RESTHandler) ListExports(c *gin.Context) {
 
 	result, err := h.exportService.ListJobs(c.Request.Context(), userID, page, pageSize)
 	if err != nil {
-		respondError(c, h.logger, err)
+		respondError(c, err)
 		return
 	}
 
@@ -149,7 +149,7 @@ func (h *RESTHandler) GetExport(c *gin.Context) {
 
 	job, err := h.exportService.GetJob(c.Request.Context(), jobID, userID)
 	if err != nil {
-		respondError(c, h.logger, err)
+		respondError(c, err)
 		return
 	}
 

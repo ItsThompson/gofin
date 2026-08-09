@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	"github.com/ItsThompson/gofin/services/httpx"
@@ -197,17 +197,14 @@ func (h *RESTHandler) GetExpense(c *gin.Context) {
 	})
 }
 
-// respondError delegates the wire mapping to apierr.Respond (which classifies
-// via errors.As), logging any unexpected non-*apierr.Error at error level first
-// so 500s stay observable (apierr.Respond takes no logger).
+// respondError delegates the wire mapping to apierr.Respond and reports an
+// unclassified failure through the shared httpx helper, which names the operation
+// from this route's Registry ID.
 func (h *RESTHandler) respondError(c *gin.Context, err error) {
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) {
-		h.logger.Error("unexpected error",
-			slog.String("error", err.Error()),
-		)
-	}
-	apierr.Respond(c, err)
+	httpx.RespondError(c, err, errkit.Meta{
+		Domain: "expenses",
+		Msg:    "unexpected error",
+	})
 }
 
 // CorrectExpense handles POST /api/expenses/:id/correct.
