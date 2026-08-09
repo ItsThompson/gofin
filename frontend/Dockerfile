@@ -26,6 +26,11 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 COPY --from=installer /app/ ./
 COPY --from=pruner /app/out/full/ ./
+# Vite bakes VITE_* values into the browser bundle, so the DSN and the release
+# have to arrive at build time. An absent DSN produces a bundle that initializes
+# nothing, which is what keeps the CI and E2E stack from sending events.
+ARG VITE_SENTRY_DSN
+ARG VITE_SENTRY_RELEASE
 RUN npx turbo build --filter=@gofin/shell...
 
 # Stage 4: Production runtime

@@ -64,6 +64,14 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: true
+          # Only the mfe Dockerfile declares these. Docker warns about an unused
+          # build arg for the Go images and succeeds; a conditional step per
+          # matrix entry would add a branch to a generic step for no gain.
+          # The release is already prefixed here, because sentry-cli keys the
+          # uploaded source maps to this exact string.
+          build-args: |
+            VITE_SENTRY_DSN=${{ vars.SENTRY_DSN_FRONTEND }}
+            VITE_SENTRY_RELEASE=gofin-web@${{ github.sha }}
           tags: |
             ghcr.io/itsthompson/gofin/${{ matrix.service }}:latest
             ghcr.io/itsthompson/gofin/${{ matrix.service }}:sha-${{ github.sha }}

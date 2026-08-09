@@ -13,11 +13,19 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Baked into the browser bundle. Local and CI builds only: the CD runner
+        # cannot read /opt/gofin/.env, so it passes vars.SENTRY_DSN_FRONTEND.
+        - VITE_SENTRY_DSN=${SENTRY_DSN_FRONTEND:-}
+        - VITE_SENTRY_RELEASE=${SENTRY_RELEASE:-}
     ports:
       - "3000:3000"
     environment:
       - API_GATEWAY_URL=http://api-gateway:8080
       - COOKIE_SECURE=true
+      # Read at runtime by the SSR process, which never sees the build args.
+      - SENTRY_DSN=${SENTRY_DSN_FRONTEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
     networks:
       - edge-net
     deploy:
