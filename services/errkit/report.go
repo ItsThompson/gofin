@@ -86,24 +86,36 @@ func isExpected(err error, expected []error) bool {
 }
 
 // logAttrs builds the structured attributes of the log record. Meta.Data is
-// flattened alongside them so the log stream carries the same detail as the
-// Sentry context block, which matters when Sentry is unreachable or the event has
-// aged out.
+// flattened alongside the derived attributes so the log stream carries the same
+// detail as the Sentry context block, which matters when Sentry is unreachable or
+// the event has aged out. A Data key that would duplicate a derived attribute is
+// dropped: slog emits both, and a parser that keeps the last would discard the
+// error message rather than the caller's copy of it.
 func logAttrs(m Meta, err error) []any {
-	attrs := make([]any, 0, len(m.Data)+4)
-	attrs = append(attrs,
+	derived := make([]slog.Attr, 0, 4)
+	derived = append(derived,
 		slog.String("error", err.Error()),
 		slog.String(tagErrorKind, string(m.Kind.resolve())),
 	)
 
 	if m.Op != "" {
-		attrs = append(attrs, slog.String(tagOperation, m.Op))
+		derived = append(derived, slog.String(tagOperation, m.Op))
 	}
 	if m.Domain != "" {
-		attrs = append(attrs, slog.String(tagDomain, m.Domain))
+		derived = append(derived, slog.String(tagDomain, m.Domain))
+	}
+
+	attrs := make([]any, 0, len(derived)+len(m.Data))
+	taken := make(map[string]struct{}, len(derived))
+	for _, attr := range derived {
+		attrs = append(attrs, attr)
+		taken[attr.Key] = struct{}{}
 	}
 
 	for key, value := range m.Data {
+		if _, duplicate := taken[key]; duplicate {
+			continue
+		}
 		attrs = append(attrs, slog.Any(key, value))
 	}
 

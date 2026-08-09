@@ -229,6 +229,44 @@ func TestReport_DefaultsTheLogMessage(t *testing.T) {
 	assert.Equal(t, "operation failed", env.singleRecord(t).Message)
 }
 
+// slog writes both attributes when a key repeats, and a parser that keeps the last
+// would discard the failure message rather than the caller's copy of it. The
+// attribute count is asserted because collapsing the record into a map hides a
+// duplicate that is plainly visible in the log stream.
+func TestReport_DropsAMetaDataKeyThatShadowsALogAttribute(t *testing.T) {
+	env := newReportEnv(t)
+
+	_ = errkit.Report(env.ctx, errors.New("boom"), errkit.Meta{
+		Kind:   errkit.KindDatabase,
+		Op:     "expense.create",
+		Domain: "expenses",
+		Data:   map[string]any{"error": "shadow", "operation": "shadow", "expense_id": "e-1"},
+	})
+
+	record := env.singleRecord(t)
+	assert.Equal(t, 5, record.NumAttrs())
+	assert.Equal(t, map[string]any{
+		"error":      "boom",
+		"error_kind": "database",
+		"operation":  "expense.create",
+		"domain":     "expenses",
+		"expense_id": "e-1",
+	}, recordAttrs(record))
+}
+
+// A shadowed Data key is dropped from the log record only. The Sentry context
+// block is a separate namespace, so the caller's value is still on the event.
+func TestReport_KeepsAShadowedDataKeyInTheContextBlock(t *testing.T) {
+	env := newReportEnv(t)
+
+	_ = errkit.Report(env.ctx, errors.New("boom"), errkit.Meta{
+		Op:   "expense.create",
+		Data: map[string]any{"error": "shadow"},
+	})
+
+	assert.Equal(t, sentry.Context{"error": "shadow"}, env.singleEvent(t).Contexts["gofin"])
+}
+
 func TestReport_UsesTheHubFromTheContext(t *testing.T) {
 	globalEvents := withGlobalClient(t)
 	env := newReportEnv(t)
