@@ -361,6 +361,62 @@ describe("usePolling", () => {
       });
       expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
     });
+
+    it("reports the terminal failure once when requests outlive the interval", async () => {
+      // The dangerous outage shape: a hanging endpoint behind a gateway timeout,
+      // so several requests are in flight when the budget runs out.
+      const fetcher = vi.fn(
+        (): Promise<string> =>
+          new Promise((_resolve, reject) => {
+            setTimeout(() => reject(new Error("slow failure")), 3200);
+          }),
+      );
+      const onFailureLimitReached = vi.fn();
+
+      renderPolling<string>({
+        fetcher,
+        onFailureLimitReached,
+        intervalMs: 1000,
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10000);
+      });
+
+      // More ticks fired than the budget allows, so rejections land after
+      // polling stopped. Each one used to re-fire the callback.
+      expect(fetcher.mock.calls.length).toBeGreaterThan(
+        DEFAULT_MAX_CONSECUTIVE_FAILURES,
+      );
+      expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
+    });
+
+    it("delivers nothing from a tick that outlived the stop", async () => {
+      const onData = vi.fn();
+      const fetcher = vi.fn(
+        (): Promise<string> =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve("late"), 2500);
+          }),
+      );
+      const { unmount } = renderPolling<string>({
+        fetcher,
+        onData,
+        intervalMs: 1000,
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+
+      unmount();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(onData).not.toHaveBeenCalled();
+    });
   });
 
   describe("callback stability", () => {

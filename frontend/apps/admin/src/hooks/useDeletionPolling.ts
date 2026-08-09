@@ -10,10 +10,11 @@ export interface UseDeletionPollingOptions {
   onCompleted: () => void;
   onFailed: (error: string) => void;
   /**
-   * Called once when polling gives up because the status endpoint kept failing.
-   * The deletion's real outcome is unknown at that point: it is not onFailed.
+   * Called once, with the last transport error, when polling gives up because
+   * the status endpoint kept failing. The deletion's real outcome is unknown at
+   * that point: it is not onFailed.
    */
-  onStatusUnavailable: () => void;
+  onStatusUnavailable: (error: unknown) => void;
 }
 
 const DEFAULT_INTERVAL_MS = 2500;

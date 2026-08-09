@@ -81,6 +81,11 @@ export function usePolling<T>({
     const poll = async () => {
       try {
         const data = await callbacksRef.current.fetcher();
+        // setInterval does not wait for the previous tick, so several requests
+        // can be in flight at once. A tick that outlived the stop delivers
+        // nothing: its data is stale and its error is already accounted for.
+        if (intervalId === null) return;
+
         consecutiveFailures = 0;
 
         callbacksRef.current.onData(data);
@@ -89,6 +94,8 @@ export function usePolling<T>({
           stop();
         }
       } catch (error) {
+        if (intervalId === null) return;
+
         consecutiveFailures += 1;
         if (consecutiveFailures < maxConsecutiveFailures) return;
 
