@@ -28,8 +28,8 @@ export type AuthLayoutGuard =
   | { status: "ready" };
 
 export interface BackendUnavailableProps {
-  /** Re-run the auth check. */
-  onRetry: () => void;
+  /** Re-run the auth check. Awaited, so the button can show it is working. */
+  onRetry: () => Promise<void>;
 }
 
 export interface NavbarProps {

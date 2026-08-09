@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
@@ -16,6 +16,7 @@ function resetStore(overrides: Record<string, unknown> = {}) {
     isAssuming: false,
     originalAdminUser: null,
     isLoading: false,
+    authError: null,
     ...overrides,
   });
 }
@@ -173,6 +174,53 @@ describe("auth guard redirect logic", () => {
       expect(
         screen.queryByText("GoFin is unreachable"),
       ).not.toBeInTheDocument();
+    });
+
+    it("shows the retry as pending while the auth check is in flight", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () =>
+          Promise.resolve({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Server error",
+          }),
+      });
+      resetStore({ isLoading: true, isAuthenticated: false });
+      const AuthLayout = await importAuthLayout();
+
+      renderRoute("/dashboard", <AuthLayout />);
+
+      await waitFor(() => {
+        expect(screen.getByText("GoFin is unreachable")).toBeInTheDocument();
+      });
+
+      // A hanging backend is the state the user is already in: the button must
+      // not look inert for the whole gateway timeout.
+      let releaseRetry!: (value: unknown) => void;
+      mockFetch.mockReturnValue(
+        new Promise((resolve) => {
+          releaseRetry = resolve;
+        }),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+      const pendingButton = await screen.findByRole("button", {
+        name: "Retrying...",
+      });
+      expect(pendingButton).toBeDisabled();
+
+      await act(async () => {
+        releaseRetry({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ user: authenticatedUser }),
+        });
+      });
+
+      await waitFor(() => {
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      });
     });
 
     it("shows loading state while checking auth", async () => {

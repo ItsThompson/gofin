@@ -1,5 +1,6 @@
 import { Button } from "@gofin/ui/components/button";
 import { ServerCrash } from "lucide-react";
+import { useState } from "react";
 import type { BackendUnavailableProps } from "./types";
 
 /**
@@ -8,6 +9,16 @@ import type { BackendUnavailableProps } from "./types";
  * session ended, so the user is not told it did.
  */
 export function BackendUnavailable({ onRetry }: BackendUnavailableProps) {
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    // A retry against an unreachable backend can hang for as long as the
+    // gateway timeout, so the button has to say it is working.
+    await onRetry();
+    setIsRetrying(false);
+  };
+
   return (
     <div
       role="alert"
@@ -21,7 +32,9 @@ export function BackendUnavailable({ onRetry }: BackendUnavailableProps) {
           signed out.
         </p>
       </div>
-      <Button onClick={onRetry}>Try again</Button>
+      <Button onClick={handleRetry} disabled={isRetrying}>
+        {isRetrying ? "Retrying..." : "Try again"}
+      </Button>
     </div>
   );
 }
