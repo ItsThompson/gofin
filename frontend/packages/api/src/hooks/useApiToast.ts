@@ -19,16 +19,18 @@ export function isNetworkError(error: unknown): boolean {
 }
 
 /**
- * The three spellings browsers use when a dynamic `import()` cannot be fetched:
- * Chromium, Firefox and Safari each word it differently and none exposes a code.
- * Matching the message is the only signal available, which is why this sits
- * beside `isNetworkError` rather than inventing a second place for the same kind
- * of classification.
+ * The three spellings browsers use when a dynamic `import()` cannot be fetched,
+ * plus Vite's own preload helper, which rejects with its own wording when a
+ * dependency of a chunk 404s. Chromium, Firefox and Safari each word it
+ * differently and none exposes a code, so matching the message is the only signal
+ * available, which is why this sits beside `isNetworkError` rather than inventing
+ * a second place for the same kind of classification.
  */
 const MODULE_LOAD_FAILURE_MESSAGES = [
   "failed to fetch dynamically imported module",
   "error loading dynamically imported module",
   "importing a module script failed",
+  "unable to preload css for",
 ];
 
 /**

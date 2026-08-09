@@ -128,6 +128,26 @@ describe("the root route ErrorBoundary", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("reports nothing for any sub-500 route error, matching the server half", async () => {
+    // handleError draws the same line, so a hydrated 405 or 403 cannot file a
+    // browser event where the server files none.
+    for (const status of [400, 403, 405]) {
+      captureException.mockClear();
+      const { unmount } = render(
+        routeBoundary({
+          status,
+          statusText: "Generated",
+          internal: true,
+          data: null,
+        }),
+      );
+
+      await waitFor(() => expect(document.body.textContent).toContain("Error"));
+      expect(captureException).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
   it("reports a non-404 route error response", async () => {
     render(
       routeBoundary({
@@ -212,9 +232,10 @@ describe("an SSR error arriving back through hydration", () => {
   });
 
   it("still reports a route error response the server did not serialize as an Error", async () => {
-    // A thrown 5xx Response reaches the client as an ErrorResponse, which the
-    // payload marks __type RouteErrorResponse, so the suppression must not
-    // widen to it.
+    // A 5xx ErrorResponse reaches the client as an ErrorResponse rather than an
+    // Error, so the suppression must not widen to it. It is also the only owner
+    // of that event: renderHtml passes handleError an ErrorResponse only when it
+    // carries an inner error, and a thrown Response or `data()` sets none.
     serializeServerError("Unexpected Server Error");
 
     render(
@@ -298,6 +319,7 @@ describe("RemoteBoundary", () => {
     for (const message of [
       "error loading dynamically imported module: https://usegofin.com/assets/x.js",
       "Importing a module script failed.",
+      "Unable to preload CSS for /assets/skeleton-CrUxef32.css",
     ]) {
       captureException.mockClear();
       const LazyRemote = React.lazy(() => Promise.reject(new Error(message)));

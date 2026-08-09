@@ -52,7 +52,11 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   // apps/shell: reportError is not idempotent, so introducing StrictMode later
   // needs a ref keyed on error identity here.
   useEffect(() => {
-    if (isRouteErrorResponse(error) && error.status === 404) return;
+    // Sub-500 is not a defect, and the same line is drawn in entry.server.tsx's
+    // handleError, so the two halves stay symmetric. Only 404 is reachable
+    // today: a client-side 4xx route error needs a loader or an action, and
+    // apps/shell has neither.
+    if (isRouteErrorResponse(error) && error.status < 500) return;
     if (isHydratedServerError(error)) return;
     reportError(error, {
       kind: "internal",
