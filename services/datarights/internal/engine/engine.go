@@ -16,6 +16,7 @@ import (
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 // ProviderFactory builds a fresh set of data providers for a single export job
@@ -178,7 +179,29 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	g, gctx := errgroup.WithContext(ctx)
 	for i, provider := range providerSet {
 		i, provider := i, provider
-		g.Go(func() error {
+		g.Go(func() (err error) {
+			// recover() does not cross goroutines and errgroup deliberately does
+			// not recover (errgroup.go's own comment says propagating panics to
+			// Wait "creates more problems than it solves"), so without this a
+			// provider panic bypasses the job runner's recovery entirely: it kills
+			// the process and leaves the job stuck in running. Returning a
+			// *collectError puts it on the same path a provider error already
+			// takes, so the post-Wait switch names the provider with no new
+			// mapping.
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					serverkit.LogRecoveredPanic(e.logger, "recovered panic in provider collection", recovered,
+						slog.String("job_id", jobID),
+						slog.String("user_id", userID),
+						slog.String("provider", provider.Name()),
+					)
+					err = &collectError{
+						provider: provider.Name(),
+						err:      errors.New("collection failed unexpectedly"),
+					}
+				}
+			}()
+
 			e.logger.Debug("provider collection started",
 				slog.String("job_id", jobID),
 				slog.String("user_id", userID),
