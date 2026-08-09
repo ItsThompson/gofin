@@ -5,7 +5,7 @@ import { ExpenseLogSkeleton } from "@gofin/ui/components/skeletons";
 import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the ExpenseLogFeature from the finance remote package.
+ * Lazy-load the ExpenseLogFeature from the finance package.
  */
 const ExpenseLogFeature = lazy(() =>
   import("@gofin/finance/src/features/expense-log").then((mod) => ({

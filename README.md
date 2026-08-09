@@ -51,8 +51,10 @@ graph TB
 
     subgraph Node1[Node 1: Edge / DMZ]
         Shell[Shell App<br/><i>Node.js: SSR + API Proxy</i>]
-        FinPkg[Finance Package<br/><i>Dashboard, Expenses, Settings</i>]
-        AdminPkg[Admin Package<br/><i>User list, Identity Assumption</i>]
+        subgraph Bundled[compiled into the shell bundle]
+            FinPkg[Finance Package<br/><i>Dashboard, Expenses, Settings</i>]
+            AdminPkg[Admin Package<br/><i>User list, Identity Assumption</i>]
+        end
     end
 
     subgraph Node2[Node 2: Compute]

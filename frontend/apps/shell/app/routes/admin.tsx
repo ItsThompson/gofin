@@ -7,10 +7,10 @@ import { Card, CardContent, CardHeader } from "@gofin/ui/components/card";
 import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the AdminPanelPage from the admin remote package. This creates a
+ * Lazy-load the AdminPanelPage from the admin package. This creates a
  * code-split chunk: the auth-layout guard renders a 403 for any non-admin
  * identity (see route-access `canAccess`), so this page only ever mounts for a
- * direct admin and non-admins never download the remote chunk.
+ * direct admin and non-admins never download the chunk.
  */
 const AdminPanelPage = lazy(() =>
   import("@gofin/admin/src/pages/AdminPanelPage").then((mod) => ({

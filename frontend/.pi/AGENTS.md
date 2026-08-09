@@ -26,7 +26,7 @@ All 3 levels are required for a page to be user-accessible:
 
 - The shell imports feature source directly: `@gofin/finance/src/features/<name>/index`
 - Composition is build-time, so a new feature needs no registration beyond the route files above
-- Never add a runtime remote loader: one bundle is a hard requirement of the source-map upload
+- Never add a runtime remote loader: one bundle from one origin, so a release is a single artifact rather than three that must be kept in step
 
 ## Path Aliases
 

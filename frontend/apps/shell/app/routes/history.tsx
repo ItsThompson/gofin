@@ -5,7 +5,7 @@ import { Skeleton } from "@gofin/ui/components/skeleton";
 import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the HistoryFeature from the finance remote package.
+ * Lazy-load the HistoryFeature from the finance package.
  */
 const HistoryFeature = lazy(() =>
   import("@gofin/finance/src/features/history").then((mod) => ({

@@ -5,7 +5,7 @@ import { SettingsSkeleton } from "@gofin/ui/components/skeletons";
 import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the SettingsFeature from the finance remote package.
+ * Lazy-load the SettingsFeature from the finance package.
  */
 const SettingsPage = lazy(() =>
   import("@gofin/finance/src/features/settings").then((mod) => ({
