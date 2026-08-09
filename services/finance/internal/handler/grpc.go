@@ -38,6 +38,11 @@ func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsReques
 		if errors.As(err, &apiErr) && apiErr.Code == apierr.CodeNotFound {
 			return nil, status.Error(codes.NotFound, apiErr.Message)
 		}
+		h.logger.Error("failed to get defaults",
+			slog.String("method", "GetDefaults"),
+			slog.String("user_id", req.GetUserId()),
+			slog.String("error", err.Error()),
+		)
 		return nil, status.Error(codes.Internal, "failed to get defaults")
 	}
 
@@ -66,6 +71,11 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 		if errors.As(err, &apiErr) {
 			return nil, status.Error(codes.InvalidArgument, apiErr.Message)
 		}
+		h.logger.Error("failed to complete onboarding",
+			slog.String("method", "CompleteOnboarding"),
+			slog.String("user_id", req.GetUserId()),
+			slog.String("error", err.Error()),
+		)
 		return nil, status.Error(codes.Internal, "failed to complete onboarding")
 	}
 
@@ -84,6 +94,12 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
 	tags, err := h.financeService.ListTags(ctx, req.GetUserId())
 	if err != nil {
+		// Both returns below are codes.Internal, so one record covers both.
+		h.logger.Error("failed to list tags",
+			slog.String("method", "ListTags"),
+			slog.String("user_id", req.GetUserId()),
+			slog.String("error", err.Error()),
+		)
 		var apiErr *apierr.Error
 		if errors.As(err, &apiErr) {
 			return nil, status.Error(codes.Internal, apiErr.Message)
@@ -116,6 +132,11 @@ func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (
 				return nil, status.Error(codes.AlreadyExists, apiErr.Message)
 			}
 		}
+		h.logger.Error("failed to create tag",
+			slog.String("method", "CreateTag"),
+			slog.String("user_id", req.GetUserId()),
+			slog.String("error", err.Error()),
+		)
 		return nil, status.Error(codes.Internal, "failed to create tag")
 	}
 
@@ -136,6 +157,12 @@ func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (
 				return nil, status.Error(codes.NotFound, apiErr.Message)
 			}
 		}
+		h.logger.Error("failed to update tag",
+			slog.String("method", "UpdateTag"),
+			slog.String("user_id", req.GetUserId()),
+			slog.String("tag_id", req.GetTagId()),
+			slog.String("error", err.Error()),
+		)
 		return nil, status.Error(codes.Internal, "failed to update tag")
 	}
 
@@ -156,6 +183,12 @@ func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (
 				return nil, status.Error(codes.FailedPrecondition, apiErr.Message)
 			}
 		}
+		h.logger.Error("failed to delete tag",
+			slog.String("method", "DeleteTag"),
+			slog.String("user_id", req.GetUserId()),
+			slog.String("tag_id", req.GetTagId()),
+			slog.String("error", err.Error()),
+		)
 		return nil, status.Error(codes.Internal, "failed to delete tag")
 	}
 
@@ -170,9 +203,10 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 
 	data, err := h.financeService.GetAllUserData(ctx, userID)
 	if err != nil {
-		h.logger.Error("GetAllUserData failed",
-			"user_id", userID,
-			"error", err.Error(),
+		h.logger.Error("failed to get all user data",
+			slog.String("method", "GetAllUserData"),
+			slog.String("user_id", userID),
+			slog.String("error", err.Error()),
 		)
 		return nil, status.Error(codes.Internal, "failed to get all user data")
 	}
@@ -229,9 +263,10 @@ func (h *GRPCHandler) DeleteAllUserData(ctx context.Context, req *pb.DeleteAllUs
 	}
 
 	if err := h.financeService.DeleteAllUserData(ctx, userID); err != nil {
-		h.logger.Error("DeleteAllUserData failed",
-			"user_id", userID,
-			"error", err.Error(),
+		h.logger.Error("failed to delete all user data",
+			slog.String("method", "DeleteAllUserData"),
+			slog.String("user_id", userID),
+			slog.String("error", err.Error()),
 		)
 		return nil, status.Error(codes.Internal, "failed to delete user data")
 	}
