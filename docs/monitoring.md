@@ -38,6 +38,22 @@ Custom business metrics for data export monitoring:
 | `export_pool_active_jobs` | Gauge | — | Currently running export goroutines |
 | `export_pool_queued_jobs` | Gauge | — | Jobs waiting for a pool slot |
 
+#### Known gaps
+
+Two classes of request are absent from the metrics above. Both are deliberate.
+
+- **Server-streaming RPCs are unmeasured.** `services/metrics` provides a unary
+  gRPC interceptor only, so `StreamAllUserExpenses` (the one streaming RPC,
+  consumed by datarights to build a user data export) contributes nothing to
+  `grpc_requests_total` or `grpc_request_duration_seconds`. The stream
+  interceptor chain carries panic recovery alone.
+- **A recovered panic is counted nowhere.** Recovery sits outside the metrics
+  interceptor and the metrics middleware, both of which record after the handler
+  returns, so a panic unwinds past them before they observe anything. Recovery
+  is outside on purpose: a panic raised in the metrics layer itself has to be
+  caught too. Panics are queryable in the log stream instead (see Structured
+  Logging).
+
 ### Access
 
 Prometheus UI: `http://localhost:9090`
@@ -135,6 +151,19 @@ All Go services emit JSON-structured logs to stdout with a consistent format:
 - `error`: present on errors
 
 Logs are viewable via `just logs <service>` or `docker compose logs -f <service>`. Centralized log aggregation (ELK, Loki) is deferred for MVP.
+
+### Recovered panics
+
+Every recovered panic writes one error-level record wherever it happened: the
+HTTP middleware, either gRPC interceptor, the datarights job runner, the auth
+cleanup ticker, and the gateway readiness fan-out. Each carries two shared
+attributes, so one query returns them all:
+
+- `panic`: the panic value, wrapped into an error when it is not one already
+- `stack`: the stack captured at recovery
+
+A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) is not
+a service defect and is recorded at warn level with no stack.
 
 ## Resource Limits
 
