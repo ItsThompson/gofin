@@ -92,6 +92,66 @@ describe("RemoteBoundary", () => {
     expect(reloadMock).toHaveBeenCalledTimes(1);
   });
 
+  it("retains the caught error and the component stack", async () => {
+    const didCatch = vi.spyOn(RemoteBoundary.prototype, "componentDidCatch");
+    const boundary = React.createRef<RemoteBoundary>();
+
+    function ThrowingRemote(): React.ReactNode {
+      throw new Error("Remote render error");
+    }
+
+    render(
+      <RemoteBoundary
+        ref={boundary}
+        sectionName="Dashboard"
+        loadingFallback={<div>Loading...</div>}
+      >
+        <ThrowingRemote />
+      </RemoteBoundary>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(didCatch).toHaveBeenCalledTimes(1);
+    const [caughtError, errorInfo] = didCatch.mock.calls[0];
+    expect(caughtError).toBeInstanceOf(Error);
+    expect(caughtError.message).toBe("Remote render error");
+    expect(errorInfo.componentStack).toContain("ThrowingRemote");
+
+    expect(boundary.current?.state.error).toBe(caughtError);
+    expect(boundary.current?.state.componentStack).toContain("ThrowingRemote");
+
+    // Capture only: the fallback is unchanged.
+    expect(screen.getByText("Could not load Dashboard")).toBeInTheDocument();
+
+    didCatch.mockRestore();
+  });
+
+  it("retains the error from a failed lazy chunk load", async () => {
+    const boundary = React.createRef<RemoteBoundary>();
+    const loadError = new Error("Failed to fetch dynamically imported module");
+    const LazyComponent = React.lazy(() => Promise.reject(loadError));
+
+    render(
+      <RemoteBoundary
+        ref={boundary}
+        sectionName="Dashboard"
+        loadingFallback={<div>Loading...</div>}
+      >
+        <LazyComponent />
+      </RemoteBoundary>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    expect(boundary.current?.state.error).toBe(loadError);
+    expect(boundary.current?.state.componentStack).toBeTruthy();
+  });
+
   it("renders children successfully when the chunk loads", async () => {
     function SuccessContent() {
       return <div>Remote module loaded!</div>;

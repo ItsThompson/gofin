@@ -11,7 +11,12 @@ interface SectionErrorBoundaryProps {
 
 interface SectionErrorBoundaryState {
   hasError: boolean;
+  /**
+   * Diagnostics retained from componentDidCatch. Not render inputs: the fallback
+   * stays generic so a render crash never leaks internals to a user.
+   */
   error: Error | null;
+  componentStack: string | null;
 }
 
 /**
@@ -26,15 +31,22 @@ class SectionErrorBoundary extends React.Component<
 > {
   constructor(props: SectionErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
-  static getDerivedStateFromError(error: Error): SectionErrorBoundaryState {
-    return { hasError: true, error };
+  static getDerivedStateFromError(): Partial<SectionErrorBoundaryState> {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({
+      error,
+      componentStack: errorInfo.componentStack ?? null,
+    });
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, componentStack: null });
   };
 
   render() {

@@ -11,6 +11,13 @@ interface RemoteBoundaryProps {
 
 interface RemoteBoundaryState {
   hasError: boolean;
+  /**
+   * Diagnostics retained from componentDidCatch. Not render inputs: the
+   * fallback is deliberately generic, and a load failure carries nothing worth
+   * showing a user.
+   */
+  error: Error | null;
+  componentStack: string | null;
 }
 
 /**
@@ -25,11 +32,18 @@ class RemoteBoundary extends React.Component<
 > {
   constructor(props: RemoteBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
-  static getDerivedStateFromError(): RemoteBoundaryState {
+  static getDerivedStateFromError(): Partial<RemoteBoundaryState> {
     return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({
+      error,
+      componentStack: errorInfo.componentStack ?? null,
+    });
   }
 
   render() {

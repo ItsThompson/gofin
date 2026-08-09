@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import * as React from "react";
 import { SectionErrorBoundary } from "../src/components/SectionErrorBoundary";
 
 /**
@@ -41,6 +42,58 @@ describe("SectionErrorBoundary", () => {
       screen.queryByText("Child rendered successfully"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("retains the caught error and the component stack", () => {
+    const didCatch = vi.spyOn(SectionErrorBoundary.prototype, "componentDidCatch");
+    const boundary = React.createRef<SectionErrorBoundary>();
+
+    render(
+      <SectionErrorBoundary ref={boundary} sectionName="Budget">
+        <ThrowingChild shouldThrow={true} />
+      </SectionErrorBoundary>,
+    );
+
+    expect(didCatch).toHaveBeenCalledTimes(1);
+    const [caughtError, errorInfo] = didCatch.mock.calls[0];
+    expect(caughtError).toBeInstanceOf(Error);
+    expect(caughtError.message).toBe("Child render error");
+    expect(errorInfo.componentStack).toContain("ThrowingChild");
+
+    expect(boundary.current?.state.error).toBe(caughtError);
+    expect(boundary.current?.state.componentStack).toContain("ThrowingChild");
+
+    // Capture only: the fallback is unchanged.
+    expect(screen.getByText("Could not load Budget")).toBeInTheDocument();
+
+    didCatch.mockRestore();
+  });
+
+  it("clears the retained diagnostics on retry", async () => {
+    const user = userEvent.setup();
+    const boundary = React.createRef<SectionErrorBoundary>();
+    let shouldThrow = true;
+
+    function ConditionalChild() {
+      if (shouldThrow) {
+        throw new Error("Temporary error");
+      }
+      return <div>Recovered content</div>;
+    }
+
+    render(
+      <SectionErrorBoundary ref={boundary} sectionName="Budget">
+        <ConditionalChild />
+      </SectionErrorBoundary>,
+    );
+
+    expect(boundary.current?.state.error).not.toBeNull();
+
+    shouldThrow = false;
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+
+    expect(boundary.current?.state.error).toBeNull();
+    expect(boundary.current?.state.componentStack).toBeNull();
   });
 
   it("renders a fallback UI displaying the error message with section name", () => {
