@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { eventFiltersIntegration } from "@sentry/react-router";
 import { isNetworkError } from "@gofin/api";
 import {
   clientOptions,
@@ -35,6 +36,42 @@ function serverBuilt(): ServerInitOptions {
     dsn: "https://publickey@o1.ingest.us.sentry.io/3",
     release: "gofin-web@0123456789abcdef",
   });
+}
+
+/**
+ * The three messages `throwIfPotentialCSRFAttack` throws, read from
+ * `react-router@7.15.0`'s production bundle. Every one ends in the clause the
+ * `ignoreErrors` entry matches.
+ */
+const CSRF_REJECTION_MESSAGES = [
+  "`origin` header is not a valid URL. Aborting the action.",
+  "host header does not match `origin` header from a forwarded action request. Aborting the action.",
+  "`x-forwarded-host` or `host` headers are not provided. One of these is needed to compare the `origin` header from a forwarded action request. Aborting the action.",
+];
+
+type ProcessEvent = NonNullable<
+  ReturnType<typeof eventFiltersIntegration>["processEvent"]
+>;
+
+/**
+ * Runs an exception message through the SDK's real event filter with the real
+ * shared options, rather than reimplementing its matching semantics here. The
+ * filter reads nothing off the client but its options.
+ */
+function filterEvent(value: string) {
+  const integration = eventFiltersIntegration();
+  if (!integration.processEvent) {
+    throw new Error("the SDK's event filter no longer exposes processEvent");
+  }
+
+  const event: Parameters<ProcessEvent>[0] = {
+    exception: { values: [{ type: "Error", value }] },
+  };
+  const client = {
+    getOptions: () => SHARED_OPTIONS,
+  } as unknown as Parameters<ProcessEvent>[2];
+
+  return integration.processEvent(event, {}, client);
 }
 
 function setWebdriver(value: boolean): void {
@@ -79,10 +116,27 @@ describe("SHARED_OPTIONS", () => {
     expect(SHARED_OPTIONS.tracesSampleRate).toBe(0);
   });
 
-  it("ignores the recharts ResizeObserver loop error", () => {
+  it("ignores the recharts ResizeObserver loop error and the router's CSRF rejections", () => {
     expect(SHARED_OPTIONS.ignoreErrors).toEqual([
       "ResizeObserver loop completed with undelivered notifications",
+      "Aborting the action.",
     ]);
+  });
+
+  it("drops all three CSRF rejection messages through the SDK's own filter", () => {
+    // Every cross-origin POST document request reaches
+    // throwIfPotentialCSRFAttack, which throws a plain Error, so neither
+    // handleError's sub-500 rule nor beforeSend can see it. Third parties can
+    // trigger it and no in-app path can. One substring covers all three
+    // messages react-router 7.15.0 throws; a narrower entry would leave two
+    // remotely triggerable events billing against the quota.
+    for (const message of CSRF_REJECTION_MESSAGES) {
+      expect(filterEvent(message)).toBeNull();
+    }
+  });
+
+  it("keeps an ordinary application error", () => {
+    expect(filterEvent("Cannot read properties of undefined")).not.toBeNull();
   });
 
   it("enables dedupe and nothing else", () => {

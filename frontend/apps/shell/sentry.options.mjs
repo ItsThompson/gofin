@@ -44,6 +44,14 @@ const IGNORE_ERRORS = [
   // recharts' ResponsiveContainer emits this across seven widget files. It is
   // the most common junk event in a charting app.
   "ResizeObserver loop completed with undelivered notifications",
+  // React Router's CSRF check throws a plain Error on every cross-origin POST
+  // document request, so the SSR sub-500 rule cannot see it and the router
+  // answers 400 itself. Unauthenticated third parties can trigger it, and
+  // nothing in this app can: /api is proxied before the router and no route
+  // exports an action. All three of the messages it throws end in this clause,
+  // so one substring covers the class. Entries are matched with String.includes
+  // against the exception value.
+  "Aborting the action.",
 ];
 
 /**
