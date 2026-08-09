@@ -29,6 +29,12 @@ Deploys to the VPS in one of two ways:
 
 The CD workflow decodes tunnel credentials from GitHub Secrets, creates the two Sentry releases, sets up SSH, runs `scripts/deploy.sh`, and finalizes the releases once the deploy succeeds. A failed deploy leaves both releases unfinalized on purpose, so the recorded window matches the deploy that happened.
 
+#### Health gate and rollback
+
+`scripts/deploy.sh` polls `docker compose ps` for up to 60 seconds and requires every service that declares a healthcheck to report `healthy`. On success it writes the deployed SHA to `/opt/gofin/.deployed-sha`. On failure it re-pulls the previous SHA's images, retags them `:latest`, recreates the stack, and exits non-zero, which also skips the release finalization.
+
+The rollback is **partial**. It restores `api-gateway`, `auth-service`, `finance-service`, `datarights-service` and `mfe`, and omits three images CD also builds and pushes: `expense-service`, `alertmanager` and `grafana-auth-proxy`. It prints `Rollback complete. Previous version restored.` either way, so the gap is silent. After a rolled-back deploy, `expense-service` is still running the new image against restored siblings, and it is the immudb writer. Roll it back by hand until the loop derives its service list from the same images the build matrix builds.
+
 ## Required GitHub Secrets
 
 All secrets must be configured in the repository settings under **Settings → Secrets and variables → Actions**.
