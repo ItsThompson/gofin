@@ -107,12 +107,20 @@ func withDefaultLogger(t *testing.T, log *slog.Logger) {
 }
 
 // routerWithPanic builds a router whose GET /boom handler panics with value.
+// The panic goes through explodeWith rather than the handler closure, because
+// serverkit.Recovery is inlined into its caller: the deferred recovery closure's
+// own frame is named after the function that built the router, so asserting
+// "routerWithPanic" would match recovery machinery and pass on a stack that
+// never reached the origin. Never assert a frame whose name also appears in the
+// function that installs the recovery.
 func routerWithPanic(log *slog.Logger, value any) *gin.Engine {
 	router := gin.New()
 	router.Use(serverkit.Recovery(log))
-	router.GET("/boom", func(*gin.Context) { panic(value) })
+	router.GET("/boom", func(*gin.Context) { explodeWith(value) })
 	return router
 }
+
+func explodeWith(value any) { panic(value) }
 
 // outOfRangeHandler raises a real runtime panic. The index comes from the
 // request so the out-of-range read is not folded away at compile time, and the
@@ -152,9 +160,10 @@ func TestRecovery_WritesExactlyOneErrorRecordWithPanicAndStack(t *testing.T) {
 	assert.Equal(t, "panic: handler exploded", record["panic"])
 	assert.Equal(t, http.MethodGet, record["method"])
 	assert.Equal(t, "/boom", record["path"])
-	// The panicking frame, not debug.Stack's own first frame: a stack containing
-	// only recovery machinery is useless and must fail here.
-	assert.Contains(t, record["stack"], "routerWithPanic")
+	// The panicking frame, not debug.Stack's own first frame and not a name the
+	// recovery closure also carries: a stack holding only recovery machinery must
+	// fail here.
+	assert.Contains(t, record["stack"], "explodeWith")
 }
 
 func TestRecovery_ErrorPanicValueIsRecordedAsIs(t *testing.T) {

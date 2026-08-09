@@ -312,10 +312,12 @@ func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string,
 
 	// The producer runs on its own goroutine, and recover() does not cross
 	// goroutines, so the gRPC stream interceptor cannot see a panic raised here.
-	// Declared after close(rows) so LIFO reports the terminal error first:
-	// otherwise the consumer's range over rows ends and StreamAllUserExpenses
-	// blocks forever on <-errc. errc has capacity 1 and is provably empty on this
-	// path, because every other send is immediately followed by a return.
+	// Recovering alone would hang the RPC: the consumer's range over rows ends
+	// when close(rows) runs and it then blocks on <-errc, so the guard has to
+	// send a terminal error too. errc is buffered (cap 1) and provably empty on
+	// this path, because every other send is immediately followed by a return, so
+	// the send cannot block whichever order the two defers run in. An unbuffered
+	// errc would deadlock here instead.
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			serverkit.LogRecoveredPanic(s.logger, "recovered panic in expense page producer", recovered,
