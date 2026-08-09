@@ -27,7 +27,7 @@ Deploys to the VPS in one of two ways:
 - **Automatic**: triggers after CI succeeds on a push to `main`
 - **Manual**: triggered via the Actions UI (`workflow_dispatch`) by any collaborator with write access
 
-The CD workflow decodes tunnel credentials from GitHub Secrets, sets up SSH, and runs `scripts/deploy.sh`.
+The CD workflow decodes tunnel credentials from GitHub Secrets, creates the two Sentry releases, sets up SSH, runs `scripts/deploy.sh`, and finalizes the releases once the deploy succeeds. A failed deploy leaves both releases unfinalized on purpose, so the recorded window matches the deploy that happened.
 
 ## Required GitHub Secrets
 
@@ -40,6 +40,7 @@ All secrets must be configured in the repository settings under **Settings → S
 | `CF_APP_CREDENTIALS` | Contents of `deployments/cloudflare/gofin-app.json` | Base64 |
 | `CF_GRAFANA_CREDENTIALS` | Contents of `deployments/cloudflare/gofin-grafana.json` | Base64 |
 | `CF_CERT_PEM` | Contents of `deployments/cloudflare/cert.pem` | Base64 |
+| `SENTRY_AUTH_TOKEN` | Sentry organization auth token, scoped to release and source-map write | Raw string |
 
 ### Encoding Credentials
 
@@ -67,6 +68,25 @@ Copy each output and paste it as the corresponding secret value in the GitHub UI
    ssh-copy-id -i ~/.ssh/gofin_deploy.pub root@<server-ip>
    ```
 3. Add the **private** key contents (`~/.ssh/gofin_deploy`) as the `DEPLOY_SSH_KEY` secret in GitHub.
+
+## Required GitHub Variables
+
+Variables live beside the secrets, under **Settings → Secrets and variables → Actions → Variables**.
+
+| Variable | Contents | Why it is not a secret |
+|----------|----------|------------------------|
+| `SENTRY_DSN_FRONTEND` | Sentry DSN for the `gofin-frontend` project | A browser DSN is public by design: it is baked into the shipped bundle. This is the only source of the DSN for the production browser bundle |
+
+The backend DSN has no GitHub-side source. Every Go service reads `SENTRY_DSN_BACKEND` from `/opt/gofin/.env` at container runtime, so it never needs to reach the runner. The SSR Node process reads its own DSN from the same file. Both entries are created by hand on the server, following `.env.example`, which declares each variable and names its consumers.
+
+## Sentry Releases and Browser Source Maps
+
+The org slug, both project slugs, and the two release names are plain workflow `env` values in `cd.yml`. They are identifiers, not credentials. Two details are easy to get wrong:
+
+- No `SENTRY_URL` is set. The organization is in the US region, which is `sentry-cli`'s default host. An EU organization would need the override.
+- The browser release name is prefixed in `cd.yml` because `sentry-cli` keys the uploaded maps to that exact string. The SSR process and the Go services instead read a bare SHA from `/opt/gofin/.env` and prefix it in code, so every consumer of one deploy ends at the same release name.
+
+The maps are injected and uploaded inside the `mfe` Dockerfile's builder stage, against the build that ships, and the token reaches that step on a Docker secret mount. Without the secret the step is skipped, which is why a local `docker compose build` and the CI and E2E builds still work. Nothing Sentry-related runs in CI: it must send no events and upload nothing.
 
 ## E2E Environment in CI
 
