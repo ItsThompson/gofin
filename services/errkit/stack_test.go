@@ -1,8 +1,10 @@
 package errkit_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"testing"
 
@@ -17,10 +19,14 @@ import (
 // package is "…/services/errkit_test", which contains the production path.
 const errkitPackagePath = "github.com/ItsThompson/gofin/services/errkit"
 
-// callWithStack exists so the frame the assertion names is a stable, unique
-// function rather than a test body or a closure.
+// callWithStack and reportBoom exist so the frame the assertions name is a
+// stable, unique function rather than a test body or a closure.
 func callWithStack(err error) error {
 	return errkit.WithStack(err)
+}
+
+func reportBoom(ctx context.Context, err error, m errkit.Meta) error {
+	return errkit.Report(ctx, err, m)
 }
 
 // pcStackError exposes the StackTrace() []uintptr shape the SDK reads directly,
@@ -195,5 +201,43 @@ func TestWithStack_WrapsWhenNoLinkCarriesAStack(t *testing.T) {
 			assert.NotSame(t, tc.err, got)
 			assert.NotNil(t, sentry.ExtractStacktrace(got))
 		})
+	}
+}
+
+// The three assertions here are the ones that catch a carrier missing Unwrap.
+// That defect produces one exception entry named after the carrier for every
+// wrapped error, which is indistinguishable from working code on the wire.
+func TestReport_WrappedErrorKeepsTheWholeExceptionChain(t *testing.T) {
+	env := newReportEnv(t)
+	inner := &driverError{}
+
+	_ = reportBoom(env.ctx, fmt.Errorf("insert expense: %w", inner), errkit.Meta{
+		Kind: errkit.KindDatabase,
+		Op:   "expense.create",
+	})
+
+	event := env.singleEvent(t)
+	require.Greater(t, len(event.Exception), 1, "the %%w chain collapsed into one exception entry")
+	assert.Equal(t, reflect.TypeOf(inner).String(), event.Exception[0].Type)
+
+	outermost := event.Exception[len(event.Exception)-1]
+	assert.Equal(t, "*errkit.withStack", outermost.Type)
+	assert.Equal(t, "reportBoom", topInAppFrame(t, outermost.Stacktrace).Function)
+}
+
+// Without this the runtime.Callers skip depth is a guess, and a wrong guess is
+// only visible in the Sentry UI weeks later.
+func TestReport_StacktraceStartsAtTheReportingCallSite(t *testing.T) {
+	env := newReportEnv(t)
+
+	_ = reportBoom(env.ctx, errors.New("boom"), errkit.Meta{Op: "expense.create"})
+
+	event := env.singleEvent(t)
+	require.Len(t, event.Exception, 2)
+
+	stacktrace := event.Exception[len(event.Exception)-1].Stacktrace
+	assert.Equal(t, "reportBoom", topInAppFrame(t, stacktrace).Function)
+	for _, frame := range stacktrace.Frames {
+		assert.NotEqual(t, errkitPackagePath, frame.Module, "errkit frame %q leaked into the stack", frame.Function)
 	}
 }
