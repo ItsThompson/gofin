@@ -1,0 +1,42 @@
+/**
+ * Whether a route error the boundary received is the one the server already
+ * reported, arriving back on the client through the hydration payload.
+ *
+ * React Router serializes an SSR route error into `window.__reactRouterContext`
+ * and rebuilds it during hydration, so the client boundary renders for an error
+ * that never happened in the browser. Effects do not run on the server, but they
+ * do run on the way back, so "effects do not run during SSR" is not on its own
+ * enough to keep `entry.server.tsx`'s `handleError` the sole owner of that event.
+ *
+ * The match reads the payload React Router actually writes: an `Error` is
+ * serialized as `{ __type: "Error", message }` (its stack is dropped in
+ * production), so an entry of that shape whose message equals the error's message
+ * identifies the server's error. Identity cannot be used: the client rebuilds a
+ * new `Error` from the payload rather than reusing what the stream decoded.
+ *
+ * Deliberately narrow. A client-side crash after hydration carries its own
+ * message, and in production every server-side message is the constant
+ * "Unexpected Server Error", so it does not collide.
+ */
+
+interface SerializedError {
+  __type?: string;
+  message?: string;
+}
+
+interface HydrationContext {
+  state?: { errors?: Record<string, SerializedError | null> | null };
+}
+
+export function isHydratedServerError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const context = (globalThis as { __reactRouterContext?: HydrationContext })
+    .__reactRouterContext;
+  const serialized = context?.state?.errors;
+  if (!serialized) return false;
+
+  return Object.values(serialized).some(
+    (entry) => entry?.__type === "Error" && entry.message === error.message,
+  );
+}
