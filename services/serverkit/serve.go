@@ -12,14 +12,19 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Shutdown budget. The two bounds are sized to fit inside Docker's default
-// 10-second stop grace period together, because a container that exceeds it is
-// SIGKILLed and the flush is exactly what a SIGKILL would discard:
+// Shutdown budget for the two bounded phases. Both are sized to fit inside
+// Docker's default 10-second stop grace period together, because a container that
+// exceeds it is SIGKILLed and the flush is exactly what a SIGKILL would discard:
 //
 //	shutdownTimeout + flushTimeout = 8s + 2s = 10s
 //
 // No compose service overrides stop_grace_period, so 10 seconds is the real
 // budget and the two bounds have to share it.
+//
+// Shutdown is not bounded overall. grpcSrv.GracefulStop() runs first and waits
+// for in-flight RPCs with no timeout of its own, so a long-lived stream can
+// consume the whole grace period before either bound below is reached. Bounding
+// that is a separate change; the arithmetic above covers only these two phases.
 const (
 	shutdownTimeout = 8 * time.Second
 	flushTimeout    = 2 * time.Second
