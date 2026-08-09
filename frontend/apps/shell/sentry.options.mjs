@@ -51,6 +51,11 @@ const IGNORE_ERRORS = [
   // exports an action. All three of the messages it throws end in this clause,
   // so one substring covers the class. Entries are matched with String.includes
   // against the exception value.
+  //
+  // If any route gains an action, replace this entry with a call-site
+  // discriminator: two of the three messages describe a host or
+  // x-forwarded-host mismatch, which is what a misconfigured reverse proxy in
+  // front of a real action produces, and this entry would swallow it silently.
   "Aborting the action.",
 ];
 
