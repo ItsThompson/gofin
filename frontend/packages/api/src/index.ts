@@ -1,6 +1,11 @@
 export { apiClient, ApiRequestError } from "./client";
 export { consumeReturnToPath, handleSessionExpiry } from "./session";
 export { reportError } from "./errors/report";
+export {
+  classifyApiFailure,
+  NETWORK_FAILURE,
+  type FailureClassification,
+} from "./errors/classify";
 export type { ReportOptions } from "./errors/types";
 export type { ErrorKind } from "./errors/kinds";
 export {

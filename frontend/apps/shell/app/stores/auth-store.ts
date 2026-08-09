@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import type { User } from "@gofin/core";
-import { apiClient, ApiRequestError } from "@gofin/api";
+import {
+  apiClient,
+  ApiRequestError,
+  classifyApiFailure,
+  isNetworkError,
+  NETWORK_FAILURE,
+  reportError,
+} from "@gofin/api";
 
 interface AuthResponse {
   user: User;
@@ -85,6 +92,13 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       }
       // The check never completed, so the session state is unknown. Keeping the
       // known state means an outage does not present itself as a logout.
+      reportError(error, {
+        ...(isNetworkError(error)
+          ? NETWORK_FAILURE
+          : classifyApiFailure(error)),
+        op: "auth.check",
+        domain: "auth",
+      });
       set({ isLoading: false, authError: "unavailable" });
     }
   },
