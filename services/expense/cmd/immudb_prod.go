@@ -30,12 +30,23 @@ import (
 	"sync"
 	"time"
 
-	immudb "github.com/codenotary/immudb/pkg/client"
 	"github.com/codenotary/immudb/pkg/api/schema"
+	immudb "github.com/codenotary/immudb/pkg/client"
 
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
+
+// reconnectReportWindow bounds how often a failed reconnection is reported.
+//
+// The SDK heartbeat drives this roughly once a minute for as long as immudb is
+// unreachable, and a session error makes it reachable per request as well, so a
+// day-long outage is on the order of 1,440 failures from one incident. The monthly
+// event allowance is 5,000 and it is shared across the organization, so one
+// incident would take a fifth of it. One event an hour keeps the same outage near
+// two dozen.
+const reconnectReportWindow = time.Hour
 
 // realImmudbClient wraps the immudb native Go client with automatic session
 // reconnection on session loss.
@@ -50,12 +61,16 @@ type realImmudbClient struct {
 	generation uint64
 	cfg        *config.Config
 	logger     *slog.Logger
+	// reports bounds the reconnection-failure events. One client is one immudb, so
+	// the bound is per store by construction.
+	reports *errkit.Limiter
 }
 
 func newImmudbClientImpl(ctx context.Context, cfg *config.Config) (repository.ImmudbClient, error) {
 	rc := &realImmudbClient{
-		cfg:    cfg,
-		logger: slog.Default(),
+		cfg:     cfg,
+		logger:  slog.Default(),
+		reports: errkit.NewLimiter(reconnectReportWindow),
 	}
 
 	client, err := rc.openSession(ctx)
@@ -139,7 +154,24 @@ func (c *realImmudbClient) reconnectLocked(ctx context.Context, observedGen uint
 
 	newClient, err := c.openSession(ctx)
 	if err != nil {
+		// The record stays per attempt; only the event is bounded. Both the heartbeat
+		// and any request that hits a dead session reach this line, so an outage
+		// produces one failure a minute at least.
 		c.logger.Error("immudb reconnection failed", slog.String("error", err.Error()))
+		if c.reports.Allow() {
+			// GroupExact, so the whole outage is one issue: the stack differs between the
+			// heartbeat goroutine and a request that found a dead session, while the
+			// meaning is the same either way.
+			_ = errkit.Report(ctx, err, errkit.Meta{
+				Kind:       errkit.KindDatabase,
+				Op:         "immudb.reconnect",
+				Domain:     "expenses",
+				Msg:        "immudb reconnection failed",
+				GroupKey:   "immudb.unreachable",
+				GroupExact: true,
+				Data:       map[string]any{"addr": c.cfg.ImmudbAddr},
+			})
+		}
 		return fmt.Errorf("reconnecting to immudb: %w", err)
 	}
 
