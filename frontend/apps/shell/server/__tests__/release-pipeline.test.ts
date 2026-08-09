@@ -46,6 +46,15 @@ const workflowStep = (name: string): string => {
 const builder = stageCommands("builder");
 const runner = stageCommands("runner");
 
+/** The runner stage's `rm -rf` invocation, including its continuation lines. */
+const strip = (): string => {
+  const start = runner.indexOf("rm -rf");
+  if (start === -1) throw new Error("the runner stage strips nothing");
+  const lines = runner.slice(start).split("\n");
+  const last = lines.findIndex((line) => !line.trimEnd().endsWith("\\"));
+  return lines.slice(0, last + 1).join("\n");
+};
+
 describe("the source-map upload in the builder stage", () => {
   it("injects debug IDs into the bundle it just built, then uploads", () => {
     // Injection mutates the .js files, so the maps must be uploaded from the
@@ -93,10 +102,20 @@ describe("the source-map upload in the builder stage", () => {
     expect(builder).toContain("if [ -s /run/secrets/sentry_auth_token ]");
     expect(builder).toMatch(/else \\\n\s*echo "No sentry_auth_token secret/);
   });
+
+  it("deletes the maps after the upload, not before it", () => {
+    // The runner stage copies this tree wholesale, so deleting the maps here is
+    // what keeps the original TypeScript out of the shipped image's layers. It
+    // has to come after the upload, or Sentry receives nothing.
+    const upload = builder.indexOf("sourcemaps upload");
+    const deleted = builder.indexOf('find apps/shell/build -name "*.map" -delete');
+
+    expect(deleted).toBeGreaterThan(upload);
+  });
 });
 
 describe("the runtime image", () => {
-  const stripped = [...runner.matchAll(/node_modules\/\S+/g)].map(
+  const stripped = [...strip().matchAll(/node_modules\/\S+/g)].map(
     (match) => match[0],
   );
 
@@ -127,10 +146,18 @@ describe("the runtime image", () => {
     expect(builder).not.toContain("SENTRYCLI_SKIP_DOWNLOAD");
   });
 
-  it("deletes every source map, not only the ones under build/", () => {
+  it("deletes every source map, and does so after the build arrives", () => {
     // Maps contain the original TypeScript. Rooting the delete at /app also
-    // covers the maps some production dependencies ship.
-    expect(runner).toMatch(/find \/app -name "\*\.map" -delete/);
+    // covers the maps some production dependencies ship. Above the COPY it
+    // would run against a tree that does not exist yet, and the maps would ship
+    // with every assertion in this file still green.
+    const copyBuild = runner.indexOf(
+      "COPY --from=builder /app/apps/shell/build",
+    );
+    const deleteMaps = runner.indexOf('find /app -name "*.map" -delete');
+
+    expect(copyBuild).toBeGreaterThan(-1);
+    expect(deleteMaps).toBeGreaterThan(copyBuild);
   });
 });
 
