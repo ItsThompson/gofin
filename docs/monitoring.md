@@ -58,9 +58,10 @@ Two classes of request are absent from the metrics above. Both are deliberate.
   process, so `up` went to 0 and `ServiceDown` paged within a minute. The
   process now survives, `grpc_requests_total` records nothing, and
   `HighErrorRate` reads `http_requests_total` only: a service panicking on
-  every unary call therefore fires **no alert at all**, and the log record is
-  the sole signal. A live process is still the right trade, and error reporting
-  restores the signal, but treat "counted nowhere" as "not paged" until then.
+  every unary call therefore fires **no Prometheus alert at all**. The signal
+  lives in the log record and in Sentry, where every recovered panic becomes an
+  issue under a `panic.` group key. A live process is still the right trade, but
+  treat "counted nowhere" as "not paged by Prometheus".
   HTTP has no such change: `gin.Recovery()` was already outermost, so
   `HTTPMetrics` never saw a panicking request before this either.
 
@@ -164,7 +165,7 @@ Logs are viewable via `just logs <service>` or `docker compose logs -f <service>
 
 ### Recovered panics
 
-Every recovered panic writes one error-level record wherever it happened: the
+Every recovered panic writes one panic record wherever it happened: the
 HTTP middleware, either gRPC interceptor, the expense stream's page producer,
 the finance fan-out tasks (spending trends, historical comparison, health-score
 desires, and the three export reads), the datarights job runner and its provider
@@ -177,8 +178,15 @@ carries two shared attributes, so one query returns them all:
 A record from a fan-out that runs once per period also carries a `period`
 attribute, so a panic in one month's read is distinguishable from another's.
 
+Reporting the panic writes a second error-level record beside it, the ordinary
+one `errkit` writes for every reported failure. It carries `error_kind`,
+`operation` and `domain` instead of `panic` and `stack`, so a query on the
+taxonomy returns panics alongside every other reported error. `operation` is the
+panic site, matching the Sentry group key.
+
 A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) is not
-a service defect and is recorded at warn level with no stack.
+a service defect and is recorded at warn level with no stack. It is not
+reported: nothing is wrong with the service.
 
 ## Resource Limits
 
