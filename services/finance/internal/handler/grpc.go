@@ -37,6 +37,24 @@ func NewGRPCHandler(financeService *service.FinanceService, logger *slog.Logger)
 	}
 }
 
+// reportServerFailure reports err unless the client is about to receive a client
+// error. Every codes.Internal exit below is reachable with a typed *apierr.Error
+// whose code the exit does not name, and a code this handler does not map is not
+// evidence that the failure is the service's fault: a validation or not-found error
+// arriving at one of them would otherwise bill error quota for ordinary client
+// input, and nothing would fail.
+//
+// The gate is the rendered status rather than a list of codes, so it stays correct
+// as the code set grows. A gated error leaves no record here, which is right: the
+// guard that produced the typed 4xx recorded it where the decision was made, and
+// what a client error at an internal exit really signals is a status pairing the
+// caller can see.
+func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
+	if apierr.IsServerError(err) {
+		_ = errkit.Report(ctx, err, meta)
+	}
+}
+
 func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsRequest) (*pb.DefaultsResponse, error) {
 	defaults, err := h.financeService.GetDefaults(ctx, req.GetUserId())
 	if err != nil {
@@ -44,7 +62,7 @@ func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsReques
 		if errors.As(err, &apiErr) && apiErr.Code == apierr.CodeNotFound {
 			return nil, status.Error(codes.NotFound, apiErr.Message)
 		}
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.get_defaults",
 			Domain: reportDomain,
 			Msg:    "failed to get defaults",
@@ -81,7 +99,7 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 		if errors.As(err, &apiErr) {
 			return nil, status.Error(codes.InvalidArgument, apiErr.Message)
 		}
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.complete_onboarding",
 			Domain: reportDomain,
 			Msg:    "failed to complete onboarding",
@@ -109,7 +127,7 @@ func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*p
 	tags, err := h.financeService.ListTags(ctx, req.GetUserId())
 	if err != nil {
 		// Both returns below are codes.Internal, so one report covers both.
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.list_tags",
 			Domain: reportDomain,
 			Msg:    "failed to list tags",
@@ -150,7 +168,7 @@ func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (
 				return nil, status.Error(codes.AlreadyExists, apiErr.Message)
 			}
 		}
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.create_tag",
 			Domain: reportDomain,
 			Msg:    "failed to create tag",
@@ -179,7 +197,7 @@ func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (
 				return nil, status.Error(codes.NotFound, apiErr.Message)
 			}
 		}
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.update_tag",
 			Domain: reportDomain,
 			Msg:    "failed to update tag",
@@ -209,7 +227,7 @@ func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (
 				return nil, status.Error(codes.FailedPrecondition, apiErr.Message)
 			}
 		}
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.delete_tag",
 			Domain: reportDomain,
 			Msg:    "failed to delete tag",
@@ -233,7 +251,7 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 
 	data, err := h.financeService.GetAllUserData(ctx, userID)
 	if err != nil {
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.get_all_user_data",
 			Domain: reportDomain,
 			Msg:    "failed to get all user data",
@@ -297,7 +315,7 @@ func (h *GRPCHandler) DeleteAllUserData(ctx context.Context, req *pb.DeleteAllUs
 	}
 
 	if err := h.financeService.DeleteAllUserData(ctx, userID); err != nil {
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.delete_all_user_data",
 			Domain: reportDomain,
 			Msg:    "failed to delete all user data",

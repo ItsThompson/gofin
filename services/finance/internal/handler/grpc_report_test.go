@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/errkit/errkittest"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
@@ -101,4 +102,52 @@ func TestGRPC_ClassifiedError_YieldsNoEvent(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, codes.NotFound, st.Code())
 	assert.Empty(t, transport.Events())
+}
+
+// Six of the eight internal exits classify only the codes they map, so a typed 4xx
+// this handler does not name reaches the report path. It must not be billed: the
+// error is client input either way, and the exit's own status pairing is what a
+// caller would notice. Unreachable from today's service layer, and the point is
+// that it stays free rather than staying unreachable.
+func TestGRPC_AnUnmappedClientError_YieldsNoEvent(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	handler, logs := setupGRPCHandlerWithLog(t, repo, txBeginner)
+
+	repo.On("GetDefaults", mock.Anything, "user-1").
+		Return(nil, apierr.Validation("year must be positive", nil))
+
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	_, err := handler.GetDefaults(ctx, &pb.GetDefaultsRequest{UserId: "user-1"})
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code(), "the wire mapping is unchanged")
+
+	assert.Empty(t, transport.Events(), "client input must not consume error quota")
+	assert.Empty(t, errorRecords(t, logs))
+}
+
+// The same exit still reports a typed 5xx, which is the half that must not be lost
+// while closing the 4xx exposure.
+func TestGRPC_ATypedServerError_IsReported(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	handler, _ := setupGRPCHandlerWithLog(t, repo, txBeginner)
+
+	repo.On("GetDefaults", mock.Anything, "user-1").
+		Return(nil, apierr.Internal("Defaults store unavailable"))
+
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	_, err := handler.GetDefaults(ctx, &pb.GetDefaultsRequest{UserId: "user-1"})
+	require.Error(t, err)
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "finance.get_defaults", events[0].Tags["operation"])
 }

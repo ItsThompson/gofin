@@ -59,10 +59,10 @@ func TestRespondError_AnUnclassifiedErrorYieldsExactlyOneEvent(t *testing.T) {
 }
 
 // Every 4xx in the codebase is a typed *apierr.Error carrying an explicit Status,
-// so the classified branch excludes the whole client-error class by construction.
-// Validation failures are the highest-frequency category in the codebase, and the
-// allowance is 5,000 events a month shared org-wide.
-func TestRespondError_AClassifiedErrorIsNeverReported(t *testing.T) {
+// so the client-error class is excluded by construction. Validation failures are
+// the highest-frequency category in the codebase, and the allowance is 5,000 events
+// a month shared org-wide.
+func TestRespondError_AClientErrorIsNeverReported(t *testing.T) {
 	cases := []struct {
 		name       string
 		err        error
@@ -74,6 +74,18 @@ func TestRespondError_AClassifiedErrorIsNeverReported(t *testing.T) {
 			err:        apierr.Validation("Invalid request body", map[string]string{"Amount": "required"}),
 			wantStatus: http.StatusBadRequest,
 			wantCode:   apierr.CodeValidation,
+		},
+		{
+			name:       "unauthorized",
+			err:        apierr.Unauthorized("Authentication required"),
+			wantStatus: http.StatusUnauthorized,
+			wantCode:   apierr.CodeUnauthorized,
+		},
+		{
+			name:       "conflict",
+			err:        apierr.Conflict("DUPLICATE_TAG", "Tag already exists"),
+			wantStatus: http.StatusConflict,
+			wantCode:   "DUPLICATE_TAG",
 		},
 		{
 			name:       "not found",
@@ -98,6 +110,53 @@ func TestRespondError_AClassifiedErrorIsNeverReported(t *testing.T) {
 			require.Equal(t, tc.wantStatus, w.Code)
 			assert.Equal(t, tc.wantCode, decodeBody(t, w)["code"])
 			assert.Empty(t, transport.Events(), "a %d must not consume error quota", tc.wantStatus)
+		})
+	}
+}
+
+// A typed 5xx is still the service's fault, and the client sees a server error
+// either way, so classifying a failure must not silence it. Two real sites return
+// one: finance's pro-rata schedule failure and datarights' 503 when auth is
+// unreachable, and neither is reported by the layer that produces it.
+func TestRespondError_ATypedServerErrorIsReported(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{
+			name:       "explicit 500",
+			err:        apierr.Internal("First installment was created but schedule creation failed"),
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "503 from an unreachable dependency",
+			err:        &apierr.Error{Code: "SERVICE_UNAVAILABLE", Message: "Auth service unavailable", Status: http.StatusServiceUnavailable},
+			wantStatus: http.StatusServiceUnavailable,
+		},
+		{
+			name:       "unset status, which renders as 500",
+			err:        &apierr.Error{Code: "NO_STATUS", Message: "status unset"},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:       "wrapped 500",
+			err:        fmt.Errorf("creating schedule: %w", apierr.Internal("store unavailable")),
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, w, transport := newReportingContext(t)
+
+			httpx.RespondError(c, tc.err, restMeta)
+
+			require.Equal(t, tc.wantStatus, w.Code)
+
+			events := transport.Events()
+			require.Len(t, events, 1, "a %d is the service's own failure", tc.wantStatus)
+			assert.Equal(t, "expense.create", events[0].Tags["operation"])
 		})
 	}
 }

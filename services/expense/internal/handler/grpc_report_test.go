@@ -45,6 +45,54 @@ func TestGRPC_StreamAllUserExpenses_ReportsThroughTheStreamContext(t *testing.T)
 	assert.Equal(t, "expenses", events[0].Tags["domain"])
 }
 
+// mapServiceError's default branch returns codes.Internal for any typed code the
+// switch does not name, so a client error can reach the report path there. It must
+// not be billed: a new conflict code or a 401 from this service is client input,
+// not a service defect. Unreachable from today's service layer, and the point is
+// that it stays free rather than staying unreachable.
+func TestGRPC_AnUnmappedClientError_YieldsNoEvent(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler, logs := newGRPCHandlerWithLog(t, repo)
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").
+		Return(nil, apierr.Conflict("EXPENSE_LOCKED", "Expense is locked"))
+
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	_, err := handler.GetExpense(ctx, &pb.GetExpenseRequest{UserId: "user-1", Id: "exp-1"})
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code(), "the wire mapping is unchanged")
+	assert.Equal(t, "Expense is locked", st.Message())
+
+	assert.Empty(t, transport.Events(), "client input must not consume error quota")
+	assert.Empty(t, errorRecords(t, logs))
+}
+
+// The same branch still reports a typed 5xx, which is the half that must not be
+// lost while closing the 4xx exposure.
+func TestGRPC_ATypedServerError_IsReported(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler, _ := newGRPCHandlerWithLog(t, repo)
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").
+		Return(nil, apierr.Internal("Expense store unavailable"))
+
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	_, err := handler.GetExpense(ctx, &pb.GetExpenseRequest{UserId: "user-1", Id: "exp-1"})
+	require.Error(t, err)
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "expense.get", events[0].Tags["operation"])
+	assert.Equal(t, apierr.CodeInternal, events[0].Contexts["gofin"]["error_code"])
+}
+
 // A send failure means the consumer stopped reading. The only consumer is the
 // export engine, which fails its own job and reports that with the job id, so a
 // report here would bill a second event for one failure. It stays silent

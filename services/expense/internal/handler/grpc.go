@@ -178,7 +178,7 @@ func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.Anon
 	}
 
 	if err := h.expenseService.AnonymizeAllUserExpenses(ctx, userID); err != nil {
-		_ = errkit.Report(ctx, err, errkit.Meta{
+		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     opAnonymize.name,
 			Domain: reportDomain,
 			Msg:    "failed to anonymize expenses",
@@ -222,6 +222,23 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 // error against op, because the status returned to the caller carries no internal
 // detail.
 //
+// reportServerFailure reports err unless the client is about to receive a client
+// error. Both codes.Internal exits below are reachable with a typed *apierr.Error,
+// and a code this handler does not map is not evidence that the failure is the
+// service's fault: a future 401 or a new conflict code would otherwise start
+// billing error quota for ordinary client input, and nothing would fail.
+//
+// The gate is the rendered status rather than a list of codes, so it stays correct
+// as the code set grows. A gated error leaves no record here, which is right: the
+// guard that produced the typed 4xx recorded it where the decision was made, and
+// what a client error at an internal exit really signals is a status pairing the
+// caller can see.
+func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
+	if apierr.IsServerError(err) {
+		_ = errkit.Report(ctx, err, meta)
+	}
+}
+
 // op comes from the caller rather than a constant here, because one generic
 // operation would group every gRPC failure in the service into a single issue,
 // which is exactly the collapse a shared reporter risks.
@@ -238,7 +255,7 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 		case model.ErrPeriodLocked:
 			return status.Error(codes.PermissionDenied, apiErr.Message)
 		default:
-			_ = errkit.Report(ctx, err, errkit.Meta{
+			reportServerFailure(ctx, err, errkit.Meta{
 				Op:     op.name,
 				Domain: reportDomain,
 				Msg:    "internal service error",
@@ -251,7 +268,7 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 			return status.Error(codes.Internal, apiErr.Message)
 		}
 	}
-	_ = errkit.Report(ctx, err, errkit.Meta{
+	reportServerFailure(ctx, err, errkit.Meta{
 		Op:     op.name,
 		Domain: reportDomain,
 		Msg:    "unclassified service error",
