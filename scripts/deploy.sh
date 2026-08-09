@@ -178,14 +178,17 @@ echo "  .env found."
 # push these from GitHub Secrets, so this check is the only interlock that does
 # not depend on someone remembering. Do not "fix" the asymmetry.
 #
-# The value is unquoted before the test: SENTRY_DSN_BACKEND="" is empty to both
-# docker compose and source, and a hand-edited file is the one way that arises.
+# The value is unquoted and trimmed before the test: SENTRY_DSN_BACKEND="" is empty
+# to both docker compose and source, and a hand-edited file is the one way either
+# state arises.
 MISSING=""
 for VAR in SENTRY_DSN_BACKEND SENTRY_DSN_FRONTEND; do
   VALUE="$(grep -m1 "^${VAR}=" /opt/gofin/.env || true)"
   VALUE="${VALUE#*=}"
   VALUE="${VALUE%\"}"; VALUE="${VALUE#\"}"
   VALUE="${VALUE%\'}"; VALUE="${VALUE#\'}"
+  VALUE="${VALUE#"${VALUE%%[![:space:]]*}"}"
+  VALUE="${VALUE%"${VALUE##*[![:space:]]}"}"
   if [[ -z "${VALUE}" ]]; then
     MISSING="${MISSING} ${VAR}"
   fi
@@ -214,7 +217,8 @@ if [[ -n "${DEPLOY_SHA:-}" ]]; then
   echo "==> Recording the deploy SHA as the Sentry release..."
   ssh "${SSH_TARGET}" bash <<REMOTE_RELEASE
 set -euo pipefail
-ENV_FILE=/opt/gofin/.env
+# Resolved, so replacing the file cannot turn a symlinked .env into a regular file.
+ENV_FILE="\$(readlink -f /opt/gofin/.env)"
 TMP_FILE="\${ENV_FILE}.deploy-tmp"
 
 # Rewritten rather than appended, so the file cannot grow a line per deploy, and
