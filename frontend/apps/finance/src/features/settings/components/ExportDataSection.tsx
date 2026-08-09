@@ -88,6 +88,12 @@ export function ExportDataSection() {
         )}
       </div>
 
+      {state.status === "error" && state.error && (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      )}
+
       <div>
         <h4 className="mb-3 text-sm font-medium">Export History</h4>
         <ExportHistoryTable jobs={state.jobs} />

@@ -71,12 +71,24 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
     toast.error(`Deletion of "${username}" failed: ${error}`);
   }, [activePolling]);
 
+  const handleStatusUnavailable = useCallback(() => {
+    if (!activePolling) return;
+    const { username } = activePolling;
+    setActivePolling(null);
+    // The last known status stays on the row: the deletion may still be running,
+    // we just stopped being able to read it.
+    toast.error(
+      `Lost contact with the server while deleting "${username}". Refresh to check whether it finished.`,
+    );
+  }, [activePolling]);
+
   useDeletionPolling({
     jobId: activePolling?.jobId ?? "",
     enabled: activePolling !== null,
     onStatusChange: handleStatusChange,
     onCompleted: handlePollingCompleted,
     onFailed: handlePollingFailed,
+    onStatusUnavailable: handleStatusUnavailable,
   });
 
   const startDeletion = useCallback((user: { id: string; username: string }) => {

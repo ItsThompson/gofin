@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { act } from "@testing-library/react";
-import { usePolling } from "../src/hooks/usePolling";
+import {
+  usePolling,
+  DEFAULT_MAX_CONSECUTIVE_FAILURES,
+} from "../src/hooks/usePolling";
 import type { UsePollingOptions } from "../src/hooks/usePolling";
 
 describe("usePolling", () => {
@@ -224,34 +227,139 @@ describe("usePolling", () => {
       expect(onData).toHaveBeenCalledWith("recovered");
     });
 
-    it("calls onError when fetcher throws", async () => {
-      const onError = vi.fn();
-      const error = new Error("fetch failed");
-      const fetcher = vi.fn().mockRejectedValue(error);
-
-      renderPolling({ fetcher, onError, intervalMs: 1000 });
-
-      await act(async () => {
-        vi.advanceTimersByTime(1000);
-      });
-      expect(onError).toHaveBeenCalledWith(error);
-    });
-
-    it("does not stop polling after an error", async () => {
+    it("keeps polling while failures stay below the limit", async () => {
       const fetcher = vi.fn()
         .mockRejectedValueOnce(new Error("err1"))
         .mockRejectedValueOnce(new Error("err2"))
         .mockResolvedValueOnce("ok");
       const onData = vi.fn();
-      const onError = vi.fn();
+      const onFailureLimitReached = vi.fn();
 
-      renderPolling({ fetcher, onData, onError, intervalMs: 1000 });
+      renderPolling({
+        fetcher,
+        onData,
+        onFailureLimitReached,
+        intervalMs: 1000,
+      });
 
       await act(async () => {
         vi.advanceTimersByTime(3000);
       });
-      expect(onError).toHaveBeenCalledTimes(2);
+      expect(onFailureLimitReached).not.toHaveBeenCalled();
       expect(onData).toHaveBeenCalledWith("ok");
+    });
+  });
+
+  describe("consecutive failure limit", () => {
+    it("stops after the default number of consecutive failures", async () => {
+      const lastError = new Error("still down");
+      const fetcher = vi.fn()
+        .mockRejectedValueOnce(new Error("down 1"))
+        .mockRejectedValueOnce(new Error("down 2"))
+        .mockRejectedValue(lastError);
+      const onFailureLimitReached = vi.fn();
+
+      renderPolling({ fetcher, onFailureLimitReached, intervalMs: 1000 });
+
+      await act(async () => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(
+        DEFAULT_MAX_CONSECUTIVE_FAILURES,
+      );
+      expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
+      expect(onFailureLimitReached).toHaveBeenCalledWith(lastError);
+
+      // The interval is gone: no further ticks, and no further callbacks.
+      fetcher.mockClear();
+      await act(async () => {
+        vi.advanceTimersByTime(10000);
+      });
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
+    });
+
+    it("honors a caller-supplied limit", async () => {
+      const fetcher = vi.fn().mockRejectedValue(new Error("down"));
+      const onFailureLimitReached = vi.fn();
+
+      renderPolling({
+        fetcher,
+        onFailureLimitReached,
+        maxConsecutiveFailures: 2,
+        intervalMs: 1000,
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(onFailureLimitReached).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+
+    it("resets the failure count on any success", async () => {
+      const fetcher = vi.fn()
+        .mockRejectedValueOnce(new Error("err1"))
+        .mockRejectedValueOnce(new Error("err2"))
+        .mockResolvedValueOnce("recovered")
+        .mockRejectedValueOnce(new Error("err3"))
+        .mockRejectedValueOnce(new Error("err4"))
+        .mockResolvedValueOnce("recovered again");
+      const onData = vi.fn();
+      const onFailureLimitReached = vi.fn();
+
+      renderPolling({
+        fetcher,
+        onData,
+        onFailureLimitReached,
+        intervalMs: 1000,
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(6000);
+      });
+
+      // Six ticks with two runs of two failures: the budget never ran out.
+      expect(fetcher).toHaveBeenCalledTimes(6);
+      expect(onFailureLimitReached).not.toHaveBeenCalled();
+      expect(onData).toHaveBeenNthCalledWith(1, "recovered");
+      expect(onData).toHaveBeenNthCalledWith(2, "recovered again");
+    });
+
+    it("starts a fresh failure budget when polling restarts", async () => {
+      const fetcher = vi.fn().mockRejectedValue(new Error("down"));
+      const onFailureLimitReached = vi.fn();
+      const { rerender, options } = renderPolling({
+        fetcher,
+        onFailureLimitReached,
+        maxConsecutiveFailures: 2,
+        intervalMs: 1000,
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+
+      rerender({ ...options, enabled: false });
+      rerender({ ...options, enabled: true });
+      fetcher.mockClear();
+
+      // One failure carried over would trip the limit on the first new tick.
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(onFailureLimitReached).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
     });
   });
 

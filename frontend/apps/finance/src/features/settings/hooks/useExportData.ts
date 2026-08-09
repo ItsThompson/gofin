@@ -12,6 +12,9 @@ import type {
 
 const POLL_INTERVAL_MS = 5000;
 const COOLDOWN_DAYS = 30;
+/** Shown when polling gives up: the job may still be running, we lost the status. */
+const POLLING_LOST_MESSAGE =
+  "Lost contact with the server while tracking your export. Refresh to see the latest status.";
 
 function hasActiveJobs(jobs: ExportJob[]): boolean {
   return jobs.some(
@@ -96,12 +99,20 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
     }
   }, []);
 
+  const handlePollFailureLimit = useCallback(() => {
+    if (!mountedRef.current) return;
+    setStatus("error");
+    setError(POLLING_LOST_MESSAGE);
+    toast.error(POLLING_LOST_MESSAGE);
+  }, []);
+
   usePolling<ExportListResponse>({
     fetcher: () => settingsApi.listExports(1, 50),
     enabled: status === "polling",
     intervalMs: POLL_INTERVAL_MS,
     onData: handlePollData,
     shouldStop: (response) => !hasActiveJobs(response.data),
+    onFailureLimitReached: handlePollFailureLimit,
   });
 
   const requestExport = useCallback(async () => {

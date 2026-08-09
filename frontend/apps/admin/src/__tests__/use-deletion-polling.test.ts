@@ -29,6 +29,7 @@ describe("useDeletionPolling", () => {
     onStatusChange: vi.fn(),
     onCompleted: vi.fn(),
     onFailed: vi.fn(),
+    onStatusUnavailable: vi.fn(),
   };
 
   beforeEach(() => {
@@ -160,5 +161,31 @@ describe("useDeletionPolling", () => {
     });
 
     expect(onStatusChange).toHaveBeenCalledWith("running", undefined);
+  });
+
+  it("calls onStatusUnavailable and stops once the status endpoint keeps failing", async () => {
+    const onStatusUnavailable = vi.fn();
+    const onFailed = vi.fn();
+    mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderHook(() =>
+      useDeletionPolling({ ...defaultOptions, onFailed, onStatusUnavailable }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(7500);
+    });
+
+    expect(onStatusUnavailable).toHaveBeenCalledTimes(1);
+    // A poll that gave up is not a failed deletion.
+    expect(onFailed).not.toHaveBeenCalled();
+
+    mockFetch.mockClear();
+    await act(async () => {
+      vi.advanceTimersByTime(10000);
+    });
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(onStatusUnavailable).toHaveBeenCalledTimes(1);
   });
 });
