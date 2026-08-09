@@ -1,5 +1,5 @@
 import * as React from "react";
-import { reportError } from "@gofin/api";
+import { isModuleLoadError, reportError } from "@gofin/api";
 import { RemoteLoadError } from "@gofin/ui/components/RemoteLoadError";
 
 interface RemoteBoundaryProps {
@@ -45,16 +45,22 @@ class RemoteBoundary extends React.Component<
       error,
       componentStack: errorInfo.componentStack ?? null,
     });
+    // This is the innermost boundary for six route features and only the
+    // dashboard's widgets have one below it, so most of what it catches is an
+    // ordinary render crash rather than a load failure. The two get different
+    // classification and different grouping.
+    const loadFailure = isModuleLoadError(error);
     reportError(error, {
-      kind: "network",
-      op: "chunk.load",
+      kind: loadFailure ? "network" : "internal",
+      op: loadFailure ? "chunk.load" : "render.remote",
       domain: "platform",
       // Chunk names are content-hashed and assets are served with maxAge 1h, so
-      // every client still holding a stale manifest after a deploy fails here
-      // with a different filename. One key collapses a bad deploy into one issue
-      // instead of one per stale client.
-      groupKey: "chunk_load_failed",
-      groupExact: true,
+      // every client still holding a stale manifest after a deploy fails on a
+      // different filename. One key collapses a bad deploy into one issue.
+      // A render crash keeps default grouping: its stack is the bug's identity.
+      ...(loadFailure
+        ? { groupKey: "chunk_load_failed", groupExact: true }
+        : {}),
       data: {
         sectionName: this.props.sectionName,
         componentStack: errorInfo.componentStack,

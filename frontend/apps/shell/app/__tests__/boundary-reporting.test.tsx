@@ -31,6 +31,23 @@ function onlyCapture(): { error: unknown; context: CapturedContext } {
 }
 
 /**
+ * The hydration payload React Router writes for an SSR route error. Measured
+ * against the running production server: an `Error` is serialized as
+ * `{ __type: "Error", message }` with its stack dropped.
+ */
+function serializeServerError(message: string): void {
+  (
+    globalThis as { __reactRouterContext?: unknown }
+  ).__reactRouterContext = {
+    state: { errors: { root: { __type: "Error", message } } },
+  };
+}
+
+function clearHydrationPayload(): void {
+  Reflect.deleteProperty(globalThis, "__reactRouterContext");
+}
+
+/**
  * The route boundary takes the framework's generated props, of which only `error`
  * is read. One boundary cast keeps the rest out of every call site.
  */
@@ -48,6 +65,7 @@ function ThrowingChild(): React.ReactNode {
 describe("the root route ErrorBoundary", () => {
   beforeEach(() => {
     captureException.mockClear();
+    clearHydrationPayload();
   });
 
   it("reports the error once, from an effect", async () => {
@@ -148,9 +166,75 @@ describe("the root route ErrorBoundary", () => {
   });
 });
 
+describe("an SSR error arriving back through hydration", () => {
+  beforeEach(() => {
+    captureException.mockClear();
+    clearHydrationPayload();
+  });
+
+  it("reports nothing, because handleError already owns it", async () => {
+    // The effect does not run on the server, but it does run on the way back:
+    // React Router serializes the error into the hydration payload and this
+    // boundary re-renders for it in the browser.
+    serializeServerError("Unexpected Server Error");
+
+    render(routeBoundary(new Error("Unexpected Server Error")));
+
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("Oops!"),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("still reports a client-side error on the same document", async () => {
+    // The narrowness that matters: the payload stays on window for the life of
+    // the page, so a later client crash must not inherit the suppression.
+    serializeServerError("Unexpected Server Error");
+
+    render(routeBoundary(new Error("a genuine client-side crash")));
+
+    await waitFor(() => expect(captureException).toHaveBeenCalled());
+
+    expect(onlyCapture().context.tags).toMatchObject({
+      operation: "render.route",
+    });
+  });
+
+  it("still reports when the payload carries no error", async () => {
+    (globalThis as { __reactRouterContext?: unknown }).__reactRouterContext = {
+      state: { errors: null },
+    };
+
+    render(routeBoundary(new Error("client crash after a clean render")));
+
+    await waitFor(() => expect(captureException).toHaveBeenCalled());
+    onlyCapture();
+  });
+
+  it("still reports a route error response the server did not serialize as an Error", async () => {
+    // A thrown 5xx Response reaches the client as an ErrorResponse, which the
+    // payload marks __type RouteErrorResponse, so the suppression must not
+    // widen to it.
+    serializeServerError("Unexpected Server Error");
+
+    render(
+      routeBoundary({
+        status: 500,
+        statusText: "Internal Server Error",
+        internal: false,
+        data: null,
+      }),
+    );
+
+    await waitFor(() => expect(captureException).toHaveBeenCalled());
+    onlyCapture();
+  });
+});
+
 describe("RemoteBoundary", () => {
   beforeEach(() => {
     captureException.mockClear();
+    clearHydrationPayload();
     // React logs every boundary catch; the assertions are on the capture.
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -159,7 +243,10 @@ describe("RemoteBoundary", () => {
     vi.restoreAllMocks();
   });
 
-  it("reports once with the component stack and one grouping key", async () => {
+  it("reports a render crash as an application defect, with default grouping", async () => {
+    // It is the innermost boundary for six route features and only the
+    // dashboard's widgets have one below it, so most of what it catches is an
+    // ordinary render crash.
     render(
       <RemoteBoundary sectionName="Admin Panel" loadingFallback={<div />}>
         <ThrowingChild />
@@ -171,15 +258,19 @@ describe("RemoteBoundary", () => {
     const { error, context } = onlyCapture();
     expect((error as Error).message).toBe("widget render crash");
     expect(context.tags).toMatchObject({
-      error_kind: "network",
-      operation: "chunk.load",
+      error_kind: "internal",
+      operation: "render.remote",
       domain: "platform",
     });
+    expect(context.fingerprint).toEqual([
+      "{{ default }}",
+      "render.remote/internal",
+    ]);
     expect(context.contexts?.gofin.sectionName).toBe("Admin Panel");
     expect(context.contexts?.gofin.componentStack).toContain("ThrowingChild");
   });
 
-  it("collapses every load failure into one issue", async () => {
+  it("collapses every chunk load failure into one issue", async () => {
     // Chunk filenames are content-hashed, so each stale client after a deploy
     // fails on a different filename. Dropping "{{ default }}" is what keeps one
     // bad deploy at one issue instead of one per client.
@@ -195,6 +286,31 @@ describe("RemoteBoundary", () => {
 
     await waitFor(() => expect(captureException).toHaveBeenCalled());
 
-    expect(onlyCapture().context.fingerprint).toEqual(["chunk_load_failed"]);
+    const { context } = onlyCapture();
+    expect(context.tags).toMatchObject({
+      error_kind: "network",
+      operation: "chunk.load",
+    });
+    expect(context.fingerprint).toEqual(["chunk_load_failed"]);
+  });
+
+  it("recognizes the Firefox and Safari spellings of a load failure", async () => {
+    for (const message of [
+      "error loading dynamically imported module: https://usegofin.com/assets/x.js",
+      "Importing a module script failed.",
+    ]) {
+      captureException.mockClear();
+      const LazyRemote = React.lazy(() => Promise.reject(new Error(message)));
+      const { unmount } = render(
+        <RemoteBoundary sectionName="Finance" loadingFallback={<div />}>
+          <LazyRemote />
+        </RemoteBoundary>,
+      );
+
+      await waitFor(() => expect(captureException).toHaveBeenCalled());
+
+      expect(onlyCapture().context.fingerprint).toEqual(["chunk_load_failed"]);
+      unmount();
+    }
   });
 });

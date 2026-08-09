@@ -11,6 +11,7 @@ export type { ErrorKind } from "./errors/kinds";
 export {
   useApiToast,
   isNetworkError,
+  isModuleLoadError,
   NETWORK_ERROR_MESSAGE,
 } from "./hooks/useApiToast";
 export {

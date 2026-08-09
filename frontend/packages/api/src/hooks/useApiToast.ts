@@ -18,6 +18,33 @@ export function isNetworkError(error: unknown): boolean {
   return false;
 }
 
+/**
+ * The three spellings browsers use when a dynamic `import()` cannot be fetched:
+ * Chromium, Firefox and Safari each word it differently and none exposes a code.
+ * Matching the message is the only signal available, which is why this sits
+ * beside `isNetworkError` rather than inventing a second place for the same kind
+ * of classification.
+ */
+const MODULE_LOAD_FAILURE_MESSAGES = [
+  "failed to fetch dynamically imported module",
+  "error loading dynamically imported module",
+  "importing a module script failed",
+];
+
+/**
+ * Determines if an error is a failure to load a code-split chunk, as opposed to a
+ * render crash inside one that already loaded. The two need different
+ * classification and different grouping: a stale client after a deploy is one
+ * infrastructure incident, and a render crash is a distinct bug per site.
+ */
+export function isModuleLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return MODULE_LOAD_FAILURE_MESSAGES.some((spelling) =>
+    message.includes(spelling),
+  );
+}
+
 /** User-facing message for network failures. */
 export const NETWORK_ERROR_MESSAGE =
   "Connection lost. Check your internet and try again.";
