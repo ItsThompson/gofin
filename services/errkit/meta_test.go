@@ -1,6 +1,7 @@
 package errkit_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -8,8 +9,10 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/errkit"
+	"github.com/ItsThompson/gofin/services/errkit/errkittest"
 )
 
 // The fingerprint is the whole mitigation for the wrapper-frame trap: a shared
@@ -135,6 +138,25 @@ func TestReport_Tags(t *testing.T) {
 			meta: errkit.Meta{Tags: map[string]string{"target": "auth\nservice"}},
 			want: map[string]string{"error_kind": "internal", "target": "auth service"},
 		},
+		{
+			name: "an empty caller key is omitted",
+			meta: errkit.Meta{Tags: map[string]string{"": "orphan"}},
+			want: map[string]string{"error_kind": "internal"},
+		},
+		{
+			name: "a caller key matching an init-owned taxonomy tag is dropped",
+			meta: errkit.Meta{
+				Kind: errkit.KindDatabase,
+				Op:   "expense.create",
+				Tags: map[string]string{
+					"app":         "gofin-web",
+					"service":     "gateway",
+					"runtime":     "node",
+					"http_status": "503",
+				},
+			},
+			want: map[string]string{"error_kind": "database", "operation": "expense.create", "http_status": "503"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -177,4 +199,31 @@ func TestReport_DefaultsTheEventLevelToError(t *testing.T) {
 	_ = errkit.Report(env.ctx, errors.New("boom"), errkit.Meta{})
 
 	assert.Equal(t, sentry.LevelError, env.singleEvent(t).Level)
+}
+
+// The consequence of dropping a caller key that matches the init-owned taxonomy.
+// A scope tag beats an option tag, so without the guard an expense handler could
+// emit service=gateway and only a cross-project query would ever notice.
+func TestReport_InitOwnedTagsSurviveACallerCollision(t *testing.T) {
+	installLogRecorder(t)
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport, func(options *sentry.ClientOptions) {
+		options.Tags = map[string]string{"app": "gofin-api", "service": "expense", "runtime": "go"}
+	})
+
+	_ = errkit.Report(ctx, errors.New("boom"), errkit.Meta{
+		Kind: errkit.KindDatabase,
+		Op:   "expense.create",
+		Tags: map[string]string{"app": "gofin-web", "service": "gateway", "runtime": "node"},
+	})
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, map[string]string{
+		"error_kind": "database",
+		"operation":  "expense.create",
+		"app":        "gofin-api",
+		"service":    "expense",
+		"runtime":    "go",
+	}, events[0].Tags)
 }

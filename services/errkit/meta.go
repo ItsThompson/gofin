@@ -29,6 +29,18 @@ const (
 	tagDomain    = "domain"
 )
 
+// initOwnedTags are the taxonomy tags set once per process through
+// sentry.ClientOptions.Tags. A scope tag beats an option tag, because
+// Scope.ApplyToEvent writes unconditionally while the SDK's global-tags
+// integration only backfills a key the event lacks. So a caller key here would
+// silently replace a per-process constant, and the only symptom would be a
+// cross-project Sentry query returning nothing.
+var initOwnedTags = map[string]struct{}{
+	"app":     {},
+	"service": {},
+	"runtime": {},
+}
+
 // Meta describes a failure. The zero value is valid: Level defaults to error,
 // Kind to internal, Msg to a generic string, and the fingerprint derives from Op
 // and Kind.
@@ -64,9 +76,10 @@ type Meta struct {
 	GroupExact bool
 
 	// Tags are additional low-cardinality string pairs. Values are truncated to
-	// 200 characters. Never put identifiers, amounts, emails, or URLs here: tags
-	// are indexed and searchable, and one high-cardinality tag makes every tag
-	// distribution useless.
+	// 200 characters. A key matching app, service, or runtime is dropped: those
+	// are set once per process at init. Never put identifiers, amounts, emails,
+	// or URLs here: tags are indexed and searchable, and one high-cardinality tag
+	// makes every tag distribution useless.
 	Tags map[string]string
 
 	// Data is arbitrary structured metadata, sent as the Sentry context block
@@ -118,7 +131,9 @@ func (m Meta) fingerprint() []string {
 
 // tags builds the event's tag set. Meta.Tags is applied last, so a caller that
 // deliberately supplies error_kind, operation, or domain wins over the derived
-// value.
+// value. The three init-owned taxonomy tags are the exception: they are
+// per-process constants with no legitimate call-site override, so a caller key
+// matching one is dropped.
 func (m Meta) tags() map[string]string {
 	tags := make(map[string]string, len(m.Tags)+3)
 
@@ -127,18 +142,21 @@ func (m Meta) tags() map[string]string {
 	putTag(tags, tagDomain, m.Domain)
 
 	for key, value := range m.Tags {
+		if _, reserved := initOwnedTags[key]; reserved {
+			continue
+		}
 		putTag(tags, key, value)
 	}
 
 	return tags
 }
 
-// putTag writes value under key unless value is empty. An empty tag is dropped
+// putTag writes value under key unless either is empty. An empty tag is dropped
 // rather than sent, so it never appears as a meaningless row in a tag
 // distribution, and dropping it leaves any derived value already under key
 // intact.
 func putTag(tags map[string]string, key, value string) {
-	if value == "" {
+	if key == "" || value == "" {
 		return
 	}
 	tags[key] = truncateTagValue(value)

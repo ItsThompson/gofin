@@ -73,3 +73,24 @@ func TestTransport_SendEventIsConcurrencySafe(t *testing.T) {
 
 	assert.Len(t, transport.Events(), senders)
 }
+
+func TestNewClient_AppliesTheConfigureHook(t *testing.T) {
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport, func(options *sentry.ClientOptions) {
+		options.Tags = map[string]string{"service": "expense"}
+	})
+
+	sentry.GetHubFromContext(ctx).CaptureException(errors.New("boom"))
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "expense", events[0].Tags["service"])
+}
+
+func TestNewClient_PanicsOnAnUnusableOption(t *testing.T) {
+	assert.Panics(t, func() {
+		errkittest.NewClient(&errkittest.Transport{}, func(options *sentry.ClientOptions) {
+			options.Dsn = "not a dsn"
+		})
+	})
+}

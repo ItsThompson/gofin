@@ -54,15 +54,25 @@ func (t *Transport) Events() []*sentry.Event {
 // because their batch processors start background goroutines a test has no use
 // for, and DataCollection is left nil so the conservative defaults apply.
 //
-// It panics if the client cannot be built, which no caller can provoke: the only
-// failure mode is an unparseable DSN and the DSN is a constant.
-func NewClient(tr *Transport) *sentry.Client {
-	client, err := sentry.NewClient(sentry.ClientOptions{
+// Each configure function runs against the options before the client is built, so
+// a test needing an init-level setting such as ClientOptions.Tags can add it
+// without restating the hermetic defaults.
+//
+// It panics if the client cannot be built. With no configure function the only
+// failure mode is an unparseable DSN and the DSN is a constant, so a panic means a
+// configure function supplied a bad option.
+func NewClient(tr *Transport, configure ...func(*sentry.ClientOptions)) *sentry.Client {
+	options := sentry.ClientOptions{
 		Dsn:            hermeticDSN,
 		Transport:      tr,
 		DisableLogs:    true,
 		DisableMetrics: true,
-	})
+	}
+	for _, apply := range configure {
+		apply(&options)
+	}
+
+	client, err := sentry.NewClient(options)
 	if err != nil {
 		panic("errkittest: building the recording client: " + err.Error())
 	}
@@ -73,6 +83,6 @@ func NewClient(tr *Transport) *sentry.Client {
 // into tr. This is the shape production has, because sentrygin and sentrygrpc
 // install a per-request hub on the context, so it exercises the
 // GetHubFromContext path rather than the clone fallback.
-func ContextWithHub(ctx context.Context, tr *Transport) context.Context {
-	return sentry.SetHubOnContext(ctx, sentry.NewHub(NewClient(tr), sentry.NewScope()))
+func ContextWithHub(ctx context.Context, tr *Transport, configure ...func(*sentry.ClientOptions)) context.Context {
+	return sentry.SetHubOnContext(ctx, sentry.NewHub(NewClient(tr, configure...), sentry.NewScope()))
 }
