@@ -1,6 +1,8 @@
 import { useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { ApiRequestError } from "../client";
+import { classifyApiFailure, NETWORK_FAILURE } from "../errors/classify";
+import { reportError } from "../errors/report";
 
 /** Determines if an error is a network/connectivity failure. */
 export function isNetworkError(error: unknown): boolean {
@@ -27,6 +29,10 @@ interface UseApiToastOptions {
    * where automatic retry could produce side effects.
    */
   retriable?: boolean;
+  /** Logical operation for the report, e.g. "expense.list". */
+  op?: string;
+  /** Business area for the report, e.g. "expenses". */
+  domain?: string;
 }
 
 interface ApiToastCallbacks<T> {
@@ -61,26 +67,36 @@ interface ApiToastCallbacks<T> {
 export function useApiToast<T = unknown>(
   hookOptions: UseApiToastOptions = {},
 ): ApiToastCallbacks<T> {
-  const { retriable = true } = hookOptions;
+  const { retriable = true, op, domain } = hookOptions;
   const lastOperationRef = useRef<(() => Promise<T>) | null>(null);
+  const attemptsRef = useRef(0);
 
   const call = useCallback(
     async (
       operation: () => Promise<T>,
       callOptions?: { silent?: boolean },
     ): Promise<T | undefined> => {
+      if (operation !== lastOperationRef.current) {
+        attemptsRef.current = 0;
+      }
       lastOperationRef.current = operation;
+      attemptsRef.current += 1;
 
       try {
-        return await operation();
+        const result = await operation();
+        // A success ends the chain, so a later failure of the same operation is a
+        // new incident rather than another attempt at this one.
+        attemptsRef.current = 0;
+        return result;
       } catch (error) {
         if (callOptions?.silent) {
           return undefined;
         }
 
+        const network = isNetworkError(error);
         let message: string;
 
-        if (isNetworkError(error)) {
+        if (network) {
           message = NETWORK_ERROR_MESSAGE;
         } else if (error instanceof ApiRequestError) {
           message = error.message;
@@ -88,6 +104,18 @@ export function useApiToast<T = unknown>(
           message = error.message;
         } else {
           message = "An unexpected error occurred. Please try again.";
+        }
+
+        // The Retry action re-invokes this same operation and lands back in this
+        // catch, so reporting per attempt would turn one incident into one event
+        // per click.
+        if (attemptsRef.current === 1) {
+          reportError(error, {
+            ...(network ? NETWORK_FAILURE : classifyApiFailure(error)),
+            op,
+            domain,
+            data: { attempt: attemptsRef.current },
+          });
         }
 
         const toastOptions: Parameters<typeof toast.error>[1] = {};
@@ -108,7 +136,7 @@ export function useApiToast<T = unknown>(
         return undefined;
       }
     },
-    [retriable],
+    [retriable, op, domain],
   );
 
   const callSilent = useCallback(

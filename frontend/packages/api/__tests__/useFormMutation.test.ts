@@ -88,7 +88,7 @@ describe("useFormMutation", () => {
       expect(result.current.error).toBe("Email is already taken");
     });
 
-    it("calls onError with the error message", async () => {
+    it("calls onError with the error message and the original error", async () => {
       const onError = vi.fn();
       const apiError = new ApiRequestError(400, {
         code: "BAD_REQUEST",
@@ -103,7 +103,7 @@ describe("useFormMutation", () => {
         result.current.submit(() => Promise.reject(apiError));
       });
 
-      expect(onError).toHaveBeenCalledWith("Invalid input");
+      expect(onError).toHaveBeenCalledWith("Invalid input", apiError);
     });
 
     it("sets submitting to false after ApiRequestError", async () => {
@@ -147,7 +147,7 @@ describe("useFormMutation", () => {
         result.current.submit(() => Promise.reject(networkError));
       });
 
-      expect(onError).toHaveBeenCalledWith(NETWORK_ERROR_MESSAGE);
+      expect(onError).toHaveBeenCalledWith(NETWORK_ERROR_MESSAGE, networkError);
     });
   });
 
@@ -188,6 +188,7 @@ describe("useFormMutation", () => {
 
       expect(onError).toHaveBeenCalledWith(
         "An unexpected error occurred. Please try again.",
+        42,
       );
     });
   });
