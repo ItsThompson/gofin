@@ -35,7 +35,7 @@ replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
-	github.com/ItsThompson/gofin/services/errkit v0.0.0 // indirect
+	github.com/ItsThompson/gofin/services/errkit v0.0.0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
@@ -87,11 +87,11 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-require github.com/getsentry/sentry-go/gin v0.48.0
-
 require (
-	github.com/getsentry/sentry-go v0.48.0 // indirect
-	github.com/getsentry/sentry-go/grpc v0.48.0 // indirect
+	github.com/getsentry/sentry-go v0.48.0
+	github.com/getsentry/sentry-go/gin v0.48.0
 )
+
+require github.com/getsentry/sentry-go/grpc v0.48.0 // indirect
 
 replace github.com/ItsThompson/gofin/services/errkit => ../errkit
