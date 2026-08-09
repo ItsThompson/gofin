@@ -18,7 +18,8 @@ receivers:
     discord_configs:
       - webhook_url: "${DISCORD_WEBHOOK_URL}"
         # group_by includes job, so GroupLabels names the failing service.
-        # Hardware alerts carry no job label, hence the guard.
+        # ContainerHighCPU and HostHighCPU aggregate the job label away, so the
+        # guard keeps the title from ending in a dangling separator.
         title: '🚨 [CRITICAL] {{ .GroupLabels.alertname }}{{ if .GroupLabels.job }} · {{ .GroupLabels.job }}{{ end }}'
         message: '{{ range .Alerts }}**{{ .Annotations.summary }}**\n{{ end }}'
         send_resolved: true
