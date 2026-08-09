@@ -89,6 +89,16 @@ func TestNewRouter_APanickingHandlerYieldsExactlyOneEvent(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 	requireOnePanicRecord(t, logs)
 
+	// The log side of the same report. The two records are deliberately different:
+	// the panic record carries the value and the text stack, and this one carries
+	// the taxonomy every reported failure shares, so error_kind:internal returns
+	// panics alongside everything else.
+	report := requireOneReportRecord(t, logs)
+	assert.Equal(t, "recovered panic in HTTP handler", report["msg"])
+	assert.Equal(t, "internal", report["error_kind"])
+	assert.Equal(t, "panic.http", report["operation"])
+	assert.Equal(t, "panic: router handler exploded", report["error"])
+
 	events := transport.Events()
 	require.Len(t, events, 1, "two events means a recovery re-panicked into sentrygin")
 	assert.Equal(t, "panic.http", groupKeyOf(t, events[0]))

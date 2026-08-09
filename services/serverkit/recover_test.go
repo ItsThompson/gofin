@@ -111,6 +111,31 @@ func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink) map[string]an
 	return panicRecords[0]
 }
 
+// requireOneReportRecord asserts the sink holds exactly one record from the
+// report, and returns it. It is the other half of the two-record contract:
+// requireOnePanicRecord reads the record carrying the panic value and the stack,
+// and this one reads the ordinary failure record errkit writes beside it, which
+// carries the taxonomy and is what makes a query on error_kind return panics too.
+//
+// Only a test that installs its sink as slog.Default() sees this record, because
+// errkit logs through the package-level slog rather than an injected logger.
+func requireOneReportRecord(t *testing.T, sink *serverkittest.Sink) map[string]any {
+	t.Helper()
+
+	records, err := sink.ErrorRecords()
+	require.NoError(t, err)
+
+	var reportRecords []map[string]any
+	for _, record := range records {
+		if _, isPanicRecord := record["panic"]; !isPanicRecord {
+			reportRecords = append(reportRecords, record)
+		}
+	}
+
+	require.Len(t, reportRecords, 1, "the report must write exactly one record beside the panic record")
+	return reportRecords[0]
+}
+
 // withDefaultLogger installs log as slog.Default() for the duration of the test.
 // NewRouter and NewGRPCServer capture the default logger, so a test that wants
 // to read their records has to install its own first.
@@ -235,6 +260,13 @@ func TestRecovery_NonErrorPanicValueIsWrappedIntoAnError(t *testing.T) {
 	}
 }
 
+// TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect covers the highest-volume
+// exclusion in the recovery: behind a reverse proxy a client hanging up is
+// routine, and it is not a service defect. The zero-event assertion is the load
+// bearing half. The log assertions pass on an injected logger, and errkit's record
+// goes to slog.Default(), so a future edit that moved the report above the
+// classification branch would keep them green while turning every dead connection
+// into a Sentry event.
 func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
 	// The bare errnos are what a hand-written panic carries; the wrapped shape is
 	// what net/http actually produces, and only errors.Is unwrapping makes the
@@ -252,6 +284,7 @@ func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
 
 	for name, panicValue := range cases {
 		t.Run(name, func(t *testing.T) {
+			transport := bindRecordingHub(t)
 			logger, logs := serverkittest.NewLogger()
 			router := routerWithPanic(logger, panicValue)
 
@@ -265,6 +298,9 @@ func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
 			warnRecords, err := logs.RecordsAtLevel("WARN")
 			require.NoError(t, err)
 			require.Len(t, warnRecords, 1, "the abort should still be visible below error level")
+
+			assert.Empty(t, transport.Events(),
+				"a dead connection must never reach Sentry: it is per-request, not per-incident")
 
 			assert.Empty(t, w.Body.String(), "nothing can be written to an aborted connection")
 		})
