@@ -60,15 +60,16 @@ Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 | Setting | Value | Meaning |
 |---------|-------|---------|
 | Error ratio threshold | `> 0.05` | More than 5% of that job's requests returned 5xx over the 5-minute window |
-| Request-rate floor | `> 2 / 60` req/s | At least 2 requests per minute for that job, roughly 10 requests in the 5-minute window |
+| Request-rate floor | `> 2 / 60` req/s | More than 2 requests per minute for that job, so more than about 10 requests in the 5-minute window |
 | `for` duration | `5m` | Both conditions hold continuously for 5 minutes before the alert fires |
 
 Consequences worth knowing during triage:
 
-- A job serving fewer than 2 requests per minute never fires this alert, whatever its error ratio. That is the deliberate cost of the floor. `ServiceDown` still covers such a service going away entirely.
+- A job serving 2 requests per minute or fewer never fires this alert, whatever its error ratio. That is the deliberate cost of the floor. `ServiceDown` still covers such a service going away entirely.
 - A job with no traffic in the window produces no alert. Its ratio is `0/0`, which is `NaN`, and `NaN` fails every comparison, so the rule yields no series rather than a false page.
 - Both sides are summed by `job`, so two services failing at once produce two alert instances. `group_by: ["alertname", "job"]` then sends one Discord message per service, and both Discord titles name the job.
 - `mfe` exposes no `http_requests_total`, so it is absent from this alert.
+- Alerts that keep a `job` label from their exporter, such as `ContainerHighMemory` and `HostDiskAlmostFull`, now show that exporter in the Discord title: `· cadvisor` and `· node-exporter`. The failing container or mountpoint is named in the message body. Accepted cost of putting the job in the title, which is what names the service for `HighErrorRate`.
 
 ### Testing Alert Rules
 
@@ -84,7 +85,9 @@ docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus/tests
   --entrypoint promtool prom/prometheus:v3.11.3 test rules high_error_rate_test.yml
 ```
 
-`promtool` ships inside the `prom/prometheus` image, so no local install is needed. Use the image tag that `docker-compose.yml` pins for Prometheus, so the tests run on the same evaluation engine as production.
+`promtool` ships inside the `prom/prometheus` image, so no local install is needed. Use the image tag that `docker-compose.yml` pins for Prometheus, so the tests run on the same evaluation engine as production. `just test-monitoring` runs both commands.
+
+When reproducing `HighErrorRate` by hand against a running stack, drive at least 3 requests per minute at the target service. Below the floor the rule stays silent, which looks identical to a broken rule.
 
 ### Datarights Alert Rules
 
