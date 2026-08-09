@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -46,14 +45,12 @@ var (
 type GRPCHandler struct {
 	pb.UnimplementedExpenseServiceServer
 	expenseService *service.ExpenseService
-	logger         *slog.Logger
 }
 
 // NewGRPCHandler creates a new GRPCHandler.
-func NewGRPCHandler(expenseService *service.ExpenseService, logger *slog.Logger) *GRPCHandler {
+func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
 	return &GRPCHandler{
 		expenseService: expenseService,
-		logger:         logger,
 	}
 }
 

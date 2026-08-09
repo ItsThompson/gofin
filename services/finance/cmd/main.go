@@ -89,7 +89,7 @@ func run() error {
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()
-	grpcHandler := handler.NewGRPCHandler(financeSvc, logger)
+	grpcHandler := handler.NewGRPCHandler(financeSvc)
 	pb.RegisterFinanceServiceServer(grpcServer, grpcHandler)
 
 	grpcLis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
@@ -98,7 +98,7 @@ func run() error {
 	}
 
 	router := serverkit.NewRouter("finance", cfg.IsProduction())
-	restHandler := handler.NewRESTHandler(financeSvc, logger)
+	restHandler := handler.NewRESTHandler(financeSvc)
 	restHandler.RegisterRoutes(router)
 
 	httpServer := &http.Server{

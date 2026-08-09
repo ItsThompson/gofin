@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -18,14 +17,12 @@ import (
 // RESTHandler handles HTTP requests for the expense service.
 type RESTHandler struct {
 	expenseService *service.ExpenseService
-	logger         *slog.Logger
 }
 
 // NewRESTHandler creates a new RESTHandler.
-func NewRESTHandler(expenseService *service.ExpenseService, logger *slog.Logger) *RESTHandler {
+func NewRESTHandler(expenseService *service.ExpenseService) *RESTHandler {
 	return &RESTHandler{
 		expenseService: expenseService,
-		logger:         logger,
 	}
 }
 

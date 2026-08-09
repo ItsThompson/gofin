@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,14 +25,12 @@ const reportDomain = "budgets"
 type GRPCHandler struct {
 	pb.UnimplementedFinanceServiceServer
 	financeService *service.FinanceService
-	logger         *slog.Logger
 }
 
 // NewGRPCHandler creates a new GRPCHandler.
-func NewGRPCHandler(financeService *service.FinanceService, logger *slog.Logger) *GRPCHandler {
+func NewGRPCHandler(financeService *service.FinanceService) *GRPCHandler {
 	return &GRPCHandler{
 		financeService: financeService,
-		logger:         logger,
 	}
 }
 

@@ -44,7 +44,7 @@ func newReportingRouter(t *testing.T, repo *mockExpenseRepository) (*gin.Engine,
 		c.Request = c.Request.WithContext(errkittest.ContextWithHub(c.Request.Context(), transport))
 		c.Next()
 	})
-	NewRESTHandler(service.NewExpenseService(repo, time.Now, logger), logger).RegisterRoutes(engine)
+	NewRESTHandler(service.NewExpenseService(repo, time.Now, logger)).RegisterRoutes(engine)
 
 	return engine, transport, buf
 }

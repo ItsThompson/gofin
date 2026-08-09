@@ -43,7 +43,7 @@ func setupGRPCHandlerWithLog(t *testing.T, repo *mockFinanceRepository, txBeginn
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
-	return NewGRPCHandler(financeSvc, logger), buf
+	return NewGRPCHandler(financeSvc), buf
 }
 
 // errorRecords parses the buffered log output and returns the error-level

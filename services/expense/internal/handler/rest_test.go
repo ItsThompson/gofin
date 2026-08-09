@@ -106,7 +106,7 @@ func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
-	h := NewRESTHandler(expenseSvc, logger)
+	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
 	return r
@@ -428,7 +428,7 @@ func setupTestRouterWithClock(repo *mockExpenseRepository, now time.Time) *gin.E
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	expenseSvc := service.NewExpenseService(repo, func() time.Time { return now }, logger)
-	h := NewRESTHandler(expenseSvc, logger)
+	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
 	return r
