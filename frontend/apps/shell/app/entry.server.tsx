@@ -36,7 +36,7 @@ export default handleRequest;
 
 /**
  * The sole owner of SSR render and loader errors. The factory captures through
- * captureException with a mechanism and nothing else, so these events carry the
+ * the SDK with a mechanism and nothing else, so these events carry the
  * three constant tags and none of the helper's taxonomy, by design.
  *
  * logErrors stays false: the presence of a handleError export already disables

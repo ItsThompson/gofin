@@ -35,7 +35,7 @@ if (dsn) {
       dsn,
       // SENTRY_RELEASE carries a bare SHA, and this is the one place the prefix
       // is applied: serverOptions uses the string verbatim, so the release
-      // cannot become gofin-web@gofin-web@<sha>.
+      // cannot end up prefixed twice.
       release: sha ? `${RELEASE_PREFIX}${sha}` : undefined,
     }),
   );
