@@ -29,6 +29,10 @@ export function TagsSection() {
         <p className="text-sm text-red-600" role="alert">{state.error}</p>
       )}
 
+      {state.loadError && (
+        <p className="text-sm text-red-600" role="alert">{state.loadError}</p>
+      )}
+
       <form onSubmit={actions.handleAddTag} className="flex gap-2">
         <Input
           type="text"
@@ -116,7 +120,7 @@ export function TagsSection() {
         ))}
       </ul>
 
-      {state.tags.length === 0 && (
+      {state.tags.length === 0 && !state.loadError && (
         <p className="text-sm text-muted-foreground">No tags yet. Add one above.</p>
       )}
     </div>

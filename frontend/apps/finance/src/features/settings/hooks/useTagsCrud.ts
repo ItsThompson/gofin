@@ -1,5 +1,12 @@
 import { useState, useCallback, useEffect, type FormEvent } from "react";
-import { ApiRequestError, useFormMutation } from "@gofin/api";
+import {
+  ApiRequestError,
+  classifyApiFailure,
+  isNetworkError,
+  NETWORK_FAILURE,
+  reportError,
+  useFormMutation,
+} from "@gofin/api";
 import type { Tag } from "@gofin/core";
 import { settingsApi } from "../api";
 
@@ -17,6 +24,12 @@ export interface TagsCrudState {
   /** Currently editing tag, or null if not editing. */
   editing: EditingTag | null;
   error: string | null;
+  /**
+   * Set when the tag list could not be loaded. Separate from `error`, which
+   * belongs to the add/rename/delete mutations: an empty list after a failed
+   * load means something different to the user than an empty list.
+   */
+  loadError: string | null;
   saving: boolean;
 }
 
@@ -36,6 +49,7 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
   const [loading, setLoading] = useState(true);
   const [newTagName, setNewTagName] = useState("");
   const [editing, setEditing] = useState<EditingTag | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const { submit, error: mutationError, submitting: saving } = useFormMutation<void>();
 
@@ -43,8 +57,14 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
     try {
       const response = await settingsApi.getTags();
       setTags(response.tags);
-    } catch {
-      // Tag fetch failure is non-critical; show inline error
+      setLoadError(null);
+    } catch (err) {
+      reportError(err, {
+        ...(isNetworkError(err) ? NETWORK_FAILURE : classifyApiFailure(err)),
+        op: "tag.list",
+        domain: "expenses",
+      });
+      setLoadError("Could not load your tags. Refresh to try again.");
     } finally {
       setLoading(false);
     }
@@ -142,7 +162,7 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
   );
 
   return {
-    state: { tags, loading, newTagName, editing, error: mutationError, saving },
+    state: { tags, loading, newTagName, editing, error: mutationError, loadError, saving },
     actions: { setNewTagName, setEditingValue, handleAddTag, handleStartEdit, handleCancelEdit, handleSaveEdit, handleDelete },
   };
 }

@@ -1,5 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ApiRequestError, usePolling } from "@gofin/api";
+import {
+  ApiRequestError,
+  isNetworkError,
+  reportError,
+  usePolling,
+} from "@gofin/api";
 import { toast } from "sonner";
 import { settingsApi } from "../api";
 import type {
@@ -99,7 +104,20 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
     }
   }, []);
 
-  const handlePollFailureLimit = useCallback(() => {
+  const handlePollFailureLimit = useCallback((error: unknown) => {
+    // Reported from the caller, once per polling session. The transport itself
+    // stays silent: one report per tick against a dead endpoint would be
+    // thousands of events from one outage.
+    //
+    // Deliberately not classified by status: a give-up is an outage-grade signal
+    // even when the last response was a 4xx, which classifyApiFailure would mark
+    // expected and drop.
+    reportError(error, {
+      kind: isNetworkError(error) ? "network" : "upstream",
+      level: "error",
+      op: "datarights.export_status",
+      domain: "datarights",
+    });
     if (!mountedRef.current) return;
     setStatus("error");
     setError(POLLING_LOST_MESSAGE);
