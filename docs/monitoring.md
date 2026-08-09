@@ -16,8 +16,6 @@ Each Go service exposes standard HTTP/gRPC metrics and service-specific counters
 
 - **HTTP request metrics**: total count, latency histograms (by method, path, status)
 - **gRPC request metrics**: total count, latency histograms (by method, status)
-- **Database query metrics**: latency histograms (by query name)
-- **Connection pool metrics**: active database connections
 - **Business metrics**: expense creation counts, correction counts, token refresh counts, export job lifecycle
 
 Exact metric names and labels are defined in the `services/metrics/` package (shared) and `services/datarights/internal/metrics/` (datarights-specific).
@@ -40,7 +38,7 @@ Custom business metrics for data export monitoring:
 
 #### Known gaps
 
-Two classes of request are absent from the metrics above. Both are deliberate.
+Three gaps exist. The first two are deliberate. The third is not.
 
 - **Server-streaming RPCs are unmeasured.** `services/metrics` provides a unary
   gRPC interceptor only, so `StreamAllUserExpenses` (the one streaming RPC,
@@ -64,6 +62,14 @@ Two classes of request are absent from the metrics above. Both are deliberate.
   treat "counted nowhere" as "not paged by Prometheus".
   HTTP has no such change: `gin.Recovery()` was already outermost, so
   `HTTPMetrics` never saw a panicking request before this either.
+- **Database query and connection-pool metrics do not exist.** No service
+  exports `db_query_duration_seconds` or `active_connections`, and a test in
+  `services/metrics` asserts that `active_connections` is never exported. Every
+  consumer of those two names is therefore permanently empty: the `SlowQueries`
+  alert, which cannot fire at all; the `job_query:db_query_duration_seconds:p95`
+  and `query:db_query_duration_seconds:p95_expense` recording rules; all three
+  Database Health panels; and the Expense Service "immudb Write Latency" panel.
+  Closing this needs the metrics written, not the consumers retired.
 
 ### Access
 
