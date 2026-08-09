@@ -166,12 +166,16 @@ Logs are viewable via `just logs <service>` or `docker compose logs -f <service>
 
 Every recovered panic writes one error-level record wherever it happened: the
 HTTP middleware, either gRPC interceptor, the expense stream's page producer,
-the datarights job runner and its provider fan-out, the auth blacklist cleanup
-run, and the gateway readiness fan-out. Each carries two shared attributes, so
-one query returns them all:
+the finance fan-out tasks (spending trends, historical comparison, health-score
+desires, and the three export reads), the datarights job runner and its provider
+fan-out, the auth blacklist cleanup run, and the gateway readiness fan-out. Each
+carries two shared attributes, so one query returns them all:
 
 - `panic`: the panic value, wrapped into an error when it is not one already
-- `stack`: the stack captured at recovery
+- `stack`: the stack captured at recovery, rooted at the frame that panicked
+
+A record from a fan-out that runs once per period also carries a `period`
+attribute, so a panic in one month's read is distinguishable from another's.
 
 A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) is not
 a service defect and is recorded at warn level with no stack.

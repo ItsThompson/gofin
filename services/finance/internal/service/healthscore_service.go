@@ -128,7 +128,7 @@ func (s *FinanceService) buildDesiresWindow(ctx context.Context, userID string, 
 			}
 			desires[i] = sumDesires(expenses)
 			return nil
-		}))
+		}, periodAttr(period.Year, period.Month)))
 	}
 	if err := g.Wait(); err != nil {
 		return nil, err

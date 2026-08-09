@@ -79,8 +79,9 @@ func (c *panickingExpenseClient) GetExpensesForPeriod(_ context.Context, _ strin
 
 // requireOnePanicRecord asserts the sink holds exactly one error-level record
 // carrying the shared fan-out attributes, and that its stack reaches explodeIn
-// rather than only the recovery machinery.
-func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink, wantTask string) {
+// rather than only the recovery machinery. wantPeriod is the per-iteration
+// identity a loop fan-out must record, or "" for a task that runs once.
+func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink, wantTask, wantPeriod string) {
 	t.Helper()
 
 	records, err := sink.ErrorRecords()
@@ -91,6 +92,13 @@ func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink, wantTask stri
 	assert.Equal(t, "user-1", records[0]["user_id"])
 	assert.Contains(t, records[0]["stack"], "explodeIn",
 		"the stack must reach the panic origin, not only the recovery")
+
+	if wantPeriod == "" {
+		assert.NotContains(t, records[0], "period")
+		return
+	}
+	assert.Equal(t, wantPeriod, records[0]["period"],
+		"a loop fan-out must name the iteration that panicked, not just the task")
 }
 
 func fanoutPeriods(months ...int32) []*model.BudgetPeriod {
@@ -135,7 +143,7 @@ func TestGetAllUserData_PanickingRead_FailsTheRequestInsteadOfTheProcess(t *test
 			require.Error(t, err, "a panicking read must surface as a request error")
 			assert.Nil(t, result)
 			assert.Contains(t, err.Error(), tc.wantTask+" failed unexpectedly")
-			requireOnePanicRecord(t, sink, tc.wantTask)
+			requireOnePanicRecord(t, sink, tc.wantTask, "")
 		})
 	}
 }
@@ -152,7 +160,7 @@ func TestGetSpendingTrends_PanickingExpenseRead_FailsTheRequestInsteadOfTheProce
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "spending trends expense read failed unexpectedly")
-	requireOnePanicRecord(t, sink, "spending trends expense read")
+	requireOnePanicRecord(t, sink, "spending trends expense read", "2026-12")
 }
 
 func TestGetHistoricalComparison_PanickingPeriodSpendRead_FailsTheRequestInsteadOfTheProcess(t *testing.T) {
@@ -171,7 +179,7 @@ func TestGetHistoricalComparison_PanickingPeriodSpendRead_FailsTheRequestInstead
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "historical comparison period spend failed unexpectedly")
-	requireOnePanicRecord(t, sink, "historical comparison period spend")
+	requireOnePanicRecord(t, sink, "historical comparison period spend", "2026-12")
 }
 
 func TestGetHealthScore_PanickingDesiresRead_FailsTheRequestInsteadOfTheProcess(t *testing.T) {
@@ -191,7 +199,7 @@ func TestGetHealthScore_PanickingDesiresRead_FailsTheRequestInsteadOfTheProcess(
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "health score desires window failed unexpectedly")
-	requireOnePanicRecord(t, sink, "health score desires window")
+	requireOnePanicRecord(t, sink, "health score desires window", "2026-04")
 }
 
 // ---------------------------------------------------------------------------
@@ -228,15 +236,25 @@ func TestGuardFanout_PassesThroughATaskError(t *testing.T) {
 	assert.Empty(t, records, "an ordinary error is not a recovered panic")
 }
 
-// TestEveryFanoutTaskIsGuarded is the only test that can catch a *new* unguarded
-// fan-out. The sweep for unguarded goroutines in this service has been wrong
-// twice, and a missed site is invisible: it passes every behavioral test and
+// TestEveryFanoutTaskIsGuarded is the only mechanism that can catch a *new*
+// unguarded spawn in this package. The sweep for these has been wrong three
+// times, and a missed site is invisible: it passes every behavioral test and
 // kills the process only in production.
+//
+// It enforces the call-site style, not just the property: an errgroup task must
+// be wrapped in guardFanout on the same line, and a bare `go` statement must not
+// appear here at all, because its guard has a different shape and needs a
+// deliberate decision plus a test of its own.
+//
+// It sees only this directory. Promoting it to one repo-level gate over all of
+// services/, with the two framework serve loops and the auth ticker loop as an
+// explicit allowlist, is recorded as a follow-up in the spec's out-of-scope list.
 func TestEveryFanoutTaskIsGuarded(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	require.NoError(t, err)
 
-	goGo := regexp.MustCompile(`\.Go\(`)
+	taskSite := regexp.MustCompile(`\.Go\(`)
+	bareGo := regexp.MustCompile(`(^|[^[:alnum:]_])go (func|[a-zA-Z_][a-zA-Z0-9_.]*\()`)
 	checked := 0
 	for _, entry := range entries {
 		name := entry.Name()
@@ -248,13 +266,19 @@ func TestEveryFanoutTaskIsGuarded(t *testing.T) {
 		require.NoError(t, err)
 
 		for lineNumber, line := range strings.Split(string(source), "\n") {
-			if !goGo.MatchString(line) {
-				continue
+			switch {
+			case taskSite.MatchString(line):
+				checked++
+				assert.Contains(t, line, "guardFanout(",
+					"%s:%d spawns an errgroup task without guardFanout, so a panic there kills the process",
+					name, lineNumber+1)
+			case bareGo.MatchString(line):
+				assert.Fail(t,
+					"unguarded goroutine spawn",
+					"%s:%d starts a goroutine directly. recover() does not cross goroutines, so give it its own "+
+						"recovery and a test, then teach this test about it",
+					name, lineNumber+1)
 			}
-			checked++
-			assert.Contains(t, line, "guardFanout(",
-				"%s:%d spawns an errgroup task without guardFanout, so a panic there kills the process",
-				name, lineNumber+1)
 		}
 	}
 

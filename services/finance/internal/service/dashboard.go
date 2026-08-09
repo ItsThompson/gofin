@@ -134,7 +134,7 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 			}
 			expenseSlice[i] = exps // own slot only
 			return nil
-		}))
+		}, periodAttr(ym.year, ym.month)))
 	}
 	if err := g.Wait(); err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (s *FinanceService) computeHistoricalComparison(
 			}
 			spent[i] = v // own slot only
 			return nil
-		}))
+		}, periodAttr(p.Year, p.Month)))
 	}
 	if err := g.Wait(); err != nil {
 		return nil, err

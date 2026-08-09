@@ -294,6 +294,22 @@ func TestRecovery_The500ReachesARealClient(t *testing.T) {
 	requireOnePanicRecord(t, logs)
 }
 
+// TestLogRecoveredPanic_NilLoggerFallsBackToDefault pins that the last line of
+// defense cannot itself become the thing that kills the process. Not reachable
+// today (every site passes a real logger), which is exactly why it needs a test.
+func TestLogRecoveredPanic_NilLoggerFallsBackToDefault(t *testing.T) {
+	logger, logs := serverkittest.NewLogger()
+	withDefaultLogger(t, logger)
+
+	assert.NotPanics(t, func() {
+		serverkit.LogRecoveredPanic(nil, "recovered panic with no logger", "boom")
+	})
+
+	record := requireOnePanicRecord(t, logs)
+	assert.Equal(t, "recovered panic with no logger", record["msg"])
+	assert.Equal(t, "panic: boom", record["panic"])
+}
+
 // ---------------------------------------------------------------------------
 // gRPC recovery: the interceptors in isolation
 // ---------------------------------------------------------------------------

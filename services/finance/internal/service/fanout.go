@@ -23,19 +23,28 @@ const dashboardFanoutLimit = 5
 //
 // task names the work in the record and in the synthesized error. Neither
 // reaches the client: the REST respondError path and every gRPC handler map an
-// unclassified error to a generic 500 or codes.Internal.
-func (s *FinanceService) guardFanout(task, userID string, run func() error) func() error {
+// unclassified error to a generic 500 or codes.Internal. extra carries
+// per-iteration identity for a task that runs in a loop; task itself stays
+// constant, so panics from different iterations still group together.
+func (s *FinanceService) guardFanout(task, userID string, run func() error, extra ...slog.Attr) func() error {
 	return func() (err error) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				serverkit.LogRecoveredPanic(s.logger, "recovered panic in finance fan-out", recovered,
+				attrs := append([]slog.Attr{
 					slog.String("task", task),
 					slog.String("user_id", userID),
-				)
+				}, extra...)
+				serverkit.LogRecoveredPanic(s.logger, "recovered panic in finance fan-out", recovered, attrs...)
 				err = fmt.Errorf("%s failed unexpectedly", task)
 			}
 		}()
 
 		return run()
 	}
+}
+
+// periodAttr identifies which iteration of a per-period fan-out a record came
+// from, so a panic in the November read is distinguishable from one in December.
+func periodAttr(year, month int32) slog.Attr {
+	return slog.String("period", fmt.Sprintf("%d-%02d", year, month))
 }

@@ -27,7 +27,14 @@ const panicStatusMessage = "internal server error"
 //
 // Every recovery site in every service routes through it, so a panic is
 // queryable by the same "panic" and "stack" attributes wherever it happened.
+//
+// A nil logger falls back to slog.Default() rather than panicking: this is the
+// last line of defense, so it must not become the thing that kills the process.
 func LogRecoveredPanic(log *slog.Logger, msg string, recovered any, attrs ...slog.Attr) {
+	if log == nil {
+		log = slog.Default()
+	}
+
 	record := append([]slog.Attr{
 		slog.String("panic", panicToError(recovered).Error()),
 		slog.String("stack", string(debug.Stack())),
