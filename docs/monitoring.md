@@ -46,12 +46,45 @@ Prometheus UI: `http://localhost:9090`
 
 Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 
-- **High error rate**: elevated 5xx response ratio over a sliding window
+- **High error rate**: per-job 5xx ratio above a threshold, gated by a minimum per-job request rate
 - **Service down**: no metrics received from a scrape target
 - **Slow queries**: p95 query duration exceeding a threshold
 - **Auth failures spike**: unusual volume of failed login attempts
 - **Export job failure rate**: more than 50% of export jobs failed in the last hour
 - **Export job stuck**: active jobs exist but no completions in 10 minutes
+
+### HighErrorRate Thresholds
+
+`HighErrorRate` compares 5xx requests to total requests **per job**, and requires a minimum per-job request rate before it can fire. A global ratio hides a fully failing low-traffic service behind healthy traffic elsewhere: 3 requests per minute all returning 5xx, beside 200 requests per minute of healthy traffic, is a global ratio of 1.5%. A per-job ratio without a floor has the opposite problem, because per-service ratios are spiky at this traffic level.
+
+| Setting | Value | Meaning |
+|---------|-------|---------|
+| Error ratio threshold | `> 0.05` | More than 5% of that job's requests returned 5xx over the 5-minute window |
+| Request-rate floor | `> 2 / 60` req/s | At least 2 requests per minute for that job, roughly 10 requests in the 5-minute window |
+| `for` duration | `5m` | Both conditions hold continuously for 5 minutes before the alert fires |
+
+Consequences worth knowing during triage:
+
+- A job serving fewer than 2 requests per minute never fires this alert, whatever its error ratio. That is the deliberate cost of the floor. `ServiceDown` still covers such a service going away entirely.
+- A job with no traffic in the window produces no alert. Its ratio is `0/0`, which is `NaN`, and `NaN` fails every comparison, so the rule yields no series rather than a false page.
+- Both sides are summed by `job`, so two services failing at once produce two alert instances. `group_by: ["alertname", "job"]` then sends one Discord message per service, and both Discord titles name the job.
+- `mfe` exposes no `http_requests_total`, so it is absent from this alert.
+
+### Testing Alert Rules
+
+`monitoring/prometheus/tests/` holds `promtool` unit tests for the alert rules. They evaluate the rule files against synthetic series, with no Prometheus instance and no scraped data. Run both commands from the repository root:
+
+```bash
+# Rule syntax, via the scrape config that references every rule file
+docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus \
+  --entrypoint promtool prom/prometheus:v3.11.3 check config prometheus.yml
+
+# Rule behavior: firing cases, non-firing cases, rendered annotations
+docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus/tests \
+  --entrypoint promtool prom/prometheus:v3.11.3 test rules high_error_rate_test.yml
+```
+
+`promtool` ships inside the `prom/prometheus` image, so no local install is needed. Use the image tag that `docker-compose.yml` pins for Prometheus, so the tests run on the same evaluation engine as production.
 
 ### Datarights Alert Rules
 
