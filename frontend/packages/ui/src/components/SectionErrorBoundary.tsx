@@ -1,5 +1,6 @@
 import * as React from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { reportError } from "@gofin/api";
 
 interface SectionErrorBoundaryProps {
   /** Name of the section for user-facing fallback message. */
@@ -42,6 +43,18 @@ class SectionErrorBoundary extends React.Component<
     this.setState({
       error,
       componentStack: errorInfo.componentStack ?? null,
+    });
+    // One report site for all 11 dashboard widget boundaries. The component
+    // stack is the most useful thing about a render crash and is not part of the
+    // error's own stack, so it goes in the context block.
+    reportError(error, {
+      kind: "internal",
+      op: "render.section",
+      domain: "platform",
+      data: {
+        sectionName: this.props.sectionName,
+        componentStack: errorInfo.componentStack,
+      },
     });
   }
 

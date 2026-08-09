@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -7,6 +8,7 @@ import {
   ScrollRestoration,
 } from "react-router";
 
+import { reportError } from "@gofin/api";
 import { Toaster } from "@gofin/ui/components/sonner";
 import type { Route } from "./+types/root";
 import "./index.css";
@@ -35,6 +37,23 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  // Reported from an effect rather than the render body: effects do not run on
+  // the server, which makes entry.server.tsx's handleError the sole SSR owner
+  // and this boundary the sole client-side one, with no origin test to write.
+  //
+  // One report per distinct error depends on the effect body running once per
+  // mount, and it does only because there is no StrictMode anywhere in
+  // apps/shell: reportError is not idempotent, so introducing StrictMode later
+  // needs a ref keyed on error identity here.
+  useEffect(() => {
+    if (isRouteErrorResponse(error) && error.status === 404) return;
+    reportError(error, {
+      kind: "internal",
+      op: "render.route",
+      domain: "platform",
+    });
+  }, [error]);
+
   let message = "Oops!";
   let details = "An unexpected error occurred.";
   let stack: string | undefined;

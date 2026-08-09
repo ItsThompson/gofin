@@ -1,4 +1,5 @@
 import * as React from "react";
+import { reportError } from "@gofin/api";
 import { RemoteLoadError } from "@gofin/ui/components/RemoteLoadError";
 
 interface RemoteBoundaryProps {
@@ -43,6 +44,21 @@ class RemoteBoundary extends React.Component<
     this.setState({
       error,
       componentStack: errorInfo.componentStack ?? null,
+    });
+    reportError(error, {
+      kind: "network",
+      op: "chunk.load",
+      domain: "platform",
+      // Chunk names are content-hashed and assets are served with maxAge 1h, so
+      // every client still holding a stale manifest after a deploy fails here
+      // with a different filename. One key collapses a bad deploy into one issue
+      // instead of one per stale client.
+      groupKey: "chunk_load_failed",
+      groupExact: true,
+      data: {
+        sectionName: this.props.sectionName,
+        componentStack: errorInfo.componentStack,
+      },
     });
   }
 
