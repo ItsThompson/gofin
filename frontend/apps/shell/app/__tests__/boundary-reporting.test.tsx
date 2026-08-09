@@ -124,6 +124,28 @@ describe("the root route ErrorBoundary", () => {
 
     onlyCapture();
   });
+
+  it("keeps the stack away from users in production", () => {
+    vi.stubEnv("DEV", false);
+
+    render(routeBoundary(new Error("leaky internals")));
+
+    expect(document.body.textContent).toContain("An unexpected error occurred.");
+    expect(document.body.textContent).not.toContain("leaky internals");
+    expect(document.querySelector("pre")).toBeNull();
+
+    vi.unstubAllEnvs();
+  });
+
+  it("shows the stack in development", () => {
+    vi.stubEnv("DEV", true);
+
+    render(routeBoundary(new Error("leaky internals")));
+
+    expect(document.body.textContent).toContain("leaky internals");
+
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("RemoteBoundary", () => {
