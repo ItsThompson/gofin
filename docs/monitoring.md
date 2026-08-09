@@ -54,6 +54,16 @@ Two classes of request are absent from the metrics above. Both are deliberate.
   caught too. Panics are queryable in the log stream instead (see Structured
   Logging).
 
+  For unary gRPC this changes which alert fires. A panic used to kill the
+  process, so `up` went to 0 and `ServiceDown` paged within a minute. The
+  process now survives, `grpc_requests_total` records nothing, and
+  `HighErrorRate` reads `http_requests_total` only: a service panicking on
+  every unary call therefore fires **no alert at all**, and the log record is
+  the sole signal. A live process is still the right trade, and error reporting
+  restores the signal, but treat "counted nowhere" as "not paged" until then.
+  HTTP has no such change: `gin.Recovery()` was already outermost, so
+  `HTTPMetrics` never saw a panicking request before this either.
+
 ### Access
 
 Prometheus UI: `http://localhost:9090`
@@ -155,9 +165,10 @@ Logs are viewable via `just logs <service>` or `docker compose logs -f <service>
 ### Recovered panics
 
 Every recovered panic writes one error-level record wherever it happened: the
-HTTP middleware, either gRPC interceptor, the datarights job runner, the auth
-cleanup ticker, and the gateway readiness fan-out. Each carries two shared
-attributes, so one query returns them all:
+HTTP middleware, either gRPC interceptor, the expense stream's page producer,
+the datarights job runner and its provider fan-out, the auth blacklist cleanup
+run, and the gateway readiness fan-out. Each carries two shared attributes, so
+one query returns them all:
 
 - `panic`: the panic value, wrapped into an error when it is not one already
 - `stack`: the stack captured at recovery
