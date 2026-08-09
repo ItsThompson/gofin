@@ -85,6 +85,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
     networks:
       - edge-net
       - compute-net
@@ -121,6 +123,8 @@ services:
       - BCRYPT_COST=${BCRYPT_COST:-12}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN:-}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@gofin.local}
@@ -159,6 +163,8 @@ services:
       - IMMUDB_PASSWORD=${IMMUDB_PASSWORD:-immudb}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
     networks:
       - compute-net
       - data-net
@@ -192,6 +198,8 @@ services:
       - EXPENSE_SERVICE_ADDR=expense-service:9082
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
     networks:
       - compute-net
       - data-net
@@ -224,6 +232,8 @@ services:
       - DATARIGHTS_DB_URL=postgres://gofin:gofin@postgresql:5432/gofin?sslmode=disable&search_path=datarights
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
       - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-gofin <noreply@usegofin.com>}
