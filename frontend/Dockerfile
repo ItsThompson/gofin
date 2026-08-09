@@ -51,6 +51,11 @@ RUN npm ci --omit=dev && \
 # Copy shell build output and entry point
 COPY --from=builder /app/apps/shell/build ./apps/shell/build
 COPY --from=builder /app/apps/shell/server.js ./apps/shell/server.js
+# The unbundled server graph: server.js imports instrument.server.mjs, which
+# imports sentry.options.mjs. Nothing compiles or bundles these, so both must
+# arrive verbatim or the container fails to boot on the first import.
+COPY --from=builder /app/apps/shell/instrument.server.mjs ./apps/shell/instrument.server.mjs
+COPY --from=builder /app/apps/shell/sentry.options.mjs ./apps/shell/sentry.options.mjs
 
 WORKDIR /app/apps/shell
 EXPOSE 3000

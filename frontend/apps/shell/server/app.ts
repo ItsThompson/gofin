@@ -4,6 +4,10 @@ import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import { createHealthzHandler } from "./healthz";
 
+// server.js reads these off this bundle's namespace, beside `app`, because it is
+// outside the bundle and cannot import the workspace. See server/errors.ts.
+export { reportServerError, serverErrorBody } from "./errors";
+
 const API_GATEWAY_URL =
   process.env.API_GATEWAY_URL || "http://localhost:8080";
 

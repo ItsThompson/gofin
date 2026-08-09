@@ -1,3 +1,7 @@
+// First statement, above express, because this is the process entry: the init
+// must complete before express loads, before the SSR bundle is imported and
+// before any request. See instrument.server.mjs.
+import "./instrument.server.mjs";
 import express from "express";
 
 const BUILD_PATH = "./build/server/index.js";
@@ -33,7 +37,23 @@ if (DEVELOPMENT) {
     express.static("build/client/assets", { immutable: true, maxAge: "1y" }),
   );
   app.use(express.static("build/client", { maxAge: "1h" }));
-  app.use(await import(BUILD_PATH).then((mod) => mod.app));
+  const build = await import(BUILD_PATH);
+  app.use(build.app);
+  // Express 5 answers 500 through its default handler, which records nothing.
+  // The reporter and the body come off the bundle namespace because this file is
+  // outside the bundle: a workspace specifier here does not resolve in the
+  // runner image, and a dynamic import would fail at error time, which is the
+  // one moment the middleware exists for.
+  app.use((error, _req, res, next) => {
+    build.reportServerError(error);
+    // The SSR response resolves as soon as the shell is ready and the rest is
+    // piped, so an error can arrive after the status line is on the wire.
+    if (res.headersSent) {
+      next(error);
+      return;
+    }
+    res.status(500).json(build.serverErrorBody);
+  });
 }
 
 app.listen(PORT, () => {
