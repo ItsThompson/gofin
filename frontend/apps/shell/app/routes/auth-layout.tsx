@@ -7,6 +7,7 @@ import {
   ReturnToAdminButton,
   LogExpenseFab,
   Forbidden,
+  BackendUnavailable,
   useAuthLayoutGuards,
 } from "@/features/shell-layout";
 
@@ -22,6 +23,7 @@ export default function AuthLayout() {
     isAuthenticated,
     isAssuming,
     isLoading,
+    authError,
     checkAuth,
     logout,
     restoreIdentity,
@@ -39,6 +41,7 @@ export default function AuthLayout() {
     isAuthenticated,
     isAssuming,
     isLoading,
+    authError,
   });
 
   if (guard.status === "loading") {
@@ -47,6 +50,10 @@ export default function AuthLayout() {
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
+  }
+
+  if (guard.status === "unavailable") {
+    return <BackendUnavailable onRetry={checkAuth} />;
   }
 
   if (guard.status === "redirect") {

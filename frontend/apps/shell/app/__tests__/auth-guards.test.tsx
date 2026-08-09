@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -113,6 +114,65 @@ describe("auth guard redirect logic", () => {
 
       // Should navigate to /login
       expect(screen.getByText("Login redirect target")).toBeInTheDocument();
+    });
+
+    it("shows the unreachable-backend screen instead of bouncing to login", async () => {
+      // The layout's own checkAuth runs on mount: a 500 must leave the user on
+      // this screen rather than at /login.
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () =>
+          Promise.resolve({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Server error",
+          }),
+      });
+      resetStore({ isLoading: true, isAuthenticated: false });
+      const AuthLayout = await importAuthLayout();
+
+      renderRoute("/dashboard", <AuthLayout />);
+
+      await waitFor(() => {
+        expect(screen.getByText("GoFin is unreachable")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByText("Login redirect target"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("retries the auth check from the unreachable-backend screen", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () =>
+          Promise.resolve({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Server error",
+          }),
+      });
+      resetStore({ isLoading: true, isAuthenticated: false });
+      const AuthLayout = await importAuthLayout();
+
+      renderRoute("/dashboard", <AuthLayout />);
+
+      await waitFor(() => {
+        expect(screen.getByText("GoFin is unreachable")).toBeInTheDocument();
+      });
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: authenticatedUser }),
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+      await waitFor(() => {
+        expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      });
+      expect(
+        screen.queryByText("GoFin is unreachable"),
+      ).not.toBeInTheDocument();
     });
 
     it("shows loading state while checking auth", async () => {
