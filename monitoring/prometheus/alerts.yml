@@ -1,10 +1,8 @@
 groups:
   - name: service-health
     rules:
-      # Per-job sums keep healthy traffic elsewhere from diluting a fully
-      # failing low-traffic service below the threshold. The floor keeps a job
-      # with only a handful of requests in the window from paging on a ratio
-      # computed from them.
+      # Per-job sums stop healthy traffic elsewhere diluting a failing service.
+      # The floor stops a handful of requests in the window setting the ratio.
       - alert: HighErrorRate
         expr: |
           (
@@ -21,7 +19,7 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }} (> 5%)"
-          description: "More than 5% of requests to {{ $labels.job }} returned 5xx over 5 minutes, with at least 2 requests per minute of traffic."
+          description: "More than 5% of requests to {{ $labels.job }} returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
 
       - alert: ServiceDown
         expr: up == 0

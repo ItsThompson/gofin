@@ -25,7 +25,7 @@ tests:
               job: datarights-service
             exp_annotations:
               summary: "datarights-service 5xx error rate is 100% (> 5%)"
-              description: "More than 5% of requests to datarights-service returned 5xx over 5 minutes, with at least 2 requests per minute of traffic."
+              description: "More than 5% of requests to datarights-service returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
 
   # One failed request against a service with no other traffic stays below the
   # request-rate floor.
@@ -107,7 +107,7 @@ tests:
               job: expense-service
             exp_annotations:
               summary: "expense-service 5xx error rate is 10% (> 5%)"
-              description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with at least 2 requests per minute of traffic."
+              description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
       - eval_time: 15m
         alertname: HighErrorRate
         exp_alerts:
@@ -116,7 +116,7 @@ tests:
               job: expense-service
             exp_annotations:
               summary: "expense-service 5xx error rate is 10% (> 5%)"
-              description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with at least 2 requests per minute of traffic."
+              description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
 
   # Counters present but flat: both rates are zero, so the ratio is NaN, and
   # NaN fails every comparison. Asserted through the rule rather than through a
