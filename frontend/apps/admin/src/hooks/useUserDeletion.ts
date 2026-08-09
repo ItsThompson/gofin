@@ -74,6 +74,11 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
 
   const handleStatusUnavailable = useCallback(
     (error: unknown) => {
+      // The guard comes first so the report and the toast share one precondition:
+      // reporting without it would file an event for a poll whose UI is already
+      // gone, which is the report-then-swallow shape.
+      if (!activePolling) return;
+      const { jobId, username } = activePolling;
       // Reported from the caller, once per polling session. The transport itself
       // stays silent: one report per tick against a dead endpoint would be
       // thousands of events from one outage.
@@ -86,10 +91,8 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
         level: "error",
         op: "datarights.deletion_status",
         domain: "datarights",
-        data: { jobId: activePolling?.jobId },
+        data: { jobId },
       });
-      if (!activePolling) return;
-      const { username } = activePolling;
       setActivePolling(null);
       // The last known status stays on the row: the deletion may still be running,
       // we just stopped being able to read it.

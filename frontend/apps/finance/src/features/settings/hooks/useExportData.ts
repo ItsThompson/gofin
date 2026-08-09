@@ -105,6 +105,10 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
   }, []);
 
   const handlePollFailureLimit = useCallback((error: unknown) => {
+    // The guard comes first so the report and the message share one precondition:
+    // an unmounted section cannot show the user anything, and reporting alone
+    // would be the report-then-swallow shape.
+    if (!mountedRef.current) return;
     // Reported from the caller, once per polling session. The transport itself
     // stays silent: one report per tick against a dead endpoint would be
     // thousands of events from one outage.
@@ -118,7 +122,6 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       op: "datarights.export_status",
       domain: "datarights",
     });
-    if (!mountedRef.current) return;
     setStatus("error");
     setError(POLLING_LOST_MESSAGE);
     toast.error(POLLING_LOST_MESSAGE);
