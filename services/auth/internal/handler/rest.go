@@ -199,10 +199,8 @@ func (h *RESTHandler) setAuthCookies(c *gin.Context, tokens *model.TokenPair) {
 	)
 }
 
-// handleError logs unexpected (non-apierr) errors before delegating to
-// apierr.Respond, which owns the {code, message, fields?} wire mapping.
-// It reports an unclassified failure through the shared httpx helper, which names
-// the operation from this route's Registry ID.
+// handleError reports an unclassified failure and writes the shared error
+// response. The operation comes from the route, so only the domain is per service.
 func (h *RESTHandler) handleError(c *gin.Context, err error) {
 	httpx.RespondError(c, err, errkit.Meta{
 		Domain: "auth",

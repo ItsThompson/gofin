@@ -543,9 +543,8 @@ func (h *RESTHandler) GetUpcomingProRata(c *gin.Context) {
 	})
 }
 
-// respondError delegates the wire mapping to apierr.Respond and reports an
-// unclassified failure through the shared httpx helper, which names the operation
-// from this route's Registry ID.
+// respondError reports an unclassified failure and writes the shared error
+// response. The operation comes from the route, so only the domain is per service.
 func (h *RESTHandler) respondError(c *gin.Context, err error) {
 	httpx.RespondError(c, err, errkit.Meta{
 		Domain: "budgets",

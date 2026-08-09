@@ -11,27 +11,21 @@ import (
 )
 
 // RespondError writes err's HTTP error response and reports the failure when err
-// is not a classified *apierr.Error. It replaces the near-identical wrapper each
-// REST handler carried, which logged an unclassified error and then delegated the
-// wire mapping, because apierr.Respond takes no logger and must stay free of the
-// Sentry SDK.
+// is not a classified *apierr.Error. It is the one wrapper the REST handlers share:
+// apierr.Respond owns the wire mapping and must stay free of the Sentry SDK, while
+// errkit must stay free of gin, so the place that holds both concerns is here.
 //
-// meta carries the domain of the calling handler. An empty meta.Op is filled with
-// the shared Registry ID of the route being served, e.g. "expense.create": the IDs
-// are already the bounded per-route vocabulary the operation tag and the grouping
-// key want, so no handler has to restate its own name. A route outside the
-// Registry leaves it empty, and the group key falls back to the kind.
+// meta carries the calling handler's domain. An empty meta.Op is filled with the
+// Registry ID of the route being served, e.g. "expense.create", because those IDs
+// are already the bounded per-route names the operation tag and the group key
+// want. A route the Registry does not declare leaves it empty, and the group key
+// falls back to the kind.
 //
-// The wire response is apierr.Respond's alone, so reporting here changes no
-// response byte.
-//
-// A classified error is not reported: an *apierr.Error carries an explicit Status
-// and every 4xx in the codebase is one, so the whole client-error class is
-// excluded by construction rather than by an enumerated list of statuses.
-//
-// The report reads the hub from the request context, which is where sentrygin put
-// it, so the event carries the request. A background context would fall back to a
-// clone of the global hub and lose it.
+// A classified error is never reported: an *apierr.Error carries an explicit Status
+// and every 4xx in the codebase is one, so the whole client-error class is excluded
+// by construction rather than by an enumerated list of statuses. The report reads
+// the hub from the request context, where sentrygin put it; a background context
+// would fall back to a clone of the global hub and lose the request.
 func RespondError(c *gin.Context, err error, meta errkit.Meta) {
 	var apiErr *apierr.Error
 	if !errors.As(err, &apiErr) {
