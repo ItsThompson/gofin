@@ -1,9 +1,7 @@
 package router_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,6 +16,7 @@ import (
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 func newSilentLogger() *slog.Logger {
@@ -379,30 +378,13 @@ func (panickingValidator) ValidateToken(context.Context, string) (*access.TokenV
 	panic("validator exploded")
 }
 
-// errorRecords parses the error-level JSON slog records written to logs.
-func errorRecords(t *testing.T, logs *bytes.Buffer) []map[string]any {
-	t.Helper()
-
-	var records []map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(logs.Bytes()))
-	for decoder.More() {
-		var record map[string]any
-		require.NoError(t, decoder.Decode(&record))
-		if record["level"] == "ERROR" {
-			records = append(records, record)
-		}
-	}
-	return records
-}
-
 // TestRouter_RecoversPanicsIntoTheLogStream pins the replacement of
 // gin.Recovery(), which wrote the panic as plaintext to gin.DefaultErrorWriter,
 // and the recovery's position outside RequestLogger and the metrics middleware:
 // neither runs its post-c.Next() body during unwinding, so one panic yields one
 // record.
 func TestRouter_RecoversPanicsIntoTheLogStream(t *testing.T) {
-	var logs bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	logger, logs := serverkittest.NewLogger()
 
 	u, _ := url.Parse("http://127.0.0.1:1")
 	engine := router.New(panickingValidator{}, &router.ServiceURLs{
@@ -423,12 +405,15 @@ func TestRouter_RecoversPanicsIntoTheLogStream(t *testing.T) {
 		rec.Body.String(),
 	)
 
-	records := errorRecords(t, &logs)
-	require.Len(t, records, 1)
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "exactly one error record: RequestLogger sits inside the recovery and never runs")
 	assert.Equal(t, "recovered panic in HTTP handler", records[0]["msg"])
 	assert.Equal(t, http.MethodGet, records[0]["method"])
 	assert.Equal(t, "/api/finance/periods", records[0]["path"])
-	assert.Contains(t, records[0]["stack"], "runtime/debug.Stack")
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panickingValidator")
 }
 
 // TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's

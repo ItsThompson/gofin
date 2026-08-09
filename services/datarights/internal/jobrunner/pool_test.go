@@ -1,9 +1,7 @@
 package jobrunner
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 // ---------------------------------------------------------------------------
@@ -89,46 +89,6 @@ func (s *fakeStore) failedSnapshot() []failCall {
 
 func testLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
-
-// syncBuffer is a mutex-guarded log sink: the pool writes records from its
-// worker goroutine while the test reads them.
-type syncBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (s *syncBuffer) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.buf.Write(p)
-}
-
-func (s *syncBuffer) bytes() []byte {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]byte(nil), s.buf.Bytes()...)
-}
-
-func capturingLogger() (*slog.Logger, *syncBuffer) {
-	sink := &syncBuffer{}
-	return slog.New(slog.NewJSONHandler(sink, nil)), sink
-}
-
-// errorRecords parses the error-level JSON slog records written to logs.
-func errorRecords(t *testing.T, logs *syncBuffer) []map[string]any {
-	t.Helper()
-
-	var records []map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(logs.bytes()))
-	for decoder.More() {
-		var record map[string]any
-		require.NoError(t, decoder.Decode(&record))
-		if record["level"] == "ERROR" {
-			records = append(records, record)
-		}
-	}
-	return records
 }
 
 // ---------------------------------------------------------------------------
@@ -315,11 +275,16 @@ func TestPool_QueuedJobs_ReflectsJobsWaitingForASlot(t *testing.T) {
 
 func TestPool_ExecutePanic_FailsTheJobWithAPIIFreeReason(t *testing.T) {
 	store := &fakeStore{}
-	execute := func(context.Context, string, string) error {
+	// A 50ms job timeout, mirroring the timeout test: the strategy sleeps past it
+	// before panicking, so the job context is provably expired by the time the
+	// recovery runs. Without a fresh background context FailJob would see a dead
+	// one, which makes the ctxLive assertion below falsifiable.
+	execute := func(ctx context.Context, _, _ string) error {
+		<-ctx.Done()
 		panic("strategy exploded holding user@example.com")
 	}
 
-	pool := New(5, time.Minute, store, execute, testLogger())
+	pool := New(5, 50*time.Millisecond, store, execute, testLogger())
 	pool.Submit("job-panic", "user-1")
 
 	require.Eventually(t, func() bool {
@@ -331,7 +296,8 @@ func TestPool_ExecutePanic_FailsTheJobWithAPIIFreeReason(t *testing.T) {
 	assert.Equal(t, "Job failed unexpectedly", failed[0].reason)
 	assert.NotContains(t, failed[0].reason, "user@example.com",
 		"the panic value never reaches the reason datarights shows the user")
-	assert.True(t, failed[0].ctxLive, "FailJob must run under a fresh background context")
+	assert.True(t, failed[0].ctxLive,
+		"the job context is expired, so FailJob must use a fresh background context")
 	assert.Equal(t, []statusCall{{jobID: "job-panic", status: "running"}}, store.statusSnapshot())
 	assert.Empty(t, store.completedSnapshot(), "a panicking job must not be completed")
 
@@ -342,24 +308,31 @@ func TestPool_ExecutePanic_FailsTheJobWithAPIIFreeReason(t *testing.T) {
 
 func TestPool_ExecutePanic_WritesOneErrorRecordWithPanicAndStack(t *testing.T) {
 	store := &fakeStore{}
-	logger, logs := capturingLogger()
-	execute := func(context.Context, string, string) error { panic("strategy exploded") }
+	logger, logs := serverkittest.NewLogger()
 
-	pool := New(5, time.Minute, store, execute, logger)
+	pool := New(5, time.Minute, store, panickingExecute, logger)
 	pool.Submit("job-panic", "user-7")
 
 	require.Eventually(t, func() bool {
 		return len(store.failedSnapshot()) == 1
 	}, 2*time.Second, 10*time.Millisecond)
 
-	records := errorRecords(t, logs)
-	require.Len(t, records, 1, "a recovered panic must produce exactly one record")
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
+	assert.Equal(t, "ERROR", records[0]["level"])
 	assert.Equal(t, "recovered panic in job execution", records[0]["msg"])
 	assert.Equal(t, "panic: strategy exploded", records[0]["panic"])
 	assert.Equal(t, "job-panic", records[0]["job_id"])
 	assert.Equal(t, "user-7", records[0]["user_id"])
-	assert.Contains(t, records[0]["stack"], "runtime/debug.Stack")
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panickingExecute")
 }
+
+// panickingExecute is a named Execute strategy so the recorded stack carries a
+// frame to assert on.
+func panickingExecute(context.Context, string, string) error { panic("strategy exploded") }
 
 // TestPool_ExecutePanic_AtCapacity_LeavesThePoolUsable guards the interaction
 // between the new recovery defer and the two existing ones. With a single slot,

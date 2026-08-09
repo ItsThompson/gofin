@@ -1,7 +1,6 @@
 package readiness_test
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -16,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/gateway/internal/readiness"
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 func init() {
@@ -182,12 +182,12 @@ func (panicRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestChecker_ProbePanic_ReportsUnreachableAndLeavesSiblingsIntact(t *testing.T) {
 	healthy := newHealthServer(t, http.StatusOK)
 
-	var logs bytes.Buffer
+	logger, logs := serverkittest.NewLogger()
 	checker := readiness.NewChecker(
 		&http.Client{Transport: panicRoundTripper{}},
 		map[string]string{"auth": healthy.URL, "expense": "http://" + panicHost},
 		2*time.Second,
-		slog.New(slog.NewJSONHandler(&logs, nil)),
+		logger,
 	)
 
 	result := checker.Check(context.Background())
@@ -195,8 +195,17 @@ func TestChecker_ProbePanic_ReportsUnreachableAndLeavesSiblingsIntact(t *testing
 	assert.False(t, result.Healthy)
 	assert.Equal(t, map[string]string{"auth": "ok", "expense": "unreachable"}, result.Services,
 		"a panicking probe must still report its service, or /readyz would answer healthy")
-	assert.Contains(t, logs.String(), "recovered panic in readiness probe")
-	assert.Contains(t, logs.String(), `"downstream":"expense"`)
+
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
+	assert.Equal(t, "ERROR", records[0]["level"])
+	assert.Equal(t, "recovered panic in readiness probe", records[0]["msg"])
+	assert.Equal(t, "panic: transport exploded", records[0]["panic"])
+	assert.Equal(t, "expense", records[0]["downstream"])
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panicRoundTripper")
 }
 
 // serveReadyz wires readiness.Handler behind a gin engine and returns the

@@ -1,14 +1,13 @@
 package serverkit_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"syscall"
 	"testing"
@@ -26,12 +25,34 @@ import (
 
 	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/serverkit"
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 const (
 	panicUnaryFullMethod  = "/serverkit.test.Panic/PanicUnary"
 	panicStreamFullMethod = "/serverkit.test.Panic/PanicStream"
 )
+
+// panicUnaryHandler and panicStreamHandler are named rather than inline so the
+// recorded stack carries a frame a test can assert on: an anonymous closure in a
+// package-level var initializer shows up only as glob..funcN.
+func panicUnaryHandler(context.Context, any) (any, error) {
+	panic("unary handler exploded")
+}
+
+func panicStreamHandler(_ any, stream grpc.ServerStream) error {
+	var in emptypb.Empty
+	if err := stream.RecvMsg(&in); err != nil {
+		return err
+	}
+	// One message is sent before the panic so the test covers the live case: a
+	// panic after partial delivery, which is what a truncated data export looks
+	// like to datarights.
+	if err := stream.SendMsg(&emptypb.Empty{}); err != nil {
+		return err
+	}
+	panic("stream handler exploded")
+}
 
 // panicServiceDesc is a hand-written service whose unary and server-streaming
 // methods both panic, so the recovery interceptors are exercised through a real
@@ -48,63 +69,30 @@ var panicServiceDesc = grpc.ServiceDesc{
 			if err := dec(in); err != nil {
 				return nil, err
 			}
-			handler := func(context.Context, any) (any, error) {
-				panic("unary handler exploded")
-			}
 			if interceptor == nil {
-				return handler(ctx, in)
+				return panicUnaryHandler(ctx, in)
 			}
 			info := &grpc.UnaryServerInfo{Server: srv, FullMethod: panicUnaryFullMethod}
-			return interceptor(ctx, in, info, handler)
+			return interceptor(ctx, in, info, panicUnaryHandler)
 		},
 	}},
 	Streams: []grpc.StreamDesc{{
-		StreamName: "PanicStream",
-		// One message is sent before the panic so the test covers the live case:
-		// a panic after partial delivery, which is what a truncated data export
-		// looks like to datarights.
-		Handler: func(_ any, stream grpc.ServerStream) error {
-			var in emptypb.Empty
-			if err := stream.RecvMsg(&in); err != nil {
-				return err
-			}
-			if err := stream.SendMsg(&emptypb.Empty{}); err != nil {
-				return err
-			}
-			panic("stream handler exploded")
-		},
+		StreamName:    "PanicStream",
+		Handler:       panicStreamHandler,
 		ServerStreams: true,
 	}},
 }
 
-// capturedRecords parses every JSON slog record written to buf.
-func capturedRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
+// requireOnePanicRecord asserts the sink holds exactly one error-level record
+// and returns it. Every recovery site shares the assertion because the criterion
+// is the same everywhere: one record, at error level, per recovered panic.
+func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink) map[string]any {
 	t.Helper()
 
-	var records []map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(buf.Bytes()))
-	for decoder.More() {
-		var record map[string]any
-		require.NoError(t, decoder.Decode(&record))
-		records = append(records, record)
-	}
-	return records
-}
-
-// recordsAtLevel filters captured records down to one slog level.
-func recordsAtLevel(records []map[string]any, level string) []map[string]any {
-	var matching []map[string]any
-	for _, record := range records {
-		if record["level"] == level {
-			matching = append(matching, record)
-		}
-	}
-	return matching
-}
-
-func bufferedLogger() (*slog.Logger, *bytes.Buffer) {
-	var buf bytes.Buffer
-	return slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})), &buf
+	records, err := sink.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
+	return records[0]
 }
 
 // withDefaultLogger installs log as slog.Default() for the duration of the test.
@@ -126,12 +114,20 @@ func routerWithPanic(log *slog.Logger, value any) *gin.Engine {
 	return router
 }
 
+// outOfRangeHandler raises a real runtime panic. The index comes from the
+// request so the out-of-range read is not folded away at compile time, and the
+// handler is named so the recorded stack carries a frame to assert on.
+func outOfRangeHandler(c *gin.Context) {
+	segments := strings.Split(c.Request.URL.Path, "/")
+	_ = segments[len(segments)]
+}
+
 // ---------------------------------------------------------------------------
 // HTTP recovery
 // ---------------------------------------------------------------------------
 
 func TestRecovery_PanicYields500InTheSharedErrorShape(t *testing.T) {
-	logger, _ := bufferedLogger()
+	logger, _ := serverkittest.NewLogger()
 	router := routerWithPanic(logger, "handler exploded")
 
 	w := httptest.NewRecorder()
@@ -145,56 +141,48 @@ func TestRecovery_PanicYields500InTheSharedErrorShape(t *testing.T) {
 }
 
 func TestRecovery_WritesExactlyOneErrorRecordWithPanicAndStack(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	router := routerWithPanic(logger, "handler exploded")
 
 	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/boom", nil))
 
-	records := capturedRecords(t, logs)
-	require.Len(t, records, 1, "a recovered panic must produce exactly one record")
-
-	record := records[0]
+	record := requireOnePanicRecord(t, logs)
 	assert.Equal(t, "ERROR", record["level"])
 	assert.Equal(t, "recovered panic in HTTP handler", record["msg"])
 	assert.Equal(t, "panic: handler exploded", record["panic"])
 	assert.Equal(t, http.MethodGet, record["method"])
 	assert.Equal(t, "/boom", record["path"])
-	assert.Contains(t, record["stack"], "runtime/debug.Stack")
+	// The panicking frame, not debug.Stack's own first frame: a stack containing
+	// only recovery machinery is useless and must fail here.
+	assert.Contains(t, record["stack"], "routerWithPanic")
 }
 
 func TestRecovery_ErrorPanicValueIsRecordedAsIs(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	router := routerWithPanic(logger, assert.AnError)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/boom", nil))
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
-	records := capturedRecords(t, logs)
-	require.Len(t, records, 1)
-	assert.Equal(t, assert.AnError.Error(), records[0]["panic"])
+	assert.Equal(t, assert.AnError.Error(), requireOnePanicRecord(t, logs)["panic"])
 }
 
 // TestRecovery_RuntimeErrorPanicIsRecovered covers the realistic production
 // case: the runtime raises the panic, and its value is already an error.
 func TestRecovery_RuntimeErrorPanicIsRecovered(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	router := gin.New()
 	router.Use(serverkit.Recovery(logger))
-	router.GET("/boom", func(c *gin.Context) {
-		// The index comes from the request so the out-of-range read is not folded
-		// away at compile time.
-		segments := strings.Split(c.Request.URL.Path, "/")
-		_ = segments[len(segments)]
-	})
+	router.GET("/boom", outOfRangeHandler)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/boom", nil))
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
-	records := capturedRecords(t, logs)
-	require.Len(t, records, 1)
-	assert.Contains(t, records[0]["panic"], "index out of range")
+	record := requireOnePanicRecord(t, logs)
+	assert.Contains(t, record["panic"], "index out of range")
+	assert.Contains(t, record["stack"], "outOfRangeHandler")
 }
 
 func TestRecovery_NonErrorPanicValueIsWrappedIntoAnError(t *testing.T) {
@@ -209,47 +197,57 @@ func TestRecovery_NonErrorPanicValueIsWrappedIntoAnError(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			logger, logs := bufferedLogger()
+			logger, logs := serverkittest.NewLogger()
 			router := routerWithPanic(logger, tc.value)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/boom", nil))
 
 			require.Equal(t, http.StatusInternalServerError, w.Code)
-			records := capturedRecords(t, logs)
-			require.Len(t, records, 1, "a wrapped panic value must still produce exactly one record")
-			assert.Equal(t, tc.wantPanic, records[0]["panic"])
+			assert.Equal(t, tc.wantPanic, requireOnePanicRecord(t, logs)["panic"],
+				"a wrapped panic value must still produce exactly one record")
 		})
 	}
 }
 
 func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
+	// The bare errnos are what a hand-written panic carries; the wrapped shape is
+	// what net/http actually produces, and only errors.Is unwrapping makes the
+	// second one classify.
 	cases := map[string]error{
 		"broken pipe":      syscall.EPIPE,
 		"connection reset": syscall.ECONNRESET,
 		"abort handler":    http.ErrAbortHandler,
+		"net.OpError wrapping os.SyscallError wrapping EPIPE": &net.OpError{
+			Op:  "write",
+			Net: "tcp",
+			Err: &os.SyscallError{Syscall: "write", Err: syscall.EPIPE},
+		},
 	}
 
 	for name, panicValue := range cases {
 		t.Run(name, func(t *testing.T) {
-			logger, logs := bufferedLogger()
+			logger, logs := serverkittest.NewLogger()
 			router := routerWithPanic(logger, panicValue)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/boom", nil))
 
-			records := capturedRecords(t, logs)
-			assert.Empty(t, recordsAtLevel(records, "ERROR"),
-				"a dead connection is not a service defect")
-			require.Len(t, recordsAtLevel(records, "WARN"), 1,
-				"the abort should still be visible below error level")
+			errorRecords, err := logs.ErrorRecords()
+			require.NoError(t, err)
+			assert.Empty(t, errorRecords, "a dead connection is not a service defect")
+
+			warnRecords, err := logs.RecordsAtLevel("WARN")
+			require.NoError(t, err)
+			require.Len(t, warnRecords, 1, "the abort should still be visible below error level")
+
 			assert.Empty(t, w.Body.String(), "nothing can be written to an aborted connection")
 		})
 	}
 }
 
 func TestRecovery_HealthyRequestIsUntouched(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	router := gin.New()
 	router.Use(serverkit.Recovery(logger))
 	router.GET("/ok", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
@@ -259,14 +257,16 @@ func TestRecovery_HealthyRequestIsUntouched(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
-	assert.Empty(t, capturedRecords(t, logs))
+	records, err := logs.Records()
+	require.NoError(t, err)
+	assert.Empty(t, records)
 }
 
 // TestRecovery_The500ReachesARealClient drives the recovery over a real socket
 // rather than an httptest recorder, so the response actually passes through
 // net/http's write path after the handler unwound.
 func TestRecovery_The500ReachesARealClient(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	server := httptest.NewServer(routerWithPanic(logger, "handler exploded"))
 	t.Cleanup(server.Close)
 
@@ -282,7 +282,7 @@ func TestRecovery_The500ReachesARealClient(t *testing.T) {
 		`{"code":"INTERNAL_SERVER_ERROR","message":"An unexpected error occurred"}`,
 		string(body),
 	)
-	assert.Len(t, recordsAtLevel(capturedRecords(t, logs), "ERROR"), 1)
+	requireOnePanicRecord(t, logs)
 }
 
 // ---------------------------------------------------------------------------
@@ -294,12 +294,11 @@ func TestRecovery_The500ReachesARealClient(t *testing.T) {
 // recovery (the metrics interceptor, then the handler) may panic, and the
 // recovery still turns it into a status.
 func TestRecoveryUnaryInterceptor_CatchesAPanicFromAnythingInner(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	interceptor := serverkit.RecoveryUnaryInterceptor(logger)
 	info := &grpc.UnaryServerInfo{FullMethod: panicUnaryFullMethod}
 
-	resp, err := interceptor(context.Background(), &emptypb.Empty{}, info,
-		func(context.Context, any) (any, error) { panic("inner layer exploded") })
+	resp, err := interceptor(context.Background(), &emptypb.Empty{}, info, panicUnaryHandler)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
@@ -307,16 +306,15 @@ func TestRecoveryUnaryInterceptor_CatchesAPanicFromAnythingInner(t *testing.T) {
 	assert.Equal(t, "internal server error", status.Convert(err).Message(),
 		"the panic value must not reach the caller")
 
-	records := capturedRecords(t, logs)
-	require.Len(t, records, 1)
-	assert.Equal(t, "ERROR", records[0]["level"])
-	assert.Equal(t, "panic: inner layer exploded", records[0]["panic"])
-	assert.Equal(t, panicUnaryFullMethod, records[0]["method"])
-	assert.Contains(t, records[0]["stack"], "runtime/debug.Stack")
+	record := requireOnePanicRecord(t, logs)
+	assert.Equal(t, "ERROR", record["level"])
+	assert.Equal(t, "panic: unary handler exploded", record["panic"])
+	assert.Equal(t, panicUnaryFullMethod, record["method"])
+	assert.Contains(t, record["stack"], "panicUnaryHandler")
 }
 
 func TestRecoveryUnaryInterceptor_PassesThroughAHealthyCall(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	interceptor := serverkit.RecoveryUnaryInterceptor(logger)
 	info := &grpc.UnaryServerInfo{FullMethod: panicUnaryFullMethod}
 	want := &emptypb.Empty{}
@@ -326,27 +324,32 @@ func TestRecoveryUnaryInterceptor_PassesThroughAHealthyCall(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Same(t, want, resp)
-	assert.Empty(t, capturedRecords(t, logs))
+	records, err := logs.Records()
+	require.NoError(t, err)
+	assert.Empty(t, records)
 }
 
 func TestRecoveryStreamInterceptor_CatchesAPanicFromAnythingInner(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	interceptor := serverkit.RecoveryStreamInterceptor(logger)
 	info := &grpc.StreamServerInfo{FullMethod: panicStreamFullMethod, IsServerStream: true}
 
-	err := interceptor(nil, nil, info, func(any, grpc.ServerStream) error {
-		panic("inner stream layer exploded")
-	})
+	err := interceptor(nil, nil, info, panicInnerStreamHandler)
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
 
-	records := capturedRecords(t, logs)
-	require.Len(t, records, 1)
-	assert.Equal(t, "ERROR", records[0]["level"])
-	assert.Equal(t, "panic: inner stream layer exploded", records[0]["panic"])
-	assert.Equal(t, panicStreamFullMethod, records[0]["method"])
-	assert.Contains(t, records[0]["stack"], "runtime/debug.Stack")
+	record := requireOnePanicRecord(t, logs)
+	assert.Equal(t, "ERROR", record["level"])
+	assert.Equal(t, "panic: inner stream layer exploded", record["panic"])
+	assert.Equal(t, panicStreamFullMethod, record["method"])
+	assert.Contains(t, record["stack"], "panicInnerStreamHandler")
+}
+
+// panicInnerStreamHandler stands in for whatever the stream recovery wraps. It
+// is named so the recorded stack carries a frame to assert on.
+func panicInnerStreamHandler(any, grpc.ServerStream) error {
+	panic("inner stream layer exploded")
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +379,7 @@ func serveTestGRPC(t *testing.T, server *grpc.Server) *grpc.ClientConn {
 }
 
 func TestNewGRPCServer_PanickingUnaryHandlerKeepsTheServerServing(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	withDefaultLogger(t, logger)
 
 	server := serverkit.NewGRPCServer()
@@ -394,14 +397,14 @@ func TestNewGRPCServer_PanickingUnaryHandlerKeepsTheServerServing(t *testing.T) 
 	assert.NoError(t, conn.Invoke(ctx, echoFullMethod, &emptypb.Empty{}, &emptypb.Empty{}),
 		"the server must still serve after recovering a panic")
 
-	records := recordsAtLevel(capturedRecords(t, logs), "ERROR")
-	require.Len(t, records, 1, "the recovered panic must produce exactly one record")
-	assert.Equal(t, "recovered panic in gRPC handler", records[0]["msg"])
-	assert.Equal(t, panicUnaryFullMethod, records[0]["method"])
+	record := requireOnePanicRecord(t, logs)
+	assert.Equal(t, "recovered panic in gRPC handler", record["msg"])
+	assert.Equal(t, panicUnaryFullMethod, record["method"])
+	assert.Contains(t, record["stack"], "panicUnaryHandler")
 }
 
 func TestNewGRPCServer_PanickingStreamHandlerTerminatesTheStreamAndKeepsServing(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	withDefaultLogger(t, logger)
 
 	server := serverkit.NewGRPCServer()
@@ -427,10 +430,10 @@ func TestNewGRPCServer_PanickingStreamHandlerTerminatesTheStreamAndKeepsServing(
 	assert.NoError(t, conn.Invoke(ctx, echoFullMethod, &emptypb.Empty{}, &emptypb.Empty{}),
 		"the server must still serve after recovering a stream panic")
 
-	records := recordsAtLevel(capturedRecords(t, logs), "ERROR")
-	require.Len(t, records, 1, "the recovered panic must produce exactly one record")
-	assert.Equal(t, "recovered panic in gRPC stream handler", records[0]["msg"])
-	assert.Equal(t, panicStreamFullMethod, records[0]["method"])
+	record := requireOnePanicRecord(t, logs)
+	assert.Equal(t, "recovered panic in gRPC stream handler", record["msg"])
+	assert.Equal(t, panicStreamFullMethod, record["method"])
+	assert.Contains(t, record["stack"], "panicStreamHandler")
 }
 
 // TestNewGRPCServer_RecoveryIsOutsideMetrics pins the chain order. A panic
@@ -439,7 +442,7 @@ func TestNewGRPCServer_PanickingStreamHandlerTerminatesTheStreamAndKeepsServing(
 // metrics inside the recovery; were it outside, it would record Internal. The
 // resulting metrics blind spot is recorded in docs/monitoring.md.
 func TestNewGRPCServer_RecoveryIsOutsideMetrics(t *testing.T) {
-	logger, _ := bufferedLogger()
+	logger, _ := serverkittest.NewLogger()
 	withDefaultLogger(t, logger)
 
 	server := serverkit.NewGRPCServer()

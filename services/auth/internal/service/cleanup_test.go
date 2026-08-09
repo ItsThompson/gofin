@@ -1,12 +1,9 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 func TestStartPeriodicCleanup_CallsCleanupAfterInterval(t *testing.T) {
@@ -140,8 +139,7 @@ func TestStartPeriodicCleanup_SingleFlight(t *testing.T) {
 func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T) {
 	blacklistRepo := new(mockBlacklistRepository)
 	repo := new(mockUserRepository)
-	logs := &syncBuffer{}
-	logger := slog.New(slog.NewJSONHandler(logs, nil))
+	logger, logs := serverkittest.NewLogger()
 	jwtSvc := NewJWTService("test-secret")
 	pwdSvc := NewPasswordService(4)
 	svc := NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
@@ -152,7 +150,7 @@ func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T
 	var callCount atomic.Int32
 	blacklistRepo.On("CleanupExpired", mock.Anything).Run(func(mock.Arguments) {
 		if callCount.Add(1) == 1 {
-			panic("repo exploded")
+			panicInCleanup()
 		}
 	}).Return(nil)
 
@@ -162,48 +160,20 @@ func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T
 		return callCount.Load() >= 2
 	}, 2*time.Second, 10*time.Millisecond, "the ticker must survive a panicking cleanup run")
 
-	records := errorRecords(t, logs)
-	require.Len(t, records, 1, "the recovered panic must produce exactly one record")
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
+	assert.Equal(t, "ERROR", records[0]["level"])
 	assert.Equal(t, "recovered panic in blacklist cleanup", records[0]["msg"])
 	assert.Equal(t, "panic: repo exploded", records[0]["panic"])
 	assert.Equal(t, "StartPeriodicCleanup", records[0]["method"])
-	assert.Contains(t, records[0]["stack"], "runtime/debug.Stack")
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panicInCleanup")
 }
 
-// syncBuffer is a mutex-guarded log sink: the cleanup goroutine writes records
-// while the test reads them.
-type syncBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (s *syncBuffer) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.buf.Write(p)
-}
-
-func (s *syncBuffer) bytes() []byte {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]byte(nil), s.buf.Bytes()...)
-}
-
-// errorRecords parses the error-level JSON slog records written to logs.
-func errorRecords(t *testing.T, logs *syncBuffer) []map[string]any {
-	t.Helper()
-
-	var records []map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(logs.bytes()))
-	for decoder.More() {
-		var record map[string]any
-		require.NoError(t, decoder.Decode(&record))
-		if record["level"] == "ERROR" {
-			records = append(records, record)
-		}
-	}
-	return records
-}
+// panicInCleanup is named so the recorded stack carries a frame to assert on.
+func panicInCleanup() { panic("repo exploded") }
 
 func TestStartPeriodicCleanup_LogsErrorOnFailure(t *testing.T) {
 	blacklistRepo := new(mockBlacklistRepository)

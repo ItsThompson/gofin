@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/serverkit"
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 func init() {
@@ -54,11 +55,11 @@ func TestNewRouter_ProductionEnablesReleaseMode(t *testing.T) {
 // gin.Recovery(), which wrote the panic as plaintext to gin.DefaultErrorWriter
 // and so never reached the JSON log stream.
 func TestNewRouter_RecoversPanicsIntoTheLogStream(t *testing.T) {
-	logger, logs := bufferedLogger()
+	logger, logs := serverkittest.NewLogger()
 	withDefaultLogger(t, logger)
 
 	router := serverkit.NewRouter("finance", false)
-	router.GET("/api/boom", func(*gin.Context) { panic("handler exploded") })
+	router.GET("/api/boom", panicRoute)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/boom", nil))
@@ -69,8 +70,11 @@ func TestNewRouter_RecoversPanicsIntoTheLogStream(t *testing.T) {
 		w.Body.String(),
 	)
 
-	records := recordsAtLevel(capturedRecords(t, logs), "ERROR")
-	require.Len(t, records, 1)
-	assert.Equal(t, "recovered panic in HTTP handler", records[0]["msg"])
-	assert.Equal(t, "/api/boom", records[0]["path"])
+	record := requireOnePanicRecord(t, logs)
+	assert.Equal(t, "recovered panic in HTTP handler", record["msg"])
+	assert.Equal(t, "/api/boom", record["path"])
+	assert.Contains(t, record["stack"], "panicRoute")
 }
+
+// panicRoute is named so the recorded stack carries a frame to assert on.
+func panicRoute(*gin.Context) { panic("handler exploded") }
