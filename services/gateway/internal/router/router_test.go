@@ -1,7 +1,9 @@
 package router_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -366,6 +368,67 @@ func TestRouter_ReadyzEndpoint_DownstreamUnhealthy_Returns503NamingService(t *te
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	assert.Contains(t, string(body), `"status":"unhealthy"`)
 	assert.Contains(t, string(body), "expense", "the 503 body must name the unhealthy service")
+}
+
+// panickingValidator models the realistic gateway panic source: token
+// validation is the one injected collaborator on the path of every non-public
+// request, and it reaches the auth service over gRPC.
+type panickingValidator struct{}
+
+func (panickingValidator) ValidateToken(context.Context, string) (*access.TokenValidationResult, error) {
+	panic("validator exploded")
+}
+
+// errorRecords parses the error-level JSON slog records written to logs.
+func errorRecords(t *testing.T, logs *bytes.Buffer) []map[string]any {
+	t.Helper()
+
+	var records []map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(logs.Bytes()))
+	for decoder.More() {
+		var record map[string]any
+		require.NoError(t, decoder.Decode(&record))
+		if record["level"] == "ERROR" {
+			records = append(records, record)
+		}
+	}
+	return records
+}
+
+// TestRouter_RecoversPanicsIntoTheLogStream pins the replacement of
+// gin.Recovery(), which wrote the panic as plaintext to gin.DefaultErrorWriter,
+// and the recovery's position outside RequestLogger and the metrics middleware:
+// neither runs its post-c.Next() body during unwinding, so one panic yields one
+// record.
+func TestRouter_RecoversPanicsIntoTheLogStream(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+	u, _ := url.Parse("http://127.0.0.1:1")
+	engine := router.New(panickingValidator{}, &router.ServiceURLs{
+		AuthREST:       u,
+		ExpenseREST:    u,
+		FinanceREST:    u,
+		DatarightsREST: u,
+	}, sharedaccess.Prefixes(), logger, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+	req.AddCookie(validCookie())
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.JSONEq(t,
+		`{"code":"INTERNAL_SERVER_ERROR","message":"An unexpected error occurred"}`,
+		rec.Body.String(),
+	)
+
+	records := errorRecords(t, &logs)
+	require.Len(t, records, 1)
+	assert.Equal(t, "recovered panic in HTTP handler", records[0]["msg"])
+	assert.Equal(t, http.MethodGet, records[0]["method"])
+	assert.Equal(t, "/api/finance/periods", records[0]["path"])
+	assert.Contains(t, records[0]["stack"], "runtime/debug.Stack")
 }
 
 // TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's

@@ -1,6 +1,7 @@
 package readiness_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -42,7 +43,7 @@ func newHealthServer(t *testing.T, status int) *httptest.Server {
 }
 
 func newChecker(services map[string]string, timeout time.Duration) *readiness.Checker {
-	return readiness.NewChecker(&http.Client{}, services, timeout)
+	return readiness.NewChecker(&http.Client{}, services, timeout, silentLogger())
 }
 
 func TestChecker_AllHealthy_ReportsHealthy(t *testing.T) {
@@ -160,6 +161,42 @@ func TestChecker_ProbesConcurrently(t *testing.T) {
 	require.True(t, result.Healthy)
 	assert.Less(t, elapsed, 500*time.Millisecond, "four 150ms probes run serially would exceed 500ms")
 	assert.Equal(t, int32(4), atomic.LoadInt32(&maxInFlight), "all four probes should be in flight at once")
+}
+
+// panicHost is the target whose probe panics in the test below. It is not a
+// resolvable host: panicRoundTripper panics before any dial would happen.
+const panicHost = "panic.invalid"
+
+// panicRoundTripper panics for panicHost and delegates every other request, so
+// one probe of a fan-out can fail catastrophically while its siblings succeed.
+// RoundTrip is the only place in probe where a panic can realistically arise.
+type panicRoundTripper struct{}
+
+func (panicRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.URL.Host == panicHost {
+		panic("transport exploded")
+	}
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+func TestChecker_ProbePanic_ReportsUnreachableAndLeavesSiblingsIntact(t *testing.T) {
+	healthy := newHealthServer(t, http.StatusOK)
+
+	var logs bytes.Buffer
+	checker := readiness.NewChecker(
+		&http.Client{Transport: panicRoundTripper{}},
+		map[string]string{"auth": healthy.URL, "expense": "http://" + panicHost},
+		2*time.Second,
+		slog.New(slog.NewJSONHandler(&logs, nil)),
+	)
+
+	result := checker.Check(context.Background())
+
+	assert.False(t, result.Healthy)
+	assert.Equal(t, map[string]string{"auth": "ok", "expense": "unreachable"}, result.Services,
+		"a panicking probe must still report its service, or /readyz would answer healthy")
+	assert.Contains(t, logs.String(), "recovered panic in readiness probe")
+	assert.Contains(t, logs.String(), `"downstream":"expense"`)
 }
 
 // serveReadyz wires readiness.Handler behind a gin engine and returns the

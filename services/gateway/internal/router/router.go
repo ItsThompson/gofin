@@ -15,6 +15,7 @@ import (
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
 	"github.com/ItsThompson/gofin/services/gateway/internal/readiness"
 	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 // readinessTimeout bounds each downstream /health probe issued by /readyz. It
@@ -48,7 +49,10 @@ func New(
 
 	engine := gin.New()
 	engine.RedirectTrailingSlash = false
-	engine.Use(gin.Recovery())
+	// Recovery sits outside the metrics and logging middleware so a panic raised
+	// in either is caught too, and records the panic through slog instead of
+	// gin.Recovery()'s plaintext dump to gin.DefaultErrorWriter.
+	engine.Use(serverkit.Recovery(logger))
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
 	// AccessControl is the single global gate: it resolves each route against the
@@ -80,7 +84,7 @@ func New(
 	for name, serviceURL := range services {
 		readinessTargets[name] = serviceURL.String()
 	}
-	checker := readiness.NewChecker(&http.Client{}, readinessTargets, readinessTimeout)
+	checker := readiness.NewChecker(&http.Client{}, readinessTargets, readinessTimeout, logger)
 	engine.GET("/readyz", readiness.Handler(checker, logger))
 
 	// Build one reverse-proxy handler per downstream service from the same shared
