@@ -26,11 +26,21 @@ import (
 // must never reach the gRPC status message.
 const repoFailure = "connection refused"
 
-// newGRPCHandlerWithLog builds a gRPC handler whose logger writes JSON records
-// to the returned buffer, so a test can assert on what the handler recorded.
-func newGRPCHandlerWithLog(repo *mockExpenseRepository) (*GRPCHandler, *bytes.Buffer) {
+// newGRPCHandlerWithLog builds a gRPC handler whose records land in the returned
+// buffer, so a test can assert on what the handler recorded.
+//
+// The sink is installed as slog.Default because errkit writes its record through
+// the package-level logger, which every service main sets to its own.
+func newGRPCHandlerWithLog(t *testing.T, repo *mockExpenseRepository) (*GRPCHandler, *bytes.Buffer) {
+	t.Helper()
+
 	buf := new(bytes.Buffer)
 	logger := slog.New(slog.NewJSONHandler(buf, nil))
+
+	previous := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
 	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
 	return NewGRPCHandler(expenseSvc, logger), buf
 }
@@ -60,7 +70,7 @@ func errorRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
 // the cause and the calling RPC, and a status message with no internal detail.
 func TestGRPC_UnclassifiedError_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	handler, logs := newGRPCHandlerWithLog(repo)
+	handler, logs := newGRPCHandlerWithLog(t, repo)
 
 	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").Return(nil, errors.New(repoFailure))
 
@@ -77,6 +87,7 @@ func TestGRPC_UnclassifiedError_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 	require.Len(t, records, 1)
 	assert.Equal(t, "unclassified service error", records[0]["msg"])
 	assert.Equal(t, "GetExpense", records[0]["method"])
+	assert.Equal(t, "expense.get", records[0]["operation"])
 	assert.Equal(t, "user-1", records[0]["user_id"])
 	assert.Equal(t, "getting expense: "+repoFailure, records[0]["error"])
 }
@@ -87,7 +98,7 @@ func TestGRPC_UnclassifiedError_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 // carries the wrapped cause.
 func TestGRPC_TypedInternalError_LogsCause(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	handler, logs := newGRPCHandlerWithLog(repo)
+	handler, logs := newGRPCHandlerWithLog(t, repo)
 
 	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").
 		Return(nil, apierr.Internal("Expense store unavailable"))
@@ -104,6 +115,7 @@ func TestGRPC_TypedInternalError_LogsCause(t *testing.T) {
 	require.Len(t, records, 1)
 	assert.Equal(t, "internal service error", records[0]["msg"])
 	assert.Equal(t, "GetExpense", records[0]["method"])
+	assert.Equal(t, "expense.get", records[0]["operation"])
 	assert.Equal(t, apierr.CodeInternal, records[0]["error_code"])
 	assert.Equal(t, "getting expense: Expense store unavailable", records[0]["error"])
 }
@@ -112,7 +124,7 @@ func TestGRPC_TypedInternalError_LogsCause(t *testing.T) {
 // that does not go through mapServiceError.
 func TestGRPC_AnonymizeAllUserExpenses_LogsCause(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	handler, logs := newGRPCHandlerWithLog(repo)
+	handler, logs := newGRPCHandlerWithLog(t, repo)
 
 	repo.On("AnonymizeAllUserExpenses", mock.Anything, "user-1").Return(errors.New(repoFailure))
 
@@ -129,6 +141,7 @@ func TestGRPC_AnonymizeAllUserExpenses_LogsCause(t *testing.T) {
 	require.Len(t, records, 1)
 	assert.Equal(t, "failed to anonymize expenses", records[0]["msg"])
 	assert.Equal(t, "AnonymizeAllUserExpenses", records[0]["method"])
+	assert.Equal(t, "expense.anonymize", records[0]["operation"])
 	assert.Equal(t, "user-1", records[0]["user_id"])
 	assert.Equal(t, "anonymizing user expenses: "+repoFailure, records[0]["error"])
 }
@@ -138,7 +151,7 @@ func TestGRPC_AnonymizeAllUserExpenses_LogsCause(t *testing.T) {
 // outcome, so it maps to codes.NotFound and emits no error record.
 func TestGRPC_ClassifiedError_IsNotLoggedAsInternal(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	handler, logs := newGRPCHandlerWithLog(repo)
+	handler, logs := newGRPCHandlerWithLog(t, repo)
 
 	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").
 		Return(nil, apierr.NotFound("expense exp-1 not found"))
