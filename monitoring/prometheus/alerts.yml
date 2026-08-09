@@ -1,15 +1,26 @@
 groups:
   - name: service-health
     rules:
+      # Per-job sums keep healthy traffic elsewhere from diluting a fully
+      # failing low-traffic service below the threshold. The request-rate floor
+      # keeps one failed request against an idle service from paging.
       - alert: HighErrorRate
         expr: |
-          sum(rate(http_requests_total{status=~"5.."}[5m]))
-          / sum(rate(http_requests_total[5m])) > 0.05
+          (
+            sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+            / sum by (job) (rate(http_requests_total[5m]))
+            > 0.05
+          )
+          and
+          (
+            sum by (job) (rate(http_requests_total[5m])) > 2 / 60
+          )
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "High 5xx error rate (> 5%)"
+          summary: "{{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }} (> 5%)"
+          description: "More than 5% of requests to {{ $labels.job }} returned 5xx over 5 minutes, with at least 2 requests per minute of traffic."
 
       - alert: ServiceDown
         expr: up == 0
