@@ -13,10 +13,13 @@ export function BackendUnavailable({ onRetry }: BackendUnavailableProps) {
 
   const handleRetry = async () => {
     setIsRetrying(true);
-    // A retry against an unreachable backend can hang for as long as the
-    // gateway timeout, so the button has to say it is working.
-    await onRetry();
-    setIsRetrying(false);
+    try {
+      // A retry against an unreachable backend can hang for as long as the
+      // gateway timeout, so the button has to say it is working.
+      await onRetry();
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   return (

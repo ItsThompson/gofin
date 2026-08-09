@@ -176,6 +176,37 @@ describe("auth guard redirect logic", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("re-enables the retry when the backend is still unreachable", async () => {
+      const serverError = {
+        ok: false,
+        status: 500,
+        json: () =>
+          Promise.resolve({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Server error",
+          }),
+      };
+      mockFetch.mockResolvedValue(serverError);
+      resetStore({ isLoading: true, isAuthenticated: false });
+      const AuthLayout = await importAuthLayout();
+
+      renderRoute("/dashboard", <AuthLayout />);
+
+      await waitFor(() => {
+        expect(screen.getByText("GoFin is unreachable")).toBeInTheDocument();
+      });
+
+      // The state a user in a real outage hits most: retry, still down, retry.
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+      const retryButton = await screen.findByRole("button", {
+        name: "Try again",
+      });
+      expect(retryButton).toBeEnabled();
+      expect(screen.getByText("GoFin is unreachable")).toBeInTheDocument();
+      expect(useAuthStore.getState().authError).toBe("unavailable");
+    });
+
     it("shows the retry as pending while the auth check is in flight", async () => {
       mockFetch.mockResolvedValue({
         ok: false,

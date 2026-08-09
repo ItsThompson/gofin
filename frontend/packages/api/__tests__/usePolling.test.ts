@@ -365,10 +365,13 @@ describe("usePolling", () => {
     it("reports the terminal failure once when requests outlive the interval", async () => {
       // The dangerous outage shape: a hanging endpoint behind a gateway timeout,
       // so several requests are in flight when the budget runs out.
+      const issued: Error[] = [];
       const fetcher = vi.fn(
         (): Promise<string> =>
           new Promise((_resolve, reject) => {
-            setTimeout(() => reject(new Error("slow failure")), 3200);
+            const error = new Error(`request ${issued.length + 1} failed`);
+            issued.push(error);
+            setTimeout(() => reject(error), 3200);
           }),
       );
       const onFailureLimitReached = vi.fn();
@@ -389,6 +392,11 @@ describe("usePolling", () => {
         DEFAULT_MAX_CONSECUTIVE_FAILURES,
       );
       expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
+      // The surviving report is the tick that spent the budget, not whichever
+      // late rejection settled last.
+      expect(onFailureLimitReached).toHaveBeenCalledWith(
+        issued[DEFAULT_MAX_CONSECUTIVE_FAILURES - 1],
+      );
     });
 
     it("delivers nothing from a tick that outlived the stop", async () => {
