@@ -20,6 +20,7 @@ function resetStore(overrides: Record<string, unknown> = {}) {
     isAssuming: false,
     originalAdminUser: null,
     isLoading: false,
+    authError: null,
     ...overrides,
   });
 }
