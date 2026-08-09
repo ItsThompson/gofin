@@ -1,0 +1,78 @@
+// Package errkittest provides the recording sentry.Transport the errkit tests
+// use, exported so serverkit and the migrated handler tests assert against the
+// same seam.
+//
+// A transport stub is the right seam because it exercises the real SDK path,
+// including event normalization, exception-chain walking, and stack extraction,
+// which are exactly the behaviors errkit's design depends on. It needs no DSN and
+// no network, and it makes the assertions about the event, which is the contract,
+// rather than about a call to our own function.
+package errkittest
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/getsentry/sentry-go"
+)
+
+// hermeticDSN is syntactically valid so the client initializes as enabled, and
+// unroutable so a stub that is accidentally replaced by the real HTTP transport
+// fails loudly instead of reaching Sentry. Nothing is sent while Transport is
+// installed: the SDK hands every event straight to it.
+const hermeticDSN = "https://public@example.invalid/1"
+
+// Transport records every event the SDK would have sent. It implements all five
+// sentry.Transport methods, which ClientOptions.Transport requires.
+type Transport struct {
+	mu     sync.Mutex
+	events []*sentry.Event
+}
+
+// SendEvent records event instead of sending it. It is safe to call from many
+// goroutines, which the errkit concurrency test relies on.
+func (t *Transport) SendEvent(event *sentry.Event) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.events = append(t.events, event)
+}
+
+func (t *Transport) Flush(time.Duration) bool              { return true }
+func (t *Transport) FlushWithContext(context.Context) bool { return true }
+func (t *Transport) Configure(sentry.ClientOptions)        {}
+func (t *Transport) Close()                                {}
+
+// Events returns a snapshot of the recorded events, oldest first.
+func (t *Transport) Events() []*sentry.Event {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]*sentry.Event(nil), t.events...)
+}
+
+// NewClient returns a client that records into tr. Logs and metrics are disabled
+// because their batch processors start background goroutines a test has no use
+// for, and DataCollection is left nil so the conservative defaults apply.
+//
+// It panics if the client cannot be built, which no caller can provoke: the only
+// failure mode is an unparseable DSN and the DSN is a constant.
+func NewClient(tr *Transport) *sentry.Client {
+	client, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn:            hermeticDSN,
+		Transport:      tr,
+		DisableLogs:    true,
+		DisableMetrics: true,
+	})
+	if err != nil {
+		panic("errkittest: building the recording client: " + err.Error())
+	}
+	return client
+}
+
+// ContextWithHub returns ctx carrying its own hub bound to a client that records
+// into tr. This is the shape production has, because sentrygin and sentrygrpc
+// install a per-request hub on the context, so it exercises the
+// GetHubFromContext path rather than the clone fallback.
+func ContextWithHub(ctx context.Context, tr *Transport) context.Context {
+	return sentry.SetHubOnContext(ctx, sentry.NewHub(NewClient(tr), sentry.NewScope()))
+}
