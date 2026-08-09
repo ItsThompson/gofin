@@ -17,6 +17,7 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 func streamExpense(id, createdAt string) *model.Expense {
@@ -186,6 +187,47 @@ func TestStreamAllUserExpenses_DefaultsPageSizeWhenNonPositive(t *testing.T) {
 
 	require.NoError(t, err)
 	repo.AssertExpectations(t)
+}
+
+// panickingStreamRepo panics inside the keyset page fetch, which is where the
+// producer goroutine does all of its work. All other repository methods are
+// inherited unused.
+type panickingStreamRepo struct {
+	mockExpenseRepository
+}
+
+func (r *panickingStreamRepo) GetExpensesByUserAfter(context.Context, string, repository.ExpenseCursor, int32) ([]*model.Expense, repository.ExpenseCursor, bool, error) {
+	panic("page fetch exploded")
+}
+
+// TestStreamAllUserExpenses_ProducerPanicTerminatesTheStream covers the reach
+// gap the gRPC stream interceptor cannot close: the producer runs on its own
+// goroutine, so a panic there is unrecoverable from the handler. Without the
+// producer's own guard this test crashes the process; without the synthesized
+// errc send it hangs on <-errc until the guard timeout.
+func TestStreamAllUserExpenses_ProducerPanicTerminatesTheStream(t *testing.T) {
+	logger, logs := serverkittest.NewLogger()
+	svc := NewExpenseService(&panickingStreamRepo{}, time.Now, logger)
+
+	sendCount := 0
+	err := collectStream(t, svc, "user-1", 10, func(*model.Expense) error {
+		sendCount++
+		return nil
+	})
+
+	require.Error(t, err, "a producer panic must surface as a stream error, not a hang")
+	assert.Zero(t, sendCount)
+
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
+	assert.Equal(t, "ERROR", records[0]["level"])
+	assert.Equal(t, "recovered panic in expense page producer", records[0]["msg"])
+	assert.Equal(t, "panic: page fetch exploded", records[0]["panic"])
+	assert.Equal(t, "user-1", records[0]["user_id"])
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panickingStreamRepo")
 }
 
 // countingStreamRepo answers GetExpensesByUserAfter with a fixed page and an
