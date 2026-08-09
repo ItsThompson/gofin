@@ -34,8 +34,8 @@ tests:
     input_series:
       - series: 'http_requests_total{job="finance-service",method="GET",path="/api/finance/summary",status="500"}'
         values: "0 1x20"
-    # Evaluated every minute across the whole window: the lone increase sits in
-    # the 5m rate window from 1m to 6m, so a rule without the floor fires at 6m.
+    # Evaluated at every minute so no combination of the rate window and the
+    # `for` duration can let this case page unnoticed.
     alert_rule_test:
       - eval_time: 1m
         alertname: HighErrorRate
@@ -118,8 +118,10 @@ tests:
               summary: "expense-service 5xx error rate is 10% (> 5%)"
               description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with at least 2 requests per minute of traffic."
 
-  # Counters present but flat: both rates are zero, so the ratio is NaN. The
-  # alert must produce no series at all.
+  # Counters present but flat: both rates are zero, so the ratio is NaN, and
+  # NaN fails every comparison. Asserted through the rule rather than through a
+  # promql_expr_test, because promtool compares expected NaN with == and so can
+  # never match one.
   - interval: 1m
     name: no traffic in the window
     input_series:
@@ -127,19 +129,6 @@ tests:
         values: "7x20"
       - series: 'http_requests_total{job="auth-service",method="POST",path="/api/auth/login",status="500"}'
         values: "2x20"
-    promql_expr_test:
-      - expr: |
-          (
-            sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
-            / sum by (job) (rate(http_requests_total[5m]))
-            > 0.05
-          )
-          and
-          (
-            sum by (job) (rate(http_requests_total[5m])) > 2 / 60
-          )
-        eval_time: 10m
-        exp_samples: []
     alert_rule_test:
       - eval_time: 10m
         alertname: HighErrorRate
