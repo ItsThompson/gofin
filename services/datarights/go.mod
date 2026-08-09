@@ -6,6 +6,7 @@ require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
 	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/auth v0.0.0
+	github.com/ItsThompson/gofin/services/errkit v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0
 	github.com/ItsThompson/gofin/services/finance v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
@@ -22,7 +23,7 @@ require (
 )
 
 require (
-	github.com/getsentry/sentry-go v0.48.0 // indirect
+	github.com/getsentry/sentry-go v0.48.0
 	github.com/getsentry/sentry-go/gin v0.48.0 // indirect
 	github.com/getsentry/sentry-go/grpc v0.48.0 // indirect
 )
@@ -53,7 +54,6 @@ replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
-	github.com/ItsThompson/gofin/services/errkit v0.0.0 // indirect
 	github.com/ItsThompson/gofin/services/metrics v0.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
