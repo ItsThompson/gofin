@@ -98,8 +98,10 @@ Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 
 Consequences worth knowing during triage:
 
-- A job serving 2 requests per minute or fewer never fires this alert, whatever its error ratio. That is the deliberate cost of the floor. `ServiceDown` still covers such a service going away entirely.
-- Every job carries about 12 requests per minute before any user traffic, because each Go service's Docker healthcheck polls its own `/health` every 5 seconds and `/health` is counted (only `/metrics` is excluded). Two consequences follow. The floor never excludes a service whose container is answering, so it guards far less than the arithmetic above suggests. And those 200s dilute the ratio, so a job needs more than about 0.6 failed requests per minute before it can reach 5%. A single failed request in the window computes to about 1.75%.
+- A job serving 2 requests per minute or fewer never fires this alert, whatever its error ratio. That is the deliberate cost of the floor, and no container that answers its healthcheck is in that state: see the next bullet before acting on this one. `ServiceDown` still covers such a service going away entirely.
+- Every job carries about 12 requests per minute before any user traffic, because each Go service's Docker healthcheck polls its own `/health` every 5 seconds and `/health` is counted (only `/metrics` is excluded). On an idle stack that healthcheck is the job's entire request rate. Two consequences follow.
+  - The floor never excludes a service whose container is answering, so it guards far less than the arithmetic above suggests.
+  - Those healthy 200s dilute the ratio inside the job. A job needs more than about 0.6 failed requests per minute before it can reach 5%, and a single failed request in the window computes to about 1.75%.
 - A job with no traffic in the window produces no alert. Its ratio is `0/0`, which is `NaN`, and `NaN` fails every comparison, so the rule yields no series rather than a false page.
 - Both sides are summed by `job`, so two services failing at once produce two alert instances. `group_by: ["alertname", "job"]` then sends one Discord message per service, and both Discord titles name the job.
 - `mfe` exposes no `http_requests_total`, so it is absent from this alert.
