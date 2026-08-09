@@ -6,6 +6,7 @@ use (
 	./auth
 	./datarights
 	./dbmigrate
+	./errkit
 	./expense
 	./finance
 	./gateway
