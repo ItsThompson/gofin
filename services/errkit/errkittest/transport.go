@@ -52,11 +52,12 @@ func (t *Transport) Events() []*sentry.Event {
 
 // NewClient returns a client that records into tr. Logs and metrics are disabled
 // because their batch processors start background goroutines a test has no use
-// for, and DataCollection is left nil so the conservative defaults apply.
+// for.
 //
 // Each configure function runs against the options before the client is built, so
 // a test needing an init-level setting such as ClientOptions.Tags can add it
-// without restating the hermetic defaults.
+// without restating the defaults. The three settings that make the client
+// hermetic are re-asserted afterwards, so no configure function can undo them.
 //
 // It panics if the client cannot be built. With no configure function the only
 // failure mode is an unparseable DSN and the DSN is a constant, so a panic means a
@@ -64,13 +65,22 @@ func (t *Transport) Events() []*sentry.Event {
 func NewClient(tr *Transport, configure ...func(*sentry.ClientOptions)) *sentry.Client {
 	options := sentry.ClientOptions{
 		Dsn:            hermeticDSN,
-		Transport:      tr,
 		DisableLogs:    true,
 		DisableMetrics: true,
 	}
 	for _, apply := range configure {
 		apply(&options)
 	}
+
+	// Transport keeps every event inside the process and inside tr. DataCollection
+	// stays nil because a non-nil value, even an empty one, turns user info on and
+	// collects every HTTP body type, cookie, and header. SendDefaultPII is deprecated
+	// but not inert here: it is the input to the legacy resolution that a nil
+	// DataCollection selects, so a hook setting it would reach the same permissive
+	// posture by the other door.
+	options.Transport = tr
+	options.DataCollection = nil
+	options.SendDefaultPII = false //nolint:staticcheck // pinned precisely because a configure hook can still set it
 
 	client, err := sentry.NewClient(options)
 	if err != nil {

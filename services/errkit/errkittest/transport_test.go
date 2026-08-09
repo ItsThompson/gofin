@@ -94,3 +94,26 @@ func TestNewClient_PanicsOnAnUnusableOption(t *testing.T) {
 		})
 	})
 }
+
+// The decorators run before the hermetic settings are re-asserted, so a configure
+// function cannot route events away from the recorder or opt the client into the
+// permissive collection posture that section 06 calls the worst one-line change
+// available in this app. Tickets 12 and 14 copy this factory.
+func TestNewClient_PinsTheHermeticSettingsAgainstAConfigureHook(t *testing.T) {
+	transport := &errkittest.Transport{}
+	hijacked := &errkittest.Transport{}
+
+	client := errkittest.NewClient(transport, func(options *sentry.ClientOptions) {
+		options.Transport = hijacked
+		options.DataCollection = &sentry.DataCollection{}
+		options.SendDefaultPII = true //nolint:staticcheck // the hook a caller could write is the thing under test
+	})
+	sentry.NewHub(client, sentry.NewScope()).CaptureException(errors.New("boom"))
+
+	assert.Len(t, transport.Events(), 1)
+	assert.Empty(t, hijacked.Events(), "a configure hook routed events away from the recorder")
+
+	collection := client.GetDataCollection()
+	assert.False(t, collection.CollectHTTPBody(sentry.BodyIncomingRequest), "request bodies would be collected")
+	assert.False(t, collection.UserInfo.Value, "user info would be collected")
+}

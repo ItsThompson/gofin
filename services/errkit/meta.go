@@ -76,10 +76,16 @@ type Meta struct {
 	GroupExact bool
 
 	// Tags are additional low-cardinality string pairs. Values are truncated to
-	// 200 characters. A key matching app, service, or runtime is dropped: those
-	// are set once per process at init. Never put identifiers, amounts, emails,
-	// or URLs here: tags are indexed and searchable, and one high-cardinality tag
-	// makes every tag distribution useless.
+	// 200 characters.
+	//
+	// A key matching app, service, or runtime is dropped: those three are set once
+	// per process at init. A key matching error_kind, operation, or domain replaces
+	// the value derived from Kind, Op, and Domain, but replaces only the tag: the
+	// fingerprint derives from Op and Kind, so an overridden operation tag names one
+	// operation while the issue groups under another.
+	//
+	// Never put identifiers, amounts, emails, or URLs here: tags are indexed and
+	// searchable, and one high-cardinality tag makes every tag distribution useless.
 	Tags map[string]string
 
 	// Data is arbitrary structured metadata, sent as the Sentry context block
