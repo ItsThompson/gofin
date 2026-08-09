@@ -27,11 +27,21 @@ import (
 // classify, and it must never reach the gRPC status message.
 const repoFailure = "connection refused"
 
-// setupGRPCHandlerWithLog builds a gRPC handler whose logger writes JSON records
-// to the returned buffer, so a test can assert on what the handler recorded.
-func setupGRPCHandlerWithLog(repo *mockFinanceRepository, txBeginner *mockTxBeginner) (*GRPCHandler, *bytes.Buffer) {
+// setupGRPCHandlerWithLog builds a gRPC handler whose records land in the returned
+// buffer, so a test can assert on what the handler recorded.
+//
+// The sink is installed as slog.Default because errkit writes its record through
+// the package-level logger, which every service main sets to its own.
+func setupGRPCHandlerWithLog(t *testing.T, repo *mockFinanceRepository, txBeginner *mockTxBeginner) (*GRPCHandler, *bytes.Buffer) {
+	t.Helper()
+
 	buf := new(bytes.Buffer)
 	logger := slog.New(slog.NewJSONHandler(buf, nil))
+
+	previous := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 	return NewGRPCHandler(financeSvc, logger), buf
 }
@@ -79,7 +89,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 			},
 			wantStatusMsg: "failed to get defaults",
 			wantLogMsg:    "failed to get defaults",
-			wantAttrs:     map[string]string{"method": "GetDefaults", "user_id": "user-1"},
+			wantAttrs:     map[string]string{"method": "GetDefaults", "operation": "finance.get_defaults", "user_id": "user-1"},
 		},
 		{
 			name: "CompleteOnboarding",
@@ -99,7 +109,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 			},
 			wantStatusMsg: "failed to complete onboarding",
 			wantLogMsg:    "failed to complete onboarding",
-			wantAttrs:     map[string]string{"method": "CompleteOnboarding", "user_id": "user-1"},
+			wantAttrs:     map[string]string{"method": "CompleteOnboarding", "operation": "finance.complete_onboarding", "user_id": "user-1"},
 		},
 		{
 			name: "ListTags",
@@ -112,7 +122,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 			},
 			wantStatusMsg: "failed to list tags",
 			wantLogMsg:    "failed to list tags",
-			wantAttrs:     map[string]string{"method": "ListTags", "user_id": "user-1"},
+			wantAttrs:     map[string]string{"method": "ListTags", "operation": "finance.list_tags", "user_id": "user-1"},
 		},
 		{
 			name: "CreateTag",
@@ -126,7 +136,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 			},
 			wantStatusMsg: "failed to create tag",
 			wantLogMsg:    "failed to create tag",
-			wantAttrs:     map[string]string{"method": "CreateTag", "user_id": "user-1"},
+			wantAttrs:     map[string]string{"method": "CreateTag", "operation": "finance.create_tag", "user_id": "user-1"},
 		},
 		{
 			name: "UpdateTag",
@@ -142,7 +152,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 			},
 			wantStatusMsg: "failed to update tag",
 			wantLogMsg:    "failed to update tag",
-			wantAttrs:     map[string]string{"method": "UpdateTag", "user_id": "user-1", "tag_id": "tag-1"},
+			wantAttrs:     map[string]string{"method": "UpdateTag", "operation": "finance.update_tag", "user_id": "user-1", "tag_id": "tag-1"},
 		},
 		{
 			name: "DeleteTag",
@@ -155,7 +165,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 			},
 			wantStatusMsg: "failed to delete tag",
 			wantLogMsg:    "failed to delete tag",
-			wantAttrs:     map[string]string{"method": "DeleteTag", "user_id": "user-1", "tag_id": "tag-1"},
+			wantAttrs:     map[string]string{"method": "DeleteTag", "operation": "finance.delete_tag", "user_id": "user-1", "tag_id": "tag-1"},
 		},
 	}
 
@@ -163,7 +173,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := new(mockFinanceRepository)
 			txBeginner := new(mockTxBeginner)
-			handler, logs := setupGRPCHandlerWithLog(repo, txBeginner)
+			handler, logs := setupGRPCHandlerWithLog(t, repo, txBeginner)
 			tc.arrange(repo, txBeginner)
 
 			err := tc.invoke(handler)
@@ -193,7 +203,7 @@ func TestGRPC_InternalFailure_LogsCauseAndKeepsItOffTheWire(t *testing.T) {
 func TestGRPC_ListTags_TypedInternalError_LogsCause(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
-	handler, logs := setupGRPCHandlerWithLog(repo, txBeginner)
+	handler, logs := setupGRPCHandlerWithLog(t, repo, txBeginner)
 
 	repo.On("CountUserTags", mock.Anything, "user-1").
 		Return(int64(0), apierr.Internal("Tag store unavailable"))
@@ -218,7 +228,7 @@ func TestGRPC_ListTags_TypedInternalError_LogsCause(t *testing.T) {
 func TestGRPC_ClassifiedError_IsNotLoggedAsInternal(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
-	handler, logs := setupGRPCHandlerWithLog(repo, txBeginner)
+	handler, logs := setupGRPCHandlerWithLog(t, repo, txBeginner)
 
 	repo.On("GetTag", mock.Anything, "tag-1", "user-1").Return((*model.Tag)(nil), nil)
 
