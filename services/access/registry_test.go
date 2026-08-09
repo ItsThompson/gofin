@@ -1,6 +1,9 @@
 package access
 
-import "testing"
+import (
+	"net/http"
+	"testing"
+)
 
 // TestRegistry_IDsAreUnique guards the bind-by-ID contract: services look up
 // handlers by Route.ID, so a duplicate ID would silently shadow a handler.
@@ -52,5 +55,32 @@ func TestRoutesFor_PartitionsRegistry(t *testing.T) {
 func TestRoutesFor_UnknownServiceIsEmpty(t *testing.T) {
 	if routes := RoutesFor("nope"); len(routes) != 0 {
 		t.Errorf("RoutesFor(%q) = %d routes, want 0", "nope", len(routes))
+	}
+}
+
+// TestRouteID_EveryEntryResolvesToItsOwnID derives the assertion from the
+// Registry rather than a second hand-list, the same way the Access test does.
+func TestRouteID_EveryEntryResolvesToItsOwnID(t *testing.T) {
+	for _, r := range registry {
+		if got := RouteID(r.Method, r.Path); got != r.ID {
+			t.Errorf("RouteID(%q, %q) = %q, want %q", r.Method, r.Path, got, r.ID)
+		}
+	}
+}
+
+// TestRouteID_NoMatchIsEmpty covers what a reporter sees for an unregistered
+// route: the empty pattern a handler running outside the router produces, a path
+// no Registry entry declares, and the right path under the wrong method.
+func TestRouteID_NoMatchIsEmpty(t *testing.T) {
+	cases := []struct{ method, pattern string }{
+		{http.MethodGet, ""},
+		{http.MethodGet, "/health"},
+		{http.MethodDelete, "/api/expenses"},
+	}
+
+	for _, tc := range cases {
+		if got := RouteID(tc.method, tc.pattern); got != "" {
+			t.Errorf("RouteID(%q, %q) = %q, want \"\"", tc.method, tc.pattern, got)
+		}
 	}
 }

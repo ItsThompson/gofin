@@ -3,6 +3,7 @@ module github.com/ItsThompson/gofin/services/httpx
 go 1.26
 
 require (
+	github.com/ItsThompson/gofin/services/access v0.0.0
 	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/errkit v0.0.0
 	github.com/gin-gonic/gin v1.12.0
@@ -48,3 +49,5 @@ require (
 replace github.com/ItsThompson/gofin/services/apierr => ../apierr
 
 replace github.com/ItsThompson/gofin/services/errkit => ../errkit
+
+replace github.com/ItsThompson/gofin/services/access => ../access

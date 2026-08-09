@@ -98,3 +98,21 @@ func RoutesFor(service string) []Route {
 	}
 	return routes
 }
+
+// RouteID returns the ID of the route registered for method and pattern, or ""
+// when the Registry holds none. pattern is gin's registered path pattern
+// (c.FullPath()), which each service's registration coverage test already pins to
+// Route.Path byte-for-byte, so this is an exact match rather than a second copy of
+// Resolve's precedence rules.
+//
+// Error reporting tags each event with the failing operation, and it needs a
+// bounded name per route. The IDs are exactly that and they already exist, so a
+// reporter derives the name here instead of every handler restating it.
+func RouteID(method, pattern string) string {
+	for _, r := range registry {
+		if r.Method == method && r.Path == pattern {
+			return r.ID
+		}
+	}
+	return ""
+}

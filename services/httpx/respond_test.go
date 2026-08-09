@@ -122,3 +122,56 @@ func TestRespondError_WritesExactlyWhatApierrRespondWould(t *testing.T) {
 		assert.JSONEq(t, directRecorder.Body.String(), reportedRecorder.Body.String(), err)
 	}
 }
+
+// serveOneRoute drives err through a real router entry, which is the only way a
+// route pattern reaches the handler: c.FullPath() is empty on a context built by
+// hand.
+func serveOneRoute(t *testing.T, method, pattern string, err error, meta errkit.Meta) *errkittest.Transport {
+	t.Helper()
+
+	transport := &errkittest.Transport{}
+	engine := gin.New()
+	engine.Handle(method, pattern, func(c *gin.Context) {
+		httpx.RespondError(c, err, meta)
+	})
+
+	req := httptest.NewRequest(method, pattern, nil)
+	engine.ServeHTTP(httptest.NewRecorder(), req.WithContext(errkittest.ContextWithHub(req.Context(), transport)))
+
+	return transport
+}
+
+// The operation tag and the group key both need a bounded name per route, and the
+// shared access Registry already holds one per route. Deriving it is what keeps
+// the four migrated wrappers from restating their own names.
+func TestRespondError_NamesTheOperationFromTheRegistryRoute(t *testing.T) {
+	transport := serveOneRoute(t, http.MethodPost, "/api/expenses",
+		errors.New("connection refused"), errkit.Meta{Domain: "expenses"})
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "expense.create", events[0].Tags["operation"])
+	assert.Equal(t, []string{"{{ default }}", "expense.create/internal"}, events[0].Fingerprint)
+}
+
+func TestRespondError_AnExplicitOperationIsNotOverwritten(t *testing.T) {
+	transport := serveOneRoute(t, http.MethodPost, "/api/expenses",
+		errors.New("connection refused"), errkit.Meta{Op: "expense.create_prorata", Domain: "expenses"})
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "expense.create_prorata", events[0].Tags["operation"])
+}
+
+// A route the Registry does not declare still reports; only the operation is
+// absent, and the group key falls back to the kind. Reporting must not depend on
+// the Registry being complete.
+func TestRespondError_AnUnregisteredRouteStillReports(t *testing.T) {
+	transport := serveOneRoute(t, http.MethodGet, "/internal/debug",
+		errors.New("connection refused"), errkit.Meta{Domain: "expenses"})
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.NotContains(t, events[0].Tags, "operation")
+	assert.Equal(t, []string{"{{ default }}", "internal"}, events[0].Fingerprint)
+}
