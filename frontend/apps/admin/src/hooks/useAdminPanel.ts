@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { apiClient, useApiToast } from "@gofin/api";
+import {
+  apiClient,
+  classifyApiFailure,
+  isNetworkError,
+  NETWORK_FAILURE,
+  reportError,
+  useApiToast,
+} from "@gofin/api";
+import { toast } from "sonner";
 import { useUserDeletion } from "./useUserDeletion";
 import type { UserDeletionState, UserDeletionActions } from "./useUserDeletion";
 import type { User, AdminUserSummary, AdminUsersResponse } from "@gofin/core";
@@ -67,7 +75,18 @@ export function useAdminPanel(options: UseAdminPanelOptions): {
       setAssumingUserId(userId);
       try {
         await onAssumeIdentity(userId);
-      } catch {
+      } catch (error) {
+        // A failed assumption leaves the operator as themselves, so the row's
+        // spinner stopping is the only thing they used to see.
+        reportError(error, {
+          ...(isNetworkError(error)
+            ? NETWORK_FAILURE
+            : classifyApiFailure(error)),
+          op: "auth.assume_identity",
+          domain: "auth",
+          data: { userId },
+        });
+        toast.error("Could not assume that identity. Try again.");
         setAssumingUserId(null);
       }
     },
