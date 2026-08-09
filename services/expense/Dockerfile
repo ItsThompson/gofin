@@ -14,6 +14,7 @@ COPY metrics/go.mod metrics/go.sum* ./metrics/
 COPY serverkit/go.mod serverkit/go.sum* ./serverkit/
 COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
 COPY apierr/go.mod apierr/go.sum* ./apierr/
+COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY httpx/go.mod httpx/go.sum* ./httpx/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd expense && GOWORK=off go mod download
@@ -26,6 +27,7 @@ COPY metrics/ ./metrics/
 COPY serverkit/ ./serverkit/
 COPY dbmigrate/ ./dbmigrate/
 COPY apierr/ ./apierr/
+COPY errkit/ ./errkit/
 COPY httpx/ ./httpx/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
