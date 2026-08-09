@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/errkit/errkittest"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
@@ -99,6 +100,54 @@ func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink, wantTask, wan
 	}
 	assert.Equal(t, wantPeriod, records[0]["period"],
 		"a loop fan-out must name the iteration that panicked, not just the task")
+}
+
+// TestGetAllUserData_PanickingRead_ReportsAStackRootedAtTheOrigin is the only
+// assertion outside serverkit on the frame skip its recovery helper captures with.
+// That skip is a fixed depth, correct only while every call site invokes the
+// helper directly from a deferred literal, and this package is one of the five
+// that does. Getting it wrong is silent: events still arrive with correct tags,
+// and only the grouping degrades, because every panic in the process would then
+// share one helper-rooted stack.
+//
+// It also pins that the hub survives errgroup.WithContext, which is what puts the
+// report on the request's hub rather than on a clone of the global one.
+func TestGetAllUserData_PanickingRead_ReportsAStackRootedAtTheOrigin(t *testing.T) {
+	logger, _ := serverkittest.NewLogger()
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	repo := &panickingFanoutRepo{panicOn: "tags", periods: fanoutPeriods(1)}
+	svc := NewFinanceService(repo, nil, nil, time.Now, logger)
+
+	_, err := svc.GetAllUserData(ctx, "user-1")
+	require.Error(t, err)
+
+	events := transport.Events()
+	require.Len(t, events, 1, "one panicking task must produce exactly one event")
+
+	event := events[0]
+	assert.Equal(t, []string{"{{ default }}", "panic.goroutine.finance_fanout"}, event.Fingerprint)
+	assert.Equal(t, "export tag list", event.Contexts["gofin"]["task"],
+		"the six tasks share one group key, so the context block has to name which one")
+
+	require.NotEmpty(t, event.Exception)
+	stacktrace := event.Exception[len(event.Exception)-1].Stacktrace
+	require.NotNil(t, stacktrace, "the outermost exception must carry the stack errkit attached")
+
+	var newestInApp string
+	for _, frame := range stacktrace.Frames {
+		if frame.InApp {
+			newestInApp = frame.Function
+		}
+	}
+	assert.Equal(t, "explodeIn", newestInApp,
+		"the reported stack must start at the panicking frame, not at the recovery helper")
+
+	for _, frame := range stacktrace.Frames {
+		assert.NotEqual(t, "LogRecoveredPanic", frame.Function,
+			"the shared recovery helper must not appear in the stack at all")
+	}
 }
 
 func fanoutPeriods(months ...int32) []*model.BudgetPeriod {

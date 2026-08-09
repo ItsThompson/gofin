@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
 	github.com/ItsThompson/gofin/services/apierr v0.0.0
+	github.com/ItsThompson/gofin/services/errkit v0.0.0
 	github.com/ItsThompson/gofin/services/expense v0.0.0-00010101000000-000000000000
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/httpx v0.0.0
@@ -48,7 +49,6 @@ replace github.com/ItsThompson/gofin/services/pgutil => ../pgutil
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
-	github.com/ItsThompson/gofin/services/errkit v0.0.0 // indirect
 	github.com/ItsThompson/gofin/services/metrics v0.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
