@@ -89,7 +89,9 @@ describe("reportError", () => {
 
       reportError(err);
 
-      expect(captureException).toHaveBeenCalledWith(err, {
+      const { error, context } = onlyCapture();
+      expect(error).toBe(err);
+      expect(context).toEqual({
         level: "error",
         tags: { error_kind: "internal" },
         fingerprint: ["{{ default }}", "internal"],
@@ -183,6 +185,19 @@ describe("reportError", () => {
         domain: "platform",
         expected: "true",
       });
+    });
+
+    it("strips a reserved tag key even when its option is unset", () => {
+      reportError(new Error("boom"), {
+        tags: {
+          error_kind: "spoofed",
+          operation: "spoofed",
+          domain: "spoofed",
+          expected: true,
+        },
+      });
+
+      expect(onlyCapture().context.tags).toEqual({ error_kind: "internal" });
     });
   });
 
@@ -279,25 +294,22 @@ describe("reportError", () => {
     });
   });
 
-  describe("uninitialized SDK", () => {
+  describe("logging", () => {
     const consoleMethods = ["error", "warn", "log", "info", "debug"] as const;
-    const spies = new Map<string, ReturnType<typeof vi.spyOn>>();
-
-    beforeEach(() => {
-      for (const method of consoleMethods) {
-        spies.set(method, vi.spyOn(console, method).mockImplementation(() => {}));
-      }
-    });
 
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    it("neither throws nor logs", () => {
-      expect(() => reportError("no dsn configured")).not.toThrow();
+    it("never writes to the console", () => {
+      const spies = consoleMethods.map((method) =>
+        vi.spyOn(console, method).mockImplementation(() => {}),
+      );
 
-      for (const method of consoleMethods) {
-        expect(spies.get(method)).not.toHaveBeenCalled();
+      reportError("something went wrong");
+
+      for (const spy of spies) {
+        expect(spy).not.toHaveBeenCalled();
       }
     });
   });

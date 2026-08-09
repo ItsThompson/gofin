@@ -10,28 +10,38 @@ const DEFAULT_KIND: ErrorKind = "internal";
 const MAX_TAG_VALUE = 200;
 
 /**
- * `slice` counts UTF-16 code units, so a 200-character cut can split a surrogate
- * pair. Every value in this taxonomy is an enumerated identifier or a numeric
- * status, so that is unreachable today. The Go helper truncates rune-safely; if
- * a non-ASCII tag value ever appears, this is the site to fix.
+ * `slice` counts UTF-16 code units, so a cut at 200 can split a surrogate
+ * pair. Unreachable while every tag value is ASCII; the site to fix if not.
  */
 function tagValue(value: string | number | boolean): string {
   return String(value).replace(/\n/g, " ").slice(0, MAX_TAG_VALUE);
 }
 
 /**
- * The taxonomy tags win over caller-supplied ones, so a call site cannot
- * accidentally redefine `expected` and defeat the quota filter.
+ * The taxonomy owns these keys outright, so `tags` cannot set them even when the
+ * matching option is absent. An `expected` tag arriving through `tags` would
+ * reach the client's quota filter and drop a real error with nothing at the call
+ * site to suggest it, and a caller-set `operation` would carry an unbounded
+ * value that disagrees with the fingerprint.
  */
+const RESERVED_TAGS = new Set([
+  "error_kind",
+  "operation",
+  "domain",
+  "expected",
+]);
+
 function resolveTags(
   kind: ErrorKind,
   options: ReportOptions,
 ): Record<string, string> {
-  const raw: Record<string, string | number | boolean> = {
-    ...options.tags,
-    error_kind: kind,
-  };
+  const raw: Record<string, string | number | boolean> = {};
 
+  for (const [key, value] of Object.entries(options.tags ?? {})) {
+    if (!RESERVED_TAGS.has(key)) raw[key] = value;
+  }
+
+  raw.error_kind = kind;
   if (options.op) raw.operation = options.op;
   if (options.domain) raw.domain = options.domain;
   if (options.expected) raw.expected = "true";
