@@ -1,8 +1,25 @@
+import { isNetworkError } from "@gofin/api";
+import * as Sentry from "@sentry/react-router";
 import { startTransition } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { HydratedRouter } from "react-router/dom";
+import { clientOptions } from "../sentry.options.mjs";
 
 async function boot() {
+  // DSN presence is the only switch. NODE_ENV cannot serve: the E2E stack runs
+  // as production by design and one of its specs routes an endpoint to a 500,
+  // so the CI image is built without the build arg instead.
+  const dsn = import.meta.env.VITE_SENTRY_DSN;
+  if (dsn) {
+    Sentry.init(
+      clientOptions({
+        dsn,
+        release: import.meta.env.VITE_SENTRY_RELEASE,
+        isNetworkError,
+      }),
+    );
+  }
+
   if (import.meta.env.VITE_MOCK_API === "true") {
     const { worker } = await import("../mocks/browser");
     await worker.start({
