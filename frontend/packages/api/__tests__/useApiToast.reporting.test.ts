@@ -152,6 +152,71 @@ describe("useApiToast reporting", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("keeps a silent call out of the chain a visible call owns", async () => {
+    const operation = vi.fn(() => Promise.reject(new Error("down")));
+    const { result } = renderHook(() => useApiToast());
+
+    await act(async () => {
+      await result.current.call(operation);
+    });
+    await act(async () => {
+      await result.current.call(operation, { silent: true });
+    });
+    await act(async () => {
+      clickRetry();
+    });
+
+    expect(captureException).toHaveBeenCalledTimes(1);
+  });
+
+  describe("concurrent calls on one hook instance", () => {
+    // useDashboardData fans out four toastCalls on one instance inside a single
+    // Promise.all, so every in-flight call has to decide its own outcome.
+    it("reports the failure when a sibling call succeeds first", async () => {
+      const { result } = renderHook(() => useApiToast());
+
+      await act(async () => {
+        await Promise.all([
+          result.current.call(() => Promise.resolve(undefined)),
+          result.current.call(() => Promise.reject(new Error("one down"))),
+        ]);
+      });
+
+      const { error } = onlyCapture();
+      expect((error as Error).message).toBe("one down");
+    });
+
+    it("reports every failure in a partly failing fan-out", async () => {
+      const { result } = renderHook(() => useApiToast());
+
+      await act(async () => {
+        await Promise.all([
+          result.current.call(() => Promise.resolve(undefined)),
+          result.current.call(() => Promise.reject(new Error("first down"))),
+          result.current.call(() => Promise.reject(new Error("second down"))),
+          result.current.call(() => Promise.reject(new Error("third down"))),
+        ]);
+      });
+
+      expect(captureException).toHaveBeenCalledTimes(3);
+    });
+
+    it("reports once per operation when the whole fan-out fails", async () => {
+      const { result } = renderHook(() => useApiToast());
+
+      await act(async () => {
+        await Promise.all([
+          result.current.call(() => Promise.reject(new Error("a"))),
+          result.current.call(() => Promise.reject(new Error("b"))),
+          result.current.call(() => Promise.reject(new Error("c"))),
+          result.current.call(() => Promise.reject(new Error("d"))),
+        ]);
+      });
+
+      expect(captureException).toHaveBeenCalledTimes(4);
+    });
+  });
+
   it("tags a network failure as network at warning level", async () => {
     const { result } = renderHook(() => useApiToast({ op: "expense.list" }));
 

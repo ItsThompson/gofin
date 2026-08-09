@@ -69,30 +69,48 @@ export function useApiToast<T = unknown>(
 ): ApiToastCallbacks<T> {
   const { retriable = true, op, domain } = hookOptions;
   const lastOperationRef = useRef<(() => Promise<T>) | null>(null);
-  const attemptsRef = useRef(0);
+  /** The operation whose failures are being counted, and how many it has had. */
+  const chainRef = useRef<{
+    operation: (() => Promise<T>) | null;
+    attempts: number;
+  }>({ operation: null, attempts: 0 });
 
   const call = useCallback(
     async (
       operation: () => Promise<T>,
       callOptions?: { silent?: boolean },
     ): Promise<T | undefined> => {
-      if (operation !== lastOperationRef.current) {
-        attemptsRef.current = 0;
+      // A silent call is a plain pass-through by contract: no toast, no report,
+      // and no chain bookkeeping, so it cannot suppress a visible call's report
+      // or redirect a visible call's Retry action.
+      if (callOptions?.silent) {
+        try {
+          return await operation();
+        } catch {
+          return undefined;
+        }
       }
+
       lastOperationRef.current = operation;
-      attemptsRef.current += 1;
+
+      // Captured per invocation. Reading the shared count inside the catch would
+      // let a concurrent sibling decide this call's outcome, and four call sites
+      // fan out on one hook instance inside a single Promise.all.
+      const attempt =
+        operation === chainRef.current.operation
+          ? chainRef.current.attempts + 1
+          : 1;
+      chainRef.current = { operation, attempts: attempt };
 
       try {
         const result = await operation();
-        // A success ends the chain, so a later failure of the same operation is a
-        // new incident rather than another attempt at this one.
-        attemptsRef.current = 0;
+        // A success ends only the chain it owns, so a sibling still in flight
+        // keeps its own count.
+        if (chainRef.current.operation === operation) {
+          chainRef.current = { operation: null, attempts: 0 };
+        }
         return result;
       } catch (error) {
-        if (callOptions?.silent) {
-          return undefined;
-        }
-
         const network = isNetworkError(error);
         let message: string;
 
@@ -109,12 +127,15 @@ export function useApiToast<T = unknown>(
         // The Retry action re-invokes this same operation and lands back in this
         // catch, so reporting per attempt would turn one incident into one event
         // per click.
-        if (attemptsRef.current === 1) {
+        if (attempt === 1) {
           reportError(error, {
             ...(network ? NETWORK_FAILURE : classifyApiFailure(error)),
             op,
             domain,
-            data: { attempt: attemptsRef.current },
+            // Always 1 while only the first attempt reports. The taxonomy asks
+            // for the count on the event, so a change to reporting at chain end
+            // has somewhere to put the real figure.
+            data: { attempt },
           });
         }
 
