@@ -27,6 +27,36 @@ func callWithStack(err error) error {
 	return errkit.WithStack(err)
 }
 
+// callWithStackSkip is the zero-skip counterpart, proving WithStackSkip(err, 0)
+// records exactly what WithStack does. Both entry points compute their own
+// distance, so neither can drift by delegating to the other.
+func callWithStackSkip(err error) error {
+	return errkit.WithStackSkip(err, 0)
+}
+
+// recoverThenCapture mirrors the only shape WithStackSkip exists for: a deferred
+// literal recovers and hands the value to a shared helper, which captures on
+// behalf of the frame that panicked. Two frames separate the capture from the
+// origin, which is exactly what the skip argument counts.
+func recoverThenCapture() (captured error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			captured = captureRecoveredPanic(recovered)
+		}
+	}()
+
+	explodeForStack()
+	return nil
+}
+
+// captureRecoveredPanic stands in for serverkit.LogRecoveredPanic: a wrapper
+// called from a deferred literal that must not appear in the recorded stack.
+func captureRecoveredPanic(recovered any) error {
+	return errkit.WithStackSkip(fmt.Errorf("panic: %v", recovered), 2)
+}
+
+func explodeForStack() { panic("stack probe exploded") }
+
 func reportBoom(ctx context.Context, err error, m errkit.Meta) error {
 	return errkit.Report(ctx, err, m)
 }
@@ -109,6 +139,7 @@ func topInAppFrame(t *testing.T, stacktrace *sentry.Stacktrace) sentry.Frame {
 
 func TestWithStack_NilStaysNil(t *testing.T) {
 	assert.NoError(t, errkit.WithStack(nil))
+	assert.NoError(t, errkit.WithStackSkip(nil, 2))
 }
 
 func TestWithStack_RootsTheStackAtItsCaller(t *testing.T) {
@@ -182,6 +213,38 @@ func TestWithStack_LeavesAnAlreadyStackedErrorUnchanged(t *testing.T) {
 
 			assert.Same(t, err, errkit.WithStack(err))
 		})
+	}
+}
+
+// TestWithStackSkip_ZeroSkipMatchesWithStack pins the two entry points to the
+// same origin, so a reader can reason about one rule instead of two.
+func TestWithStackSkip_ZeroSkipMatchesWithStack(t *testing.T) {
+	got := callWithStackSkip(errors.New("boom"))
+
+	frame := topInAppFrame(t, sentry.ExtractStacktrace(got))
+	assert.Equal(t, "callWithStackSkip", frame.Function)
+}
+
+// TestWithStackSkip_RootsTheStackAtThePanickingFrame is the assertion the whole
+// panic-reporting design rests on: a deferred function runs on top of the still
+// unwound panicking stack, so a skip-based capture reaches the origin. An earlier
+// draft of the spec claimed it could not, and mandated a text blob in the Sentry
+// context block instead.
+func TestWithStackSkip_RootsTheStackAtThePanickingFrame(t *testing.T) {
+	got := recoverThenCapture()
+	require.Error(t, got)
+
+	stacktrace := sentry.ExtractStacktrace(got)
+	frame := topInAppFrame(t, stacktrace)
+	assert.Equal(t, "explodeForStack", frame.Function)
+
+	// The two skipped frames must be absent entirely, not merely below the top: a
+	// stack holding recovery machinery is identical for every panic in the
+	// process, which is the degenerate grouping this package exists to prevent.
+	for _, f := range stacktrace.Frames {
+		assert.NotEqual(t, "captureRecoveredPanic", f.Function)
+		assert.NotEqual(t, errkitPackagePath, f.Module,
+			"errkit frame %q leaked into the stack", f.Function)
 	}
 }
 

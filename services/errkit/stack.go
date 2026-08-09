@@ -41,6 +41,23 @@ func WithStack(err error) error {
 	return attachStack(err, 1)
 }
 
+// WithStackSkip is WithStack for a shared wrapper that captures on behalf of its
+// own caller. skip is the number of frames between the call and the frame the
+// recorded stack should start at, so WithStackSkip(err, 0) records what
+// WithStack would.
+//
+// It exists for a deferred recover. A deferred function runs on top of the still
+// unwound panicking stack, so skipping the recovery wrapper's own frames walks
+// through runtime.gopanic into the frame that panicked, and the event carries a
+// structured stack rooted at the defect instead of at the recovery helper.
+//
+// Like WithStack it calls attachStack directly rather than delegating to the
+// other entry point. Each entry point owning its own distance is what keeps the
+// arithmetic independent of which one a caller used.
+func WithStackSkip(err error, skip int) error {
+	return attachStack(err, skip+1)
+}
+
 // attachStack is the shared implementation behind WithStack and the reporting
 // path. skip is how many frames above attachStack's caller the recorded stack
 // should start, so a caller capturing on its own caller's behalf passes 1.
