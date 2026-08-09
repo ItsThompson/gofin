@@ -41,18 +41,17 @@ func WithStack(err error) error {
 	return attachStack(err, 1)
 }
 
-// attachStack is the shared implementation behind WithStack and Report. skip is
-// the number of frames between attachStack's caller and the frame the stack
-// should start at, so both entry points pass 1 to skip themselves and the first
-// recorded frame is the code that decided to report.
+// attachStack is the shared implementation behind WithStack and the reporting
+// path. skip is how many frames above attachStack's caller the recorded stack
+// should start, so a caller capturing on its own caller's behalf passes 1.
 func attachStack(err error, skip int) error {
 	if err == nil || hasStack(err) {
 		return err
 	}
 
 	pcs := make([]uintptr, maxStackDepth)
-	// 2 covers runtime.Callers itself and attachStack; skip covers the caller
-	// that asked for the stack on its own caller's behalf.
+	// 2 covers runtime.Callers itself and attachStack; skip covers the frames
+	// above attachStack's caller that belong to this package.
 	n := runtime.Callers(skip+2, pcs)
 
 	return &withStack{err: err, pcs: pcs[:n]}
@@ -64,7 +63,9 @@ func attachStack(err error, skip int) error {
 // pkg/errors StackTrace() errors.StackTrace shape, go-errors' StackFrames, and
 // the xerrors frame field. The walk mirrors the SDK's recursion cases in the
 // same order, because a link the SDK never visits cannot supply the stack it
-// looks for.
+// looks for. The iteration cap alone terminates a self-referential chain, so
+// there is no visited set: recognizing a repeat needs reflection-based error
+// identity, which is real complexity for a case the cap already bounds.
 func hasStack(err error) bool {
 	pending := []error{err}
 

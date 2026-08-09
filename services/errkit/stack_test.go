@@ -19,14 +19,20 @@ import (
 // package is "…/services/errkit_test", which contains the production path.
 const errkitPackagePath = "github.com/ItsThompson/gofin/services/errkit"
 
-// callWithStack and reportBoom exist so the frame the assertions name is a
-// stable, unique function rather than a test body or a closure.
+// callWithStack, reportBoom, and ignoreBoom exist so the frame each assertion
+// names is a stable, unique function rather than a test body or a closure. There
+// is one per capture entry point, because the recorded stack's distance from the
+// call site differs by entry point and a statement counter cannot see that.
 func callWithStack(err error) error {
 	return errkit.WithStack(err)
 }
 
 func reportBoom(ctx context.Context, err error, m errkit.Meta) error {
 	return errkit.Report(ctx, err, m)
+}
+
+func ignoreBoom(ctx context.Context, err error) error {
+	return errkit.Ignore(ctx, err, errkit.Meta{Op: "budget.get"}, errRepoNotFound)
 }
 
 // pcStackError exposes the StackTrace() []uintptr shape the SDK reads directly,
@@ -239,5 +245,43 @@ func TestReport_StacktraceStartsAtTheReportingCallSite(t *testing.T) {
 	assert.Equal(t, "reportBoom", topInAppFrame(t, stacktrace).Function)
 	for _, frame := range stacktrace.Frames {
 		assert.NotEqual(t, errkitPackagePath, frame.Module, "errkit frame %q leaked into the stack", frame.Function)
+	}
+}
+
+// Ignore's fall-through is a second capture entry point, one frame further from
+// the call site than Report's. Section 08's expected-failure pattern reports every
+// unmatched error through it, so a skip depth measured only from Report would put
+// errkit.Ignore at the top of every such stack.
+func TestIgnore_FallThroughStacktraceStartsAtTheCallSite(t *testing.T) {
+	env := newReportEnv(t)
+
+	_ = ignoreBoom(env.ctx, errors.New("connection refused"))
+
+	event := env.singleEvent(t)
+	require.Len(t, event.Exception, 2)
+
+	stacktrace := event.Exception[len(event.Exception)-1].Stacktrace
+	assert.Equal(t, "ignoreBoom", topInAppFrame(t, stacktrace).Function)
+	for _, frame := range stacktrace.Frames {
+		assert.NotEqual(t, errkitPackagePath, frame.Module, "errkit frame %q leaked into the stack", frame.Function)
+	}
+}
+
+// The wire-level half of the no-op: an error that already carries a stack must
+// reach Sentry with its own frames and no carrier in the chain, or WithStack has
+// buried the real origin under the reporting frame.
+func TestReport_KeepsAnAlreadyStackedErrorsOwnFrames(t *testing.T) {
+	env := newReportEnv(t)
+	stacked := newPCStackError()
+
+	_ = reportBoom(env.ctx, stacked, errkit.Meta{Op: "expense.create"})
+
+	event := env.singleEvent(t)
+	require.Len(t, event.Exception, 1)
+	assert.Equal(t, reflect.TypeOf(stacked).String(), event.Exception[0].Type)
+	assert.Equal(t, "realPCs", topInAppFrame(t, event.Exception[0].Stacktrace).Function)
+
+	for _, exception := range event.Exception {
+		assert.NotEqual(t, "*errkit.withStack", exception.Type, "Report wrapped an error that already had a stack")
 	}
 }

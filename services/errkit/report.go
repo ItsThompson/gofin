@@ -19,6 +19,25 @@ import (
 // trace, and user data, which is correct for a background job and a defect in a
 // handler.
 func Report(ctx context.Context, err error, m Meta) error {
+	return report(ctx, err, m, 1)
+}
+
+// Ignore reports err only when it is not an expected condition. An expected error
+// is logged at info level and never reaches Sentry, so a 4xx-class failure cannot
+// consume error quota. Anything else falls through to Report's behavior.
+func Ignore(ctx context.Context, err error, m Meta, expected ...error) error {
+	if err != nil && isExpected(err, expected) {
+		slog.Log(ctx, slog.LevelInfo, m.message(), logAttrs(m, err)...)
+		return err
+	}
+	return report(ctx, err, m, 1)
+}
+
+// report is the shared body behind Report and Ignore. skip is the number of
+// frames between report's caller and the call site the recorded stack should
+// start at, so every public entry point declares its own distance and the stack
+// never roots inside this package regardless of which one was used.
+func report(ctx context.Context, err error, m Meta, skip int) error {
 	if err == nil {
 		return nil
 	}
@@ -36,7 +55,7 @@ func Report(ctx context.Context, err error, m Meta) error {
 		hub = sentry.CurrentHub().Clone()
 	}
 
-	reported := attachStack(err, 1)
+	reported := attachStack(err, skip+1)
 	tags := m.tags()
 	fingerprint := m.fingerprint()
 
@@ -53,17 +72,6 @@ func Report(ctx context.Context, err error, m Meta) error {
 	// The original error, not the stacked carrier: a monitoring call must not
 	// change the concrete type a caller gets back.
 	return err
-}
-
-// Ignore reports err only when it is not an expected condition. An expected error
-// is logged at info level and never reaches Sentry, so a 4xx-class failure cannot
-// consume error quota. Anything else falls through to Report.
-func Ignore(ctx context.Context, err error, m Meta, expected ...error) error {
-	if err != nil && isExpected(err, expected) {
-		slog.Log(ctx, slog.LevelInfo, m.message(), logAttrs(m, err)...)
-		return err
-	}
-	return Report(ctx, err, m)
 }
 
 // isExpected reports whether err matches any of expected. errors.Is walks the
