@@ -1,6 +1,7 @@
 package serverkit
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -14,13 +15,18 @@ import (
 //
 // This is the router for the four API services. The gateway keeps its own
 // reverse-proxy router (router.New) and does not use NewRouter.
+//
+// The recovery records panics through slog.Default(), so callers install their
+// logger (slog.SetDefault) before building the router.
 func NewRouter(service string, isProduction bool) *gin.Engine {
 	if isProduction {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.New()
-	router.Use(gin.Recovery())
+	// Recovery sits outside the metrics middleware so a panic raised there is
+	// caught too.
+	router.Use(Recovery(slog.Default()))
 	router.Use(metrics.HTTPMetrics())
 	metrics.Register(router)
 
