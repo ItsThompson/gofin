@@ -94,7 +94,8 @@ func (p *Pool) run(jobID, userID string) {
 			return
 		}
 
-		serverkit.LogRecoveredPanic(p.log, "recovered panic in job execution", recovered,
+		serverkit.LogRecoveredPanic(ctx, p.log, "export_job",
+			"recovered panic in job execution", recovered,
 			slog.String("job_id", jobID),
 			slog.String("user_id", userID),
 		)

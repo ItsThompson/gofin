@@ -44,7 +44,8 @@ func (s *AuthService) StartPeriodicCleanup(ctx context.Context, interval, timeou
 					// retries.
 					defer func() {
 						if recovered := recover(); recovered != nil {
-							serverkit.LogRecoveredPanic(s.logger, "recovered panic in blacklist cleanup", recovered,
+							serverkit.LogRecoveredPanic(ctx, s.logger, "goroutine.auth_blacklist_cleanup",
+								"recovered panic in blacklist cleanup", recovered,
 								slog.String("method", "StartPeriodicCleanup"),
 							)
 						}

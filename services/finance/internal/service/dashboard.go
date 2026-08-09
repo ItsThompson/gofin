@@ -127,7 +127,7 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 		if p == nil {
 			continue // no read for missing periods; slot stays empty
 		}
-		g.Go(s.guardFanout("spending trends expense read", userID, func() error {
+		g.Go(s.guardFanout(gctx, "spending trends expense read", userID, func() error {
 			exps, err := s.expenseClient.GetExpensesForPeriod(gctx, userID, ym.year, ym.month)
 			if err != nil {
 				return fmt.Errorf("fetching expenses for %d-%02d: %w", ym.year, ym.month, err)
@@ -248,7 +248,7 @@ func (s *FinanceService) computeHistoricalComparison(
 	g.SetLimit(dashboardFanoutLimit)
 	for i, p := range targets {
 		i, p := i, p
-		g.Go(s.guardFanout("historical comparison period spend", userID, func() error {
+		g.Go(s.guardFanout(gctx, "historical comparison period spend", userID, func() error {
 			v, err := s.getTotalSpentForPeriod(gctx, userID, p)
 			if err != nil {
 				return err // already wrapped with the period by getTotalSpentForPeriod

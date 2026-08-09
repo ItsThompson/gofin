@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -26,7 +27,12 @@ const dashboardFanoutLimit = 5
 // unclassified error to a generic 500 or codes.Internal. extra carries
 // per-iteration identity for a task that runs in a loop; task itself stays
 // constant, so panics from different iterations still group together.
-func (s *FinanceService) guardFanout(task, userID string, run func() error, extra ...slog.Attr) func() error {
+//
+// All six tasks share one panic site, and therefore one Sentry group key. They
+// still land in separate issues, because the fingerprint's first element is
+// Sentry's own grouping and each task panics on its own stack; the task attribute
+// names which one in both the record and the event.
+func (s *FinanceService) guardFanout(ctx context.Context, task, userID string, run func() error, extra ...slog.Attr) func() error {
 	return func() (err error) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
@@ -34,7 +40,8 @@ func (s *FinanceService) guardFanout(task, userID string, run func() error, extr
 					slog.String("task", task),
 					slog.String("user_id", userID),
 				}, extra...)
-				serverkit.LogRecoveredPanic(s.logger, "recovered panic in finance fan-out", recovered, attrs...)
+				serverkit.LogRecoveredPanic(ctx, s.logger, "goroutine.finance_fanout",
+					"recovered panic in finance fan-out", recovered, attrs...)
 				err = fmt.Errorf("%s failed unexpectedly", task)
 			}
 		}()

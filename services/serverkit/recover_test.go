@@ -83,16 +83,32 @@ var panicServiceDesc = grpc.ServiceDesc{
 	}},
 }
 
-// requireOnePanicRecord asserts the sink holds exactly one error-level record
-// and returns it. Every recovery site shares the assertion because the criterion
-// is the same everywhere: one record, at error level, per recovered panic.
+// requireOnePanicRecord asserts the sink holds exactly one panic record and
+// returns it. Every recovery site shares the assertion because the criterion is
+// the same everywhere: one record, at error level, carrying the panic value and a
+// stack.
+//
+// It selects on the panic attribute rather than counting every error-level record,
+// because reporting the panic through errkit writes a second, ordinary failure
+// record beside this one. That record carries the shared taxonomy attributes and
+// no panic value, and it goes to slog.Default() rather than to the injected
+// logger, so it is only in this sink at all when a test installs the sink as the
+// default.
 func requireOnePanicRecord(t *testing.T, sink *serverkittest.Sink) map[string]any {
 	t.Helper()
 
 	records, err := sink.ErrorRecords()
 	require.NoError(t, err)
-	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
-	return records[0]
+
+	var panicRecords []map[string]any
+	for _, record := range records {
+		if _, ok := record["panic"]; ok {
+			panicRecords = append(panicRecords, record)
+		}
+	}
+
+	require.Len(t, panicRecords, 1, "a recovered panic must produce exactly one record carrying the panic value")
+	return panicRecords[0]
 }
 
 // withDefaultLogger installs log as slog.Default() for the duration of the test.
@@ -302,7 +318,7 @@ func TestLogRecoveredPanic_NilLoggerFallsBackToDefault(t *testing.T) {
 	withDefaultLogger(t, logger)
 
 	assert.NotPanics(t, func() {
-		serverkit.LogRecoveredPanic(nil, "recovered panic with no logger", "boom")
+		serverkit.LogRecoveredPanic(context.Background(), nil, "http", "recovered panic with no logger", "boom")
 	})
 
 	record := requireOnePanicRecord(t, logs)

@@ -211,7 +211,7 @@ func TestGuardFanout_PassesThroughAHealthyTask(t *testing.T) {
 	svc := NewFinanceService(nil, nil, nil, time.Now, logger)
 
 	ran := false
-	err := svc.guardFanout("healthy task", "user-1", func() error {
+	err := svc.guardFanout(context.Background(), "healthy task", "user-1", func() error {
 		ran = true
 		return nil
 	})()
@@ -228,7 +228,7 @@ func TestGuardFanout_PassesThroughATaskError(t *testing.T) {
 	svc := NewFinanceService(nil, nil, nil, time.Now, logger)
 	want := errors.New("upstream read failed")
 
-	err := svc.guardFanout("failing task", "user-1", func() error { return want })()
+	err := svc.guardFanout(context.Background(), "failing task", "user-1", func() error { return want })()
 
 	require.ErrorIs(t, err, want, "a task error must pass through unwrapped")
 	records, recErr := sink.Records()

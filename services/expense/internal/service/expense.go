@@ -320,7 +320,8 @@ func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string,
 	// errc would deadlock here instead.
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			serverkit.LogRecoveredPanic(s.logger, "recovered panic in expense page producer", recovered,
+			serverkit.LogRecoveredPanic(ctx, s.logger, "goroutine.expense_page_producer",
+				"recovered panic in expense page producer", recovered,
 				slog.String("user_id", userID),
 			)
 			errc <- errors.New("streaming user expenses failed unexpectedly")

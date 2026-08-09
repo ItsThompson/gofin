@@ -27,7 +27,7 @@ func (s *FinanceService) GetAllUserData(ctx context.Context, userID string) (*mo
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(dashboardFanoutLimit)
-	g.Go(s.guardFanout("export tag list", userID, func() error {
+	g.Go(s.guardFanout(gctx, "export tag list", userID, func() error {
 		v, err := s.repo.ListTags(gctx, userID)
 		if err != nil {
 			return fmt.Errorf("listing tags for export: %w", err)
@@ -35,7 +35,7 @@ func (s *FinanceService) GetAllUserData(ctx context.Context, userID string) (*mo
 		tags = v
 		return nil
 	}))
-	g.Go(s.guardFanout("export budget period list", userID, func() error {
+	g.Go(s.guardFanout(gctx, "export budget period list", userID, func() error {
 		v, err := s.repo.ListPeriods(gctx, userID)
 		if err != nil {
 			return fmt.Errorf("listing periods for export: %w", err)
@@ -43,7 +43,7 @@ func (s *FinanceService) GetAllUserData(ctx context.Context, userID string) (*mo
 		periods = v
 		return nil
 	}))
-	g.Go(s.guardFanout("export default settings", userID, func() error {
+	g.Go(s.guardFanout(gctx, "export default settings", userID, func() error {
 		v, err := s.repo.GetDefaults(gctx, userID)
 		if err != nil {
 			return fmt.Errorf("getting defaults for export: %w", err)

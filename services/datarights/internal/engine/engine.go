@@ -190,7 +190,8 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 			// mapping.
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					serverkit.LogRecoveredPanic(e.logger, "recovered panic in provider collection", recovered,
+					serverkit.LogRecoveredPanic(gctx, e.logger, "goroutine.datarights_provider",
+						"recovered panic in provider collection", recovered,
 						slog.String("job_id", jobID),
 						slog.String("user_id", userID),
 						slog.String("provider", provider.Name()),

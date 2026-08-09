@@ -121,7 +121,7 @@ func (s *FinanceService) buildDesiresWindow(ctx context.Context, userID string, 
 	g.SetLimit(dashboardFanoutLimit)
 	for i, period := range selected {
 		i, period := i, period
-		g.Go(s.guardFanout("health score desires window", userID, func() error {
+		g.Go(s.guardFanout(gctx, "health score desires window", userID, func() error {
 			expenses, err := s.expenseClient.GetExpensesForPeriod(gctx, userID, period.Year, period.Month)
 			if err != nil {
 				return fmt.Errorf("fetching desires for %d-%02d: %w", period.Year, period.Month, err)

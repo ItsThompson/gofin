@@ -83,7 +83,8 @@ func (c *Checker) Check(ctx context.Context) Result {
 			result := probeResult{name: name, status: statusUnreachable}
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					serverkit.LogRecoveredPanic(c.logger, "recovered panic in readiness probe", recovered,
+					serverkit.LogRecoveredPanic(ctx, c.logger, "goroutine.readiness_probe",
+						"recovered panic in readiness probe", recovered,
 						slog.String("downstream", name),
 					)
 				}
