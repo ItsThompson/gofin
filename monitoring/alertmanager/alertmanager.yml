@@ -17,13 +17,15 @@ receivers:
   - name: discord-critical
     discord_configs:
       - webhook_url: "${DISCORD_WEBHOOK_URL}"
-        title: '🚨 [CRITICAL] {{ .GroupLabels.alertname }}'
+        # group_by includes job, so GroupLabels names the failing service.
+        # Hardware alerts carry no job label, hence the guard.
+        title: '🚨 [CRITICAL] {{ .GroupLabels.alertname }}{{ if .GroupLabels.job }} · {{ .GroupLabels.job }}{{ end }}'
         message: '{{ range .Alerts }}**{{ .Annotations.summary }}**\n{{ end }}'
         send_resolved: true
 
   - name: discord-warning
     discord_configs:
       - webhook_url: "${DISCORD_WEBHOOK_URL}"
-        title: '⚠️ [WARNING] {{ .GroupLabels.alertname }}'
+        title: '⚠️ [WARNING] {{ .GroupLabels.alertname }}{{ if .GroupLabels.job }} · {{ .GroupLabels.job }}{{ end }}'
         message: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}'
         send_resolved: true
