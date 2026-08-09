@@ -164,9 +164,9 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	financeData, err := e.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
 	if err != nil {
 		if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) {
-			return 0, e.recordFailure(jobID, userID, "Export timed out", "finance_fetch", jobStart)
+			return 0, e.recordFailure(jobID, userID, "Export timed out", err, "finance_fetch", jobStart)
 		}
-		return 0, e.recordFailure(jobID, userID, "Failed to fetch export data", "finance_fetch", jobStart)
+		return 0, e.recordFailure(jobID, userID, "Failed to fetch export data", err, "finance_fetch", jobStart)
 	}
 	providerSet := e.newProviders(financeData)
 
@@ -228,17 +228,17 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	case err == nil:
 		// all providers succeeded; fall through to ZIP assembly
 	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
-		return 0, e.recordFailure(jobID, userID, "Export timed out", "collection", jobStart)
+		return 0, e.recordFailure(jobID, userID, "Export timed out", err, "collection", jobStart)
 	case errors.As(err, &ce):
-		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), "collection", jobStart)
+		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), err, "collection", jobStart)
 	default:
-		return 0, e.recordFailure(jobID, userID, "Failed to collect export data", "collection", jobStart)
+		return 0, e.recordFailure(jobID, userID, "Failed to collect export data", err, "collection", jobStart)
 	}
 
 	// Build ZIP
 	zipBytes, err := BuildZIP(csvFiles)
 	if err != nil {
-		return 0, e.recordFailure(jobID, userID, "Failed to build export archive", "zip_assembly", jobStart)
+		return 0, e.recordFailure(jobID, userID, "Failed to build export archive", err, "zip_assembly", jobStart)
 	}
 
 	fileSizeBytes := int64(len(zipBytes))
@@ -254,7 +254,7 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	// Send email with ZIP attachment
 	emailStart := time.Now()
 	if err := e.sender.SendExportEmail(ctx, userEmail, zipBytes); err != nil {
-		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), "email_delivery", jobStart)
+		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), err, "email_delivery", jobStart)
 	}
 	exportmetrics.ExportEmailSendDurationSeconds.Observe(time.Since(emailStart).Seconds())
 
@@ -281,8 +281,10 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 }
 
 // recordFailure observes the failure metrics, logs the PII-free reason with its
-// stage, and returns the terminal error the pool persists via FailJob.
-func (e *Engine) recordFailure(jobID, userID, errMsg, stage string, jobStart time.Time) error {
+// stage, and returns the terminal error the pool persists via FailJob. cause is
+// the real underlying error: it gets its own server-side record and never
+// reaches errMsg, because jobrunner.Pool shows errMsg to the user.
+func (e *Engine) recordFailure(jobID, userID, errMsg string, cause error, stage string, jobStart time.Time) error {
 	exportmetrics.ExportJobsCompletedTotal.WithLabelValues("failed").Inc()
 	exportmetrics.ExportJobDurationSeconds.Observe(time.Since(jobStart).Seconds())
 
@@ -293,6 +295,16 @@ func (e *Engine) recordFailure(jobID, userID, errMsg, stage string, jobStart tim
 		slog.String("stage", stage),
 		slog.String("method", "engine.execute"),
 	)
+
+	if cause != nil {
+		e.logger.Error("export job failure cause",
+			slog.String("job_id", jobID),
+			slog.String("user_id", userID),
+			slog.String("error", cause.Error()),
+			slog.String("stage", stage),
+			slog.String("method", "engine.execute"),
+		)
+	}
 
 	return &failure{reason: errMsg}
 }
