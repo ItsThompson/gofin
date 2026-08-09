@@ -66,6 +66,12 @@ RUN --mount=type=secret,id=sentry_auth_token \
       echo "No sentry_auth_token secret supplied: skipping the source-map upload."; \
     fi
 
+# Sentry has the maps by now, and the runner stage copies this tree wholesale.
+# Deleting them here keeps the original TypeScript out of the shipped image's
+# layers: a delete in the runner stage hides the files behind a whiteout, which
+# leaves the bytes in the COPY layer and recoverable from a pulled image.
+RUN find apps/shell/build -name "*.map" -delete
+
 # Stage 4: Production runtime
 FROM node:24-alpine AS runner
 WORKDIR /app
@@ -106,9 +112,10 @@ COPY --from=builder /app/apps/shell/server.js ./apps/shell/server.js
 COPY --from=builder /app/apps/shell/instrument.server.mjs ./apps/shell/instrument.server.mjs
 COPY --from=builder /app/apps/shell/sentry.options.mjs ./apps/shell/sentry.options.mjs
 
-# Source maps carry the original TypeScript. They are uploaded to Sentry from
-# the builder stage and must not ship. Rooted at /app rather than the build
-# directory, so the maps some production dependencies ship are covered too.
+# Whatever ships a source map contains the original TypeScript. The shell's own
+# maps are already gone, deleted in the builder stage so they never enter the
+# COPY layer above; this is the net for anything else, rooted at /app so it also
+# covers the maps some production dependencies ship.
 RUN find /app -name "*.map" -delete
 
 WORKDIR /app/apps/shell
