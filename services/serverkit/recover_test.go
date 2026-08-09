@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -259,6 +260,29 @@ func TestRecovery_HealthyRequestIsUntouched(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
 	assert.Empty(t, capturedRecords(t, logs))
+}
+
+// TestRecovery_The500ReachesARealClient drives the recovery over a real socket
+// rather than an httptest recorder, so the response actually passes through
+// net/http's write path after the handler unwound.
+func TestRecovery_The500ReachesARealClient(t *testing.T) {
+	logger, logs := bufferedLogger()
+	server := httptest.NewServer(routerWithPanic(logger, "handler exploded"))
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/boom")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.JSONEq(t,
+		`{"code":"INTERNAL_SERVER_ERROR","message":"An unexpected error occurred"}`,
+		string(body),
+	)
+	assert.Len(t, recordsAtLevel(capturedRecords(t, logs), "ERROR"), 1)
 }
 
 // ---------------------------------------------------------------------------
