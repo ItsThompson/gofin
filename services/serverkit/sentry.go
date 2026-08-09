@@ -124,12 +124,11 @@ func releaseName(sha string) string {
 // production is indistinguishable from a broken integration when looking at
 // Sentry alone.
 //
-// Callers install their logger (slog.SetDefault) before calling this.
+// Callers install their logger (slog.SetDefault) before calling this, so the
+// records below already carry the service name and neither repeats it.
 func InitSentry(cfg SentryConfig) error {
 	if cfg.DSN == "" {
-		slog.Info("error reporting disabled: no Sentry DSN configured",
-			slog.String("service", cfg.Service),
-		)
+		slog.Info("error reporting disabled: no Sentry DSN configured")
 		return nil
 	}
 
@@ -139,7 +138,6 @@ func InitSentry(cfg SentryConfig) error {
 	}
 
 	slog.Info("error reporting enabled",
-		slog.String("service", cfg.Service),
 		slog.String("environment", options.Environment),
 		slog.String("release", options.Release),
 	)
