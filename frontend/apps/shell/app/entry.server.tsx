@@ -4,9 +4,9 @@ import { renderToPipeableStream } from "react-dom/server";
 import { ServerRouter } from "react-router";
 
 /**
- * React Router reads this export to bound single-fetch data streaming, falling
- * back to 4950 ms when it is absent. It is the value the framework's own default
- * entry carried before this file existed.
+ * React Router reads this export to bound single-fetch data streaming, and falls
+ * back to 4950 ms when it is absent. The SDK factory below does not read it and
+ * takes its own render-abort timeout.
  */
 export const streamTimeout = 5_000;
 
@@ -36,8 +36,8 @@ export default handleRequest;
 
 /**
  * The sole owner of SSR render and loader errors. The factory captures through
- * the SDK with a mechanism and nothing else, so these events carry the
- * three constant tags and none of the helper's taxonomy, by design.
+ * the SDK with a mechanism and nothing else, so these events carry the three
+ * constant tags and none of the helper's taxonomy, by design.
  *
  * logErrors stays false: the presence of a handleError export already disables
  * React Router's own console.error, so this only controls whether the SDK adds
