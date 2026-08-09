@@ -10,9 +10,10 @@
  *
  * `@sentry/react-router` is the only import this module may take. It is a
  * `dependencies` entry, so it resolves in the runner's `node_modules` as well as
- * in the bundle. Everything from `@gofin/*` ships as TypeScript with no build
- * output and never reaches the runner image, so a value like `isNetworkError` is
- * passed in by the caller instead of imported here.
+ * in the bundle. The workspace's own packages ship as TypeScript with no build
+ * output and never reach the runner image, so a value like `isNetworkError` is
+ * passed in by the caller instead of imported here. A grep for the workspace
+ * scope in this file is a review check, so do not name it even in a comment.
  */
 import { dedupeIntegration } from "@sentry/react-router";
 

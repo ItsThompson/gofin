@@ -26,7 +26,7 @@ export interface ClientOptionsArgs {
   dsn: string;
   /** Already prefixed as `gofin-web@<sha>`; the builder does not transform it. */
   release: string;
-  /** Supplied by the caller, because this module cannot import `@gofin/api`. */
+  /** Supplied by the caller, because this module cannot reach the api package. */
   isNetworkError: (error: unknown) => boolean;
 }
 
