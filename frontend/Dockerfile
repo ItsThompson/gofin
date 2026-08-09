@@ -47,12 +47,6 @@ RUN npm ci --omit=dev && \
 COPY --from=builder /app/apps/shell/build ./apps/shell/build
 COPY --from=builder /app/apps/shell/server.js ./apps/shell/server.js
 
-# Copy remote MFE assets where the server expects them.
-# Server resolves: path.resolve(__dirname, "../../") from build/server/index.js
-# With __dirname = /app/apps/shell/build/server, that yields /app/apps/shell/
-COPY --from=builder /app/apps/finance/dist ./apps/shell/finance/dist
-COPY --from=builder /app/apps/admin/dist ./apps/shell/admin/dist
-
 WORKDIR /app/apps/shell
 EXPOSE 3000
 CMD ["node", "server.js"]
