@@ -1,27 +1,13 @@
 import { useState, useEffect } from "react";
 import { apiClient, useApiToast } from "@gofin/api";
-import type {
-  BudgetPeriod,
-  PeriodListResponse,
-  SummaryResponse,
-} from "@gofin/core";
-
-export interface HistoricalPeriodRow {
-  period: BudgetPeriod;
-  totalSpent: number;
-  surplus: number;
-}
-
-export interface HistoryDataResult {
-  /** Historical period rows with computed spending data. */
-  periods: HistoricalPeriodRow[];
-  /** Whether data is currently being fetched. */
-  loading: boolean;
-}
+import type { PeriodListResponse, SummaryResponse } from "@gofin/core";
+import type { HistoricalPeriodRow, HistoryDataResult } from "../types";
 
 /**
- * Fetches all budget periods and computes totalSpent/surplus for each.
- * Uses useApiToast for error handling.
+ * Fetches all budget periods and computes totalSpent/surplus for each. A period
+ * whose summary fetch fails becomes an unavailable row, so the screen can say
+ * the spend is unknown instead of showing a figure nobody measured.
+ * Uses useApiToast for error handling on the periods list itself.
  */
 export function useHistoryData(): HistoryDataResult {
   const [periods, setPeriods] = useState<HistoricalPeriodRow[]>([]);
@@ -36,7 +22,7 @@ export function useHistoryData(): HistoryDataResult {
         const allPeriods = periodsRes.periods;
 
         const rows = await Promise.all(
-          allPeriods.map(async (period) => {
+          allPeriods.map(async (period): Promise<HistoricalPeriodRow> => {
             try {
               const summaryRes = await apiClient<SummaryResponse>(
                 `/api/finance/summary?year=${period.year}&month=${period.month}`,
@@ -44,11 +30,12 @@ export function useHistoryData(): HistoryDataResult {
               const totalSpent = summaryRes.summary.totalSpent;
               return {
                 period,
+                status: "loaded",
                 totalSpent,
                 surplus: period.budgetAmount - totalSpent,
               };
             } catch {
-              return { period, totalSpent: 0, surplus: period.budgetAmount };
+              return { period, status: "unavailable" };
             }
           }),
         );

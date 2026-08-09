@@ -85,17 +85,19 @@ describe("useHistoryData", () => {
     expect(result.current.periods).toHaveLength(2);
     expect(result.current.periods[0]).toEqual({
       period: mockPeriods[0],
+      status: "loaded",
       totalSpent: 200000,
       surplus: 100000, // 300000 - 200000
     });
     expect(result.current.periods[1]).toEqual({
       period: mockPeriods[1],
+      status: "loaded",
       totalSpent: 280000,
       surplus: -30000, // 250000 - 280000
     });
   });
 
-  it("handles summary fetch failure gracefully (defaults to 0 spent)", async () => {
+  it("marks a period whose summary fetch fails as unavailable", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -109,12 +111,79 @@ describe("useHistoryData", () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.periods).toHaveLength(1);
-    expect(result.current.periods[0]).toEqual({
-      period: mockPeriods[0],
-      totalSpent: 0,
-      surplus: 300000, // budgetAmount when totalSpent defaults to 0
+    expect(result.current.periods).toEqual([
+      { period: mockPeriods[0], status: "unavailable" },
+    ]);
+  });
+
+  it("keeps surviving periods loaded when one summary fetch fails", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ periods: mockPeriods }),
     });
+    mockFetch.mockRejectedValueOnce(new Error("Network error")); // March
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(280000)); // Feb
+
+    const { result } = renderHook(() => useHistoryData());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.periods).toEqual([
+      { period: mockPeriods[0], status: "unavailable" },
+      {
+        period: mockPeriods[1],
+        status: "loaded",
+        totalSpent: 280000,
+        surplus: -30000,
+      },
+    ]);
+  });
+
+  it("marks every period unavailable when all summary fetches fail", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ periods: mockPeriods }),
+    });
+    mockFetch.mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useHistoryData());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.periods).toEqual([
+      { period: mockPeriods[0], status: "unavailable" },
+      { period: mockPeriods[1], status: "unavailable" },
+    ]);
+  });
+
+  it("loads a genuine zero spend as a loaded row", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ periods: [mockPeriods[0]] }),
+    });
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(0));
+
+    const { result } = renderHook(() => useHistoryData());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(result.current.periods).toEqual([
+      {
+        period: mockPeriods[0],
+        status: "loaded",
+        totalSpent: 0,
+        surplus: 300000,
+      },
+    ]);
   });
 
   it("returns empty periods when fetch fails entirely", async () => {
