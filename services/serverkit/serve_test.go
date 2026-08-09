@@ -4,14 +4,57 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/errkit/errkittest"
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
+
+// countingTransport records how many times the SDK was asked to flush. It embeds
+// the shared recording transport so it stays a valid sentry.Transport if the
+// interface grows a method.
+type countingTransport struct {
+	errkittest.Transport
+	flushes atomic.Int64
+}
+
+func (t *countingTransport) Flush(timeout time.Duration) bool {
+	t.flushes.Add(1)
+	return t.Transport.Flush(timeout)
+}
+
+// bindFlushCounter binds a client whose transport counts flushes to the
+// process-wide hub, which is the hub sentry.Flush reaches, and restores the
+// previous client afterwards. Tests using it must not run in parallel.
+//
+// The client is built here rather than through errkittest.NewClient, which pins
+// its own transport against exactly this substitution. Counting is the only way to
+// observe the flush at all: sentry.Flush returns the same value whether or not
+// anything was buffered.
+func bindFlushCounter(t *testing.T) *countingTransport {
+	t.Helper()
+
+	transport := &countingTransport{}
+	client, err := sentry.NewClient(sentry.ClientOptions{
+		Dsn:            unroutableDSN,
+		Transport:      transport,
+		DisableLogs:    true,
+		DisableMetrics: true,
+	})
+	require.NoError(t, err)
+
+	previous := sentry.CurrentHub().Client()
+	t.Cleanup(func() { sentry.CurrentHub().BindClient(previous) })
+	sentry.CurrentHub().BindClient(client)
+
+	return transport
+}
 
 // freeAddr reserves an ephemeral port, closes it, and returns the address so a
 // server under test can bind it. The tiny reserve/rebind window is acceptable
@@ -146,4 +189,45 @@ func TestServe_ErrServerClosed_TreatedAsSuccess(t *testing.T) {
 	// ErrServerClosed is filtered inside Serve (errors.Is), so the observable
 	// result is a nil return.
 	require.NoError(t, awaitServe(t, errCh))
+}
+
+// TestServe_NormalShutdownFlushesSentryExactlyOnce guards the event a deploy
+// restart would otherwise discard: the one that caused the shutdown.
+func TestServe_NormalShutdownFlushesSentryExactlyOnce(t *testing.T) {
+	transport := bindFlushCounter(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	addr := freeAddr(t)
+	httpSrv := &http.Server{Addr: addr}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- serverkit.Serve(ctx, httpSrv, nil, nil) }()
+
+	waitForDial(t, addr)
+	assert.Equal(t, int64(0), transport.flushes.Load(), "nothing may flush while the server is still serving")
+
+	cancel()
+	require.NoError(t, awaitServe(t, errCh))
+
+	assert.Equal(t, int64(1), transport.flushes.Load(),
+		"the shutdown path must flush once, after the servers stop and before Serve returns")
+}
+
+// TestServe_FatalServeErrorStillFlushesSentry covers the path that matters most:
+// a bind failure is the error worth keeping, and it is the one that would be lost
+// if the flush only ran on cancellation.
+func TestServe_FatalServeErrorStillFlushesSentry(t *testing.T) {
+	transport := bindFlushCounter(t)
+
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = occupied.Close() }()
+
+	httpSrv := &http.Server{Addr: occupied.Addr().String()}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- serverkit.Serve(context.Background(), httpSrv, nil, nil) }()
+
+	require.Error(t, awaitServe(t, errCh))
+	assert.Equal(t, int64(1), transport.flushes.Load())
 }

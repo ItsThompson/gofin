@@ -8,11 +8,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
 	"google.golang.org/grpc"
 )
 
-// shutdownTimeout bounds the graceful shutdown of the HTTP server.
-const shutdownTimeout = 10 * time.Second
+// Shutdown budget. The two bounds are sized to fit inside Docker's default
+// 10-second stop grace period together, because a container that exceeds it is
+// SIGKILLed and the flush is exactly what a SIGKILL would discard:
+//
+//	shutdownTimeout + flushTimeout = 8s + 2s = 10s
+//
+// No compose service overrides stop_grace_period, so 10 seconds is the real
+// budget and the two bounds have to share it.
+const (
+	shutdownTimeout = 8 * time.Second
+	flushTimeout    = 2 * time.Second
+)
 
 // Serve runs httpSrv and, when grpcSrv is non-nil, grpcSrv on grpcLis, then
 // blocks until ctx is cancelled or a server fails fatally.
@@ -26,6 +37,10 @@ const shutdownTimeout = 10 * time.Second
 // grpcSrv and grpcLis may both be nil for the HTTP-only path (gateway,
 // datarights). http.ErrServerClosed and the gRPC graceful-stop signal are
 // treated as clean exits.
+//
+// Buffered Sentry events are flushed once both servers have stopped accepting and
+// before Serve returns, on the cancellation path and the fatal-error path alike:
+// the fatal error is the one most worth keeping.
 func Serve(ctx context.Context, httpSrv *http.Server, grpcSrv *grpc.Server, grpcLis net.Listener) error {
 	// Buffered so both goroutines can report without blocking even if only the
 	// first error is consumed by the select below.
@@ -67,5 +82,10 @@ func Serve(ctx context.Context, httpSrv *http.Server, grpcSrv *grpc.Server, grpc
 	_ = httpSrv.Shutdown(shutdownCtx)
 
 	wg.Wait()
+
+	// Safe to call unconditionally: with no client bound, Flush returns
+	// immediately rather than waiting out the timeout.
+	sentry.Flush(flushTimeout)
+
 	return serveErr
 }
