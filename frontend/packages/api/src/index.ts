@@ -1,5 +1,8 @@
 export { apiClient, ApiRequestError } from "./client";
 export { consumeReturnToPath, handleSessionExpiry } from "./session";
+export { reportError } from "./errors/report";
+export type { ReportOptions } from "./errors/types";
+export type { ErrorKind } from "./errors/kinds";
 export {
   useApiToast,
   isNetworkError,
