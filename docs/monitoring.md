@@ -188,6 +188,26 @@ A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) is not
 a service defect and is recorded at warn level with no stack. It is not
 reported: nothing is wrong with the service.
 
+### Bounded reports
+
+Two error paths fire per request or per heartbeat rather than per incident. Each
+is recorded every time and reported at most once an hour:
+
+- The gateway's `downstream service unreachable`, once per hour per target. A
+  downstream that is down while one browser tab polls produces about 1,440
+  records an hour, and `ServiceDown` already pages for the same outage.
+- expense's `immudb reconnection failed`, once per hour. The SDK heartbeat drives
+  it about once a minute for as long as immudb is unreachable, and a session error
+  reaches the same line per request.
+
+Both collapse into a single Sentry issue per class, so a long outage is one issue
+with a low event count rather than a flood. Read the record count for volume, not
+the event count.
+
+The gateway's request logger reports nothing. It holds a status code and no error
+value, and the service that failed has already reported that failure with its own
+stack, so one failing request is one event rather than three.
+
 ## Resource Limits
 
 Container CPU and memory limits are defined in `docker-compose.yml` under each service's `deploy.resources` section. Current limits are modest, sized for a maximum of 5 concurrent users.
