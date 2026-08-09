@@ -81,6 +81,21 @@ describe("a failed identity assumption", () => {
     expect(captureException).not.toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
   });
+
+  it("classifies a dropped connection as a network failure", async () => {
+    const { result } = renderPanel(() =>
+      Promise.reject(new TypeError("Failed to fetch")),
+    );
+
+    await waitFor(() => expect(result.current.state.loadState).toBe("success"));
+    await act(async () => {
+      await result.current.actions.handleAssume("user-2");
+    });
+
+    const { context } = onlyCapture();
+    expect(context.tags?.error_kind).toBe("network");
+    expect(context.level).toBe("warning");
+  });
 });
 
 describe("a deletion status poll that gives up", () => {
@@ -123,5 +138,37 @@ describe("a deletion status poll that gives up", () => {
     expect(toastError).toHaveBeenCalledTimes(1);
     // Unknown outcome, so the row keeps what it last knew.
     expect(result.current.state.deletionStates["user-2"]?.status).toBe("pending");
+  });
+
+  it("classifies a persistently failing status endpoint as upstream", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    global.fetch = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ code: "UPSTREAM", message: "gateway" }), {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        }),
+    ) as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useUserDeletion({ onUserRemoved: vi.fn() }),
+    );
+
+    act(() => {
+      result.current.actions.handleDeletionSuccess({
+        id: "job-1",
+        userId: "user-2",
+        status: "pending",
+      } as never);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+
+    const { context } = onlyCapture();
+    expect(context.tags?.error_kind).toBe("upstream");
+    // A 503 would be reported by the classifier too, but a 4xx would not: this
+    // site does not classify by status for that reason.
+    expect(context.tags?.expected).toBeUndefined();
   });
 });
