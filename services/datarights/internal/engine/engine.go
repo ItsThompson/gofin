@@ -15,6 +15,7 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/jobrunner"
 	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
@@ -165,9 +166,9 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	financeData, err := e.financeClient.GetAllUserData(ctx, &financepb.GetAllUserDataRequest{UserId: userID})
 	if err != nil {
 		if ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) {
-			return 0, e.recordFailure(jobID, userID, "Export timed out", err, "finance_fetch", jobStart)
+			return 0, e.recordFailure(ctx, jobID, userID, "Export timed out", err, "finance_fetch", jobStart)
 		}
-		return 0, e.recordFailure(jobID, userID, "Failed to fetch export data", err, "finance_fetch", jobStart)
+		return 0, e.recordFailure(ctx, jobID, userID, "Failed to fetch export data", err, "finance_fetch", jobStart)
 	}
 	providerSet := e.newProviders(financeData)
 
@@ -252,17 +253,17 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	case err == nil:
 		// all providers succeeded; fall through to ZIP assembly
 	case ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded):
-		return 0, e.recordFailure(jobID, userID, "Export timed out", err, "collection", jobStart)
+		return 0, e.recordFailure(ctx, jobID, userID, "Export timed out", err, "collection", jobStart)
 	case errors.As(err, &ce):
-		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), err, "collection", jobStart)
+		return 0, e.recordFailure(ctx, jobID, userID, fmt.Sprintf("Failed to collect %s data", ce.provider), err, "collection", jobStart)
 	default:
-		return 0, e.recordFailure(jobID, userID, "Failed to collect export data", err, "collection", jobStart)
+		return 0, e.recordFailure(ctx, jobID, userID, "Failed to collect export data", err, "collection", jobStart)
 	}
 
 	// Build ZIP
 	zipBytes, err := BuildZIP(csvFiles)
 	if err != nil {
-		return 0, e.recordFailure(jobID, userID, "Failed to build export archive", err, "zip_assembly", jobStart)
+		return 0, e.recordFailure(ctx, jobID, userID, "Failed to build export archive", err, "zip_assembly", jobStart)
 	}
 
 	fileSizeBytes := int64(len(zipBytes))
@@ -278,7 +279,7 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 	// Send email with ZIP attachment
 	emailStart := time.Now()
 	if err := e.sender.SendExportEmail(ctx, userEmail, zipBytes); err != nil {
-		return 0, e.recordFailure(jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), err, "email_delivery", jobStart)
+		return 0, e.recordFailure(ctx, jobID, userID, fmt.Sprintf("Email delivery failed: %s", sanitizeError(err)), err, "email_delivery", jobStart)
 	}
 	exportmetrics.ExportEmailSendDurationSeconds.Observe(time.Since(emailStart).Seconds())
 
@@ -306,9 +307,12 @@ func (e *Engine) runExport(ctx context.Context, jobID, userID, userEmail string)
 
 // recordFailure observes the failure metrics, logs the PII-free reason with its
 // stage, and returns the terminal error the pool persists via FailJob. cause is
-// the real underlying error: it gets its own server-side record and never
-// reaches errMsg, because jobrunner.Pool shows errMsg to the user.
-func (e *Engine) recordFailure(jobID, userID, errMsg string, cause error, stage string, jobStart time.Time) error {
+// the real underlying error: it is reported, and it never reaches errMsg, because
+// jobrunner.Pool shows errMsg to the user.
+//
+// ctx comes from the job the failure belongs to, so the report joins whatever the
+// job's context carries. A background context would be a silent downgrade.
+func (e *Engine) recordFailure(ctx context.Context, jobID, userID, errMsg string, cause error, stage string, jobStart time.Time) error {
 	exportmetrics.ExportJobsCompletedTotal.WithLabelValues("failed").Inc()
 	exportmetrics.ExportJobDurationSeconds.Observe(time.Since(jobStart).Seconds())
 
@@ -321,13 +325,20 @@ func (e *Engine) recordFailure(jobID, userID, errMsg string, cause error, stage 
 	)
 
 	if cause != nil {
-		e.logger.Error("export job failure cause",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("error", cause.Error()),
-			slog.String("stage", stage),
-			slog.String("method", "engine.execute"),
-		)
+		// The report carries the unsanitized cause and writes its own record, which is
+		// why the record above stays the user-facing one. Nothing here may carry the
+		// user's email or any exported figure: the reason is what the user sees and the
+		// context block is what an operator reads.
+		_ = errkit.Report(ctx, cause, errkit.Meta{
+			Op:     "export_job.run",
+			Domain: "datarights",
+			Msg:    "export job failure cause",
+			Data: map[string]any{
+				"job_id":  jobID,
+				"user_id": userID,
+				"stage":   stage,
+			},
+		})
 	}
 
 	return &failure{reason: errMsg}

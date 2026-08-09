@@ -44,6 +44,24 @@ func newRecordingLogger() (*slog.Logger, *syncBuffer) {
 	return slog.New(slog.NewJSONHandler(sink, nil)), sink
 }
 
+// newReportingLogger is newRecordingLogger with the sink installed as slog.Default
+// as well, which is where errkit writes the record that accompanies a report.
+//
+// Only a test asserting a reported failure wants it. A test that counts records by
+// message and drives a site which both records and reports would see two, because
+// a recovered panic deliberately writes its own record beside the report's.
+func newReportingLogger(t *testing.T) (*slog.Logger, *syncBuffer) {
+	t.Helper()
+
+	logger, sink := newRecordingLogger()
+
+	previous := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	return logger, sink
+}
+
 // errorRecords parses the captured log output and returns the error-level
 // records only.
 func errorRecords(t *testing.T, sink *syncBuffer) []map[string]any {
@@ -94,7 +112,7 @@ func (f errFinance) GetAllUserData(context.Context, *financepb.GetAllUserDataReq
 // server-side record carries that error with its stage and job id.
 func TestEngine_ProviderFailure_RecordsCauseServerSideOnly(t *testing.T) {
 	repo := &mockRepo{}
-	logger, sink := newRecordingLogger()
+	logger, sink := newReportingLogger(t)
 	cause := "dial tcp 10.0.0.7:5432: connect: connection refused"
 
 	eng := NewEngine(staticProviders(&stubProvider{
@@ -131,7 +149,7 @@ func TestEngine_ProviderFailure_RecordsCauseServerSideOnly(t *testing.T) {
 // status.
 func TestEngine_FinanceFetchTimeout_RecordsUnderlyingError(t *testing.T) {
 	repo := &mockRepo{}
-	logger, sink := newRecordingLogger()
+	logger, sink := newReportingLogger(t)
 	// The shape a timed-out finance RPC returns: a gRPC status that wraps the
 	// sentinel, so the timeout guard still classifies it.
 	cause := fmt.Errorf("rpc error: code = DeadlineExceeded desc = finance GetAllUserData: %w", context.DeadlineExceeded)
@@ -159,7 +177,7 @@ func TestEngine_FinanceFetchTimeout_RecordsUnderlyingError(t *testing.T) {
 // that persists part of the error text.
 func TestEngine_EmailFailure_RecordsUnsanitizedCause(t *testing.T) {
 	repo := &mockRepo{}
-	logger, sink := newRecordingLogger()
+	logger, sink := newReportingLogger(t)
 	cause := "Resend API error (status 429): rate limited"
 
 	eng := NewEngine(staticProviders(&stubProvider{

@@ -239,7 +239,7 @@ func TestEngine_ProviderError_FailsJob(t *testing.T) {
 
 func TestEngine_Timeout_FailsJob(t *testing.T) {
 	repo := &mockRepo{}
-	logger, sink := newRecordingLogger()
+	logger, sink := newReportingLogger(t)
 	eng := NewEngine(staticProviders(&stubProvider{
 		name:    "slow-provider",
 		headers: []string{"col"},
