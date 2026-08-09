@@ -31,7 +31,7 @@ gofin is an intentionally overengineered personal finance tracker that lets user
 
 ## Technology Stack
 
-- **Frontend:** React micro-frontends composed at runtime via Module Federation 2.0, with a Node.js SSR shell app
+- **Frontend:** React feature packages composed at build time via npm workspace source imports, bundled into a Node.js SSR shell app
 - **Backend:** Go microservices (Gin framework) communicating over REST and gRPC
 - **Databases:** PostgreSQL (relational data), immudb (immutable expense ledger)
 - **Auth:** JWT with RBAC (operator-only admin), Google OAuth, admin identity assumption
@@ -51,8 +51,8 @@ graph TB
 
     subgraph Node1[Node 1: Edge / DMZ]
         Shell[Shell App<br/><i>Node.js: SSR + API Proxy</i>]
-        FinMFE[Finance Remote<br/><i>Dashboard, Expenses, Settings</i>]
-        AdminMFE[Admin Remote<br/><i>User list, Identity Assumption</i>]
+        FinPkg[Finance Package<br/><i>Dashboard, Expenses, Settings</i>]
+        AdminPkg[Admin Package<br/><i>User list, Identity Assumption</i>]
     end
 
     subgraph Node2[Node 2: Compute]
@@ -78,8 +78,8 @@ graph TB
     Browser -->|HTTPS| CFApp --> Shell
     Browser -->|HTTPS| CFGraf --> AuthProxy
 
-    Shell -->|Module Federation| FinMFE
-    Shell -->|Module Federation| AdminMFE
+    Shell -->|build-time source import| FinPkg
+    Shell -->|build-time source import| AdminPkg
     Shell -->|/api/* proxy| GW
 
     GW -->|gRPC: ValidateToken| Auth

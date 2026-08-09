@@ -6,8 +6,8 @@ interface RemoteLoadErrorProps {
 }
 
 /**
- * Fallback UI rendered when a Module Federation remote or lazy import
- * fails to load. Shows a non-alarming message with a page refresh button.
+ * Fallback UI rendered when a lazily imported section fails to load.
+ * Shows a non-alarming message with a page refresh button.
  */
 function RemoteLoadError({ sectionName }: RemoteLoadErrorProps) {
   const label = sectionName ?? "this section";
