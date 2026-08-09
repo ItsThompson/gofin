@@ -37,6 +37,28 @@ function clickRetry(): void {
   options.action.onClick();
 }
 
+interface Deferred {
+  promise: Promise<undefined>;
+  settle: () => void;
+}
+
+/** A promise this test settles by hand, so continuations run in a chosen order. */
+function deferredResolve(): Deferred {
+  let resolve: (value: undefined) => void = () => {};
+  const promise = new Promise<undefined>((res) => {
+    resolve = res;
+  });
+  return { promise, settle: () => resolve(undefined) };
+}
+
+function deferredReject(reason: unknown): Deferred {
+  let reject: (reason: unknown) => void = () => {};
+  const promise = new Promise<undefined>((_res, rej) => {
+    reject = rej;
+  });
+  return { promise, settle: () => reject(reason) };
+}
+
 describe("useApiToast reporting", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -214,6 +236,34 @@ describe("useApiToast reporting", () => {
       });
 
       expect(captureException).toHaveBeenCalledTimes(4);
+    });
+
+    it("reports both failures when the successful sibling settles first", async () => {
+      // The tests above pass already-settled promises, so continuations run in
+      // registration order and the success always lands after the rejections have
+      // been handled. Real timing does not guarantee that. This drives the order
+      // that discriminates: the last-registered call is the one the chain holds,
+      // and it succeeds before either earlier sibling fails.
+      const first = deferredReject(new Error("first down"));
+      const second = deferredReject(new Error("second down"));
+      const winner = deferredResolve();
+      const { result } = renderHook(() => useApiToast<undefined>());
+
+      await act(async () => {
+        const settled = Promise.all([
+          result.current.call(() => first.promise),
+          result.current.call(() => second.promise),
+          result.current.call(() => winner.promise),
+        ]);
+
+        winner.settle();
+        first.settle();
+        second.settle();
+
+        await settled;
+      });
+
+      expect(captureException).toHaveBeenCalledTimes(2);
     });
   });
 

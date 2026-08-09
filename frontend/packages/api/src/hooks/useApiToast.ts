@@ -69,7 +69,12 @@ export function useApiToast<T = unknown>(
 ): ApiToastCallbacks<T> {
   const { retriable = true, op, domain } = hookOptions;
   const lastOperationRef = useRef<(() => Promise<T>) | null>(null);
-  /** The operation whose failures are being counted, and how many it has had. */
+  /**
+   * The operation whose failures are being counted, and how many it has had.
+   * Identity is the key, so a memoized operation passed straight in reports its
+   * first failure and then stays quiet until a success intervenes. Every call
+   * site passes an inline arrow, so each invocation is its own chain today.
+   */
   const chainRef = useRef<{
     operation: (() => Promise<T>) | null;
     attempts: number;
@@ -94,8 +99,8 @@ export function useApiToast<T = unknown>(
       lastOperationRef.current = operation;
 
       // Captured per invocation. Reading the shared count inside the catch would
-      // let a concurrent sibling decide this call's outcome, and four call sites
-      // fan out on one hook instance inside a single Promise.all.
+      // let a concurrent sibling decide this call's outcome, and one consumer
+      // fans four calls out on a single hook instance inside one Promise.all.
       const attempt =
         operation === chainRef.current.operation
           ? chainRef.current.attempts + 1
