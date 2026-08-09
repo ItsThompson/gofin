@@ -2,8 +2,9 @@ groups:
   - name: service-health
     rules:
       # Per-job sums keep healthy traffic elsewhere from diluting a fully
-      # failing low-traffic service below the threshold. The request-rate floor
-      # keeps one failed request against an idle service from paging.
+      # failing low-traffic service below the threshold. The floor keeps a job
+      # with only a handful of requests in the window from paging on a ratio
+      # computed from them.
       - alert: HighErrorRate
         expr: |
           (
