@@ -119,3 +119,34 @@ export function clientOptions({ dsn, release, isNetworkError }) {
     },
   };
 }
+
+/**
+ * SSR process options. `release` arrives already prefixed: the caller applies the
+ * `gofin-web@` prefix to the bare SHA it reads from the environment, so this
+ * builder can use the value verbatim and neither builder can double-prefix.
+ *
+ * The two Session Replay rates and `denyUrls` are browser concepts and are
+ * absent, as are the client chain's `navigator.webdriver` and network-error drop
+ * rules.
+ */
+export function serverOptions({ dsn, release }) {
+  return {
+    ...SHARED_OPTIONS,
+    dsn,
+    release,
+    initialScope: { tags: { ...CONSTANT_TAGS, runtime: "node" } },
+    // @sentry/node registers import-in-the-middle loader hooks by default, and
+    // they exist only to enable the OpenTelemetry span instrumentation that
+    // tracesSampleRate: 0 already disables. Left on they keep a documented
+    // "does not provide an export named ..." failure class alive for no benefit,
+    // in a graph that mixes an externalized SDK with a Vite-bundled app.
+    registerEsmLoaderHooks: false,
+    beforeSend(event) {
+      // Inert today: no SSR reporter classifies anything as expected. Kept so a
+      // later one cannot start spending quota silently, and self-contained so
+      // this module still needs no import beyond the SDK.
+      if (event.tags?.expected === "true") return null;
+      return event;
+    },
+  };
+}

@@ -1,4 +1,4 @@
-import type { BrowserOptions } from "@sentry/react-router";
+import type { BrowserOptions, NodeOptions } from "@sentry/react-router";
 
 /**
  * Hand-written because `sentry.options.mjs` is plain JavaScript and `apps/shell`
@@ -42,3 +42,20 @@ export interface ClientInitOptions extends BrowserOptions {
 }
 
 export declare function clientOptions(args: ClientOptionsArgs): ClientInitOptions;
+
+export interface ServerOptionsArgs {
+  dsn: string;
+  /** Already prefixed as `gofin-web@<sha>`; the builder does not transform it. */
+  release: string;
+}
+
+/** `NodeOptions` narrowed on the keys callers and tests read back. */
+export interface ServerInitOptions extends NodeOptions {
+  dsn: string;
+  release: string;
+  initialScope: { tags: Record<string, string> };
+  registerEsmLoaderHooks: false;
+  beforeSend: NonNullable<NodeOptions["beforeSend"]>;
+}
+
+export declare function serverOptions(args: ServerOptionsArgs): ServerInitOptions;

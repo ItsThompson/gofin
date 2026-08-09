@@ -2,8 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import { isNetworkError } from "@gofin/api";
 import {
   clientOptions,
+  serverOptions,
   SHARED_OPTIONS,
   type ClientInitOptions,
+  type ServerInitOptions,
 } from "../../sentry.options.mjs";
 
 type BeforeSend = ClientInitOptions["beforeSend"];
@@ -27,12 +29,33 @@ function options(): ClientInitOptions {
   });
 }
 
+/** The options instrument.server.mjs builds, with the prefix already applied. */
+function serverBuilt(): ServerInitOptions {
+  return serverOptions({
+    dsn: "https://publickey@o1.ingest.us.sentry.io/3",
+    release: "gofin-web@0123456789abcdef",
+  });
+}
+
 function setWebdriver(value: boolean): void {
   Object.defineProperty(navigator, "webdriver", {
     value,
     configurable: true,
   });
 }
+
+/** Spec 06's lockdown, spelled out so a permissive-but-identical set fails. */
+const LOCKED_DATA_COLLECTION = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: { request: false, response: false },
+  httpBodies: [],
+  urlQueryParams: false,
+  graphQL: { document: false, variables: false },
+  genAI: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  stackFrameVariables: false,
+};
 
 describe("SHARED_OPTIONS", () => {
   it("carries only keys that exist on both platforms' client options", () => {
@@ -49,17 +72,7 @@ describe("SHARED_OPTIONS", () => {
   });
 
   it("locks down every data collection category", () => {
-    expect(SHARED_OPTIONS.dataCollection).toEqual({
-      userInfo: false,
-      cookies: false,
-      httpHeaders: { request: false, response: false },
-      httpBodies: [],
-      urlQueryParams: false,
-      graphQL: { document: false, variables: false },
-      genAI: { inputs: false, outputs: false },
-      databaseQueryData: false,
-      stackFrameVariables: false,
-    });
+    expect(SHARED_OPTIONS.dataCollection).toEqual(LOCKED_DATA_COLLECTION);
   });
 
   it("sends no traces", () => {
@@ -186,5 +199,110 @@ describe("the client beforeSend chain", () => {
     expect(
       options().beforeSend(errorEvent(), hintFor(new Error("boom"))),
     ).toBeNull();
+  });
+});
+
+describe("serverOptions", () => {
+  it("spreads the shared settings", () => {
+    const built = serverBuilt();
+
+    expect(built.environment).toBe("production");
+    expect(built.tracesSampleRate).toBe(0);
+    expect(built.ignoreErrors).toEqual(SHARED_OPTIONS.ignoreErrors);
+  });
+
+  it("sets the three constant tags through initialScope, with runtime node", () => {
+    // runtime alone would pass even with the option key wrong, because
+    // @sentry/react-router's server init calls setTag("runtime", "node") itself.
+    expect(serverBuilt().initialScope.tags).toEqual({
+      app: "gofin-web",
+      service: "web",
+      runtime: "node",
+    });
+  });
+
+  it("disables the ESM loader hooks", () => {
+    expect(serverBuilt().registerEsmLoaderHooks).toBe(false);
+  });
+
+  it("uses the release string it is given without transforming it", () => {
+    // The caller applies the gofin-web@ prefix, so a builder that prefixed too
+    // would emit gofin-web@gofin-web@<sha> and split one deploy in two.
+    expect(serverBuilt().release).toBe("gofin-web@0123456789abcdef");
+    expect(
+      serverOptions({ dsn: "https://publickey@o1.ingest.us.sentry.io/3", release: "" })
+        .release,
+    ).toBe("");
+  });
+
+  it("passes the dsn through", () => {
+    expect(serverBuilt().dsn).toBe("https://publickey@o1.ingest.us.sentry.io/3");
+  });
+
+  it("carries no browser-only setting", () => {
+    const built = serverBuilt() as ServerInitOptions & Record<string, unknown>;
+
+    expect(built.replaysSessionSampleRate).toBeUndefined();
+    expect(built.replaysOnErrorSampleRate).toBeUndefined();
+    expect(built.denyUrls).toBeUndefined();
+  });
+});
+
+describe("the two builders cannot drift", () => {
+  it("produces deeply equal dataCollection objects", () => {
+    expect(serverBuilt().dataCollection).toEqual(options().dataCollection);
+  });
+
+  it("locks every category on both, including graphQL and genAI", () => {
+    // Deep equality alone is near-tautological while both builders spread one
+    // shared object: a permissive-but-identical set would pass it.
+    expect(options().dataCollection).toEqual(LOCKED_DATA_COLLECTION);
+    expect(serverBuilt().dataCollection).toEqual(LOCKED_DATA_COLLECTION);
+  });
+});
+
+describe("the server beforeSend chain", () => {
+  it("sends an ordinary event", () => {
+    const event = errorEvent({ error_kind: "internal" });
+
+    expect(serverBuilt().beforeSend(event, hintFor(new Error("boom")))).toBe(
+      event,
+    );
+  });
+
+  it("drops an event tagged expected", () => {
+    expect(
+      serverBuilt().beforeSend(
+        errorEvent({ expected: "true" }),
+        hintFor(new Error("a 422")),
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps a fetch failure, because that rule is browser-only", () => {
+    const event = errorEvent();
+
+    expect(
+      serverBuilt().beforeSend(event, hintFor(new TypeError("Failed to fetch"))),
+    ).toBe(event);
+  });
+
+  it("reads no browser global", () => {
+    // navigator is absent in the SSR process, so a shared chain would throw on
+    // the first server event rather than report it.
+    const navigatorDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "navigator",
+    )!;
+    const event = errorEvent();
+    Reflect.deleteProperty(globalThis, "navigator");
+
+    try {
+      expect(serverBuilt().beforeSend(event, hintFor(new Error("boom")))).toBe(
+        event,
+      );
+    } finally {
+      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    }
   });
 });
