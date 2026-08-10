@@ -1,14 +1,13 @@
 # perf
 
-Shared **test-only** helpers for the gofin latency & efficiency epic. This module
+Shared **test-only** helpers for latency and efficiency measurement. This module
 carries no runtime dependencies and is imported only from `_test.go` files in the
 gateway, datarights, expense, and finance services. It provides the measurement
-primitives every optimization slice (P1-P4) uses to capture baselines and write
-regression assertions.
+primitives used to capture baselines and write regression assertions.
 
 It sits alongside `metrics`, `access`, and `healthcheck` as a shared module and is
-registered in `services/go.work`, so `go test ./...` picks it up in the existing
-`test-backend` CI job. No new CI job is added.
+registered in `services/go.work`, so `go test ./...` picks it up in the
+`test-backend` CI job.
 
 ## Why measure this way
 
@@ -50,8 +49,8 @@ Never assert a committed absolute alloc number in CI.
 
 A concurrency-safe counter that spy implementations of gRPC clients / repo
 interfaces embed (as a `*perf.CallCounter`) so a test can assert bounds like
-"`GetAllUserData` called at most once". Because P2/P4 call spies from inside
-`errgroup` fan-out goroutines, all methods are safe for concurrent use.
+"`GetAllUserData` called at most once". Spies are called from inside `errgroup`
+fan-out goroutines, so all methods are safe for concurrent use.
 
 ```go
 type financeSpy struct {
@@ -130,7 +129,7 @@ allocs/counts for the hard signal since wall-clock reruns are noisy.
 ### The `-race` gate
 
 Run the concurrency-safety tests under the race detector locally before pushing
-concurrent changes (P2/P4):
+concurrent changes:
 
 ```sh
 go test -race ./...
@@ -140,13 +139,13 @@ go test -race ./...
 
 ## Baseline artifacts
 
-Optimization slices commit baselines under
+Baselines are committed under
 `services/<service>/perf/baseline/<path>.txt` (plus optional `.pprof`
 snapshots). Each file records the portable metrics as primary content, with
 wall-clock clearly labeled as a same-machine reference. The committed baseline is
 documentation reviewed in the PR diff; the non-flaky regression gate is the
 efficiency assertion (`CallCounter` bounds, query-shape checks, alloc bounds,
-growth-ratios) that rides the existing `test-backend` job.
+growth-ratios) that rides the `test-backend` job.
 
 ## Testing this module
 
