@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
@@ -15,6 +16,7 @@ import (
 	"github.com/ItsThompson/gofin/services/gateway/internal/proxy"
 	"github.com/ItsThompson/gofin/services/gateway/internal/readiness"
 	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 // readinessTimeout bounds each downstream /health probe issued by /readyz. It
@@ -48,7 +50,17 @@ func New(
 
 	engine := gin.New()
 	engine.RedirectTrailingSlash = false
-	engine.Use(gin.Recovery())
+	// sentrygin exists only to put a hub on the request context, which is what
+	// lets the recovery below attach request data to its report. Repanic is set
+	// explicitly and is unreachable by construction: Recovery sits inside this
+	// middleware and is terminal, so no panic ever reaches sentrygin's own
+	// recover. Letting one reach it would capture a second event for one panic.
+	engine.Use(sentrygin.New(sentrygin.Options{Repanic: true}))
+	// Recovery sits immediately inside sentrygin, so a hub is on the context when
+	// it reports, and outside the metrics and logging middleware so a panic raised
+	// in either is caught too. It records the panic through slog instead of
+	// gin.Recovery()'s plaintext dump to gin.DefaultErrorWriter.
+	engine.Use(serverkit.Recovery(logger))
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
 	// AccessControl is the single global gate: it resolves each route against the
@@ -80,7 +92,7 @@ func New(
 	for name, serviceURL := range services {
 		readinessTargets[name] = serviceURL.String()
 	}
-	checker := readiness.NewChecker(&http.Client{}, readinessTargets, readinessTimeout)
+	checker := readiness.NewChecker(&http.Client{}, readinessTargets, readinessTimeout, logger)
 	engine.GET("/readyz", readiness.Handler(checker, logger))
 
 	// Build one reverse-proxy handler per downstream service from the same shared

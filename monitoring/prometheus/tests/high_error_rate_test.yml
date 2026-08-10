@@ -1,0 +1,138 @@
+rule_files:
+  - ../alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # A service failing completely at low volume fires even while a busy service
+  # serves healthy traffic beside it.
+  - interval: 1m
+    name: low-traffic service at 100 percent 5xx beside healthy traffic
+    input_series:
+      - series: 'http_requests_total{job="datarights-service",method="POST",path="/api/datarights/export",status="500"}'
+        values: "0+3x20"
+      - series: 'http_requests_total{job="api-gateway",method="GET",path="/api/finance/dashboard",status="200"}'
+        values: "0+200x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: datarights-service
+            exp_annotations:
+              summary: "datarights-service 5xx error rate is 100% (> 5%)"
+              description: "More than 5% of requests to datarights-service returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
+
+  # One failed request against a service with no other traffic stays below the
+  # request-rate floor.
+  - interval: 1m
+    name: single failed request on an idle service
+    input_series:
+      - series: 'http_requests_total{job="finance-service",method="GET",path="/api/finance/summary",status="500"}'
+        values: "0 1x20"
+    # Evaluated at every minute so no combination of the rate window and the
+    # `for` duration can let this case page unnoticed.
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HighErrorRate
+        exp_alerts: []
+
+  # Sustained total failure below the floor: the ratio is 100 percent for the
+  # whole window, and the floor is the only thing holding the alert back.
+  - interval: 1m
+    name: sustained 5xx at one request per minute, below the floor
+    input_series:
+      - series: 'http_requests_total{job="datarights-service",method="POST",path="/api/datarights/export",status="500"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HighErrorRate
+        exp_alerts: []
+
+  # A sustained ratio above the threshold with traffic above the floor fires
+  # once the `for` window elapses, and not before.
+  - interval: 1m
+    name: sustained ten percent 5xx above the floor
+    input_series:
+      - series: 'http_requests_total{job="expense-service",method="GET",path="/api/expenses",status="200"}'
+        values: "0+9x20"
+      - series: 'http_requests_total{job="expense-service",method="POST",path="/api/expenses",status="500"}'
+        values: "0+1x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: expense-service
+            exp_annotations:
+              summary: "expense-service 5xx error rate is 10% (> 5%)"
+              description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: expense-service
+            exp_annotations:
+              summary: "expense-service 5xx error rate is 10% (> 5%)"
+              description: "More than 5% of requests to expense-service returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
+
+  # Counters present but flat: both rates are zero, so the ratio is NaN, and
+  # NaN fails every comparison. Asserted through the rule rather than through a
+  # promql_expr_test, because promtool compares expected NaN with == and so can
+  # never match one.
+  - interval: 1m
+    name: no traffic in the window
+    input_series:
+      - series: 'http_requests_total{job="auth-service",method="POST",path="/api/auth/login",status="200"}'
+        values: "7x20"
+      - series: 'http_requests_total{job="auth-service",method="POST",path="/api/auth/login",status="500"}'
+        values: "2x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HighErrorRate
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: HighErrorRate
+        exp_alerts: []

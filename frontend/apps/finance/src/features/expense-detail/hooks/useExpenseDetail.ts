@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useFormMutation } from "@gofin/api";
-import type { Expense, CorrectExpenseRequest, ExpenseResponse } from "@gofin/core";
+import { useApiToast, useFormMutation } from "@gofin/api";
+import type { Expense, CorrectExpenseRequest, ExpenseResponse, PaginatedResponse } from "@gofin/core";
 import { expenseDetailApi } from "../api";
 import type {
   ExpenseDetailState,
@@ -20,6 +20,15 @@ export function useExpenseDetail(
   const [status, setStatus] = useState<"loading" | "detail" | "correct" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
 
+  // The installment list is supplementary to the detail view, but a failure to
+  // load it used to remove rows with nothing said. useApiToast owns the report
+  // and the message; retry is off because the toast's Retry discards its result.
+  const { call: proRataCall } = useApiToast<PaginatedResponse<Expense>>({
+    retriable: false,
+    op: "expense.pro_rata_group",
+    domain: "expenses",
+  });
+
   const fetchExpenseData = useCallback(async () => {
     if (!expenseId) return;
     setStatus("loading");
@@ -33,16 +42,12 @@ export function useExpenseDetail(
       setExpense(expenseResp.expense);
       setHistory(historyResp.entries);
 
-      if (expenseResp.expense.isProRata && expenseResp.expense.proRataGroup) {
-        try {
-          const groupResp = await expenseDetailApi.getProRataGroup(
-            expenseResp.expense.proRataGroup,
-          );
-          setProRataGroup(groupResp.data);
-        } catch {
-          // Non-critical: pro-rata group display is supplementary
-          setProRataGroup([]);
-        }
+      const groupId = expenseResp.expense.proRataGroup;
+      if (expenseResp.expense.isProRata && groupId) {
+        const groupResp = await proRataCall(() =>
+          expenseDetailApi.getProRataGroup(groupId),
+        );
+        setProRataGroup(groupResp?.data ?? []);
       } else {
         setProRataGroup([]);
       }
@@ -52,7 +57,7 @@ export function useExpenseDetail(
       setError("Failed to load expense details.");
       setStatus("error");
     }
-  }, [expenseId]);
+  }, [expenseId, proRataCall]);
 
   useEffect(() => {
     fetchExpenseData();

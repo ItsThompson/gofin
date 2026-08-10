@@ -3,6 +3,7 @@ package jobrunner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 // ---------------------------------------------------------------------------
@@ -264,4 +267,99 @@ func TestPool_QueuedJobs_ReflectsJobsWaitingForASlot(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return pool.QueuedJobs() == 0 && pool.ActiveJobs() == 0 && len(store.completedSnapshot()) == 5
 	}, 2*time.Second, 10*time.Millisecond)
+}
+
+// ---------------------------------------------------------------------------
+// Panic containment
+// ---------------------------------------------------------------------------
+
+func TestPool_ExecutePanic_FailsTheJobWithAPIIFreeReason(t *testing.T) {
+	store := &fakeStore{}
+	// A 50ms job timeout, mirroring the timeout test: the strategy sleeps past it
+	// before panicking, so the job context is provably expired by the time the
+	// recovery runs. Without a fresh background context FailJob would see a dead
+	// one, which makes the ctxLive assertion below falsifiable.
+	execute := func(ctx context.Context, _, _ string) error {
+		<-ctx.Done()
+		panic("strategy exploded holding user@example.com")
+	}
+
+	pool := New(5, 50*time.Millisecond, store, execute, testLogger())
+	pool.Submit("job-panic", "user-1")
+
+	require.Eventually(t, func() bool {
+		return len(store.failedSnapshot()) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	failed := store.failedSnapshot()
+	assert.Equal(t, "job-panic", failed[0].jobID)
+	assert.Equal(t, "Job failed unexpectedly", failed[0].reason)
+	assert.NotContains(t, failed[0].reason, "user@example.com",
+		"the panic value never reaches the reason datarights shows the user")
+	assert.True(t, failed[0].ctxLive,
+		"the job context is expired, so FailJob must use a fresh background context")
+	assert.Equal(t, []statusCall{{jobID: "job-panic", status: "running"}}, store.statusSnapshot())
+	assert.Empty(t, store.completedSnapshot(), "a panicking job must not be completed")
+
+	require.Eventually(t, func() bool {
+		return pool.ActiveJobs() == 0
+	}, 2*time.Second, 10*time.Millisecond, "the slot must be released after the recovery runs")
+}
+
+func TestPool_ExecutePanic_WritesOneErrorRecordWithPanicAndStack(t *testing.T) {
+	store := &fakeStore{}
+	logger, logs := serverkittest.NewLogger()
+
+	pool := New(5, time.Minute, store, panickingExecute, logger)
+	pool.Submit("job-panic", "user-7")
+
+	require.Eventually(t, func() bool {
+		return len(store.failedSnapshot()) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "a recovered panic must produce exactly one error-level record")
+	assert.Equal(t, "ERROR", records[0]["level"])
+	assert.Equal(t, "recovered panic in job execution", records[0]["msg"])
+	assert.Equal(t, "panic: strategy exploded", records[0]["panic"])
+	assert.Equal(t, "job-panic", records[0]["job_id"])
+	assert.Equal(t, "user-7", records[0]["user_id"])
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panickingExecute")
+}
+
+// panickingExecute is a named Execute strategy so the recorded stack carries a
+// frame to assert on.
+func panickingExecute(context.Context, string, string) error { panic("strategy exploded") }
+
+// TestPool_ExecutePanic_AtCapacity_LeavesThePoolUsable guards the interaction
+// between the new recovery defer and the two existing ones. With a single slot,
+// a panicking job that failed to release it would starve every queued job, so
+// the three survivors completing is what proves the LIFO ordering holds.
+func TestPool_ExecutePanic_AtCapacity_LeavesThePoolUsable(t *testing.T) {
+	store := &fakeStore{}
+
+	var started atomic.Int32
+	execute := func(context.Context, string, string) error {
+		if started.Add(1) == 1 {
+			panic("first job exploded")
+		}
+		return nil
+	}
+
+	const total = 4
+	pool := New(1, time.Minute, store, execute, testLogger())
+	for i := 0; i < total; i++ {
+		pool.Submit(fmt.Sprintf("job-%d", i), "user-1")
+	}
+
+	require.Eventually(t, func() bool {
+		return len(store.completedSnapshot()) == total-1 && len(store.failedSnapshot()) == 1
+	}, 5*time.Second, 20*time.Millisecond, "every queued job must still get the slot")
+
+	require.Eventually(t, func() bool {
+		return pool.ActiveJobs() == 0 && pool.QueuedJobs() == 0
+	}, 2*time.Second, 10*time.Millisecond, "the pool must drain after a panic")
 }

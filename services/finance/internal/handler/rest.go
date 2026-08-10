@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -10,6 +8,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	"github.com/ItsThompson/gofin/services/httpx"
@@ -18,14 +17,12 @@ import (
 // RESTHandler handles HTTP requests for the finance service.
 type RESTHandler struct {
 	financeService *service.FinanceService
-	logger         *slog.Logger
 }
 
 // NewRESTHandler creates a new RESTHandler.
-func NewRESTHandler(financeService *service.FinanceService, logger *slog.Logger) *RESTHandler {
+func NewRESTHandler(financeService *service.FinanceService) *RESTHandler {
 	return &RESTHandler{
 		financeService: financeService,
-		logger:         logger,
 	}
 }
 
@@ -543,15 +540,11 @@ func (h *RESTHandler) GetUpcomingProRata(c *gin.Context) {
 	})
 }
 
-// respondError delegates the wire mapping to apierr.Respond (which classifies
-// via errors.As), logging any unexpected non-*apierr.Error at error level first
-// so 500s stay observable (apierr.Respond takes no logger).
+// respondError reports an unclassified failure and writes the shared error
+// response. The operation comes from the route, so only the domain is per service.
 func (h *RESTHandler) respondError(c *gin.Context, err error) {
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) {
-		h.logger.Error("unexpected error",
-			slog.String("error", err.Error()),
-		)
-	}
-	apierr.Respond(c, err)
+	httpx.RespondError(c, err, errkit.Meta{
+		Domain: "budgets",
+		Msg:    "unexpected error",
+	})
 }

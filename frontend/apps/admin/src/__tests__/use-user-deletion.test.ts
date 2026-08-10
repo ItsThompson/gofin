@@ -170,6 +170,38 @@ describe("useUserDeletion", () => {
     );
   });
 
+  it("warns the operator once when the deletion status becomes unreadable", async () => {
+    const { toast } = await import("sonner");
+    mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const { result } = renderHook(() =>
+      useUserDeletion({ onUserRemoved: mockOnUserRemoved }),
+    );
+
+    act(() => {
+      result.current.actions.startDeletion({ id: "user-1", username: "alice" });
+    });
+
+    act(() => {
+      result.current.actions.handleDeletionSuccess(buildJob());
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(7500);
+    });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'Lost contact with the server while deleting "alice". Refresh to check whether it finished.',
+    );
+    expect(result.current.state.isPolling).toBe(false);
+    expect(mockOnUserRemoved).not.toHaveBeenCalled();
+    // The last known status stays visible on the row.
+    expect(result.current.state.deletionStates["user-1"]).toEqual({
+      jobId: "job-1",
+      status: "pending",
+    });
+  });
+
   it("updates deletionStates on intermediate status changes", async () => {
     mockFetch.mockResolvedValueOnce(buildPollResponse("running"));
 

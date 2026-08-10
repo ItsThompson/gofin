@@ -1,5 +1,12 @@
 import { Outlet, Navigate, useNavigate, useLocation } from "react-router";
 import { useEffect, useState } from "react";
+import {
+  classifyApiFailure,
+  isNetworkError,
+  NETWORK_FAILURE,
+  reportError,
+} from "@gofin/api";
+import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth-store";
 import { canUseAdminFeatures } from "@gofin/core";
 import {
@@ -7,6 +14,7 @@ import {
   ReturnToAdminButton,
   LogExpenseFab,
   Forbidden,
+  BackendUnavailable,
   useAuthLayoutGuards,
 } from "@/features/shell-layout";
 
@@ -22,6 +30,7 @@ export default function AuthLayout() {
     isAuthenticated,
     isAssuming,
     isLoading,
+    authError,
     checkAuth,
     logout,
     restoreIdentity,
@@ -39,6 +48,7 @@ export default function AuthLayout() {
     isAuthenticated,
     isAssuming,
     isLoading,
+    authError,
   });
 
   if (guard.status === "loading") {
@@ -47,6 +57,10 @@ export default function AuthLayout() {
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
+  }
+
+  if (guard.status === "unavailable") {
+    return <BackendUnavailable onRetry={checkAuth} />;
   }
 
   if (guard.status === "redirect") {
@@ -76,7 +90,17 @@ export default function AuthLayout() {
     try {
       await restoreIdentity();
       navigate("/admin");
-    } catch {
+    } catch (error) {
+      // The admin stays in the assumed identity, so re-enabling the button was
+      // the only thing they used to see.
+      reportError(error, {
+        ...(isNetworkError(error)
+          ? NETWORK_FAILURE
+          : classifyApiFailure(error)),
+        op: "auth.restore_identity",
+        domain: "auth",
+      });
+      toast.error("Could not return to your admin account. Try again.");
       setIsRestoring(false);
     }
   };

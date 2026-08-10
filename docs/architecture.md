@@ -69,14 +69,14 @@ graph LR
 
 ### Shell App (Node 1)
 
-The shell is the deepest module in the frontend. It is the only app rendered directly: finance and admin apps export page components loaded at runtime via Module Federation.
+The shell is the deepest module in the frontend. It is the only app rendered directly: the finance and admin packages export page components that the shell imports from source and bundles at build time.
 
 The shell owns:
 
 - **SSR**: server-side rendering via React Router for fast initial page loads
 - **API Proxy**: reverse proxies all `/api/*` requests to the API Gateway on Node 2, keeping the gateway off the public internet
-- **Routing**: the complete route tree; remotes export page components, not routed applications
-- **Auth Context**: a Zustand store shared across all remotes via Module Federation's shared scope
+- **Routing**: the complete route tree; the feature packages export page components, not routed applications
+- **Auth Context**: a Zustand store shared across all feature packages, which resolve to one instance inside the shell's bundle
 - **Layout**: persistent navbar, admin assumption banner, mobile navigation
 - **Auth Guards**: route protection (unauthenticated, authenticated, onboarding, and a direct-admin guard that redirects operators off personal finance routes to `/admin`)
 
@@ -171,9 +171,9 @@ Databases are never reachable from `edge-net`. The browser only communicates wit
 | gRPC inter-service, REST browser-facing | gRPC gives binary protocol and generated types between Go services; REST is browser-native |
 | immudb for expense ledger | True append-only storage with cryptographic verification; corrections modeled as new entries |
 | sqlc for PostgreSQL services | SQL-first, type-safe generated Go code without ORM magic |
-| Module Federation 2.0 (Vite) | Independent app builds with runtime composition; no cross-origin issues since shell serves all remotes |
+| Build-time composition via npm workspace source imports | One browser bundle served from one origin: no runtime remote loading to coordinate, and no shared-singleton config to keep in sync |
 | JWT in httpOnly cookies | XSS-proof token storage; automatic inclusion by the browser; works naturally with the reverse proxy |
-| Zustand shared via Module Federation | Lightweight state management that works across the MF host/remote boundary |
+| Zustand for shared client state | Lightweight state management with no provider tree; a single instance because every feature package is bundled together |
 | Finance service orchestrates pro-rata | Simpler than a saga for a 5-user system; finance calls expense directly, rolls back on failure |
 | Just command runner | Polyglot support (Go, Node, Docker) with readable syntax; better than Makefiles for this use case |
 

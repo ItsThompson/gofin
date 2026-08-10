@@ -20,6 +20,7 @@
     "@gofin/ui": "*",
     "@react-router/express": "^7.14.2",
     "@react-router/node": "^7.14.2",
+    "@sentry/react-router": "10.69.0",
     "express": "^5.2.1",
     "framer-motion": "12.42.2",
     "http-proxy-middleware": "^3.0.5",
@@ -28,6 +29,7 @@
     "react": "^19",
     "react-dom": "^19",
     "react-router": "^7.14.2",
+    "sonner": "^2",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

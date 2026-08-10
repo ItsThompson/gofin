@@ -1,4 +1,4 @@
-/** Route definitions for the finance remote. Consumed by the shell host. */
+/** Route definitions for the finance package. Consumed by the shell. */
 export const financeRoutes = {
   dashboard: {
     path: "/dashboard",

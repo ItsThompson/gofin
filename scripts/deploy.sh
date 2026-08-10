@@ -170,7 +170,79 @@ if [[ ! -f /opt/gofin/.env ]]; then
   exit 1
 fi
 echo "  .env found."
+
+# Both Sentry DSNs must be present and non-empty. This deliberately fails closed
+# while the application code fails open: .env.example ships both empty so CI and a
+# fresh checkout send nothing, but a production deploy with an empty DSN reports
+# nothing and looks exactly like a broken integration. There is no mechanism to
+# push these from GitHub Secrets, so this check is the only interlock that does
+# not depend on someone remembering. Do not "fix" the asymmetry.
+#
+# The value is unquoted and trimmed before the test: SENTRY_DSN_BACKEND="" is empty
+# to both docker compose and source, and a hand-edited file is the one way either
+# state arises.
+MISSING=""
+for VAR in SENTRY_DSN_BACKEND SENTRY_DSN_FRONTEND; do
+  VALUE="$(grep -m1 "^${VAR}=" /opt/gofin/.env || true)"
+  VALUE="${VALUE#*=}"
+  VALUE="${VALUE%\"}"; VALUE="${VALUE#\"}"
+  VALUE="${VALUE%\'}"; VALUE="${VALUE#\'}"
+  VALUE="${VALUE#"${VALUE%%[![:space:]]*}"}"
+  VALUE="${VALUE%"${VALUE##*[![:space:]]}"}"
+  if [[ -z "${VALUE}" ]]; then
+    MISSING="${MISSING} ${VAR}"
+  fi
+done
+
+if [[ -n "${MISSING}" ]]; then
+  echo "ERROR: missing or empty in /opt/gofin/.env:${MISSING}"
+  echo "Every error would go unreported, which is indistinguishable from a broken"
+  echo "integration. Add the values from the Sentry project's Client Keys page:"
+  echo "  nano /opt/gofin/.env"
+  exit 1
+fi
+echo "  Sentry DSNs present."
 REMOTE_ENV
+
+# --- Record the deploy SHA as the Sentry release -----------------------------
+
+# Written before the REMOTE_START heredoc below, which is quoted and therefore
+# does not interpolate, and before its `source .env`, so docker compose picks the
+# value up. DEPLOY_SHA is interpolated by the local shell here, exactly as it is
+# for the .deployed-sha write further down.
+#
+# The value stays a bare SHA: serverkit prefixes it as gofin-api@<sha> and the
+# frontend's SSR entry as gofin-web@<sha>, so each prefix is applied exactly once.
+if [[ -n "${DEPLOY_SHA:-}" ]]; then
+  echo "==> Recording the deploy SHA as the Sentry release..."
+  ssh "${SSH_TARGET}" bash <<REMOTE_RELEASE
+set -euo pipefail
+# Resolved, so replacing the file cannot turn a symlinked .env into a regular file.
+ENV_FILE="\$(readlink -f /opt/gofin/.env)"
+TMP_FILE="\${ENV_FILE}.deploy-tmp"
+
+# Rewritten rather than appended, so the file cannot grow a line per deploy, and
+# through a temp copy so a partial write cannot truncate the live file. The copy is
+# what carries the original mode across the rename, and it also repairs a file
+# saved without a trailing newline, because grep always terminates its output.
+cp -p "\${ENV_FILE}" "\${TMP_FILE}"
+{ grep -v '^SENTRY_RELEASE=' "\${ENV_FILE}" || true; } > "\${TMP_FILE}"
+printf 'SENTRY_RELEASE=%s\n' '${DEPLOY_SHA}' >> "\${TMP_FILE}"
+
+# grep exits 1 on zero matches, which is the common case here, so its status says
+# nothing. Compare line counts instead: the rewrite must keep every line that is
+# not the release, plus the one it writes.
+KEPT=\$(grep -vc '^SENTRY_RELEASE=' "\${ENV_FILE}" || true)
+if [[ "\$(wc -l < "\${TMP_FILE}")" -ne "\$((KEPT + 1))" ]]; then
+  echo "ERROR: refusing to replace \${ENV_FILE}: the rewrite lost lines"
+  rm -f "\${TMP_FILE}"
+  exit 1
+fi
+
+mv "\${TMP_FILE}" "\${ENV_FILE}"
+grep -n '^SENTRY_RELEASE=' "\${ENV_FILE}"
+REMOTE_RELEASE
+fi
 
 # --- Pull images and start ---------------------------------------------------
 

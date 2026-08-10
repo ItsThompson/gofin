@@ -12,6 +12,25 @@ permissions:
   contents: read
   packages: write
 
+env:
+  # Sentry identity. Slugs, not secrets. The org is t-industries and not gofin:
+  # a wrong org slug 404s at release create and at the source-map upload. No
+  # SENTRY_URL is set anywhere, because the org lives in the US region, which is
+  # sentry-cli's default host.
+  SENTRY_ORG: t-industries
+  SENTRY_PROJECT_FRONTEND: gofin-frontend
+  SENTRY_PROJECT_BACKEND: gofin-backend
+  SENTRY_CLI_VERSION: 2.58.6
+  # One release name per artifact, each prefixed exactly once. Release names must
+  # be unique across the whole org, so a bare SHA would collide between the two
+  # projects. The browser value is declared here rather than in the app because
+  # sentry-cli keys the uploaded maps to this exact string, and the release the
+  # bundle is built with therefore has to be the release the maps upload against.
+  # The SSR process and the Go services read a bare SHA from /opt/gofin/.env and
+  # apply their own prefix in code.
+  SENTRY_RELEASE_WEB: gofin-web@${{ github.sha }}
+  SENTRY_RELEASE_API: gofin-api@${{ github.sha }}
+
 jobs:
   discover:
     runs-on: ubuntu-latest
@@ -64,6 +83,20 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           push: true
+          # Only the mfe Dockerfile declares these. Docker warns about an unused
+          # build arg for the Go images and succeeds; a conditional step per
+          # matrix entry would add a branch to a generic step for no gain.
+          build-args: |
+            VITE_SENTRY_DSN=${{ vars.SENTRY_DSN_FRONTEND }}
+            VITE_SENTRY_RELEASE=${{ env.SENTRY_RELEASE_WEB }}
+            SENTRY_ORG=${{ env.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ env.SENTRY_PROJECT_FRONTEND }}
+          # The mfe builder stage injects debug IDs into the browser bundle and
+          # uploads its source maps, so the maps key to the bundle that ships. A
+          # secret mount keeps the token out of the image history, which an ARG
+          # would not. An absent secret skips the upload.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           tags: |
             ghcr.io/itsthompson/gofin/${{ matrix.service }}:latest
             ghcr.io/itsthompson/gofin/${{ matrix.service }}:sha-${{ github.sha }}
@@ -97,6 +130,18 @@ jobs:
           done
           echo "All credential files decoded successfully."
 
+      - name: Install sentry-cli
+        run: npm install -g "@sentry/cli@${SENTRY_CLI_VERSION}"
+
+      - name: Create Sentry releases
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          sentry-cli releases new --org "${SENTRY_ORG}" \
+            --project "${SENTRY_PROJECT_BACKEND}" "${SENTRY_RELEASE_API}"
+          sentry-cli releases new --org "${SENTRY_ORG}" \
+            --project "${SENTRY_PROJECT_FRONTEND}" "${SENTRY_RELEASE_WEB}"
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -108,3 +153,16 @@ jobs:
         run: ./scripts/deploy.sh ${{ secrets.DEPLOY_SERVER_IP }}
         env:
           DEPLOY_SHA: ${{ github.sha }}
+
+      # Deliberately no `if:`. The default is success(), so a failed deploy
+      # leaves both releases unfinalized, and the window Sentry records then
+      # matches the deploy that actually happened. First-seen and regression
+      # attribution key on that window.
+      - name: Finalize Sentry releases
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          sentry-cli releases finalize --org "${SENTRY_ORG}" \
+            --project "${SENTRY_PROJECT_BACKEND}" "${SENTRY_RELEASE_API}"
+          sentry-cli releases finalize --org "${SENTRY_ORG}" \
+            --project "${SENTRY_PROJECT_FRONTEND}" "${SENTRY_RELEASE_WEB}"

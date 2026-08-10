@@ -32,6 +32,28 @@ function resetStore() {
     isAssuming: false,
     originalAdminUser: null,
     isLoading: true,
+    authError: null,
+  });
+}
+
+function setAuthenticatedState() {
+  useAuthStore.setState({
+    user: mockUser,
+    isAuthenticated: true,
+    isAdmin: false,
+    isAssuming: false,
+    originalAdminUser: null,
+    isLoading: false,
+    authError: null,
+  });
+}
+
+function mockErrorResponse(status: number) {
+  mockFetch.mockResolvedValueOnce({
+    ok: false,
+    status,
+    json: () =>
+      Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "boom" }),
   });
 }
 
@@ -89,17 +111,96 @@ describe("auth store", () => {
       expect(state.user).toBeNull();
       expect(state.isAuthenticated).toBe(false);
       expect(state.isLoading).toBe(false);
+      expect(state.authError).toBe("unauthorized");
     });
 
-    it("clears state on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+    it("logs out a live session on 401", async () => {
+      setAuthenticatedState();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: () =>
+          Promise.resolve({
+            code: "UNAUTHORIZED",
+            message: "Authentication required",
+          }),
+      });
 
       await useAuthStore.getState().checkAuth();
 
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.isAuthenticated).toBe(false);
+      expect(state.authError).toBe("unauthorized");
+    });
+
+    it("does not take the logout path on a 500", async () => {
+      setAuthenticatedState();
+      mockErrorResponse(500);
+
+      await useAuthStore.getState().checkAuth();
+
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.user).toEqual(mockUser);
       expect(state.isLoading).toBe(false);
+      expect(state.authError).toBe("unavailable");
+    });
+
+    it("does not take the logout path on a proxy failure", async () => {
+      setAuthenticatedState();
+      // A gateway or proxy failure answers with a non-JSON body, which
+      // parseErrorResponse turns into an UNKNOWN_ERROR ApiRequestError.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        statusText: "Bad Gateway",
+        json: () => Promise.reject(new SyntaxError("Unexpected token <")),
+      });
+
+      await useAuthStore.getState().checkAuth();
+
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.user).toEqual(mockUser);
+      expect(state.authError).toBe("unavailable");
+    });
+
+    it("does not take the logout path on a network drop", async () => {
+      setAuthenticatedState();
+      mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      await useAuthStore.getState().checkAuth();
+
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.user).toEqual(mockUser);
+      expect(state.authError).toBe("unavailable");
+    });
+
+    it("reports an unreachable backend without inventing a session", async () => {
+      mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      await useAuthStore.getState().checkAuth();
+
+      const state = useAuthStore.getState();
+      expect(state.isAuthenticated).toBe(false);
+      expect(state.user).toBeNull();
+      expect(state.isLoading).toBe(false);
+      expect(state.authError).toBe("unavailable");
+    });
+
+    it("clears a previous unavailable error once the check succeeds", async () => {
+      useAuthStore.setState({ authError: "unavailable", isLoading: false });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: mockUser }),
+      });
+
+      await useAuthStore.getState().checkAuth();
+
+      expect(useAuthStore.getState().authError).toBeNull();
     });
   });
 
@@ -154,6 +255,19 @@ describe("auth store", () => {
 
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(false);
+    });
+
+    it("clears an unavailable auth error on a successful login", async () => {
+      useAuthStore.setState({ authError: "unavailable" });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ user: mockUser }),
+      });
+
+      await useAuthStore.getState().login("test@example.com", "Password1");
+
+      expect(useAuthStore.getState().authError).toBeNull();
     });
   });
 

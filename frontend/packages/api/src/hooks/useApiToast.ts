@@ -1,6 +1,8 @@
 import { useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { ApiRequestError } from "../client";
+import { classifyApiFailure, NETWORK_FAILURE } from "../errors/classify";
+import { reportError } from "../errors/report";
 
 /** Determines if an error is a network/connectivity failure. */
 export function isNetworkError(error: unknown): boolean {
@@ -16,6 +18,35 @@ export function isNetworkError(error: unknown): boolean {
   return false;
 }
 
+/**
+ * The three spellings browsers use when a dynamic `import()` cannot be fetched,
+ * plus Vite's own preload helper, which rejects with its own wording when a
+ * dependency of a chunk 404s. Chromium, Firefox and Safari each word it
+ * differently and none exposes a code, so matching the message is the only signal
+ * available, which is why this sits beside `isNetworkError` rather than inventing
+ * a second place for the same kind of classification.
+ */
+const MODULE_LOAD_FAILURE_MESSAGES = [
+  "failed to fetch dynamically imported module",
+  "error loading dynamically imported module",
+  "importing a module script failed",
+  "unable to preload css for",
+];
+
+/**
+ * Determines if an error is a failure to load a code-split chunk, as opposed to a
+ * render crash inside one that already loaded. The two need different
+ * classification and different grouping: a stale client after a deploy is one
+ * infrastructure incident, and a render crash is a distinct bug per site.
+ */
+export function isModuleLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return MODULE_LOAD_FAILURE_MESSAGES.some((spelling) =>
+    message.includes(spelling),
+  );
+}
+
 /** User-facing message for network failures. */
 export const NETWORK_ERROR_MESSAGE =
   "Connection lost. Check your internet and try again.";
@@ -27,6 +58,10 @@ interface UseApiToastOptions {
    * where automatic retry could produce side effects.
    */
   retriable?: boolean;
+  /** Logical operation for the report, e.g. "expense.list". */
+  op?: string;
+  /** Business area for the report, e.g. "expenses". */
+  domain?: string;
 }
 
 interface ApiToastCallbacks<T> {
@@ -61,26 +96,59 @@ interface ApiToastCallbacks<T> {
 export function useApiToast<T = unknown>(
   hookOptions: UseApiToastOptions = {},
 ): ApiToastCallbacks<T> {
-  const { retriable = true } = hookOptions;
+  const { retriable = true, op, domain } = hookOptions;
   const lastOperationRef = useRef<(() => Promise<T>) | null>(null);
+  /**
+   * The operation whose failures are being counted, and how many it has had.
+   * Identity is the key, so a memoized operation passed straight in reports its
+   * first failure and then stays quiet until a success intervenes. Every call
+   * site passes an inline arrow, so each invocation is its own chain today.
+   */
+  const chainRef = useRef<{
+    operation: (() => Promise<T>) | null;
+    attempts: number;
+  }>({ operation: null, attempts: 0 });
 
   const call = useCallback(
     async (
       operation: () => Promise<T>,
       callOptions?: { silent?: boolean },
     ): Promise<T | undefined> => {
-      lastOperationRef.current = operation;
-
-      try {
-        return await operation();
-      } catch (error) {
-        if (callOptions?.silent) {
+      // A silent call is a plain pass-through by contract: no toast, no report,
+      // and no chain bookkeeping, so it cannot suppress a visible call's report
+      // or redirect a visible call's Retry action.
+      if (callOptions?.silent) {
+        try {
+          return await operation();
+        } catch {
           return undefined;
         }
+      }
 
+      lastOperationRef.current = operation;
+
+      // Captured per invocation. Reading the shared count inside the catch would
+      // let a concurrent sibling decide this call's outcome, and one consumer
+      // fans four calls out on a single hook instance inside one Promise.all.
+      const attempt =
+        operation === chainRef.current.operation
+          ? chainRef.current.attempts + 1
+          : 1;
+      chainRef.current = { operation, attempts: attempt };
+
+      try {
+        const result = await operation();
+        // A success ends only the chain it owns, so a sibling still in flight
+        // keeps its own count.
+        if (chainRef.current.operation === operation) {
+          chainRef.current = { operation: null, attempts: 0 };
+        }
+        return result;
+      } catch (error) {
+        const network = isNetworkError(error);
         let message: string;
 
-        if (isNetworkError(error)) {
+        if (network) {
           message = NETWORK_ERROR_MESSAGE;
         } else if (error instanceof ApiRequestError) {
           message = error.message;
@@ -88,6 +156,21 @@ export function useApiToast<T = unknown>(
           message = error.message;
         } else {
           message = "An unexpected error occurred. Please try again.";
+        }
+
+        // The Retry action re-invokes this same operation and lands back in this
+        // catch, so reporting per attempt would turn one incident into one event
+        // per click.
+        if (attempt === 1) {
+          reportError(error, {
+            ...(network ? NETWORK_FAILURE : classifyApiFailure(error)),
+            op,
+            domain,
+            // Always 1 while only the first attempt reports. The taxonomy asks
+            // for the count on the event, so a change to reporting at chain end
+            // has somewhere to put the real figure.
+            data: { attempt },
+          });
         }
 
         const toastOptions: Parameters<typeof toast.error>[1] = {};
@@ -108,7 +191,7 @@ export function useApiToast<T = unknown>(
         return undefined;
       }
     },
-    [retriable],
+    [retriable, op, domain],
   );
 
   const callSilent = useCallback(

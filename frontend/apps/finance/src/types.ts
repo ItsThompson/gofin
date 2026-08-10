@@ -1,6 +1,6 @@
 import type { User } from "@gofin/core";
 
-/** Props passed to finance remote pages from the shell. */
+/** Props passed to finance pages from the shell. */
 export interface FinancePageProps {
   user: User;
 }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Authentication and authorization span two layers: the **Auth Service** (Go, Node 2) handles credentials, JWT lifecycle, and RBAC; the **Shell App** (Node 1) shares auth state with remote apps via a Zustand store. The **API Gateway** mediates every request by validating tokens via gRPC before routing downstream.
+Authentication and authorization span two layers: the **Auth Service** (Go, Node 2) handles credentials, JWT lifecycle, and RBAC; the **Shell App** (Node 1) shares auth state across the bundled feature packages via a Zustand store. The **API Gateway** mediates every request by validating tokens via gRPC before routing downstream.
 
 ## JWT Token Architecture
 

@@ -1,15 +1,25 @@
 groups:
   - name: service-health
     rules:
+      # Per-job sums stop healthy traffic elsewhere diluting a failing service.
+      # The floor stops a handful of requests in the window setting the ratio.
       - alert: HighErrorRate
         expr: |
-          sum(rate(http_requests_total{status=~"5.."}[5m]))
-          / sum(rate(http_requests_total[5m])) > 0.05
+          (
+            sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+            / sum by (job) (rate(http_requests_total[5m]))
+            > 0.05
+          )
+          and
+          (
+            sum by (job) (rate(http_requests_total[5m])) > 2 / 60
+          )
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "High 5xx error rate (> 5%)"
+          summary: "{{ $labels.job }} 5xx error rate is {{ $value | humanizePercentage }} (> 5%)"
+          description: "More than 5% of requests to {{ $labels.job }} returned 5xx over 5 minutes, with more than 2 requests per minute of traffic."
 
       - alert: ServiceDown
         expr: up == 0
@@ -34,6 +44,20 @@ groups:
           severity: warning
         annotations:
           summary: "> 10 failed logins in 1 minute"
+
+      # Recovery keeps the process alive, so `up` stays 1 and the request counters
+      # never see the call: this counter is the only Prometheus signal a panic
+      # leaves. Any increment is a defect, because a dead client connection is
+      # classified before the shared reporter counts anything, so the rule fires on
+      # one panic with no `for` delay. Summed by job and site to drop `instance`.
+      - alert: RecoveredPanic
+        expr: sum by (job, site) (increase(recovered_panics_total[5m])) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} recovered a panic at {{ $labels.site }}"
+          description: "A panic was recovered at {{ $labels.site }} in {{ $labels.job }} within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
 
   - name: datarights
     rules:

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from "@gofin/ui/components/card";
 import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the NewExpenseFeature from the finance remote package.
+ * Lazy-load the NewExpenseFeature from the finance package.
  */
 const NewExpenseFeature = lazy(() =>
   import("@gofin/finance/src/features/new-expense").then((mod) => ({

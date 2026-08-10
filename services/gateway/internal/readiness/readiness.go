@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 // Per-service status values reported in a Result. A concrete non-200 status is
@@ -38,6 +40,7 @@ type Checker struct {
 	client   *http.Client
 	services map[string]string // service name -> base URL
 	timeout  time.Duration
+	logger   *slog.Logger
 }
 
 // NewChecker builds a Checker over the given service name -> base URL map. The
@@ -45,8 +48,8 @@ type Checker struct {
 // 503 body and logs name the same service the gateway proxies to. The injected
 // client and timeout keep Check a pure function of its inputs and testable
 // against httptest downstreams.
-func NewChecker(client *http.Client, services map[string]string, timeout time.Duration) *Checker {
-	return &Checker{client: client, services: services, timeout: timeout}
+func NewChecker(client *http.Client, services map[string]string, timeout time.Duration, logger *slog.Logger) *Checker {
+	return &Checker{client: client, services: services, timeout: timeout, logger: logger}
 }
 
 // Result is the aggregate outcome of a readiness probe. Services maps each
@@ -73,8 +76,22 @@ func (c *Checker) Check(ctx context.Context) Result {
 		waitGroup.Add(1)
 		go func(name, baseURL string) {
 			defer waitGroup.Done()
-			status, ok := c.probe(ctx, baseURL)
-			results <- probeResult{name: name, status: status, ok: ok}
+
+			// A probe panic must not kill the gateway, and must still report this
+			// service: recovering without a result would leave Healthy true with
+			// the service silently absent from Services.
+			result := probeResult{name: name, status: statusUnreachable}
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					serverkit.LogRecoveredPanic(ctx, c.logger, "goroutine.readiness_probe",
+						"recovered panic in readiness probe", recovered,
+						slog.String("downstream", name),
+					)
+				}
+				results <- result
+			}()
+
+			result.status, result.ok = c.probe(ctx, baseURL)
 		}(name, baseURL)
 	}
 	waitGroup.Wait()

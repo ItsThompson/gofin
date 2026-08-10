@@ -1,5 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ApiRequestError, usePolling } from "@gofin/api";
+import {
+  ApiRequestError,
+  isNetworkError,
+  reportError,
+  usePolling,
+} from "@gofin/api";
 import { toast } from "sonner";
 import { settingsApi } from "../api";
 import type {
@@ -12,6 +17,9 @@ import type {
 
 const POLL_INTERVAL_MS = 5000;
 const COOLDOWN_DAYS = 30;
+/** Shown when polling gives up: the job may still be running, we lost the status. */
+const POLLING_LOST_MESSAGE =
+  "Lost contact with the server while tracking your export. Refresh to see the latest status.";
 
 function hasActiveJobs(jobs: ExportJob[]): boolean {
   return jobs.some(
@@ -96,12 +104,36 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
     }
   }, []);
 
+  const handlePollFailureLimit = useCallback((error: unknown) => {
+    // The guard comes first so the report and the message share one precondition:
+    // an unmounted section cannot show the user anything, and reporting alone
+    // would be the report-then-swallow shape.
+    if (!mountedRef.current) return;
+    // Reported from the caller, once per polling session. The transport itself
+    // stays silent: one report per tick against a dead endpoint would be
+    // thousands of events from one outage.
+    //
+    // Deliberately not classified by status: a give-up is an outage-grade signal
+    // even when the last response was a 4xx, which classifyApiFailure would mark
+    // expected and drop.
+    reportError(error, {
+      kind: isNetworkError(error) ? "network" : "upstream",
+      level: "error",
+      op: "datarights.export_status",
+      domain: "datarights",
+    });
+    setStatus("error");
+    setError(POLLING_LOST_MESSAGE);
+    toast.error(POLLING_LOST_MESSAGE);
+  }, []);
+
   usePolling<ExportListResponse>({
     fetcher: () => settingsApi.listExports(1, 50),
     enabled: status === "polling",
     intervalMs: POLL_INTERVAL_MS,
     onData: handlePollData,
     shouldStop: (response) => !hasActiveJobs(response.data),
+    onFailureLimitReached: handlePollFailureLimit,
   });
 
   const requestExport = useCallback(async () => {

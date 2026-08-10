@@ -123,9 +123,9 @@ go work sync    # Sync the workspace after dependency changes
 The `frontend/` directory is a Turborepo monorepo with three apps and three shared packages:
 
 **Apps:**
-- `shell`: MF host (SSR, routing, auth, layout, API proxy)
-- `finance`: MF remote (dashboard, expense log, expense form, settings)
-- `admin`: MF remote (admin panel, user list, identity assumption)
+- `shell`: SSR shell (routing, auth, layout, API proxy); imports the feature packages and bundles them
+- `finance`: feature package (dashboard, expense log, expense form, settings)
+- `admin`: feature package (admin panel, user list, identity assumption)
 
 **Packages:**
 - `@gofin/ui`: shared shadcn/ui components with Tailwind

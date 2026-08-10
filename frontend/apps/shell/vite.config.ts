@@ -4,6 +4,12 @@ import { defineConfig } from "vite";
 
 export default defineConfig(({ isSsrBuild }) => ({
   build: {
+    // "hidden" emits .map files with no trailing sourceMappingURL comment, so a
+    // browser never requests one. The bundle is minified, so without maps every
+    // Sentry stack points into single-letter chunk code. The maps are uploaded
+    // to Sentry from the Docker builder stage and deleted from the runtime
+    // image, so they never reach a client.
+    sourcemap: "hidden",
     rollupOptions: isSsrBuild
       ? {
           input: "./server/app.ts",

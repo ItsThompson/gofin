@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"time"
+
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 // StartPeriodicCleanup launches a background goroutine that cleans up expired
@@ -35,6 +37,19 @@ func (s *AuthService) StartPeriodicCleanup(ctx context.Context, interval, timeou
 
 				go func() {
 					defer running.Store(false)
+
+					// The repo call runs outside any request recovery, so an
+					// unrecovered panic here takes the whole auth process down.
+					// Recovering per run keeps the ticker alive, so the next tick
+					// retries.
+					defer func() {
+						if recovered := recover(); recovered != nil {
+							serverkit.LogRecoveredPanic(ctx, s.logger, "goroutine.auth_blacklist_cleanup",
+								"recovered panic in blacklist cleanup", recovered,
+								slog.String("method", "StartPeriodicCleanup"),
+							)
+						}
+					}()
 
 					cleanupCtx, cancel := context.WithTimeout(ctx, timeout)
 					defer cancel()

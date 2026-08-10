@@ -9,6 +9,12 @@ export interface UseDeletionPollingOptions {
   onStatusChange: (status: DeletionStatus, error?: string) => void;
   onCompleted: () => void;
   onFailed: (error: string) => void;
+  /**
+   * Called once, with the last transport error, when polling gives up because
+   * the status endpoint kept failing. The deletion's real outcome is unknown at
+   * that point: it is not onFailed.
+   */
+  onStatusUnavailable: (error: unknown) => void;
 }
 
 const DEFAULT_INTERVAL_MS = 2500;
@@ -24,6 +30,7 @@ export function useDeletionPolling({
   onStatusChange,
   onCompleted,
   onFailed,
+  onStatusUnavailable,
 }: UseDeletionPollingOptions): void {
   const handleData = useCallback(
     (job: DeletionJobResponse) => {
@@ -44,5 +51,6 @@ export function useDeletionPolling({
     intervalMs,
     onData: handleData,
     shouldStop: isTerminalStatus,
+    onFailureLimitReached: onStatusUnavailable,
   });
 }

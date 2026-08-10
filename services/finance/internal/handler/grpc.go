@@ -3,16 +3,21 @@ package handler
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
+
+// reportDomain is the domain tag on every report this service makes. Budgets,
+// periods, tags, and spending are all one business area, and the tag is a query
+// dimension shared with the other services, so it comes from one place.
+const reportDomain = "budgets"
 
 // GRPCHandler implements the FinanceService gRPC server. RPCs without an
 // explicit method are served by the embedded UnimplementedFinanceServiceServer,
@@ -20,14 +25,30 @@ import (
 type GRPCHandler struct {
 	pb.UnimplementedFinanceServiceServer
 	financeService *service.FinanceService
-	logger         *slog.Logger
 }
 
 // NewGRPCHandler creates a new GRPCHandler.
-func NewGRPCHandler(financeService *service.FinanceService, logger *slog.Logger) *GRPCHandler {
+func NewGRPCHandler(financeService *service.FinanceService) *GRPCHandler {
 	return &GRPCHandler{
 		financeService: financeService,
-		logger:         logger,
+	}
+}
+
+// reportServerFailure reports err unless the client is about to receive a client
+// error. Every codes.Internal exit below is reachable with a typed *apierr.Error
+// whose code the exit does not name, and a code this handler does not map is not
+// evidence that the failure is the service's fault: a validation or not-found error
+// arriving at one of them would otherwise bill error quota for ordinary client
+// input, and nothing would fail.
+//
+// The gate is the rendered status rather than a list of codes, so it stays correct
+// as the code set grows. A gated error leaves no record here, which is right: the
+// guard that produced the typed 4xx recorded it where the decision was made, and
+// what a client error at an internal exit really signals is a status pairing the
+// caller can see.
+func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
+	if apierr.IsServerError(err) {
+		_ = errkit.Report(ctx, err, meta)
 	}
 }
 
@@ -38,6 +59,15 @@ func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsReques
 		if errors.As(err, &apiErr) && apiErr.Code == apierr.CodeNotFound {
 			return nil, status.Error(codes.NotFound, apiErr.Message)
 		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.get_defaults",
+			Domain: reportDomain,
+			Msg:    "failed to get defaults",
+			Data: map[string]any{
+				"method":  "GetDefaults",
+				"user_id": req.GetUserId(),
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to get defaults")
 	}
 
@@ -66,6 +96,15 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 		if errors.As(err, &apiErr) {
 			return nil, status.Error(codes.InvalidArgument, apiErr.Message)
 		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.complete_onboarding",
+			Domain: reportDomain,
+			Msg:    "failed to complete onboarding",
+			Data: map[string]any{
+				"method":  "CompleteOnboarding",
+				"user_id": req.GetUserId(),
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to complete onboarding")
 	}
 
@@ -84,6 +123,16 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
 	tags, err := h.financeService.ListTags(ctx, req.GetUserId())
 	if err != nil {
+		// Both returns below are codes.Internal, so one report covers both.
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.list_tags",
+			Domain: reportDomain,
+			Msg:    "failed to list tags",
+			Data: map[string]any{
+				"method":  "ListTags",
+				"user_id": req.GetUserId(),
+			},
+		})
 		var apiErr *apierr.Error
 		if errors.As(err, &apiErr) {
 			return nil, status.Error(codes.Internal, apiErr.Message)
@@ -116,6 +165,15 @@ func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (
 				return nil, status.Error(codes.AlreadyExists, apiErr.Message)
 			}
 		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.create_tag",
+			Domain: reportDomain,
+			Msg:    "failed to create tag",
+			Data: map[string]any{
+				"method":  "CreateTag",
+				"user_id": req.GetUserId(),
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to create tag")
 	}
 
@@ -136,6 +194,16 @@ func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (
 				return nil, status.Error(codes.NotFound, apiErr.Message)
 			}
 		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.update_tag",
+			Domain: reportDomain,
+			Msg:    "failed to update tag",
+			Data: map[string]any{
+				"method":  "UpdateTag",
+				"user_id": req.GetUserId(),
+				"tag_id":  req.GetTagId(),
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to update tag")
 	}
 
@@ -156,6 +224,16 @@ func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (
 				return nil, status.Error(codes.FailedPrecondition, apiErr.Message)
 			}
 		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.delete_tag",
+			Domain: reportDomain,
+			Msg:    "failed to delete tag",
+			Data: map[string]any{
+				"method":  "DeleteTag",
+				"user_id": req.GetUserId(),
+				"tag_id":  req.GetTagId(),
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to delete tag")
 	}
 
@@ -170,10 +248,15 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 
 	data, err := h.financeService.GetAllUserData(ctx, userID)
 	if err != nil {
-		h.logger.Error("GetAllUserData failed",
-			"user_id", userID,
-			"error", err.Error(),
-		)
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.get_all_user_data",
+			Domain: reportDomain,
+			Msg:    "failed to get all user data",
+			Data: map[string]any{
+				"method":  "GetAllUserData",
+				"user_id": userID,
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to get all user data")
 	}
 
@@ -229,10 +312,15 @@ func (h *GRPCHandler) DeleteAllUserData(ctx context.Context, req *pb.DeleteAllUs
 	}
 
 	if err := h.financeService.DeleteAllUserData(ctx, userID); err != nil {
-		h.logger.Error("DeleteAllUserData failed",
-			"user_id", userID,
-			"error", err.Error(),
-		)
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.delete_all_user_data",
+			Domain: reportDomain,
+			Msg:    "failed to delete all user data",
+			Data: map[string]any{
+				"method":  "DeleteAllUserData",
+				"user_id": userID,
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to delete user data")
 	}
 

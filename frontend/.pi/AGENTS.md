@@ -3,7 +3,7 @@
 ## Directory Conventions
 
 - `apps/shell/` → `app/` directory (React Router file-based routing, SSR)
-- `apps/finance/`, `apps/admin/` → `src/` directory (standard Vite, Module Federation remotes)
+- `apps/finance/`, `apps/admin/` → `src/` directory (standard Vite; the shell imports their source as workspace packages)
 
 ## Route Registration
 
@@ -17,16 +17,16 @@ All 3 levels are required for a page to be user-accessible:
 
 1. Create feature in `apps/finance/src/features/<name>/`
 2. Export in the feature's `index.ts`
-3. Add vite config `exposes` entry: `"./FeatureName": "./src/features/<name>/index.ts"`
-4. Add to `apps/finance/src/routes.ts`
-5. Create `apps/shell/app/routes/<name>.tsx` (lazy-load pattern)
-6. Register in `apps/shell/app/routes.ts` inside the layout array
-7. (Optional) Add to navLinks in auth-layout.tsx
+3. Add to `apps/finance/src/routes.ts`
+4. Create `apps/shell/app/routes/<name>.tsx` (lazy-load pattern)
+5. Register in `apps/shell/app/routes.ts` inside the layout array
+6. (Optional) Add to navLinks in auth-layout.tsx
 
-## Module Federation
+## Frontend Composition
 
-- Never put workspace packages (`@gofin/*`) in MF `shared` config (they have no root "." export)
-- Only share npm packages loaded by multiple remotes at runtime (react, react-dom, zustand)
+- The shell imports feature source directly: `@gofin/finance/src/features/<name>/index`
+- Composition is build-time, so a new feature needs no registration beyond the route files above
+- Never add a runtime remote loader: one bundle from one origin, so a release is a single artifact rather than three that must be kept in step
 
 ## Path Aliases
 

@@ -1,4 +1,5 @@
 import type { RequestHandler } from "express";
+import { reportError } from "@gofin/api";
 
 /**
  * Dependencies for {@link createHealthzHandler}. Injected so the handler is unit
@@ -31,7 +32,16 @@ export const createHealthzHandler =
         .status(response.ok ? 200 : 503)
         .type("application/json")
         .send(body);
-    } catch {
+    } catch (error) {
+      // The gateway's own 503 is the try branch's happy path; reaching here means
+      // the probe never got an answer, and until now the cause was discarded.
+      reportError(error, {
+        kind: "upstream",
+        op: "healthz.probe",
+        domain: "platform",
+        data: { gatewayUrl },
+      });
+      // Byte-identical: CI and the external health-check workflow both grep it.
       res
         .status(503)
         .json({ status: "unhealthy", reason: "gateway_unreachable" });

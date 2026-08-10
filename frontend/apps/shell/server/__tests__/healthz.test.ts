@@ -1,8 +1,33 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Response } from "express";
+
+/** The subset of Sentry's CaptureContext that reportError sends. */
+interface CapturedContext {
+  level?: string;
+  tags?: Record<string, string>;
+  fingerprint?: string[];
+  contexts?: Record<string, Record<string, unknown>>;
+}
+
+const { captureException } = vi.hoisted(() => ({
+  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
+    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  ),
+}));
+
+vi.mock("@sentry/react-router", () => ({ captureException }));
+
 import { createHealthzHandler } from "../healthz";
 
 const GATEWAY_URL = "http://gateway:8080";
+
+/** The single recorded capture, so every assertion also proves an exact count. */
+function onlyCapture(): { error: unknown; context: CapturedContext } {
+  expect(captureException).toHaveBeenCalledTimes(1);
+  const [error, context] = captureException.mock.calls[0];
+  expect(context).toBeDefined();
+  return { error, context: context as CapturedContext };
+}
 
 // Captures what the handler wrote to the express Response. The handler only
 // touches status/type/send/json, so a minimal chainable stub stands in for the
@@ -52,6 +77,10 @@ async function invokeHandler(fetchFn: typeof fetch): Promise<CapturedResponse> {
 }
 
 describe("createHealthzHandler", () => {
+  beforeEach(() => {
+    captureException.mockClear();
+  });
+
   it("relays 200 and the gateway body when /readyz is healthy", async () => {
     const fetchFn = vi.fn(async () => ({
       ok: true,
@@ -68,6 +97,7 @@ describe("createHealthzHandler", () => {
     expect(captured.status).toBe(200);
     expect(captured.contentType).toBe("application/json");
     expect(captured.body).toBe('{"status":"ok"}');
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("relays 503 and the gateway body naming the failing service", async () => {
@@ -84,6 +114,9 @@ describe("createHealthzHandler", () => {
     expect(captured.status).toBe(503);
     expect(captured.contentType).toBe("application/json");
     expect(captured.body).toBe(gatewayBody);
+    // An unhealthy gateway answered the probe. The failing service is already
+    // named in the relayed body and owned by the backend's own reporting.
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("returns 503 gateway_unreachable when fetch rejects", async () => {
@@ -98,6 +131,36 @@ describe("createHealthzHandler", () => {
       status: "unhealthy",
       reason: "gateway_unreachable",
     });
+  });
+
+  it("reports the gateway error it used to discard", async () => {
+    const cause = new Error("ECONNREFUSED");
+    const fetchFn = vi.fn(async () => {
+      throw cause;
+    }) as unknown as typeof fetch;
+
+    await invokeHandler(fetchFn);
+
+    const { error, context } = onlyCapture();
+    expect(error).toBe(cause);
+    expect(context.tags).toMatchObject({
+      error_kind: "upstream",
+      operation: "healthz.probe",
+      domain: "platform",
+    });
+    expect(context.contexts?.gofin).toEqual({ gatewayUrl: GATEWAY_URL });
+  });
+
+  it("reports a timeout too, and still answers", async () => {
+    const cause = new DOMException("The operation timed out.", "TimeoutError");
+    const fetchFn = vi.fn(async () => {
+      throw cause;
+    }) as unknown as typeof fetch;
+
+    const captured = await invokeHandler(fetchFn);
+
+    expect(onlyCapture().error).toBe(cause);
+    expect(captured.status).toBe(503);
   });
 
   it("returns 503 gateway_unreachable when the request times out", async () => {

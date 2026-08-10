@@ -1,12 +1,27 @@
 import { create } from "zustand";
 import type { User } from "@gofin/core";
-import { apiClient } from "@gofin/api";
+import {
+  apiClient,
+  ApiRequestError,
+  classifyApiFailure,
+  isNetworkError,
+  NETWORK_FAILURE,
+  reportError,
+} from "@gofin/api";
 
 interface AuthResponse {
   user: User;
 }
 
-/** Auth state shared across all remotes via Module Federation shared scope. */
+/**
+ * Why the last auth check failed to confirm a session.
+ * - `unauthorized`: the backend answered 401, so there is no session.
+ * - `unavailable`: the check never got an answer (5xx, proxy failure, network
+ *   drop), so whether a session exists is unknown.
+ */
+export type AuthCheckError = "unauthorized" | "unavailable";
+
+/** Auth state shared across every feature package in the shell's bundle. */
 interface AuthState {
   /** Currently authenticated user, or null if not authenticated. */
   user: User | null;
@@ -20,6 +35,8 @@ interface AuthState {
   originalAdminUser: User | null;
   /** Whether the initial auth check has completed. */
   isLoading: boolean;
+  /** Why the last auth check failed, or null if it succeeded or has not run. */
+  authError: AuthCheckError | null;
 }
 
 interface AuthActions {
@@ -50,6 +67,7 @@ const initialState: AuthState = {
   isAssuming: false,
   originalAdminUser: null,
   isLoading: true,
+  authError: null,
 };
 
 export const useAuthStore = create<AuthStore>()((set, get) => ({
@@ -64,10 +82,24 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         isAuthenticated: true,
         isAdmin: user.role === "admin",
         isLoading: false,
+        authError: null,
       });
-    } catch {
-      // 401 means not authenticated: expected when no session exists
-      set({ ...initialState, isLoading: false });
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.status === 401) {
+        // No session: expected when nobody is logged in.
+        set({ ...initialState, isLoading: false, authError: "unauthorized" });
+        return;
+      }
+      // The check never completed, so the session state is unknown. Keeping the
+      // known state means an outage does not present itself as a logout.
+      reportError(error, {
+        ...(isNetworkError(error)
+          ? NETWORK_FAILURE
+          : classifyApiFailure(error)),
+        op: "auth.check",
+        domain: "auth",
+      });
+      set({ isLoading: false, authError: "unavailable" });
     }
   },
 
@@ -82,6 +114,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       isAuthenticated: true,
       isAdmin: user.role === "admin",
       isLoading: false,
+      authError: null,
     });
     return user;
   },
@@ -101,6 +134,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
       isAuthenticated: true,
       isAdmin: user.role === "admin",
       isLoading: false,
+      authError: null,
     });
     return user;
   },

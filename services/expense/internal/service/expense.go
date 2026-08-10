@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -307,6 +309,24 @@ func (s *ExpenseService) StreamAllUserExpenses(ctx context.Context, userID strin
 // regardless of total history size.
 func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string, pageSize int32, rows chan<- *model.Expense, errc chan<- error) {
 	defer close(rows)
+
+	// The producer runs on its own goroutine, and recover() does not cross
+	// goroutines, so the gRPC stream interceptor cannot see a panic raised here.
+	// Recovering alone would hang the RPC: the consumer's range over rows ends
+	// when close(rows) runs and it then blocks on <-errc, so the guard has to
+	// send a terminal error too. errc is buffered (cap 1) and provably empty on
+	// this path, because every other send is immediately followed by a return, so
+	// the send cannot block whichever order the two defers run in. An unbuffered
+	// errc would deadlock here instead.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			serverkit.LogRecoveredPanic(ctx, s.logger, "goroutine.expense_page_producer",
+				"recovered panic in expense page producer", recovered,
+				slog.String("user_id", userID),
+			)
+			errc <- errors.New("streaming user expenses failed unexpectedly")
+		}
+	}()
 
 	cursor := repository.ExpenseCursor{}
 	for {

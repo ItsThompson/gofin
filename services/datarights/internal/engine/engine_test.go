@@ -239,12 +239,13 @@ func TestEngine_ProviderError_FailsJob(t *testing.T) {
 
 func TestEngine_Timeout_FailsJob(t *testing.T) {
 	repo := &mockRepo{}
+	logger, sink := newReportingLogger(t)
 	eng := NewEngine(staticProviders(&stubProvider{
 		name:    "slow-provider",
 		headers: []string{"col"},
 		rows:    [][]string{{"val"}},
 		delay:   500 * time.Millisecond,
-	}), nopFinance{}, repo, newMockSender(), 5, 50*time.Millisecond, newTestLogger())
+	}), nopFinance{}, repo, newMockSender(), 5, 50*time.Millisecond, logger)
 	eng.Submit("job-3", "user-1", "")
 
 	require.Eventually(t, func() bool {
@@ -254,6 +255,13 @@ func TestEngine_Timeout_FailsJob(t *testing.T) {
 	failed := repo.getFailedJobs()
 	assert.Equal(t, "job-3", failed[0].JobID)
 	assert.Equal(t, "Export timed out", failed[0].ErrMsg)
+
+	// The collection timeout is the site where the errgroup's error and the bare
+	// context sentinel differ: only the former names the provider in flight.
+	serverSide := findRecord(t, errorRecords(t, sink), "export job failure cause")
+	assert.Equal(t, "collect slow-provider: context deadline exceeded", serverSide["error"])
+	assert.NotEqual(t, context.DeadlineExceeded.Error(), serverSide["error"])
+	assert.Equal(t, "collection", serverSide["stage"])
 }
 
 func TestEngine_ConcurrencyBounded(t *testing.T) {

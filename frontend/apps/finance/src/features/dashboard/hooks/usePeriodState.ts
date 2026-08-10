@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ApiRequestError, useApiToast, useFormMutation } from "@gofin/api";
-import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "@gofin/core";
+import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse, DefaultsResponse } from "@gofin/core";
 import type { PeriodStateResult } from "../types";
 import { dashboardApi } from "../api";
 
@@ -12,6 +12,14 @@ export function usePeriodState(): PeriodStateResult {
   const [defaults, setDefaults] = useState<DefaultSettings | null>(null);
   const [lastCreateResponse, setLastCreateResponse] = useState<CreatePeriodResponse | null>(null);
   const { call: toastCall } = useApiToast();
+  // The prompt works without saved defaults, but a failed load used to look
+  // identical to having none. useApiToast owns the report and the message;
+  // retry is off because the toast's Retry discards its result.
+  const { call: defaultsCall } = useApiToast<DefaultsResponse>({
+    retriable: false,
+    op: "budget.defaults",
+    domain: "budgets",
+  });
 
   const createMutation = useFormMutation<CreatePeriodResponse>({
     onSuccess: (response) => {
@@ -47,19 +55,17 @@ export function usePeriodState(): PeriodStateResult {
         error instanceof ApiRequestError &&
         error.code === "PERIOD_NOT_FOUND"
       ) {
-        try {
-          const defaultsResponse = await dashboardApi.getDefaults();
-          setDefaults(defaultsResponse.defaults);
-        } catch {
-          setDefaults(null);
-        }
+        const defaultsResponse = await defaultsCall(() =>
+          dashboardApi.getDefaults(),
+        );
+        setDefaults(defaultsResponse?.defaults ?? null);
         setStatus("no-period");
         return;
       }
       await toastCall(() => Promise.reject(error));
       setStatus("error");
     }
-  }, [currentYear, currentMonth, toastCall]);
+  }, [currentYear, currentMonth, toastCall, defaultsCall]);
 
   useEffect(() => {
     fetchPeriod();

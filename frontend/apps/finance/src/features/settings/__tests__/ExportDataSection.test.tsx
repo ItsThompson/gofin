@@ -527,6 +527,61 @@ describe("ExportDataSection", () => {
   });
 
   describe("error handling", () => {
+    it("surfaces the failure once polling gives up", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+
+      const pendingJob = buildExportJob({
+        status: "pending",
+        completedAt: null,
+        fileSizeBytes: null,
+      });
+
+      const listResponse = () =>
+        new Response(
+          JSON.stringify({
+            data: [pendingJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(listResponse())
+        .mockRejectedValue(new TypeError("Failed to fetch"));
+      global.fetch = fetchMock;
+
+      render(<ExportDataSection />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1);
+      });
+
+      // Three consecutive failed polls exhaust the failure budget.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15000);
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Lost contact with the server while tracking your export. Refresh to see the latest status.",
+          ),
+        ).toBeInTheDocument();
+      });
+
+      // Polling stopped: no further requests.
+      const callsAfterGivingUp = fetchMock.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20000);
+      });
+      expect(fetchMock.mock.calls.length).toBe(callsAfterGivingUp);
+
+      vi.useRealTimers();
+    });
+
     it("resolves loading when initial fetch throws non-ApiRequestError", async () => {
       // Simulates a raw network failure (not an HTTP error response)
       global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));

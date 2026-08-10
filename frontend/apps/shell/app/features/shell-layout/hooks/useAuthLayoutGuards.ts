@@ -1,6 +1,7 @@
 import { useLocation, useMatches, type UIMatch } from "react-router";
 import { canUseFinanceFeatures, getLandingPath, type User } from "@gofin/core";
 import { canAccess, type RouteAccess } from "@/lib/route-access";
+import type { AuthCheckError } from "@/stores/auth-store";
 import type { AuthLayoutGuard } from "../types";
 
 /** The route users complete before reaching their finance surface. */
@@ -12,6 +13,7 @@ interface AuthLayoutState {
   isAuthenticated: boolean;
   isAssuming: boolean;
   isLoading: boolean;
+  authError: AuthCheckError | null;
 }
 
 type AccessHandle = { access?: RouteAccess };
@@ -32,7 +34,11 @@ function deepestAccess(matches: UIMatch[]): RouteAccess {
  * useAuthLayoutGuards derives the layout's behavior from auth state and the
  * matched route's `handle.access`.
  *
- * Precedence: loading -> unauthenticated -> access (403) -> onboarding. The
+ * Precedence: loading -> unreachable backend -> unauthenticated -> access (403)
+ * -> onboarding. The unreachable branch precedes the /login redirect because an
+ * unfinished auth check leaves the session state unknown, and redirecting on an
+ * unknown tells the user their session ended when nothing established that. A
+ * session already known to the store survives the outage and keeps working. The
  * access check runs before onboarding, so a direct admin on a personal route
  * (including /onboarding) is forbidden rather than redirected. Onboarding is
  * role-driven: only finance-capable users are ever routed through it, so
@@ -43,6 +49,7 @@ export function useAuthLayoutGuards({
   isAuthenticated,
   isAssuming,
   isLoading,
+  authError,
 }: AuthLayoutState): AuthLayoutGuard {
   const matches = useMatches();
   const access = deepestAccess(matches);
@@ -56,6 +63,9 @@ export function useAuthLayoutGuards({
     return { status: "loading" };
   }
   if (!isAuthenticated || !user) {
+    if (authError === "unavailable") {
+      return { status: "unavailable" };
+    }
     return { status: "redirect", to: "/login" };
   }
   if (!canAccess(user, isAssuming, access)) {

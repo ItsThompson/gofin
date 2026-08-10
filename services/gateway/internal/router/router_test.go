@@ -16,6 +16,7 @@ import (
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 	"github.com/ItsThompson/gofin/services/gateway/internal/router"
+	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
 func newSilentLogger() *slog.Logger {
@@ -366,6 +367,53 @@ func TestRouter_ReadyzEndpoint_DownstreamUnhealthy_Returns503NamingService(t *te
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	assert.Contains(t, string(body), `"status":"unhealthy"`)
 	assert.Contains(t, string(body), "expense", "the 503 body must name the unhealthy service")
+}
+
+// panickingValidator models the realistic gateway panic source: token
+// validation is the one injected collaborator on the path of every non-public
+// request, and it reaches the auth service over gRPC.
+type panickingValidator struct{}
+
+func (panickingValidator) ValidateToken(context.Context, string) (*access.TokenValidationResult, error) {
+	panic("validator exploded")
+}
+
+// TestRouter_RecoversPanicsIntoTheLogStream pins the replacement of
+// gin.Recovery(), which wrote the panic as plaintext to gin.DefaultErrorWriter,
+// and the recovery's position outside RequestLogger and the metrics middleware:
+// neither runs its post-c.Next() body during unwinding, so one panic yields one
+// record.
+func TestRouter_RecoversPanicsIntoTheLogStream(t *testing.T) {
+	logger, logs := serverkittest.NewLogger()
+
+	u, _ := url.Parse("http://127.0.0.1:1")
+	engine := router.New(panickingValidator{}, &router.ServiceURLs{
+		AuthREST:       u,
+		ExpenseREST:    u,
+		FinanceREST:    u,
+		DatarightsREST: u,
+	}, sharedaccess.Prefixes(), logger, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
+	req.AddCookie(validCookie())
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.JSONEq(t,
+		`{"code":"INTERNAL_SERVER_ERROR","message":"An unexpected error occurred"}`,
+		rec.Body.String(),
+	)
+
+	records, err := logs.ErrorRecords()
+	require.NoError(t, err)
+	require.Len(t, records, 1, "exactly one error record: RequestLogger sits inside the recovery and never runs")
+	assert.Equal(t, "recovered panic in HTTP handler", records[0]["msg"])
+	assert.Equal(t, http.MethodGet, records[0]["method"])
+	assert.Equal(t, "/api/finance/periods", records[0]["path"])
+	// The panicking frame, not debug.Stack's own first frame: a stack holding only
+	// recovery machinery is useless and must fail here.
+	assert.Contains(t, records[0]["stack"], "panickingValidator")
 }
 
 // TestRouter_New_PanicsOnPrefixWithNoProxy pins the data-driven wiring's

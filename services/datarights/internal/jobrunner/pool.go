@@ -15,10 +15,18 @@ import (
 	"log/slog"
 	"sync/atomic"
 	"time"
+
+	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
 // runningStatus is the status a job is transitioned to before its work runs.
 const runningStatus = "running"
+
+// panicFailureReason is the reason persisted when a job's strategy panics. The
+// panic value can carry whatever the strategy was holding, so it never reaches
+// the persisted string, which datarights shows to the user; the log record holds
+// the real cause.
+const panicFailureReason = "Job failed unexpectedly"
 
 // StatusStore persists a job's lifecycle transitions. The deletion job repo
 // satisfies it directly; the export engine adapts its repo behind this seam so
@@ -75,6 +83,33 @@ func (p *Pool) run(jobID, userID string) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
+
+	// Declared after the slot release and the cancel above so LIFO ordering runs
+	// it first, while the slot and the context are both still held. Without it a
+	// panic in execute reaches the top of this goroutine and takes the process
+	// with it, leaving the job in running forever.
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
+		}
+
+		serverkit.LogRecoveredPanic(ctx, p.log, "export_job",
+			"recovered panic in job execution", recovered,
+			slog.String("job_id", jobID),
+			slog.String("user_id", userID),
+		)
+
+		// A fresh background context, matching the error branch below: the job
+		// context may already have expired.
+		if failErr := p.store.FailJob(context.Background(), jobID, panicFailureReason); failErr != nil {
+			p.log.Error("failed to mark panicking job failed",
+				slog.String("job_id", jobID),
+				slog.String("user_id", userID),
+				slog.String("error", failErr.Error()),
+			)
+		}
+	}()
 
 	if err := p.store.UpdateStatus(ctx, jobID, runningStatus); err != nil {
 		p.log.Error("failed to mark job running",

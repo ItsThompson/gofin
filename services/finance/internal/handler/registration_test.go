@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -18,10 +16,9 @@ import (
 // pointing at the Registry.
 func TestRegisterRoutes_MatchesRegistry(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 
 	engine := gin.New()
-	NewRESTHandler(nil, logger).RegisterRoutes(engine)
+	NewRESTHandler(nil).RegisterRoutes(engine)
 
 	registered := make([]access.RegisteredRoute, 0)
 	for _, r := range engine.Routes() {

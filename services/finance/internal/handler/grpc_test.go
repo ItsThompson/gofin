@@ -23,7 +23,7 @@ import (
 func setupGRPCHandler(repo *mockFinanceRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, new(mockTxBeginner), nil, time.Now, logger)
-	return NewGRPCHandler(financeSvc, logger)
+	return NewGRPCHandler(financeSvc)
 }
 
 // TestGetDefaults_WrappedTypedErrorClassifies verifies that a typed *apierr.Error
@@ -160,7 +160,7 @@ func TestDeleteAllUserData_Success(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
-	handler := NewGRPCHandler(financeSvc, logger)
+	handler := NewGRPCHandler(financeSvc)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)
@@ -184,7 +184,7 @@ func TestDeleteAllUserData_Idempotent(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
-	handler := NewGRPCHandler(financeSvc, logger)
+	handler := NewGRPCHandler(financeSvc)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)
@@ -221,7 +221,7 @@ func TestDeleteAllUserData_DatabaseError(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
-	handler := NewGRPCHandler(financeSvc, logger)
+	handler := NewGRPCHandler(financeSvc)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
 	tx.On("Rollback", mock.Anything).Return(nil)
@@ -247,7 +247,7 @@ func TestDeleteAllUserData_TransactionBeginError(t *testing.T) {
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
-	handler := NewGRPCHandler(financeSvc, logger)
+	handler := NewGRPCHandler(financeSvc)
 
 	txBeginner.On("BeginTx", mock.Anything).Return(nil, fmt.Errorf("pool exhausted"))
 

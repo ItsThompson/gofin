@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { isNetworkError, reportError } from "@gofin/api";
 import { toast } from "sonner";
 import { useDeletionPolling } from "./useDeletionPolling";
 import type { DeletionJobResponse, DeletionStateMap, DeletionStatus } from "../components/DeleteUserDialog/types";
@@ -71,12 +72,44 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
     toast.error(`Deletion of "${username}" failed: ${error}`);
   }, [activePolling]);
 
+  const handleStatusUnavailable = useCallback(
+    (error: unknown) => {
+      // The guard comes first so the report and the toast share one precondition:
+      // reporting without it would file an event for a poll whose UI is already
+      // gone, which is the report-then-swallow shape.
+      if (!activePolling) return;
+      const { jobId, username } = activePolling;
+      // Reported from the caller, once per polling session. The transport itself
+      // stays silent: one report per tick against a dead endpoint would be
+      // thousands of events from one outage.
+      //
+      // Deliberately not classified by status: a give-up is an outage-grade
+      // signal even when the last response was a 4xx, which classifyApiFailure
+      // would mark expected and drop.
+      reportError(error, {
+        kind: isNetworkError(error) ? "network" : "upstream",
+        level: "error",
+        op: "datarights.deletion_status",
+        domain: "datarights",
+        data: { jobId },
+      });
+      setActivePolling(null);
+      // The last known status stays on the row: the deletion may still be running,
+      // we just stopped being able to read it.
+      toast.error(
+        `Lost contact with the server while deleting "${username}". Refresh to check whether it finished.`,
+      );
+    },
+    [activePolling],
+  );
+
   useDeletionPolling({
     jobId: activePolling?.jobId ?? "",
     enabled: activePolling !== null,
     onStatusChange: handleStatusChange,
     onCompleted: handlePollingCompleted,
     onFailed: handlePollingFailed,
+    onStatusUnavailable: handleStatusUnavailable,
   });
 
   const startDeletion = useCallback((user: { id: string; username: string }) => {

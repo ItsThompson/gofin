@@ -19,7 +19,7 @@ func setupTestRouter(repo *mockFinanceRepository, txBeginner *mockTxBeginner) *g
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, nil, time.Now, logger)
 
-	h := NewRESTHandler(financeSvc, logger)
+	h := NewRESTHandler(financeSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
 	return r
@@ -31,7 +31,7 @@ func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *m
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, expClient, time.Now, logger)
 
-	h := NewRESTHandler(financeSvc, logger)
+	h := NewRESTHandler(financeSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
 	return r
@@ -43,7 +43,7 @@ func setupTestRouterWithNowFunc(repo *mockFinanceRepository, txBeginner *mockTxB
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	financeSvc := service.NewFinanceService(repo, txBeginner, expClient, nowFunc, logger)
 
-	h := NewRESTHandler(financeSvc, logger)
+	h := NewRESTHandler(financeSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
 	return r

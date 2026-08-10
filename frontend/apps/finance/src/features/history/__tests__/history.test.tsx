@@ -187,6 +187,60 @@ describe("HistoryFeature", () => {
     expect(screen.queryByLabelText("Budget Settings")).not.toBeInTheDocument();
   });
 
+  it("renders the failed period as unavailable while surviving periods keep their values", async () => {
+    mockPeriodsResponse();
+    mockFetch.mockRejectedValueOnce(new Error("Network error")); // March
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(280000)); // Feb
+
+    renderHistory();
+
+    await waitFor(() => {
+      expect(screen.getByText("March 2026")).toBeInTheDocument();
+    });
+
+    // March failed: no fabricated figures anywhere in the list.
+    expect(screen.getByText("Spent: unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Could not load this month")).toBeInTheDocument();
+    expect(screen.queryByText("Spent: $0.00")).not.toBeInTheDocument();
+    expect(screen.queryByText("Surplus: $3,000.00")).not.toBeInTheDocument();
+
+    // February survived and still shows its real values.
+    expect(screen.getByText("Spent: $2,800.00")).toBeInTheDocument();
+    expect(screen.getByText("Deficit: $300.00")).toBeInTheDocument();
+  });
+
+  it("renders every row as unavailable when all summaries fail", async () => {
+    mockPeriodsResponse();
+    mockFetch.mockRejectedValue(new Error("Network error"));
+
+    renderHistory();
+
+    await waitFor(() => {
+      expect(screen.getByText("Budget History")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("March 2026")).toBeInTheDocument();
+    expect(screen.getByText("February 2026")).toBeInTheDocument();
+    expect(screen.getAllByText("Spent: unavailable")).toHaveLength(2);
+    expect(screen.queryByText(/^Spent: \$/)).not.toBeInTheDocument();
+  });
+
+  it("renders a genuine zero spend as a loaded value, not as unavailable", async () => {
+    mockPeriodsResponse();
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(0)); // March: nothing spent
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(280000)); // Feb
+
+    renderHistory();
+
+    await waitFor(() => {
+      expect(screen.getByText("March 2026")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Spent: $0.00")).toBeInTheDocument();
+    expect(screen.getByText("Surplus: $3,000.00")).toBeInTheDocument();
+    expect(screen.queryByText("Spent: unavailable")).not.toBeInTheDocument();
+  });
+
   it("shows empty state when periods fetch fails (toast handles error)", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,

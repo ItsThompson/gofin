@@ -48,6 +48,15 @@ func run() error {
 	logger := serverkit.NewLogger(cfg.LogLevel, "gateway")
 	slog.SetDefault(logger)
 
+	// Error reporting is not a hard dependency: a rejected DSN must not put the
+	// service into a restart loop, so the failure is recorded and the service runs
+	// on. An absent DSN disables reporting and is not an error at all.
+	if err := serverkit.InitSentry(serverkit.SentryConfigFromEnv("gateway")); err != nil {
+		logger.Error("sentry initialization failed, error reporting is disabled",
+			slog.String("error", err.Error()),
+		)
+	}
+
 	// Establish gRPC connection to the auth service for token validation.
 	grpcConn, err := grpc.NewClient(
 		cfg.AuthServiceAddr,

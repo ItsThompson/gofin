@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 
-// Mock the finance remote module to avoid Module Federation dependency in tests
+// Mock the finance feature module so this test does not pull in its real tree
 vi.mock("@gofin/finance/src/features/history", () => ({
   HistoryFeature: ({ user }: { user: { username: string } }) => (
     <div data-testid="history-feature">Budget History for {user.username}</div>
@@ -21,6 +21,7 @@ function resetStore(overrides: Record<string, unknown> = {}) {
     isAssuming: false,
     originalAdminUser: null,
     isLoading: false,
+    authError: null,
     ...overrides,
   });
 }

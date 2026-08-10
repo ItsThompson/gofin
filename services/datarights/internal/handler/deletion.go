@@ -48,7 +48,7 @@ func (h *DeletionHandler) CreateDeletion(c *gin.Context) {
 
 	result, err := h.deletionService.CreateJob(c.Request.Context(), req.UserID, adminUserID, req.Password)
 	if err != nil {
-		respondError(c, h.logger, err)
+		respondError(c, err)
 		return
 	}
 
@@ -85,7 +85,7 @@ func (h *DeletionHandler) GetDeletion(c *gin.Context) {
 
 	job, err := h.deletionService.GetJob(c.Request.Context(), jobID)
 	if err != nil {
-		respondError(c, h.logger, err)
+		respondError(c, err)
 		return
 	}
 

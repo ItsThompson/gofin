@@ -43,6 +43,15 @@ func run() error {
 	logger := serverkit.NewLogger(cfg.LogLevel, "expense")
 	slog.SetDefault(logger)
 
+	// Error reporting is not a hard dependency: a rejected DSN must not put the
+	// service into a restart loop, so the failure is recorded and the service runs
+	// on. An absent DSN disables reporting and is not an error at all.
+	if err := serverkit.InitSentry(serverkit.SentryConfigFromEnv("expense")); err != nil {
+		logger.Error("sentry initialization failed, error reporting is disabled",
+			slog.String("error", err.Error()),
+		)
+	}
+
 	// Connect to immudb. expense is immudb-backed (not Postgres), so it does not
 	// use serverkit.ConnectPostgres.
 	immudbClient, err := connectImmudb(ctx, cfg, logger)
@@ -63,7 +72,7 @@ func run() error {
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()
-	grpcHandler := handler.NewGRPCHandler(expenseSvc, logger)
+	grpcHandler := handler.NewGRPCHandler(expenseSvc)
 	pb.RegisterExpenseServiceServer(grpcServer, grpcHandler)
 
 	grpcLis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
@@ -72,7 +81,7 @@ func run() error {
 	}
 
 	router := serverkit.NewRouter("expense", cfg.IsProduction())
-	restHandler := handler.NewRESTHandler(expenseSvc, logger)
+	restHandler := handler.NewRESTHandler(expenseSvc)
 	restHandler.RegisterRoutes(router)
 
 	httpServer := &http.Server{

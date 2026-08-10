@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 
+/** Consecutive transport failures tolerated before polling gives up. */
+export const DEFAULT_MAX_CONSECUTIVE_FAILURES = 3;
+
 export interface UsePollingOptions<T> {
   /** Async function that fetches the data on each tick. */
   fetcher: () => Promise<T>;
@@ -18,10 +21,17 @@ export interface UsePollingOptions<T> {
    */
   shouldStop?: (data: T) => boolean;
   /**
-   * Called when the fetcher throws. Defaults to silently continuing
-   * on the next tick (appropriate for transient network failures).
+   * Consecutive fetcher failures tolerated before polling stops.
+   * Defaults to DEFAULT_MAX_CONSECUTIVE_FAILURES. A single success resets the
+   * count, so transient failures do not consume the budget.
    */
-  onError?: (error: unknown) => void;
+  maxConsecutiveFailures?: number;
+  /**
+   * Called once, with the last error, when polling stops because the failure
+   * budget ran out. Callers own telling the user, because a poll that has given
+   * up leaves whatever it was tracking in an unknown state.
+   */
+  onFailureLimitReached?: (error: unknown) => void;
 }
 
 /**
@@ -30,9 +40,13 @@ export interface UsePollingOptions<T> {
  * Handles:
  * - Start/stop via the `enabled` flag
  * - Auto-stop when `shouldStop` returns true
+ * - Auto-stop after `maxConsecutiveFailures` consecutive fetcher failures
  * - Cleanup on unmount (no memory leaks)
  * - Stable callback references via ref (no stale closures)
- * - Silent error handling by default
+ *
+ * Individual failures are deliberately not surfaced: a 2.5-second interval
+ * against a failing endpoint would emit a signal per tick for as long as the tab
+ * stays open. Only the terminal failure reaches the caller.
  */
 export function usePolling<T>({
   fetcher,
@@ -40,39 +54,58 @@ export function usePolling<T>({
   intervalMs,
   onData,
   shouldStop,
-  onError,
+  maxConsecutiveFailures = DEFAULT_MAX_CONSECUTIVE_FAILURES,
+  onFailureLimitReached,
 }: UsePollingOptions<T>): void {
-  const callbacksRef = useRef({ fetcher, onData, shouldStop, onError });
-  callbacksRef.current = { fetcher, onData, shouldStop, onError };
+  const callbacksRef = useRef({
+    fetcher,
+    onData,
+    shouldStop,
+    onFailureLimitReached,
+  });
+  callbacksRef.current = { fetcher, onData, shouldStop, onFailureLimitReached };
 
   useEffect(() => {
     if (!enabled) return;
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let consecutiveFailures = 0;
+
+    const stop = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
 
     const poll = async () => {
       try {
         const data = await callbacksRef.current.fetcher();
+        // setInterval does not wait for the previous tick, so several requests
+        // can be in flight at once. A tick that outlived the stop delivers
+        // nothing: its data is stale and its error is already accounted for.
+        if (intervalId === null) return;
+
+        consecutiveFailures = 0;
 
         callbacksRef.current.onData(data);
 
         if (callbacksRef.current.shouldStop?.(data)) {
-          if (intervalId !== null) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
+          stop();
         }
       } catch (error) {
-        callbacksRef.current.onError?.(error);
+        if (intervalId === null) return;
+
+        consecutiveFailures += 1;
+        if (consecutiveFailures < maxConsecutiveFailures) return;
+
+        stop();
+        callbacksRef.current.onFailureLimitReached?.(error);
       }
     };
 
     intervalId = setInterval(poll, intervalMs);
 
-    return () => {
-      if (intervalId !== null) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [enabled, intervalMs]);
+    return stop;
+  }, [enabled, intervalMs, maxConsecutiveFailures]);
 }

@@ -1,4 +1,4 @@
-/** Route definitions for the admin remote. Consumed by the shell host. */
+/** Route definitions for the admin package. Consumed by the shell. */
 export const adminRoutes = {
   admin: {
     path: "/admin",

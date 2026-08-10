@@ -1,13 +1,19 @@
 import { useState, useCallback, useRef } from "react";
 import { ApiRequestError } from "../client";
+import { classifyApiFailure, NETWORK_FAILURE } from "../errors/classify";
+import { reportError } from "../errors/report";
 import { isNetworkError, NETWORK_ERROR_MESSAGE } from "./useApiToast";
 
 /** Options for configuring the mutation hook. */
 export interface UseFormMutationOptions<T> {
   /** Called with the result after a successful mutation. */
   onSuccess?: (result: T) => void;
-  /** Called with the error message after a failed mutation. */
-  onError?: (error: string) => void;
+  /** Called with the user-facing message and the original error. */
+  onError?: (message: string, cause: unknown) => void;
+  /** Logical operation for the report, e.g. "expense.create". */
+  op?: string;
+  /** Business area for the report, e.g. "expenses". */
+  domain?: string;
 }
 
 /** Return type of useFormMutation. */
@@ -71,20 +77,39 @@ export function useFormMutation<T>(
         optionsRef.current?.onSuccess?.(result);
       })
       .catch((err: unknown) => {
+        const network = isNetworkError(err);
         let message: string;
 
         if (err instanceof ApiRequestError) {
           message = err.message;
-        } else if (isNetworkError(err)) {
+        } else if (network) {
           message = NETWORK_ERROR_MESSAGE;
         } else {
           message = "An unexpected error occurred. Please try again.";
         }
 
+        const options = optionsRef.current;
+
+        reportError(err, {
+          ...(network ? NETWORK_FAILURE : classifyApiFailure(err)),
+          op: options?.op,
+          domain: options?.domain,
+          tags:
+            err instanceof ApiRequestError
+              ? { http_status: err.status }
+              : undefined,
+          // Field names only. The values are what the user typed, which here can
+          // be a monetary amount or a merchant name.
+          data:
+            err instanceof ApiRequestError
+              ? { fields: Object.keys(err.fields ?? {}) }
+              : undefined,
+        });
+
         setError(message);
         submittingRef.current = false;
         setSubmitting(false);
-        optionsRef.current?.onError?.(message);
+        options?.onError?.(message, err);
       });
   }, []);
 

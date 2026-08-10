@@ -22,7 +22,7 @@ import (
 func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
-	return NewGRPCHandler(expenseSvc, logger)
+	return NewGRPCHandler(expenseSvc)
 }
 
 // TestGRPC_RemovedReadRPCsAreNotRegistered asserts GetCorrectionHistory and

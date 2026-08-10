@@ -1,22 +1,18 @@
 package handler
 
 import (
-	"errors"
-	"log/slog"
-
 	"github.com/gin-gonic/gin"
 
-	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/errkit"
+	"github.com/ItsThompson/gofin/services/httpx"
 )
 
-// respondError maps a service error to an HTTP response via apierr.Respond.
-// apierr.Respond classifies an *apierr.Error to its status/code and everything
-// else to a 500; because it takes no logger, this helper logs unclassified
-// errors first so unexpected 500s stay observable.
-func respondError(c *gin.Context, logger *slog.Logger, err error) {
-	var apiErr *apierr.Error
-	if !errors.As(err, &apiErr) {
-		logger.Error("unexpected error", slog.String("error", err.Error()))
-	}
-	apierr.Respond(c, err)
+// respondError reports an unclassified failure and writes the shared error
+// response. The operation comes from the route, so only the domain is per service.
+// The report writes the log record, so no caller passes a logger.
+func respondError(c *gin.Context, err error) {
+	httpx.RespondError(c, err, errkit.Meta{
+		Domain: "datarights",
+		Msg:    "unexpected error",
+	})
 }

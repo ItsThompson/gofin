@@ -12,6 +12,8 @@ export interface NavLinkItem {
  * Outcome of the auth-layout guard, derived from auth state and the matched
  * route's `handle.access`. The orchestrator renders each status:
  * - `loading`: initial auth check in flight,
+ * - `unavailable`: the auth check could not complete, so the session state is
+ *   unknown and a redirect to /login would misreport an outage as a logout,
  * - `redirect`: navigate elsewhere (unauthenticated -> /login, onboarding flow),
  * - `forbidden`: render the 403 page inside the layout chrome,
  * - `onboarding`: render the onboarding outlet without chrome,
@@ -19,10 +21,16 @@ export interface NavLinkItem {
  */
 export type AuthLayoutGuard =
   | { status: "loading" }
+  | { status: "unavailable" }
   | { status: "redirect"; to: string }
   | { status: "forbidden" }
   | { status: "onboarding" }
   | { status: "ready" };
+
+export interface BackendUnavailableProps {
+  /** Re-run the auth check. Awaited, so the button can show it is working. */
+  onRetry: () => Promise<void>;
+}
 
 export interface NavbarProps {
   user: User;

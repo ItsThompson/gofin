@@ -5,9 +5,9 @@ import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 import { accessHandle } from "@/lib/route-access";
 
 /**
- * Lazy-load the DashboardFeature from the finance remote package.
- * The finance remote exports this via Module Federation: the shell
- * loads it as a workspace package import at build time.
+ * Lazy-load the DashboardFeature from the finance package. The shell
+ * imports it from source, so it becomes a code-split chunk of the shell's
+ * own bundle rather than a separately loaded artifact.
  */
 const DashboardFeature = lazy(() =>
   import("@gofin/finance/src/features/dashboard/index").then((mod) => ({
