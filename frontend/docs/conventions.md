@@ -167,13 +167,4 @@ and mock only the `api.ts` object at the boundary.
 
 ## Coverage Thresholds
 
-Coverage ratchets are configured per package in `vitest.config.ts`. Thresholds
-are set at the measured floor: they only increase after real coverage gains, not
-aspirationally. Current minimums:
-
-| Package | Statements | Branches | Functions | Lines |
-|---|---|---|---|---|
-| `apps/finance` | 90% | 85% | 87% | 90% |
-| `apps/shell` | 90% | 85% | 89% | 90% |
-| `packages/core` | 95% | 90% | 95% | 95% |
-| `packages/api` | 90% | 85% | 90% | 90% |
+Coverage ratchets are configured per package in each package's `vitest.config.ts`, which is the canonical source for the current minimums. Thresholds are set at the measured floor: raise one only after a real coverage gain, never aspirationally.

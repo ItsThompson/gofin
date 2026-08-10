@@ -137,7 +137,7 @@ Error codes:
 
 ### Finance (`/api/finance/*`)
 
-Budget period lifecycle (get current, create, update, list history), default settings management, onboarding setup, tag CRUD, pro-rata expense creation and scheduling, and dashboard aggregation endpoints (period summary, spending by tag, cumulative spend, historical comparison, a monthly financial health score, and its multi-month trend). The health score is v2: savings, budget adherence, allocation balance, and a spending-stability sub-score that needs three or more closed months of history (below that the card shows "building baseline"). Closed months are persisted and recomputed on a formula-version change; the current month is computed live and marked provisional. A configure-budget prompt is returned when no budget is set.
+Budget period lifecycle (get current, create, update, list history), default settings management, onboarding setup, tag CRUD, pro-rata expense creation and scheduling, and dashboard aggregation endpoints (period summary, spending by tag, cumulative spend, historical comparison, a monthly financial health score, and its multi-month trend). The health score combines four sub-scores: savings achievement, budget adherence, allocation balance, and spending stability. Spending stability needs three or more closed months of history (below that the card shows "building baseline"). Closed months are persisted with the formula version that produced them and are recomputed when that version changes; the current month is computed live and marked provisional. A configure-budget prompt is returned when no budget is set.
 
 ### Datarights (`/api/datarights/*`)
 
