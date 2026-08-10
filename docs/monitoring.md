@@ -15,7 +15,8 @@ Prometheus scrapes `/metrics` endpoints from all Go services on the monitoring n
 Each Go service exposes standard HTTP/gRPC metrics and service-specific counters via `/metrics`. The general categories:
 
 - **HTTP request metrics**: total count, latency histograms (by method, path, status)
-- **gRPC request metrics**: total count, latency histograms (by method, status)
+- **gRPC request metrics**: total count, latency histograms (by method, status), for unary and server-streaming methods alike
+- **Recovered panics**: total count by recovery site
 - **Business metrics**: expense creation counts, correction counts, token refresh counts, export job lifecycle
 
 Exact metric names and labels are defined in the `services/metrics/` package (shared) and `services/datarights/internal/metrics/` (datarights-specific).
@@ -38,30 +39,44 @@ Custom business metrics for data export monitoring:
 
 #### Known gaps
 
-Three gaps exist. The first two are deliberate. The third is not.
+One gap remains, and it is the last bullet. The first two bullets were gaps and
+are now closed; both are kept here, because what closed them is what a triage
+query relies on.
 
-- **Server-streaming RPCs are unmeasured.** `services/metrics` provides a unary
-  gRPC interceptor only, so `StreamAllUserExpenses` (the one streaming RPC,
-  consumed by datarights to build a user data export) contributes nothing to
-  `grpc_requests_total` or `grpc_request_duration_seconds`. The stream
-  interceptor chain carries panic recovery alone.
-- **A recovered panic is counted nowhere.** Recovery sits outside the metrics
-  interceptor and the metrics middleware, both of which record after the handler
-  returns, so a panic unwinds past them before they observe anything. Recovery
-  is outside on purpose: a panic raised in the metrics layer itself has to be
-  caught too. Panics are queryable in the log stream instead (see Structured
-  Logging).
+- **Server-streaming RPCs are measured.** `services/metrics` provides a stream
+  server interceptor beside the unary one, and `serverkit.NewGRPCServer` installs
+  it inside the recovery stream interceptor, matching the unary chain. So
+  `StreamAllUserExpenses` (the one streaming RPC, consumed by datarights to build
+  a user data export) records `grpc_requests_total` and
+  `grpc_request_duration_seconds` like every unary method. One consequence worth
+  knowing: a server interceptor can only time the whole stream, so the duration is
+  the stream's lifetime from first message to terminal status, not per-message
+  latency. `job_method:grpc_request_duration_seconds:p95` is per method, so an
+  export that runs for a minute does not move any other method's p95.
+- **A recovered panic is counted.** `recovered_panics_total{site}` is incremented
+  in `serverkit.LogRecoveredPanic`, which is the sole recovery reporter for every
+  recovery site in the tree: both gRPC interceptors, the HTTP middleware, the
+  datarights job runner and its provider fan-out, the expense stream's page
+  producer, the finance fan-outs, the auth cleanup run, and the gateway readiness
+  probe. Counting there rather than in an interceptor is what makes the coverage
+  complete; an interceptor would see the two request-scoped gRPC paths only.
+  `site` carries the same values as the Sentry group keys without their `panic.`
+  prefix, so its cardinality is fixed at compile time. There is no `service`
+  label, because Prometheus adds `job` from the scrape config.
 
-  For unary gRPC this changes which alert fires. A panic used to kill the
-  process, so `up` went to 0 and `ServiceDown` paged within a minute. The
-  process now survives, `grpc_requests_total` records nothing, and
-  `HighErrorRate` reads `http_requests_total` only: a service panicking on
-  every unary call therefore fires **no Prometheus alert at all**. The signal
-  lives in the log record and in Sentry, where every recovered panic becomes an
-  issue under a `panic.` group key. A live process is still the right trade, but
-  treat "counted nowhere" as "not paged by Prometheus".
-  HTTP has no such change: `gin.Recovery()` was already outermost, so
-  `HTTPMetrics` never saw a panicking request before this either.
+  A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) does
+  not increment it. Recovery classifies that case and returns before reporting, so
+  the counter holds defects only, which is what lets `RecoveredPanic` page on a
+  single increment (see Alerting Rules). That restores the paging a panic used to
+  get from `ServiceDown` when it killed the process.
+
+  The request metrics still see nothing. Recovery is outside the metrics
+  interceptor and the metrics middleware on purpose, because a panic raised in the
+  metrics layer itself has to be caught too, and both record after the handler
+  returns. A panicking call therefore leaves no `grpc_requests_total` or
+  `http_requests_total` observation, and `HighErrorRate` cannot see it:
+  `recovered_panics_total` is the signal that pages, and the panic value and its
+  stack are in the log record and in Sentry (see Structured Logging).
 - **Database query and connection-pool metrics do not exist.** No service
   exports `db_query_duration_seconds` or `active_connections`, and a test in
   `services/metrics` asserts that `active_connections` is never exported. Every
@@ -81,6 +96,7 @@ Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 
 - **High error rate**: per-job 5xx ratio above a threshold, gated by a minimum per-job request rate
 - **Service down**: no metrics received from a scrape target
+- **Recovered panic**: any panic recovered by a Go service, by recovery site
 - **Slow queries**: p95 query duration exceeding a threshold
 - **Auth failures spike**: unusual volume of failed login attempts
 - **Export job failure rate**: more than 50% of export jobs failed in the last hour
@@ -107,6 +123,19 @@ Consequences worth knowing during triage:
 - `mfe` exposes no `http_requests_total`, so it is absent from this alert.
 - Alerts that keep a `job` label from their exporter, such as `ContainerHighMemory` and `HostDiskAlmostFull`, now show that exporter in the Discord title: `· cadvisor` and `· node-exporter`. The failing container or mountpoint is named in the message body. Accepted cost of putting the job in the title, which is what names the service for `HighErrorRate`.
 
+### RecoveredPanic
+
+`RecoveredPanic` fires when `sum by (job, site) (increase(recovered_panics_total[5m]))` exceeds 0, at `critical`, with no `for` delay.
+
+| Setting | Value | Meaning |
+|---------|-------|---------|
+| Threshold | `> 0` | Any recovered panic in the window. Every increment is a defect: an aborted client connection is classified before the counter is touched, so there is nothing benign to tolerate |
+| `for` duration | `0s` | Pages on the first evaluation after the panic. There is no flap source to debounce |
+| Window | `5m` | The rule reads the increase, not the counter, so a panic stops paging about five minutes after the last one. A service that panicked last week does not page forever |
+| Grouping | `job`, `site` | `site` names where the panic was recovered, so the Discord message says which path failed. `instance` is summed away |
+
+During triage: the counter says a panic happened and where, and nothing else. Read the service's log stream for the `panic` and `stack` attributes of that record, or open the Sentry issue under the matching `panic.` group key. Two sites failing in one service produce one Discord message with two lines, because Alertmanager groups by `alertname` and `job`.
+
 ### Testing Alert Rules
 
 `monitoring/prometheus/tests/` holds `promtool` unit tests for the alert rules. They evaluate the rule files against synthetic series, with no Prometheus instance and no scraped data. Run both commands from the repository root:
@@ -118,7 +147,8 @@ docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus \
 
 # Rule behavior: firing cases, non-firing cases, rendered annotations
 docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus/tests \
-  --entrypoint promtool prom/prometheus:v3.11.3 test rules high_error_rate_test.yml
+  --entrypoint promtool prom/prometheus:v3.11.3 test rules \
+  high_error_rate_test.yml recovered_panic_test.yml
 ```
 
 `promtool` ships inside the `prom/prometheus` image, so no local install is needed. Use the image tag that `docker-compose.yml` pins for Prometheus, so the tests run on the same evaluation engine as production. `just test-monitoring` runs both commands.
@@ -194,8 +224,9 @@ taxonomy returns panics alongside every other reported error. `operation` is the
 panic site, matching the Sentry group key.
 
 A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) is not
-a service defect and is recorded at warn level with no stack. It is not
-reported: nothing is wrong with the service.
+a service defect and is recorded at warn level with no stack. It is neither
+reported nor counted: nothing is wrong with the service, and `RecoveredPanic`
+pages on a single increment of `recovered_panics_total`.
 
 ### Bounded reports
 
