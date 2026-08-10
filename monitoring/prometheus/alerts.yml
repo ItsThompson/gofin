@@ -45,6 +45,20 @@ groups:
         annotations:
           summary: "> 10 failed logins in 1 minute"
 
+      # Recovery keeps the process alive, so `up` stays 1 and the request counters
+      # never see the call: this counter is the only Prometheus signal a panic
+      # leaves. Any increment is a defect, because a dead client connection is
+      # classified before the shared reporter counts anything, so the rule fires on
+      # one panic with no `for` delay. Summed by job and site to drop `instance`.
+      - alert: RecoveredPanic
+        expr: sum by (job, site) (increase(recovered_panics_total[5m])) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} recovered a panic at {{ $labels.site }}"
+          description: "A panic was recovered at {{ $labels.site }} in {{ $labels.job }} within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+
   - name: datarights
     rules:
       - alert: ExportJobFailureRate

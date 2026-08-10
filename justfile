@@ -98,7 +98,8 @@ test-monitoring:
     docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus \
       --entrypoint promtool prom/prometheus:v3.11.3 check config prometheus.yml
     docker run --rm -v "$PWD/monitoring:/monitoring" -w /monitoring/prometheus/tests \
-      --entrypoint promtool prom/prometheus:v3.11.3 test rules high_error_rate_test.yml
+      --entrypoint promtool prom/prometheus:v3.11.3 test rules \
+      high_error_rate_test.yml recovered_panic_test.yml
 
 # Create a new database migration file pair
 migrate-create service name:

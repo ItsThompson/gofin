@@ -1,0 +1,116 @@
+rule_files:
+  - ../alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # One panic on one site pages, and stops paging once it leaves the window.
+  # Nothing about a single increment is tolerated: an aborted client connection
+  # is classified before the counter is touched, so there is no benign increment
+  # to debounce.
+  - interval: 1m
+    name: a single recovered panic pages and then resolves
+    input_series:
+      - series: 'recovered_panics_total{job="expense-service",instance="expense-service:8082",site="grpc.gofin.expense.ExpenseService/CreateExpense"}'
+        values: "0x2 1x12"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: RecoveredPanic
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: RecoveredPanic
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: expense-service
+              site: grpc.gofin.expense.ExpenseService/CreateExpense
+            exp_annotations:
+              summary: "expense-service recovered a panic at grpc.gofin.expense.ExpenseService/CreateExpense"
+              description: "A panic was recovered at grpc.gofin.expense.ExpenseService/CreateExpense in expense-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+      - eval_time: 6m
+        alertname: RecoveredPanic
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: expense-service
+              site: grpc.gofin.expense.ExpenseService/CreateExpense
+            exp_annotations:
+              summary: "expense-service recovered a panic at grpc.gofin.expense.ExpenseService/CreateExpense"
+              description: "A panic was recovered at grpc.gofin.expense.ExpenseService/CreateExpense in expense-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+      - eval_time: 10m
+        alertname: RecoveredPanic
+        exp_alerts: []
+
+  # A counter that has not moved must never page, however large it is. This is
+  # the case a `> 0` written against the counter itself instead of its increase
+  # would fail: a service that panicked once last week would page forever.
+  - interval: 1m
+    name: a flat counter from an old panic stays silent
+    input_series:
+      - series: 'recovered_panics_total{job="auth-service",instance="auth-service:8081",site="goroutine.auth_blacklist_cleanup"}'
+        values: "7x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: RecoveredPanic
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: RecoveredPanic
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: RecoveredPanic
+        exp_alerts: []
+
+  # Two sites panicking at once produce two alert instances, so the site is
+  # named per alert rather than aggregated away. Alertmanager groups by
+  # alertname and job, so the two services below are two Discord messages and
+  # the two sites in datarights-service are one message with two lines.
+  - interval: 1m
+    name: panics at several sites keep their own alert instances
+    input_series:
+      - series: 'recovered_panics_total{job="datarights-service",instance="datarights-service:8084",site="export_job"}'
+        values: "0 1x12"
+      - series: 'recovered_panics_total{job="datarights-service",instance="datarights-service:8084",site="goroutine.datarights_provider"}'
+        values: "0 1x12"
+      - series: 'recovered_panics_total{job="api-gateway",instance="api-gateway:8080",site="http"}'
+        values: "0 1x12"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: RecoveredPanic
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: api-gateway
+              site: http
+            exp_annotations:
+              summary: "api-gateway recovered a panic at http"
+              description: "A panic was recovered at http in api-gateway within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+          - exp_labels:
+              severity: critical
+              job: datarights-service
+              site: export_job
+            exp_annotations:
+              summary: "datarights-service recovered a panic at export_job"
+              description: "A panic was recovered at export_job in datarights-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+          - exp_labels:
+              severity: critical
+              job: datarights-service
+              site: goroutine.datarights_provider
+            exp_annotations:
+              summary: "datarights-service recovered a panic at goroutine.datarights_provider"
+              description: "A panic was recovered at goroutine.datarights_provider in datarights-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+
+  # A service that restarts loses the counter and comes back at zero. The reset
+  # must not read as an increment, or every restart after a panic would page a
+  # second time for the same defect.
+  - interval: 1m
+    name: a counter reset on restart does not page on its own
+    input_series:
+      - series: 'recovered_panics_total{job="finance-service",instance="finance-service:8083",site="goroutine.finance_fanout"}'
+        values: "4x5 0x8"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: RecoveredPanic
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: RecoveredPanic
+        exp_alerts: []
