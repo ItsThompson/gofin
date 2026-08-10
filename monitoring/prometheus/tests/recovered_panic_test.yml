@@ -11,7 +11,7 @@ tests:
   - interval: 1m
     name: a single recovered panic pages and then resolves
     input_series:
-      - series: 'recovered_panics_total{job="expense-service",instance="expense-service:8082",site="grpc.gofin.expense.ExpenseService/CreateExpense"}'
+      - series: 'recovered_panics_total{job="expense-service",instance="expense-service:8082",site="grpc.expense.ExpenseService/CreateExpense"}'
         values: "0x2 1x12"
     alert_rule_test:
       - eval_time: 2m
@@ -23,20 +23,20 @@ tests:
           - exp_labels:
               severity: critical
               job: expense-service
-              site: grpc.gofin.expense.ExpenseService/CreateExpense
+              site: grpc.expense.ExpenseService/CreateExpense
             exp_annotations:
-              summary: "expense-service recovered a panic at grpc.gofin.expense.ExpenseService/CreateExpense"
-              description: "A panic was recovered at grpc.gofin.expense.ExpenseService/CreateExpense in expense-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+              summary: "expense-service recovered a panic at grpc.expense.ExpenseService/CreateExpense"
+              description: "A panic was recovered at grpc.expense.ExpenseService/CreateExpense in expense-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
       - eval_time: 6m
         alertname: RecoveredPanic
         exp_alerts:
           - exp_labels:
               severity: critical
               job: expense-service
-              site: grpc.gofin.expense.ExpenseService/CreateExpense
+              site: grpc.expense.ExpenseService/CreateExpense
             exp_annotations:
-              summary: "expense-service recovered a panic at grpc.gofin.expense.ExpenseService/CreateExpense"
-              description: "A panic was recovered at grpc.gofin.expense.ExpenseService/CreateExpense in expense-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
+              summary: "expense-service recovered a panic at grpc.expense.ExpenseService/CreateExpense"
+              description: "A panic was recovered at grpc.expense.ExpenseService/CreateExpense in expense-service within the last 5 minutes. The process survived, so no other alert covers it. The panic value and its stack are in that service's log stream."
       - eval_time: 10m
         alertname: RecoveredPanic
         exp_alerts: []
