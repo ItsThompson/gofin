@@ -31,7 +31,20 @@ import (
 const (
 	panicUnaryFullMethod  = "/serverkit.test.Panic/PanicUnary"
 	panicStreamFullMethod = "/serverkit.test.Panic/PanicStream"
+
+	// The site values LogRecoveredPanic derives, spelled out so a change to the
+	// label shape fails a test rather than silently renaming a time series. A gRPC
+	// site is the transport, then the full method with its leading slash dropped.
+	httpPanicSite   = "http"
+	unaryPanicSite  = "grpc.serverkit.test.Panic/PanicUnary"
+	streamPanicSite = "grpc_stream.serverkit.test.Panic/PanicStream"
 )
+
+// recoveredPanicCount reads the recovered-panic counter for one site. The
+// collector is process-global, so every assertion on it is a delta.
+func recoveredPanicCount(site string) float64 {
+	return testutil.ToFloat64(metrics.RecoveredPanicsTotal.WithLabelValues(site))
+}
 
 // panicUnaryHandler and panicStreamHandler are named rather than inline so the
 // recorded stack carries a frame a test can assert on: an anonymous closure in a
@@ -262,11 +275,11 @@ func TestRecovery_NonErrorPanicValueIsWrappedIntoAnError(t *testing.T) {
 
 // TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect covers the highest-volume
 // exclusion in the recovery: behind a reverse proxy a client hanging up is
-// routine, and it is not a service defect. The zero-event assertion is the load
-// bearing half. The log assertions pass on an injected logger, and errkit's record
-// goes to slog.Default(), so a future edit that moved the report above the
-// classification branch would keep them green while turning every dead connection
-// into a Sentry event.
+// routine, and it is not a service defect. The zero-event and zero-count
+// assertions are the load bearing half. The log assertions pass on an injected
+// logger, and errkit's record goes to slog.Default(), so a future edit that moved
+// the report above the classification branch would keep them green while turning
+// every dead connection into a Sentry event and a page.
 func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
 	// The bare errnos are what a hand-written panic carries; the wrapped shape is
 	// what net/http actually produces, and only errors.Is unwrapping makes the
@@ -288,6 +301,8 @@ func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
 			logger, logs := serverkittest.NewLogger()
 			router := routerWithPanic(logger, panicValue)
 
+			panicsBefore := recoveredPanicCount(httpPanicSite)
+
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/boom", nil))
 
@@ -302,9 +317,27 @@ func TestRecovery_AbortedConnectionIsNotAnErrorLevelDefect(t *testing.T) {
 			assert.Empty(t, transport.Events(),
 				"a dead connection must never reach Sentry: it is per-request, not per-incident")
 
+			assert.Equal(t, float64(0), recoveredPanicCount(httpPanicSite)-panicsBefore,
+				"a dead connection must not be counted: RecoveredPanic pages on any increment")
+
 			assert.Empty(t, w.Body.String(), "nothing can be written to an aborted connection")
 		})
 	}
+}
+
+// TestRecovery_CountsThePanicAtTheHTTPSite covers the counter on the transport
+// whose recovery no interceptor sees. Together with the gRPC cases it is what
+// proves the count lives in the shared reporter rather than in one chain.
+func TestRecovery_CountsThePanicAtTheHTTPSite(t *testing.T) {
+	logger, _ := serverkittest.NewLogger()
+	router := routerWithPanic(logger, "handler exploded")
+
+	before := recoveredPanicCount(httpPanicSite)
+
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/boom", nil))
+
+	assert.Equal(t, float64(1), recoveredPanicCount(httpPanicSite)-before,
+		"a recovered HTTP panic must be counted once at the http site")
 }
 
 func TestRecovery_HealthyRequestIsUntouched(t *testing.T) {
@@ -375,6 +408,8 @@ func TestRecoveryUnaryInterceptor_CatchesAPanicFromAnythingInner(t *testing.T) {
 	interceptor := serverkit.RecoveryUnaryInterceptor(logger)
 	info := &grpc.UnaryServerInfo{FullMethod: panicUnaryFullMethod}
 
+	panicsBefore := recoveredPanicCount(unaryPanicSite)
+
 	resp, err := interceptor(context.Background(), &emptypb.Empty{}, info, panicUnaryHandler)
 
 	require.Error(t, err)
@@ -388,6 +423,9 @@ func TestRecoveryUnaryInterceptor_CatchesAPanicFromAnythingInner(t *testing.T) {
 	assert.Equal(t, "panic: unary handler exploded", record["panic"])
 	assert.Equal(t, panicUnaryFullMethod, record["method"])
 	assert.Contains(t, record["stack"], "panicUnaryHandler")
+
+	assert.Equal(t, float64(1), recoveredPanicCount(unaryPanicSite)-panicsBefore,
+		"the recovered panic must be counted under its own method's site")
 }
 
 func TestRecoveryUnaryInterceptor_PassesThroughAHealthyCall(t *testing.T) {
@@ -513,11 +551,13 @@ func TestNewGRPCServer_PanickingStreamHandlerTerminatesTheStreamAndKeepsServing(
 	assert.Contains(t, record["stack"], "panicStreamHandler")
 }
 
-// TestNewGRPCServer_RecoveryIsOutsideMetrics pins the chain order. A panic
-// unwinds past the metrics interceptor, which records after the handler returns,
-// so a recovered unary panic leaves no observation. That is only possible with
-// metrics inside the recovery; were it outside, it would record Internal. The
-// resulting metrics blind spot is recorded in docs/monitoring.md.
+// TestNewGRPCServer_RecoveryIsOutsideMetrics pins the chain order on both chains.
+// A panic unwinds past the metrics interceptor, which records after the handler
+// returns, so a recovered panic leaves no request observation. That is only
+// possible with metrics inside the recovery; were it outside, it would record
+// Internal. recovered_panics_total is what covers the resulting request-metric
+// blind spot, so each case asserts both halves: no request recorded, one panic
+// counted.
 func TestNewGRPCServer_RecoveryIsOutsideMetrics(t *testing.T) {
 	logger, _ := serverkittest.NewLogger()
 	withDefaultLogger(t, logger)
@@ -526,13 +566,37 @@ func TestNewGRPCServer_RecoveryIsOutsideMetrics(t *testing.T) {
 	server.RegisterService(&panicServiceDesc, struct{}{})
 	conn := serveTestGRPC(t, server)
 
-	before := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(panicUnaryFullMethod, "Internal"))
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	require.Error(t, conn.Invoke(ctx, panicUnaryFullMethod, &emptypb.Empty{}, &emptypb.Empty{}))
 
-	after := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(panicUnaryFullMethod, "Internal"))
-	assert.Equal(t, float64(0), after-before,
-		"metrics must sit inside the recovery, so a panic never reaches it")
+	t.Run("unary", func(t *testing.T) {
+		before := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(panicUnaryFullMethod, "Internal"))
+		panicsBefore := recoveredPanicCount(unaryPanicSite)
+
+		require.Error(t, conn.Invoke(ctx, panicUnaryFullMethod, &emptypb.Empty{}, &emptypb.Empty{}))
+
+		after := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(panicUnaryFullMethod, "Internal"))
+		assert.Equal(t, float64(0), after-before,
+			"metrics must sit inside the recovery, so a panic never reaches it")
+		assert.Equal(t, float64(1), recoveredPanicCount(unaryPanicSite)-panicsBefore,
+			"the panic the request metrics never saw must still be counted")
+	})
+
+	t.Run("stream", func(t *testing.T) {
+		before := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(panicStreamFullMethod, "Internal"))
+		panicsBefore := recoveredPanicCount(streamPanicSite)
+
+		stream, err := conn.NewStream(ctx, &grpc.StreamDesc{StreamName: "PanicStream", ServerStreams: true}, panicStreamFullMethod)
+		require.NoError(t, err)
+		require.NoError(t, stream.SendMsg(&emptypb.Empty{}))
+		require.NoError(t, stream.CloseSend())
+		require.NoError(t, stream.RecvMsg(&emptypb.Empty{}))
+		require.Error(t, stream.RecvMsg(&emptypb.Empty{}))
+
+		after := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(panicStreamFullMethod, "Internal"))
+		assert.Equal(t, float64(0), after-before,
+			"the stream chain keeps the same order: metrics stays inside the recovery")
+		assert.Equal(t, float64(1), recoveredPanicCount(streamPanicSite)-panicsBefore,
+			"a recovered stream panic must be counted under its own stream site")
+	})
 }

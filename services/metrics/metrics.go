@@ -61,6 +61,27 @@ var (
 )
 
 // ---------------------------------------------------------------------------
+// Recovered panics
+// ---------------------------------------------------------------------------
+
+// RecoveredPanicsTotal counts panics recovered anywhere in a service, by the
+// site that recovered them.
+//
+// serverkit.LogRecoveredPanic increments it, rather than an interceptor doing so,
+// because that helper is the sole recovery reporter: an interceptor would see the
+// two request-scoped gRPC paths and miss the HTTP middleware and every goroutine
+// guard. Its site argument comes from a bounded set fixed at compile time, which
+// is what keeps the label safe to use. No service label is needed, because
+// Prometheus adds job from the scrape config.
+var RecoveredPanicsTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "recovered_panics_total",
+		Help: "Total number of recovered panics, by recovery site",
+	},
+	[]string{"site"},
+)
+
+// ---------------------------------------------------------------------------
 // Custom business metrics
 // ---------------------------------------------------------------------------
 

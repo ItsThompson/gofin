@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/serverkit/serverkittest"
 )
 
@@ -136,6 +138,10 @@ func TestStartPeriodicCleanup_SingleFlight(t *testing.T) {
 // guard on the cleanup goroutine. It runs outside any request recovery, so an
 // unrecovered repo panic would take the whole auth process down; recovering per
 // run means the next tick still fires.
+//
+// It also pins the counter on a site no interceptor can reach, which is the whole
+// reason recovered_panics_total is incremented in the shared reporter: a metrics
+// interceptor would leave this panic invisible to Prometheus.
 func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T) {
 	blacklistRepo := new(mockBlacklistRepository)
 	repo := new(mockUserRepository)
@@ -154,6 +160,9 @@ func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T
 		}
 	}).Return(nil)
 
+	panicsBefore := testutil.ToFloat64(
+		metrics.RecoveredPanicsTotal.WithLabelValues("goroutine.auth_blacklist_cleanup"))
+
 	svc.StartPeriodicCleanup(ctx, 30*time.Millisecond, 5*time.Second)
 
 	require.Eventually(t, func() bool {
@@ -170,6 +179,11 @@ func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T
 	// The panicking frame, not debug.Stack's own first frame: a stack holding only
 	// recovery machinery is useless and must fail here.
 	assert.Contains(t, records[0]["stack"], "panicInCleanup")
+
+	panicsAfter := testutil.ToFloat64(
+		metrics.RecoveredPanicsTotal.WithLabelValues("goroutine.auth_blacklist_cleanup"))
+	assert.Equal(t, float64(1), panicsAfter-panicsBefore,
+		"a panic in a background goroutine must be counted under its own site")
 }
 
 // panicInCleanup is named so the recorded stack carries a frame to assert on.

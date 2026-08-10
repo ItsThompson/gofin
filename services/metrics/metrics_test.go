@@ -35,6 +35,7 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 	metrics.GRPCRequestsTotal.WithLabelValues("/test.Service/Method", "OK").Inc()
 	metrics.GRPCRequestDuration.WithLabelValues("/test.Service/Method").Observe(0.01)
 	metrics.TokenRefreshTotal.WithLabelValues("success").Inc()
+	metrics.RecoveredPanicsTotal.WithLabelValues("http").Inc()
 
 	// Now scrape /metrics.
 	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -53,6 +54,9 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 	assert.Contains(t, body, "# HELP expense_entries_total")
 	assert.Contains(t, body, "# HELP corrections_total")
 	assert.Contains(t, body, "# HELP token_refresh_total")
+	assert.Contains(t, body, "# HELP recovered_panics_total")
+	assert.Contains(t, body, "# TYPE recovered_panics_total counter")
+	assert.Contains(t, body, `recovered_panics_total{site="http"}`)
 	// active_connections is not a defined metric and must never be exported.
 	assert.NotContains(t, body, "active_connections")
 }

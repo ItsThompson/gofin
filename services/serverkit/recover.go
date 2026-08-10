@@ -17,6 +17,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/errkit"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 // panicStatusMessage is the gRPC status message a recovered panic returns. It
@@ -38,17 +39,19 @@ const panicGroupPrefix = "panic."
 // every frame in the runtime package.
 const panicOriginFrameSkip = 2
 
-// LogRecoveredPanic writes the record for a recovered panic and reports it to
-// Sentry. recovered is the value returned by recover(); a value that is not an
-// error is wrapped into one carrying its formatted form.
+// LogRecoveredPanic writes the record for a recovered panic, counts it, and
+// reports it to Sentry. recovered is the value returned by recover(); a value that
+// is not an error is wrapped into one carrying its formatted form.
 //
 // Every recovery site in every service routes through it, so a panic is queryable
-// by the same "panic" and "stack" attributes wherever it happened, and there is
-// one place that decides how a panic is reported.
+// by the same "panic" and "stack" attributes wherever it happened, it is counted
+// wherever it happened, and there is one place that decides how a panic is
+// reported.
 //
 // site names where the panic was recovered and becomes the group key
-// "panic.<site>". It must come from a bounded set: never interpolate an
-// identifier, which would create one Sentry issue per occurrence.
+// "panic.<site>" and the value of the metric's site label. It must come from a
+// bounded set: never interpolate an identifier, which would create one Sentry
+// issue and one time series per occurrence.
 //
 // The report is what produces a second, ordinary error-level record, through
 // errkit: this one carries the panic value and the full text stack, and errkit's
@@ -71,6 +74,11 @@ func LogRecoveredPanic(
 	}
 
 	err := panicToError(recovered)
+
+	// A dead client connection never reaches this helper: Recovery classifies it
+	// first and returns. So the counter holds defects only, which is what lets
+	// RecoveredPanic page on a single increment.
+	metrics.RecoveredPanicsTotal.WithLabelValues(site).Inc()
 
 	record := append([]slog.Attr{
 		slog.String("panic", err.Error()),
@@ -132,7 +140,8 @@ func panicToError(recovered any) error {
 // isConnectionAborted reports whether a recovered panic value means the response
 // can no longer be written rather than that the service is defective.
 // gin.Recovery() classifies EPIPE, ECONNRESET, and http.ErrAbortHandler this
-// way, so they stay below error level here too.
+// way, so they stay below error level here too, and they never reach
+// LogRecoveredPanic: they are neither reported nor counted.
 func isConnectionAborted(err error) bool {
 	return errors.Is(err, syscall.EPIPE) ||
 		errors.Is(err, syscall.ECONNRESET) ||
