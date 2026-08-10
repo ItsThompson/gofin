@@ -63,13 +63,13 @@ The mock layer provides:
 
 - An operator (admin) user, auto-logged in by default (lands on `/admin`; personal finance routes are not reachable as a direct admin)
 - A regular user (`alex`) available for identity assumption and for exercising the finance UI
-- A current-month budget period ($3,000, 50/30/20 split)
-- Seven sample expenses across different categories and tags
-- All eleven default tags plus one custom tag
+- A current-month budget period with an E/D/S split
+- Sample expenses across different categories and tags
+- The default tags plus one custom tag
 - Dashboard aggregation data (summary, pacing, tag spending, cumulative chart, historical comparison, monthly health score, and its multi-month trend)
 - An upcoming pro-rata installment
 
-Mock data is defined in `frontend/apps/shell/mocks/data.ts`. Request handlers are in `frontend/apps/shell/mocks/handlers.ts`. The default mock user is the operator (admin), who lands on `/admin` and sees only the admin panel plus Settings (Profile and Password); a direct admin who opens a personal finance route by URL gets a 403 page, so the budget/expenses/dashboard fixtures are not reachable while acting as the admin. To exercise the personal finance UI, set `currentMockUser` to the regular user (`regularUser`, "alex") in `data.ts`, or log in as the admin and assume that user from the admin panel.
+Mock fixtures live in `frontend/apps/shell/mocks/data/`, one file per domain. Request handlers live in `frontend/apps/shell/mocks/handlers/`. The default mock user is the operator (admin), who lands on `/admin` and sees only the admin panel plus Settings (Profile and Password); a direct admin who opens a personal finance route by URL gets a 403 page, so the budget/expenses/dashboard fixtures are not reachable while acting as the admin. To exercise the personal finance UI, point `currentMockUser` at `regularUser` ("alex") in `mocks/data/users.ts`, or log in as the admin and assume that user from the admin panel.
 
 **How it works:**
 
@@ -100,14 +100,12 @@ just sqlc finance
 
 ### Database Migrations
 
-Migrations use golang-migrate with SQL files in each service's `db/migrations/` directory:
+Migrations are golang-migrate SQL files in each service's `db/migrations/` directory. Each service embeds its own migration files and applies them at startup through the shared `services/dbmigrate` runner, so starting a service brings its schema up to date. Use the Just recipes to author and roll back migrations:
 
 ```bash
-just migrate auth up      # Run auth service migrations
-just migrate finance down  # Roll back finance service migrations
+just migrate-create auth add_user_locale  # Create an up/down file pair
+just migrate-down finance                 # Roll back the last applied migration
 ```
-
-In Docker Compose, migrations run automatically: PostgreSQL's init scripts execute migration files on first boot.
 
 ## Go Workspace
 
@@ -120,7 +118,7 @@ go work sync    # Sync the workspace after dependency changes
 
 ## Frontend (Turborepo)
 
-The `frontend/` directory is a Turborepo monorepo with three apps and three shared packages:
+The `frontend/` directory is a Turborepo monorepo with three apps and five shared packages:
 
 **Apps:**
 - `shell`: SSR shell (routing, auth, layout, API proxy); imports the feature packages and bundles them
@@ -129,7 +127,9 @@ The `frontend/` directory is a Turborepo monorepo with three apps and three shar
 
 **Packages:**
 - `@gofin/ui`: shared shadcn/ui components with Tailwind
-- `@gofin/types`: shared TypeScript types (API contracts, domain models)
+- `@gofin/core`: shared domain types, constants, currency formatting, validation, and role helpers
+- `@gofin/api`: the HTTP client, session handling, and API hooks
+- `@gofin/test-utils`: shared render helpers, fixture factories, and API mocking for tests
 - `@gofin/config`: shared configs (tailwind, tsconfig, eslint)
 
 ```bash

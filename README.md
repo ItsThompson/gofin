@@ -34,7 +34,7 @@ gofin is an intentionally overengineered personal finance tracker that lets user
 - **Frontend:** React feature packages composed at build time via npm workspace source imports, bundled into a Node.js SSR shell app
 - **Backend:** Go microservices (Gin framework) communicating over REST and gRPC
 - **Databases:** PostgreSQL (relational data), immudb (immutable expense ledger)
-- **Auth:** JWT with RBAC (operator-only admin), Google OAuth, admin identity assumption
+- **Auth:** JWT with RBAC (operator-only admin), admin identity assumption
 - **Observability:** Prometheus, Grafana, Alertmanager
 - **Infrastructure:** Docker Compose, Cloudflare Tunnels, single-VPS deployment
 - **CI/CD:** GitHub Actions with automated deployment on push to main
