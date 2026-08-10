@@ -2,6 +2,7 @@ package serverkit_test
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -17,10 +18,14 @@ import (
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
-const echoFullMethod = "/serverkit.test.Echo/Ping"
+const (
+	echoFullMethod       = "/serverkit.test.Echo/Ping"
+	echoStreamFullMethod = "/serverkit.test.Echo/PingStream"
+)
 
-// echoServiceDesc is a minimal hand-written unary service used to prove the
-// shared metrics interceptor NewGRPCServer wires in actually runs.
+// echoServiceDesc is a minimal hand-written service used to prove the shared
+// metrics interceptors NewGRPCServer wires in actually run, on both the unary and
+// the streaming chain.
 var echoServiceDesc = grpc.ServiceDesc{
 	ServiceName: "serverkit.test.Echo",
 	HandlerType: (*any)(nil),
@@ -41,6 +46,22 @@ var echoServiceDesc = grpc.ServiceDesc{
 			return interceptor(ctx, in, info, handler)
 		},
 	}},
+	Streams: []grpc.StreamDesc{{
+		StreamName:    "PingStream",
+		Handler:       echoStreamHandler,
+		ServerStreams: true,
+	}},
+}
+
+// echoStreamHandler answers one request message with one response message and
+// returns, which is the shape StreamAllUserExpenses has: a server-streaming RPC
+// that ends by returning nil.
+func echoStreamHandler(_ any, stream grpc.ServerStream) error {
+	var in emptypb.Empty
+	if err := stream.RecvMsg(&in); err != nil {
+		return err
+	}
+	return stream.SendMsg(&emptypb.Empty{})
 }
 
 func TestNewGRPCServer_WiresMetricsInterceptor(t *testing.T) {
@@ -70,4 +91,32 @@ func TestNewGRPCServer_WiresMetricsInterceptor(t *testing.T) {
 
 	after := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(echoFullMethod, "OK"))
 	assert.Equal(t, float64(1), after-before, "metrics interceptor should record the unary call")
+}
+
+// TestNewGRPCServer_WiresStreamMetricsInterceptor is the streaming half of the
+// test above. Without it a server-streaming RPC contributes nothing to
+// grpc_requests_total, which is what left the one streaming RPC in the tree
+// unmeasured.
+func TestNewGRPCServer_WiresStreamMetricsInterceptor(t *testing.T) {
+	server := serverkit.NewGRPCServer()
+	server.RegisterService(&echoServiceDesc, struct{}{})
+	conn := serveTestGRPC(t, server)
+
+	before := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(echoStreamFullMethod, "OK"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stream, err := conn.NewStream(ctx,
+		&grpc.StreamDesc{StreamName: "PingStream", ServerStreams: true}, echoStreamFullMethod)
+	require.NoError(t, err)
+	require.NoError(t, stream.SendMsg(&emptypb.Empty{}))
+	require.NoError(t, stream.CloseSend())
+	require.NoError(t, stream.RecvMsg(&emptypb.Empty{}))
+	// The terminal status is what the interceptor turns into the status label, and
+	// the client only learns it on the receive after the last message.
+	require.ErrorIs(t, stream.RecvMsg(&emptypb.Empty{}), io.EOF)
+
+	after := testutil.ToFloat64(metrics.GRPCRequestsTotal.WithLabelValues(echoStreamFullMethod, "OK"))
+	assert.Equal(t, float64(1), after-before, "metrics interceptor should record the streaming call")
 }

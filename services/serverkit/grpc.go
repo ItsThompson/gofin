@@ -10,9 +10,9 @@ import (
 )
 
 // NewGRPCServer builds a *grpc.Server preloaded with the Sentry hub
-// interceptors, the shared recovery interceptors, and the unary metrics
-// interceptor. Services that expose no gRPC surface (gateway, datarights) skip
-// this and pass a nil server to Serve.
+// interceptors, the shared recovery interceptors, and the metrics interceptors.
+// Services that expose no gRPC surface (gateway, datarights) skip this and pass a
+// nil server to Serve.
 //
 // The recoveries record panics through slog.Default(), so callers install their
 // logger (slog.SetDefault) before building the server.
@@ -33,13 +33,14 @@ func NewGRPCServer() *grpc.Server {
 			RecoveryUnaryInterceptor(log),
 			metrics.UnaryServerInterceptor(),
 		),
-		// Streaming carries the hub and recovery only: no metrics stream
-		// interceptor exists (the gap is recorded in docs/monitoring.md). Both are
-		// installed unconditionally so the next streaming RPC inherits them rather
-		// than having to remember to ask.
+		// Streaming mirrors unary: ChainStreamInterceptor also runs its first entry
+		// outermost, so recovery stays outside metrics there too. Both are installed
+		// unconditionally so the next streaming RPC inherits them rather than having
+		// to remember to ask.
 		grpc.ChainStreamInterceptor(
 			sentrygrpc.StreamServerInterceptor(sentrygrpc.ServerOptions{Repanic: true}),
 			RecoveryStreamInterceptor(log),
+			metrics.StreamServerInterceptor(),
 		),
 	)
 }
