@@ -63,8 +63,6 @@ The gateway classifies every route into one of four access levels via the shared
 
 The `Personal` routes are `/api/finance/*`, `/api/expenses/*`, `/api/datarights/exports*`, and `POST /api/auth/onboarding-complete`. A direct admin (`role=admin`) receives 403 on these routes; an assumed session carries `role=user` (plus an `assumedBy` claim), so it satisfies `Personal` and passes unchanged. `POST /api/auth/restore` is `Authenticated`, so an assumed session can always restore regardless of role.
 
-This single `AccessControl` middleware replaced the former trio of mechanisms, all now removed: the `unauthenticatedRoutes` allowlist, `RequireAdmin`, and `AdminRouteGuard` (with its `adminOnlyRoutes`/`adminOnlyPrefixes`).
-
 ## Auth Flows
 
 ### Registration
@@ -95,7 +93,7 @@ This single `AccessControl` middleware replaced the former trio of mechanisms, a
 1. User provides current password and new password
 2. Auth Service verifies the current password and validates the new one
 3. A `tokens_revoked_at` timestamp is set on the user record
-4. All tokens issued before this timestamp are now invalid (forces re-login on other sessions)
+4. Tokens issued before this timestamp are invalid (forces re-login on other sessions)
 5. The current session receives freshly issued tokens
 
 ### Logout

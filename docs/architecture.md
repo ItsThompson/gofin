@@ -90,7 +90,7 @@ A lightweight Go/Gin reverse proxy that validates auth and routes requests. A si
 4. Otherwise verifies the `gofin_access` cookie via Auth Service gRPC `ValidateToken` (401 on failure) and injects `X-User-ID`, `X-User-Role`, and (when assuming) `X-Assumed-By`
 5. Enforces the level's role: `Personal` routes require `role == "user"` and `Admin` routes require `role == "admin"` (403 on mismatch)
 
-This one middleware replaced the former `unauthenticatedRoutes` allowlist, `RequireAdmin`, and `AdminRouteGuard`. Because the personal finance routes are `Personal`, a direct admin is refused there while an assumed regular-user session passes.
+Because the personal finance routes are `Personal`, a direct admin is refused there while an assumed regular-user session passes.
 
 The set of proxied prefixes and their downstream services is itself a single source of truth (`services/access.ProxyPrefixes`), from which the gateway derives its proxy wiring; a cross-check test pins it to the registry so every classified route sits under a proxied prefix and every proxied prefix has at least one classified route.
 

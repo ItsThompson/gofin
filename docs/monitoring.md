@@ -21,6 +21,22 @@ Each Go service exposes standard HTTP/gRPC metrics and service-specific counters
 
 Exact metric names and labels are defined in the `services/metrics/` package (shared) and `services/datarights/internal/metrics/` (datarights-specific).
 
+#### gRPC Stream Metrics
+
+`services/metrics` provides a stream server interceptor beside the unary one, and `serverkit.NewGRPCServer` installs it inside the recovery stream interceptor, matching the unary chain. `StreamAllUserExpenses` (the one streaming RPC, consumed by datarights to build a user data export) therefore records `grpc_requests_total` and `grpc_request_duration_seconds` like every unary method.
+
+A server interceptor can only time the whole stream, so the recorded duration is the stream's lifetime from first message to terminal status, not per-message latency. `job_method:grpc_request_duration_seconds:p95` is per method, so an export that runs for a minute does not move any other method's p95.
+
+#### Recovered Panic Counter
+
+`recovered_panics_total{site}` is incremented in `serverkit.LogRecoveredPanic`, the sole recovery reporter for every recovery site in the tree: both gRPC interceptors, the HTTP middleware, the datarights job runner and its provider fan-out, the expense stream's page producer, the finance fan-outs, the auth cleanup run, and the gateway readiness probe. Counting there rather than in an interceptor is what makes the coverage complete; an interceptor sees only the two request-scoped gRPC paths.
+
+`site` carries the same values as the Sentry group keys without their `panic.` prefix, so its cardinality is fixed at compile time. There is no `service` label, because Prometheus adds `job` from the scrape config.
+
+A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) does not increment the counter. Recovery classifies that case and returns before reporting, so the counter holds defects only, which is what lets `RecoveredPanic` page on a single increment (see Alerting Rules).
+
+Request metrics record nothing for a panicking call. Recovery sits outside the metrics interceptor and the metrics middleware on purpose, because a panic raised in the metrics layer itself has to be caught too, and both record after the handler returns. A panicking call therefore leaves no `grpc_requests_total` or `http_requests_total` observation, and `HighErrorRate` cannot see it: `recovered_panics_total` is the signal that pages, and the panic value and its stack are in the log record and in Sentry (see Structured Logging).
+
 #### Datarights Service Metrics
 
 Custom business metrics for data export monitoring:
@@ -39,52 +55,7 @@ Custom business metrics for data export monitoring:
 
 #### Known gaps
 
-One gap remains, and it is the last bullet. The first two bullets were gaps and
-are now closed; both are kept here, because what closed them is what a triage
-query relies on.
-
-- **Server-streaming RPCs are measured.** `services/metrics` provides a stream
-  server interceptor beside the unary one, and `serverkit.NewGRPCServer` installs
-  it inside the recovery stream interceptor, matching the unary chain. So
-  `StreamAllUserExpenses` (the one streaming RPC, consumed by datarights to build
-  a user data export) records `grpc_requests_total` and
-  `grpc_request_duration_seconds` like every unary method. One consequence worth
-  knowing: a server interceptor can only time the whole stream, so the duration is
-  the stream's lifetime from first message to terminal status, not per-message
-  latency. `job_method:grpc_request_duration_seconds:p95` is per method, so an
-  export that runs for a minute does not move any other method's p95.
-- **A recovered panic is counted.** `recovered_panics_total{site}` is incremented
-  in `serverkit.LogRecoveredPanic`, which is the sole recovery reporter for every
-  recovery site in the tree: both gRPC interceptors, the HTTP middleware, the
-  datarights job runner and its provider fan-out, the expense stream's page
-  producer, the finance fan-outs, the auth cleanup run, and the gateway readiness
-  probe. Counting there rather than in an interceptor is what makes the coverage
-  complete; an interceptor would see the two request-scoped gRPC paths only.
-  `site` carries the same values as the Sentry group keys without their `panic.`
-  prefix, so its cardinality is fixed at compile time. There is no `service`
-  label, because Prometheus adds `job` from the scrape config.
-
-  A dead client connection (`EPIPE`, `ECONNRESET`, `http.ErrAbortHandler`) does
-  not increment it. Recovery classifies that case and returns before reporting, so
-  the counter holds defects only, which is what lets `RecoveredPanic` page on a
-  single increment (see Alerting Rules). That restores the paging a panic used to
-  get from `ServiceDown` when it killed the process.
-
-  The request metrics still see nothing. Recovery is outside the metrics
-  interceptor and the metrics middleware on purpose, because a panic raised in the
-  metrics layer itself has to be caught too, and both record after the handler
-  returns. A panicking call therefore leaves no `grpc_requests_total` or
-  `http_requests_total` observation, and `HighErrorRate` cannot see it:
-  `recovered_panics_total` is the signal that pages, and the panic value and its
-  stack are in the log record and in Sentry (see Structured Logging).
-- **Database query and connection-pool metrics do not exist.** No service
-  exports `db_query_duration_seconds` or `active_connections`, and a test in
-  `services/metrics` asserts that `active_connections` is never exported. Every
-  consumer of those two names is therefore permanently empty: the `SlowQueries`
-  alert, which cannot fire at all; the `job_query:db_query_duration_seconds:p95`
-  and `query:db_query_duration_seconds:p95_expense` recording rules; all three
-  Database Health panels; and the Expense Service "immudb Write Latency" panel.
-  Closing this needs the metrics written, not the consumers retired.
+**Database query and connection-pool metrics do not exist.** No service exports `db_query_duration_seconds` or `active_connections`, and a test in `services/metrics` asserts that `active_connections` is never exported. Every consumer of those two names is therefore permanently empty: the `SlowQueries` alert, which cannot fire at all; the `job_query:db_query_duration_seconds:p95` and `query:db_query_duration_seconds:p95_expense` recording rules; all three Database Health panels; and the Expense Service "immudb Write Latency" panel. Closing this needs the metrics written, not the consumers retired.
 
 ### Access
 
@@ -97,7 +68,7 @@ Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 - **High error rate**: per-job 5xx ratio above a threshold, gated by a minimum per-job request rate
 - **Service down**: no metrics received from a scrape target
 - **Recovered panic**: any panic recovered by a Go service, by recovery site
-- **Slow queries**: p95 query duration exceeding a threshold
+- **Slow queries**: p95 query duration exceeding a threshold. This rule cannot fire, because no service exports `db_query_duration_seconds` (see Known gaps)
 - **Auth failures spike**: unusual volume of failed login attempts
 - **Export job failure rate**: more than 50% of export jobs failed in the last hour
 - **Export job stuck**: active jobs exist but no completions in 10 minutes
@@ -114,14 +85,14 @@ Alert rules are defined in `monitoring/prometheus/alerts.yml`. The rules cover:
 
 Consequences worth knowing during triage:
 
-- A job serving 2 requests per minute or fewer never fires this alert, whatever its error ratio. That is the deliberate cost of the floor, and no container that answers its healthcheck is in that state: see the next bullet before acting on this one. `ServiceDown` still covers such a service going away entirely.
+- A job serving 2 requests per minute or fewer never fires this alert, whatever its error ratio. That is the deliberate cost of the floor, and no container that answers its healthcheck is in that state: see the next bullet before acting on this one. `ServiceDown` covers such a service going away entirely.
 - Every job carries about 12 requests per minute before any user traffic, because each Go service's Docker healthcheck polls its own `/health` every 5 seconds and `/health` is counted (only `/metrics` is excluded). On an idle stack that healthcheck is the job's entire request rate. Two consequences follow.
   - The floor never excludes a service whose container is answering, so it guards far less than the arithmetic above suggests.
   - Those healthy 200s dilute the ratio inside the job. A job needs more than about 0.6 failed requests per minute before it can reach 5%, and a single failed request in the window computes to about 1.75%.
 - A job with no traffic in the window produces no alert. Its ratio is `0/0`, which is `NaN`, and `NaN` fails every comparison, so the rule yields no series rather than a false page.
 - Both sides are summed by `job`, so two services failing at once produce two alert instances. `group_by: ["alertname", "job"]` then sends one Discord message per service, and both Discord titles name the job.
 - `mfe` exposes no `http_requests_total`, so it is absent from this alert.
-- Alerts that keep a `job` label from their exporter, such as `ContainerHighMemory` and `HostDiskAlmostFull`, now show that exporter in the Discord title: `· cadvisor` and `· node-exporter`. The failing container or mountpoint is named in the message body. Accepted cost of putting the job in the title, which is what names the service for `HighErrorRate`.
+- Alerts that keep a `job` label from their exporter, such as `ContainerHighMemory` and `HostDiskAlmostFull`, show that exporter in the Discord title: `· cadvisor` and `· node-exporter`. The failing container or mountpoint is named in the message body. This is the accepted cost of putting the job in the title, which is what names the service for `HighErrorRate`.
 
 ### RecoveredPanic
 
@@ -200,7 +171,7 @@ All Go services emit JSON-structured logs to stdout with a consistent format:
 - `duration_ms`: present for timed operations
 - `error`: present on errors
 
-Logs are viewable via `just logs <service>` or `docker compose logs -f <service>`. Centralized log aggregation (ELK, Loki) is deferred for MVP.
+Logs are viewable via `just logs <service>` or `docker compose logs -f <service>`. There is no centralized log aggregation (ELK, Loki).
 
 ### Recovered panics
 
