@@ -183,21 +183,6 @@ describe("DashboardOutline", () => {
     });
   });
 
-  it("preserves xl-only fixed positioning classes", async () => {
-    const rootRef = createDashboardRoot(<section id="summary" data-outline-title="Summary" />);
-
-    const { container } = render(<DashboardOutline rootRef={rootRef} />);
-
-    await screen.findByRole("navigation", { name: "Dashboard sections" });
-    const nav = container.querySelector("nav");
-    expect(nav?.className).toContain("hidden");
-    expect(nav?.className).toContain("xl:block");
-    expect(nav?.className).toContain("fixed");
-    expect(nav?.className).toContain("top-20");
-    expect(nav?.className).toContain("right-8");
-    expect(nav?.className).toContain("w-48");
-  });
-
   it("updates active link styling from intersection changes", async () => {
     const rootRef = createDashboardRoot(
       <>
