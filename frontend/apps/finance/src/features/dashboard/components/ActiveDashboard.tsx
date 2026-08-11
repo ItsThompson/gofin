@@ -243,7 +243,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         )}
       </div>
 
-      {/* Dashboard Outline (TOC) - fixed positioned, renders on xl+ viewports */}
+      {/* Dashboard Outline (TOC) - fixed positioned, renders on 2xl+ viewports */}
       <DashboardOutline rootRef={dashboardContentRef} />
     </div>
   );

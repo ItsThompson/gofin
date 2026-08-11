@@ -13,7 +13,7 @@ export function DashboardOutline({ rootRef }: DashboardOutlineProps) {
   return (
     <nav
       aria-label="Dashboard sections"
-      className="hidden xl:block fixed top-20 right-8 w-48"
+      className="hidden 2xl:block fixed top-20 right-2 w-32"
     >
       <ul className="space-y-1 text-xs text-muted-foreground">
         {renderOutlineItems(items, activeId, false)}
