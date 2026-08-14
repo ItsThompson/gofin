@@ -26,8 +26,8 @@ export interface DefaultBudgetActions {
 }
 
 export function useDefaultBudget(user: User): { state: DefaultBudgetState; actions: DefaultBudgetActions } {
-  const form = useBudgetSplitForm();
   const [currency, setCurrency] = useState(user.currency);
+  const form = useBudgetSplitForm({ currency });
   const [success, setSuccess] = useState(false);
   const [fetching, setFetching] = useState(true);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,6 +55,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         const defaults = response.defaults;
         form.reset({
           initialBudgetCents: defaults.budgetAmount,
+          currency: defaults.currency,
           initialSplit: {
             essentials: defaults.essentialsPercent,
             desires: defaults.desiresPercent,
@@ -64,7 +65,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         setCurrency(defaults.currency);
       } catch {
         // Use fallback defaults (hook already uses DEFAULT_BUDGET_SPLIT)
-        form.reset({ initialBudgetCents: 0 });
+        form.reset({ initialBudgetCents: 0, currency });
       } finally {
         setFetching(false);
       }

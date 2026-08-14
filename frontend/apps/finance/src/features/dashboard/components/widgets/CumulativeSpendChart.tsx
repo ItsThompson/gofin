@@ -1,4 +1,4 @@
-import { getCurrencySymbol } from "@gofin/core";
+import { getCurrencySymbol, toMajorUnits } from "@gofin/core";
 import type { CumulativeSpendPoint } from "@gofin/core";
 import { insertCrossoverPoints } from "../../../../lib/insertCrossoverPoints";
 import {
@@ -31,11 +31,10 @@ interface CumulativeSpendChartProps {
 export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
   const currentDay = new Date().getDate();
 
-  // Convert from cents to dollars and insert crossover interpolation points
   const basePoints = data.map((point) => ({
     day: point.day,
-    actual: point.actual / 100,
-    ideal: point.ideal / 100,
+    actual: toMajorUnits(point.actual, currency),
+    ideal: toMajorUnits(point.ideal, currency),
   }));
 
   const interpolatedPoints = insertCrossoverPoints(basePoints);

@@ -37,7 +37,7 @@ export interface ActiveDashboardProps {
   readOnly?: boolean;
 }
 
-export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashboardProps) {
+export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [currentPeriod, setCurrentPeriod] = useState(period);
   const dashboardContentRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +54,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
   const totalSpent = data.summary?.totalSpent ?? 0;
   const remaining = data.summary?.remaining ?? currentPeriod.budgetAmount;
+  const reportingCurrency = currentPeriod.reportingCurrency;
 
   const monthName = new Date(currentPeriod.year, currentPeriod.month - 1).toLocaleString("en-US", {
     month: "long",
@@ -101,7 +102,6 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         <SectionErrorBoundary sectionName="Budget Settings">
           <BudgetSettingsEditor
             period={currentPeriod}
-            currency={user.currency}
             onSaved={handlePeriodUpdated}
             onCancel={() => setShowSettings(false)}
           />
@@ -133,14 +133,14 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
                         new Date().getDate(),
                     )
               }
-              currency={user.currency}
+              currency={reportingCurrency}
             />
           </SectionErrorBoundary>
 
           {data.summary && (
             <section id="budget-allocations" data-outline-title="Budget Allocations">
               <SectionErrorBoundary sectionName="Category Gauges">
-                <CategoryGauges summary={data.summary} currency={user.currency} />
+                <CategoryGauges summary={data.summary} currency={reportingCurrency} />
               </SectionErrorBoundary>
             </section>
           )}
@@ -151,7 +151,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
               {data.summary && (
                 <section id="spending-pace" data-outline-title="Spending Pace">
                   <SectionErrorBoundary sectionName="Spending Pace">
-                    <PacingIndicator summary={data.summary} currency={user.currency} />
+                    <PacingIndicator summary={data.summary} currency={reportingCurrency} />
                   </SectionErrorBoundary>
                 </section>
               )}
@@ -160,7 +160,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
                   <SectionErrorBoundary sectionName="Historical Comparison">
                     <HistoricalComparisonWidget
                       comparison={data.comparison}
-                      currency={user.currency}
+                      currency={reportingCurrency}
                     />
                   </SectionErrorBoundary>
                 </section>
@@ -172,7 +172,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
         <SectionErrorBoundary sectionName="Upcoming Pro-rata">
           {data.upcomingProRata.length > 0 && (
             <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
-              <UpcomingProRataSection schedules={data.upcomingProRata} currency={user.currency} />
+              <UpcomingProRataSection schedules={data.upcomingProRata} currency={reportingCurrency} />
             </section>
           )}
         </SectionErrorBoundary>
@@ -186,7 +186,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
                   trendData={data.trendData}
                   trendMonths={trendMonths}
                   onToggle={setTrendMonths}
-                  currency={user.currency}
+                  currency={reportingCurrency}
                 />
               </SectionErrorBoundary>
             </section>
@@ -197,7 +197,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
               <BreakdownSection
                 tagSpending={data.tagSpending}
                 expenseFrecencyData={expenseFrecencyData}
-                currency={user.currency}
+                currency={reportingCurrency}
               />
             </SectionErrorBoundary>
           </section>
@@ -207,7 +207,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
               <SectionErrorBoundary sectionName="Cumulative Spending">
                 <CumulativeSpendChart
                   data={data.cumulativeData}
-                  currency={user.currency}
+                  currency={reportingCurrency}
                 />
               </SectionErrorBoundary>
             </section>
@@ -236,7 +236,7 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
                   </CardContent>
                 </Card>
               ) : (
-                <RecentExpenses expenses={data.recentExpenses} currency={user.currency} />
+                <RecentExpenses expenses={data.recentExpenses} currency={reportingCurrency} />
               )}
             </SectionErrorBoundary>
           </section>

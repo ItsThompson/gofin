@@ -169,9 +169,14 @@ describe("DashboardFeature", () => {
       expect(screen.queryByText("Suggestions failed")).not.toBeInTheDocument();
     });
 
-    it("displays currency symbol from user profile", async () => {
+    it("displays currency symbol and precision from the period", async () => {
+      const jpyPeriod = buildPeriod({
+        ...testPeriod,
+        budgetAmount: 300000,
+        reportingCurrency: "JPY",
+      });
       globalThis.fetch = createMockApi({
-        "/api/finance/periods/current": { body: { period: testPeriod } },
+        "/api/finance/periods/current": { body: { period: jpyPeriod } },
         ...dashboardDataEmptyRoutes(),
       }) as unknown as typeof fetch;
       renderDashboard(buildUser({ ...testUser, currency: "EUR" }));
@@ -181,9 +186,10 @@ describe("DashboardFeature", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText("€3,000.00")).toHaveLength(2);
+        expect(screen.getAllByText("¥300,000")).toHaveLength(2);
       });
-      expect(screen.getByText("€0.00")).toBeInTheDocument();
+      expect(screen.getByText("¥0")).toBeInTheDocument();
+      expect(screen.queryByText("€3,000.00")).not.toBeInTheDocument();
     });
 
     it("color-codes remaining balance green when > 30%", async () => {

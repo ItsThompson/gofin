@@ -1,10 +1,17 @@
 import { useState, useCallback } from "react";
-import { validateEDSSplit, DEFAULT_BUDGET_SPLIT, toCents } from "@gofin/core";
+import {
+  validateEDSSplit,
+  DEFAULT_BUDGET_SPLIT,
+  toMajorUnits,
+  toMinorUnits,
+} from "@gofin/core";
 
 /** Options for initializing the budget split form. */
 export interface BudgetSplitFormOptions {
-  /** Initial budget amount in cents. Converted to dollars for display. */
+  /** Initial budget amount in the selected currency's minor units. */
   initialBudgetCents?: number;
+  /** Currency used to display and parse the budget amount. */
+  currency?: string;
   /** Initial E/D/S percentages. Defaults to DEFAULT_BUDGET_SPLIT if not provided. */
   initialSplit?: { essentials: number; desires: number; savings: number };
 }
@@ -42,9 +49,10 @@ export interface BudgetSplitForm {
 
 function buildInitialFields(options?: BudgetSplitFormOptions): BudgetSplitFields {
   const split = options?.initialSplit ?? DEFAULT_BUDGET_SPLIT;
+  const currency = options?.currency ?? "USD";
   let budgetDollars = "";
   if (options?.initialBudgetCents != null) {
-    budgetDollars = (options.initialBudgetCents / 100).toString();
+    budgetDollars = toMajorUnits(options.initialBudgetCents, currency).toString();
   }
 
   return {
@@ -60,6 +68,7 @@ function buildInitialFields(options?: BudgetSplitFormOptions): BudgetSplitFields
  * Enforces non-negative percentages and a non-negative budget amount.
  */
 export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSplitForm {
+  const currency = options?.currency ?? "USD";
   const [fields, setFields] = useState<BudgetSplitFields>(() =>
     buildInitialFields(options),
   );
@@ -97,12 +106,12 @@ export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSpli
 
   const toPayload = useCallback(() => {
     return {
-      budgetAmountCents: toCents(fields.budgetDollars),
+      budgetAmountCents: toMinorUnits(fields.budgetDollars, currency),
       essentialsPercent: parseInt(fields.essentials, 10) || 0,
       desiresPercent: parseInt(fields.desires, 10) || 0,
       savingsPercent: parseInt(fields.savings, 10) || 0,
     };
-  }, [fields]);
+  }, [fields, currency]);
 
   const reset = useCallback((resetOptions?: BudgetSplitFormOptions) => {
     setFields(buildInitialFields(resetOptions));

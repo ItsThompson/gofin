@@ -1,4 +1,4 @@
-import { formatCurrency } from "@gofin/core";
+import { formatCurrency, toMinorUnits } from "@gofin/core";
 
 /**
  * Tooltip value formatter for the cumulative spend chart.
@@ -10,7 +10,7 @@ export function tooltipFormatter(
   currency: string,
 ): [string, string] | null {
   if (Array.isArray(value)) return null;
-  return [formatCurrency((value as number) * 100, currency), name];
+  return [formatCurrency(toMinorUnits(String(value), currency), currency), name];
 }
 
 /**

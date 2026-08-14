@@ -23,6 +23,14 @@ describe("useBudgetSplitForm", () => {
       expect(result.current.fields.budgetDollars).toBe("1500");
     });
 
+    it("uses selected currency precision for initial budget display", () => {
+      const { result } = renderHook(() =>
+        useBudgetSplitForm({ initialBudgetCents: 150000, currency: "JPY" }),
+      );
+
+      expect(result.current.fields.budgetDollars).toBe("150000");
+    });
+
     it("uses empty string for budgetDollars when initialBudgetCents is not provided", () => {
       const { result } = renderHook(() =>
         useBudgetSplitForm({ initialSplit: { essentials: 50, desires: 30, savings: 20 } }),
@@ -280,7 +288,7 @@ describe("useBudgetSplitForm", () => {
   });
 
   describe("toPayload", () => {
-    it("converts dollar string to cents using toCents()", () => {
+    it("converts dollar string to cents using the selected currency", () => {
       const { result } = renderHook(() => useBudgetSplitForm());
 
       act(() => {
@@ -295,7 +303,7 @@ describe("useBudgetSplitForm", () => {
       expect(payload!.budgetAmountCents).toBe(150050);
     });
 
-    it("returns 0 cents for empty budget string", () => {
+    it("returns 0 minor units for empty budget string", () => {
       const { result } = renderHook(() => useBudgetSplitForm());
 
       let payload: ReturnType<typeof result.current.toPayload>;
@@ -354,6 +362,21 @@ describe("useBudgetSplitForm", () => {
       });
 
       expect(payload!.budgetAmountCents).toBe(1999);
+    });
+
+    it("uses zero minor-unit digits for JPY payloads", () => {
+      const { result } = renderHook(() => useBudgetSplitForm({ currency: "JPY" }));
+
+      act(() => {
+        result.current.setField("budgetDollars", "3000");
+      });
+
+      let payload: ReturnType<typeof result.current.toPayload>;
+      act(() => {
+        payload = result.current.toPayload();
+      });
+
+      expect(payload!.budgetAmountCents).toBe(3000);
     });
   });
 

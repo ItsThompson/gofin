@@ -1,5 +1,9 @@
-import { type FormEvent } from "react";
-import { getCurrencySymbol } from "@gofin/core";
+import { useState, type FormEvent } from "react";
+import {
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  SUPPORTED_CURRENCIES,
+} from "@gofin/core";
 import { useBudgetSplitForm } from "@gofin/api";
 import type { User } from "@gofin/core";
 import type { DefaultSettings, CreatePeriodRequest } from "@gofin/core";
@@ -31,6 +35,30 @@ interface CreatePeriodPromptProps {
   createError: string | null;
 }
 
+const FALLBACK_REPORTING_CURRENCY = "USD";
+const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES.map((currency) => ({
+  code: currency.code,
+  label:
+    currency.symbol === currency.code
+      ? currency.code
+      : `${currency.code} (${currency.symbol})`,
+}));
+const SUPPORTED_CURRENCY_CODES = new Set(
+  SUPPORTED_CURRENCIES.map((currency) => currency.code),
+);
+
+function initialReportingCurrency(defaults: DefaultSettings | null, user: User): string {
+  const candidate = (defaults?.currency ?? user.currency).trim().toUpperCase();
+  if (SUPPORTED_CURRENCY_CODES.has(candidate)) return candidate;
+  return FALLBACK_REPORTING_CURRENCY;
+}
+
+function amountStep(currencyCode: string): string {
+  const minorUnitDigits = getMinorUnitDigits(currencyCode);
+  if (minorUnitDigits === 0) return "1";
+  return `0.${"0".repeat(minorUnitDigits - 1)}1`;
+}
+
 export function CreatePeriodPrompt({
   defaults,
   user,
@@ -41,10 +69,14 @@ export function CreatePeriodPrompt({
   createError,
 }: CreatePeriodPromptProps) {
   const isZeroBudget = !defaults || defaults.budgetAmount === 0;
-  const currencySymbol = getCurrencySymbol(user.currency);
+  const [reportingCurrency, setReportingCurrency] = useState(() =>
+    initialReportingCurrency(defaults, user),
+  );
+  const currencySymbol = getCurrencySymbol(reportingCurrency);
 
   const form = useBudgetSplitForm({
     initialBudgetCents: defaults?.budgetAmount || undefined,
+    currency: reportingCurrency,
     initialSplit: defaults
       ? {
           essentials: defaults.essentialsPercent,
@@ -72,6 +104,7 @@ export function CreatePeriodPrompt({
       essentialsPercent: payload.essentialsPercent,
       desiresPercent: payload.desiresPercent,
       savingsPercent: payload.savingsPercent,
+      reportingCurrency,
     };
 
     onCreatePeriod(body);
@@ -111,13 +144,33 @@ export function CreatePeriodPrompt({
                   id="budget"
                   type="number"
                   min="0"
-                  step="0.01"
-                  placeholder="0.00"
+                  step={amountStep(reportingCurrency)}
+                  placeholder={getMinorUnitDigits(reportingCurrency) === 0 ? "0" : "0.00"}
                   value={form.fields.budgetDollars}
                   onChange={(event) => form.setField("budgetDollars", event.target.value)}
                   className="pl-6"
                 />
               </div>
+            </FormField>
+
+            <FormField>
+              <FormLabel htmlFor="reporting-currency">Reporting Currency</FormLabel>
+              <select
+                id="reporting-currency"
+                value={reportingCurrency}
+                onChange={(event) => setReportingCurrency(event.target.value)}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {CURRENCY_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <FormDescription>
+                Reporting currency cannot be changed after this period is created.
+                Default budget changes only apply to future periods.
+              </FormDescription>
             </FormField>
 
             <FormField>
