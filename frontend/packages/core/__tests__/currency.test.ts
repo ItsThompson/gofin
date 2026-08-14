@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { formatCurrency, getCurrencySymbol, toCents } from "../src/currency";
+import {
+  formatCurrency,
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  toCents,
+  toMajorUnits,
+  toMinorUnits,
+} from "../src/currency";
 
 describe("getCurrencySymbol", () => {
   it("returns $ for USD", () => {
@@ -71,13 +78,31 @@ describe("formatCurrency", () => {
       expect(formatCurrency(150000, "GBP")).toBe("£1,500.00");
     });
 
-    it("uses correct currency symbol for JPY", () => {
-      expect(formatCurrency(100000, "JPY")).toBe("¥1,000.00");
+    it("uses zero decimal places for JPY", () => {
+      expect(formatCurrency(100000, "JPY")).toBe("¥100,000");
     });
 
     it("falls back to code for unknown currency", () => {
       expect(formatCurrency(1000, "XYZ")).toBe("XYZ10.00");
     });
+  });
+});
+
+describe("minor unit helpers", () => {
+  it("reads currency precision from the generated catalog", () => {
+    expect(getMinorUnitDigits("USD")).toBe(2);
+    expect(getMinorUnitDigits("JPY")).toBe(0);
+    expect(getMinorUnitDigits("XYZ")).toBe(2);
+  });
+
+  it("converts minor-unit amounts to major units", () => {
+    expect(toMajorUnits(1234, "USD")).toBe(12.34);
+    expect(toMajorUnits(1234, "JPY")).toBe(1234);
+  });
+
+  it("converts input strings by currency precision", () => {
+    expect(toMinorUnits("10.50", "USD")).toBe(1050);
+    expect(toMinorUnits("10.50", "JPY")).toBe(11);
   });
 });
 

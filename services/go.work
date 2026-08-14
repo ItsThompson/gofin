@@ -15,5 +15,6 @@ use (
 	./metrics
 	./perf
 	./pgutil
+	./shared/currency
 	./serverkit
 )

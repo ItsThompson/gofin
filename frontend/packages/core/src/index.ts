@@ -5,6 +5,7 @@ export {
   SUPPORTED_CURRENCIES,
   type ExpenseType,
   type SupportedCurrency,
+  type SupportedCurrencyCode,
 } from "./constants";
 export {
   validateEDSSplit,
@@ -12,7 +13,14 @@ export {
   validateEmail,
   validateUsername,
 } from "./validation";
-export { formatCurrency, getCurrencySymbol, toCents } from "./currency";
+export {
+  formatCurrency,
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  toCents,
+  toMajorUnits,
+  toMinorUnits,
+} from "./currency";
 export {
   canUseFinanceFeatures,
   canUseAdminFeatures,
