@@ -83,6 +83,38 @@ func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsReques
 	}, nil
 }
 
+func periodToProto(period *model.BudgetPeriod) *pb.PeriodData {
+	return &pb.PeriodData{
+		Id:                period.ID,
+		UserId:            period.UserID,
+		Year:              period.Year,
+		Month:             period.Month,
+		BudgetAmount:      period.BudgetAmount,
+		EssentialsPercent: period.EssentialsPercent,
+		DesiresPercent:    period.DesiresPercent,
+		SavingsPercent:    period.SavingsPercent,
+		CreatedAt:         period.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ReportingCurrency: period.ReportingCurrency,
+	}
+}
+
+func financeErrorStatus(err error) error {
+	var apiErr *apierr.Error
+	if !errors.As(err, &apiErr) {
+		return nil
+	}
+
+	switch apiErr.Code {
+	case apierr.CodeValidation, model.ErrUnsupportedCurrency:
+		return status.Error(codes.InvalidArgument, apiErr.Message)
+	case apierr.CodeNotFound, model.ErrPeriodNotFound:
+		return status.Error(codes.NotFound, apiErr.Message)
+	case model.ErrPeriodLocked:
+		return status.Error(codes.PermissionDenied, apiErr.Message)
+	}
+	return nil
+}
+
 func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOnboardingRequest) (*pb.DefaultsResponse, error) {
 	defaults, err := h.financeService.CompleteOnboarding(ctx, req.GetUserId(), &model.OnboardingRequest{
 		BudgetAmount:      req.GetBudgetAmount(),
@@ -118,6 +150,102 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 			Currency:          defaults.Currency,
 		},
 	}, nil
+}
+
+func (h *GRPCHandler) GetCurrentPeriod(ctx context.Context, req *pb.GetCurrentPeriodRequest) (*pb.PeriodResponse, error) {
+	period, err := h.financeService.GetCurrentPeriod(ctx, req.GetUserId(), req.GetYear(), req.GetMonth())
+	if err != nil {
+		if statusErr := financeErrorStatus(err); statusErr != nil {
+			return nil, statusErr
+		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.get_current_period",
+			Domain: reportDomain,
+			Msg:    "failed to get current period",
+			Data: map[string]any{
+				"method":  "GetCurrentPeriod",
+				"user_id": req.GetUserId(),
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to get current period")
+	}
+	return &pb.PeriodResponse{Period: periodToProto(period)}, nil
+}
+
+func (h *GRPCHandler) CreatePeriod(ctx context.Context, req *pb.CreatePeriodRequest) (*pb.PeriodResponse, error) {
+	result, err := h.financeService.CreatePeriodWithProRata(ctx, req.GetUserId(), &model.CreatePeriodRequest{
+		Year:              req.GetYear(),
+		Month:             req.GetMonth(),
+		BudgetAmount:      req.GetBudgetAmount(),
+		EssentialsPercent: req.GetEssentialsPercent(),
+		DesiresPercent:    req.GetDesiresPercent(),
+		SavingsPercent:    req.GetSavingsPercent(),
+		ReportingCurrency: req.GetReportingCurrency(),
+	})
+	if err != nil {
+		if statusErr := financeErrorStatus(err); statusErr != nil {
+			return nil, statusErr
+		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.create_period",
+			Domain: reportDomain,
+			Msg:    "failed to create period",
+			Data: map[string]any{
+				"method":  "CreatePeriod",
+				"user_id": req.GetUserId(),
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to create period")
+	}
+	return &pb.PeriodResponse{Period: periodToProto(result.Period)}, nil
+}
+
+func (h *GRPCHandler) UpdatePeriod(ctx context.Context, req *pb.UpdatePeriodRequest) (*pb.PeriodResponse, error) {
+	period, err := h.financeService.UpdatePeriod(ctx, req.GetUserId(), req.GetPeriodId(), &model.UpdatePeriodRequest{
+		BudgetAmount:      req.GetBudgetAmount(),
+		EssentialsPercent: req.GetEssentialsPercent(),
+		DesiresPercent:    req.GetDesiresPercent(),
+		SavingsPercent:    req.GetSavingsPercent(),
+	})
+	if err != nil {
+		if statusErr := financeErrorStatus(err); statusErr != nil {
+			return nil, statusErr
+		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.update_period",
+			Domain: reportDomain,
+			Msg:    "failed to update period",
+			Data: map[string]any{
+				"method":    "UpdatePeriod",
+				"user_id":   req.GetUserId(),
+				"period_id": req.GetPeriodId(),
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to update period")
+	}
+	return &pb.PeriodResponse{Period: periodToProto(period)}, nil
+}
+
+func (h *GRPCHandler) ListPeriods(ctx context.Context, req *pb.ListPeriodsRequest) (*pb.PeriodListResponse, error) {
+	periods, err := h.financeService.ListPeriods(ctx, req.GetUserId())
+	if err != nil {
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.list_periods",
+			Domain: reportDomain,
+			Msg:    "failed to list periods",
+			Data: map[string]any{
+				"method":  "ListPeriods",
+				"user_id": req.GetUserId(),
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to list periods")
+	}
+
+	pbPeriods := make([]*pb.PeriodData, len(periods))
+	for i, period := range periods {
+		pbPeriods[i] = periodToProto(period)
+	}
+	return &pb.PeriodListResponse{Periods: pbPeriods, Total: int32(len(pbPeriods))}, nil
 }
 
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
@@ -273,17 +401,7 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 
 	pbPeriods := make([]*pb.PeriodData, len(data.Periods))
 	for i, period := range data.Periods {
-		pbPeriods[i] = &pb.PeriodData{
-			Id:                period.ID,
-			UserId:            period.UserID,
-			Year:              period.Year,
-			Month:             period.Month,
-			BudgetAmount:      period.BudgetAmount,
-			EssentialsPercent: period.EssentialsPercent,
-			DesiresPercent:    period.DesiresPercent,
-			SavingsPercent:    period.SavingsPercent,
-			CreatedAt:         period.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		}
+		pbPeriods[i] = periodToProto(period)
 	}
 
 	var pbDefaults *pb.DefaultsData

@@ -14,6 +14,7 @@ type FinanceBudgetPeriod struct {
 	Year              int32              `json:"year"`
 	Month             int32              `json:"month"`
 	BudgetAmount      int64              `json:"budget_amount"`
+	ReportingCurrency string             `json:"reporting_currency"`
 	EssentialsPercent int32              `json:"essentials_percent"`
 	DesiresPercent    int32              `json:"desires_percent"`
 	SavingsPercent    int32              `json:"savings_percent"`

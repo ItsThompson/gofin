@@ -253,6 +253,19 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		return nil, budgetAmountError()
 	}
 
+	reportingCurrency := normalizeCurrencyCode(req.ReportingCurrency)
+	var defaults *model.DefaultSettings
+	if reportingCurrency == "" {
+		periodDefaults, err := s.getPeriodCreationDefaults(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		defaults = periodDefaults
+		reportingCurrency = periodDefaults.Currency
+	} else if verr := validateSupportedCurrency("reportingCurrency", reportingCurrency); verr != nil {
+		return nil, verr
+	}
+
 	var autoCreatedMonths []string
 	var allAppliedProRata []*model.ProRataSchedule
 
@@ -264,20 +277,12 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	if latestPeriod != nil {
 		missedMonths := computeMissedMonths(latestPeriod.Year, latestPeriod.Month, req.Year, req.Month)
 		if len(missedMonths) > 0 {
-			// Get defaults for auto-creating intermediate periods
-			defaults, err := s.repo.GetDefaults(ctx, userID)
-			if err != nil {
-				return nil, fmt.Errorf("getting defaults for missed months: %w", err)
-			}
-
 			if defaults == nil {
-				defaults = &model.DefaultSettings{
-					BudgetAmount:      0,
-					EssentialsPercent: 50,
-					DesiresPercent:    30,
-					SavingsPercent:    20,
-					Currency:          "USD",
+				periodDefaults, err := s.getPeriodCreationDefaults(ctx, userID)
+				if err != nil {
+					return nil, err
 				}
+				defaults = periodDefaults
 			}
 
 			for _, missed := range missedMonths {
@@ -286,6 +291,7 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 					Year:              missed.year,
 					Month:             missed.month,
 					BudgetAmount:      defaults.BudgetAmount,
+					ReportingCurrency: defaults.Currency,
 					EssentialsPercent: defaults.EssentialsPercent,
 					DesiresPercent:    defaults.DesiresPercent,
 					SavingsPercent:    defaults.SavingsPercent,
@@ -320,6 +326,7 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		Year:              req.Year,
 		Month:             req.Month,
 		BudgetAmount:      req.BudgetAmount,
+		ReportingCurrency: reportingCurrency,
 		EssentialsPercent: req.EssentialsPercent,
 		DesiresPercent:    req.DesiresPercent,
 		SavingsPercent:    req.SavingsPercent,

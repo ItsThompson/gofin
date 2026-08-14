@@ -22,12 +22,13 @@ type DefaultsResponse struct {
 // validator treats the int32 zero value as "missing", which would reject valid
 // splits like 100/0/0. The sum-to-100 constraint is enforced by ValidateEDSSplit.
 type CreatePeriodRequest struct {
-	Year              int32 `json:"year" binding:"required"`
-	Month             int32 `json:"month" binding:"required"`
-	BudgetAmount      int64 `json:"budgetAmount"`
-	EssentialsPercent int32 `json:"essentialsPercent"`
-	DesiresPercent    int32 `json:"desiresPercent"`
-	SavingsPercent    int32 `json:"savingsPercent"`
+	Year              int32  `json:"year" binding:"required"`
+	Month             int32  `json:"month" binding:"required"`
+	BudgetAmount      int64  `json:"budgetAmount"`
+	ReportingCurrency string `json:"reportingCurrency"`
+	EssentialsPercent int32  `json:"essentialsPercent"`
+	DesiresPercent    int32  `json:"desiresPercent"`
+	SavingsPercent    int32  `json:"savingsPercent"`
 }
 
 // PeriodResponse is the JSON body returned for period endpoints.
@@ -117,16 +118,16 @@ type HistoricalComparisonResponse struct {
 
 // TrendPoint is a single monthly data point in the spending trends chart.
 type TrendPoint struct {
-	Year             int32   `json:"year"`
-	Month            int32   `json:"month"`
-	TotalSpent       int64   `json:"totalSpent"`
-	BudgetAmount     int64   `json:"budgetAmount"`
-	EssentialsSpent  int64   `json:"essentialsSpent"`
-	DesiresSpent     int64   `json:"desiresSpent"`
-	SavingsSpent     int64   `json:"savingsSpent"`
+	Year              int32   `json:"year"`
+	Month             int32   `json:"month"`
+	TotalSpent        int64   `json:"totalSpent"`
+	BudgetAmount      int64   `json:"budgetAmount"`
+	EssentialsSpent   int64   `json:"essentialsSpent"`
+	DesiresSpent      int64   `json:"desiresSpent"`
+	SavingsSpent      int64   `json:"savingsSpent"`
 	EssentialsPercent float64 `json:"essentialsPercent"`
-	DesiresPercent   float64 `json:"desiresPercent"`
-	SavingsPercent   float64 `json:"savingsPercent"`
+	DesiresPercent    float64 `json:"desiresPercent"`
+	SavingsPercent    float64 `json:"savingsPercent"`
 }
 
 // TrendResponse is the JSON body returned for GET /api/finance/spending/trends.

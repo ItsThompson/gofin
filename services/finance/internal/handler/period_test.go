@@ -27,6 +27,7 @@ func TestGetCurrentPeriodHandler_Success(t *testing.T) {
 			Year:              2026,
 			Month:             5,
 			BudgetAmount:      300000,
+			ReportingCurrency: "USD",
 			EssentialsPercent: 50,
 			DesiresPercent:    30,
 			SavingsPercent:    20,
@@ -44,6 +45,7 @@ func TestGetCurrentPeriodHandler_Success(t *testing.T) {
 	assert.Equal(t, int32(2026), resp.Period.Year)
 	assert.Equal(t, int32(5), resp.Period.Month)
 	assert.Equal(t, int64(300000), resp.Period.BudgetAmount)
+	assert.Equal(t, "USD", resp.Period.ReportingCurrency)
 }
 
 func TestGetCurrentPeriodHandler_PeriodNotFound(t *testing.T) {
@@ -122,6 +124,7 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 			Year:              2026,
 			Month:             5,
 			BudgetAmount:      300000,
+			ReportingCurrency: "EUR",
 			EssentialsPercent: 50,
 			DesiresPercent:    30,
 			SavingsPercent:    20,
@@ -135,6 +138,7 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 		"year":              2026,
 		"month":             5,
 		"budgetAmount":      300000,
+		"reportingCurrency": "EUR",
 		"essentialsPercent": 50,
 		"desiresPercent":    30,
 		"savingsPercent":    20,
@@ -148,6 +152,7 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 	assert.Equal(t, int32(2026), resp.Period.Year)
 	assert.Equal(t, int32(5), resp.Period.Month)
 	assert.Equal(t, int64(300000), resp.Period.BudgetAmount)
+	assert.Equal(t, "EUR", resp.Period.ReportingCurrency)
 }
 
 func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
@@ -162,6 +167,7 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 			Year:              2026,
 			Month:             5,
 			BudgetAmount:      0,
+			ReportingCurrency: "USD",
 			EssentialsPercent: 50,
 			DesiresPercent:    30,
 			SavingsPercent:    20,
@@ -175,6 +181,7 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 		"year":              2026,
 		"month":             5,
 		"budgetAmount":      0,
+		"reportingCurrency": "USD",
 		"essentialsPercent": 50,
 		"desiresPercent":    30,
 		"savingsPercent":    20,
@@ -224,6 +231,30 @@ func TestCreatePeriodHandler_InvalidMonth(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreatePeriodHandler_UnsupportedReportingCurrency(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
+		"year":              2026,
+		"month":             5,
+		"budgetAmount":      300000,
+		"reportingCurrency": "XYZ",
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrUnsupportedCurrency, errResp.Code)
+	assert.Equal(t, "unsupported currency", errResp.Fields["reportingCurrency"])
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
 func TestCreatePeriodHandler_MissingUserID(t *testing.T) {

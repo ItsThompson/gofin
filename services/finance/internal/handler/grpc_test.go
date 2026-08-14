@@ -59,7 +59,7 @@ func TestGetAllUserData_Success(t *testing.T) {
 	periods := []*model.BudgetPeriod{
 		{
 			ID: "period-1", UserID: "user-1", Year: 2026, Month: 3,
-			BudgetAmount: 500000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+			BudgetAmount: 500000, ReportingCurrency: "GBP", EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 			CreatedAt: createdAt,
 		},
 	}
@@ -92,12 +92,49 @@ func TestGetAllUserData_Success(t *testing.T) {
 	assert.Equal(t, int32(2026), resp.Periods[0].Year)
 	assert.Equal(t, int32(3), resp.Periods[0].Month)
 	assert.Equal(t, int64(500000), resp.Periods[0].BudgetAmount)
+	assert.Equal(t, "GBP", resp.Periods[0].ReportingCurrency)
 	assert.Equal(t, "2026-03-15T10:30:00Z", resp.Periods[0].CreatedAt)
 
 	require.NotNil(t, resp.Defaults)
 	assert.Equal(t, "user-1", resp.Defaults.UserId)
 	assert.Equal(t, int64(500000), resp.Defaults.BudgetAmount)
 	assert.Equal(t, "GBP", resp.Defaults.Currency)
+}
+
+func TestCreatePeriodGrpc_UsesReportingCurrency(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+	repo.On("GetLatestPeriod", mock.Anything, "user-1").Return(nil, nil)
+	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(period *model.BudgetPeriod) bool {
+		return period.ReportingCurrency == "CHF"
+	})).Return(&model.BudgetPeriod{
+		ID:                "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		BudgetAmount:      500000,
+		ReportingCurrency: "CHF",
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		CreatedAt:         time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+	}, nil)
+	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).Return([]*model.ProRataSchedule{}, nil)
+
+	resp, err := handler.CreatePeriod(context.Background(), &pb.CreatePeriodRequest{
+		UserId:            "user-1",
+		Year:              2026,
+		Month:             5,
+		BudgetAmount:      500000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		ReportingCurrency: "CHF",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.Period)
+	assert.Equal(t, "CHF", resp.Period.ReportingCurrency)
 }
 
 func TestGetAllUserData_EmptyUser(t *testing.T) {

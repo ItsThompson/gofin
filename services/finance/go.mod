@@ -11,6 +11,7 @@ require (
 	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/perf v0.0.0
 	github.com/ItsThompson/gofin/services/pgutil v0.0.0
+	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
@@ -46,6 +47,8 @@ replace github.com/ItsThompson/gofin/services/apierr => ../apierr
 replace github.com/ItsThompson/gofin/services/httpx => ../httpx
 
 replace github.com/ItsThompson/gofin/services/pgutil => ../pgutil
+
+replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect

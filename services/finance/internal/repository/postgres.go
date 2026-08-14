@@ -199,6 +199,7 @@ func (r *PostgresFinanceRepository) CreatePeriod(ctx context.Context, period *mo
 		Year:              period.Year,
 		Month:             period.Month,
 		BudgetAmount:      period.BudgetAmount,
+		ReportingCurrency: period.ReportingCurrency,
 		EssentialsPercent: period.EssentialsPercent,
 		DesiresPercent:    period.DesiresPercent,
 		SavingsPercent:    period.SavingsPercent,
@@ -508,6 +509,7 @@ func dbPeriodToModel(p db.FinanceBudgetPeriod) *model.BudgetPeriod {
 		Year:              p.Year,
 		Month:             p.Month,
 		BudgetAmount:      p.BudgetAmount,
+		ReportingCurrency: p.ReportingCurrency,
 		EssentialsPercent: p.EssentialsPercent,
 		DesiresPercent:    p.DesiresPercent,
 		SavingsPercent:    p.SavingsPercent,
@@ -572,6 +574,6 @@ type postgresTx struct {
 	repo FinanceRepository
 }
 
-func (t *postgresTx) Commit(ctx context.Context) error  { return t.tx.Commit(ctx) }
+func (t *postgresTx) Commit(ctx context.Context) error   { return t.tx.Commit(ctx) }
 func (t *postgresTx) Rollback(ctx context.Context) error { return t.tx.Rollback(ctx) }
 func (t *postgresTx) Repo() FinanceRepository            { return t.repo }
