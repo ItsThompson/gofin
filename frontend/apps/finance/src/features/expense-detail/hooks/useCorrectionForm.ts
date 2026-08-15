@@ -47,7 +47,7 @@ export function useCorrectionForm(
   tags: Tag[] = [],
 ): { state: CorrectionFormState; actions: CorrectionFormActions } {
   const transactionAmount = getTransactionAmount(expense);
-  const initialTransactionCurrency = getTransactionCurrency(expense, expense.currency ?? "");
+  const initialTransactionCurrency = getTransactionCurrency(expense);
   const [transactionCurrency, setTransactionCurrencyState] = useState(initialTransactionCurrency);
   const expenseFields = useExpenseFields(
     {

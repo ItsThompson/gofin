@@ -169,6 +169,7 @@ describe("computeChanges", () => {
       id: "exp-2",
       name: "Updated Groceries",
       transactionAmount: 6000,
+      reportingAmount: 6000,
       correctsId: "exp-1",
     };
 

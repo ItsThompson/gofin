@@ -84,7 +84,8 @@ describe("useCorrectionForm", () => {
     it("derives amountDollars correctly from cents", () => {
       const expenseWithOddAmount: Expense = {
         ...mockExpense,
-        transactionAmount: 1299, // $12.99
+        transactionAmount: 1299,
+        reportingAmount: 1299,
       };
       const onSubmit = vi.fn();
       const { result } = renderHook(() =>
