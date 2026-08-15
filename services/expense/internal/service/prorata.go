@@ -121,7 +121,6 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		ProRataIndex:          req.ProRataIndex,
 		ProRataTotal:          req.ProRataTotal,
 		CreatedAt:             now,
-		MoneySnapshotVersion:  snapshot.MoneySnapshotVersion,
 		TransactionAmount:     snapshot.TransactionAmount,
 		ReportingAmount:       snapshot.ReportingAmount,
 		ReportingCurrency:     snapshot.ReportingCurrency,

@@ -163,11 +163,12 @@ func (h *GRPCHandler) GetExpense(ctx context.Context, req *pb.GetExpenseRequest)
 
 func (h *GRPCHandler) CorrectExpense(ctx context.Context, req *pb.CorrectExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CorrectExpense(ctx, req.GetUserId(), req.GetExpenseId(), &model.CorrectExpenseRequest{
-		Name:        req.GetName(),
-		Amount:      req.GetAmount(),
-		ExpenseType: req.GetExpenseType(),
-		TagID:       req.GetTagId(),
-		ExpenseDate: req.GetExpenseDate(),
+		Name:                req.GetName(),
+		Amount:              req.GetAmount(),
+		TransactionCurrency: req.GetTransactionCurrency(),
+		ExpenseType:         req.GetExpenseType(),
+		TagID:               req.GetTagId(),
+		ExpenseDate:         req.GetExpenseDate(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCorrect, req.GetUserId())

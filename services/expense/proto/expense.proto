@@ -166,6 +166,8 @@ message CorrectExpenseRequest {
   string expense_type = 5;
   string tag_id = 6;
   string expense_date = 7;
+  string transaction_currency = 8;
+  string currency = 9; // Deprecated alias during rollout.
 }
 
 // ---------------------------------------------------------------------------

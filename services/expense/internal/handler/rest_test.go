@@ -627,10 +627,16 @@ func TestCorrectExpenseHandler_Success(t *testing.T) {
 
 	original := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
-		ExpenseType: "desires",
-		TagID:       "tag-food", ExpenseDate: "2026-05-01",
+		TransactionCurrency: "USD", ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
-		CreatedAt: "2026-05-01T10:00:00Z",
+		CreatedAt:             "2026-05-01T10:00:00Z",
+		TransactionAmount:     500,
+		ReportingAmount:       500,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: "2026-05-01T10:00:00Z",
 	}
 
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)

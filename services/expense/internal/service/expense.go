@@ -252,11 +252,49 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		}
 	}
 
-	transactionCurrency := original.TransactionCurrency // correction currency is inherited, not changeable
-	createdAt := s.clock().UTC().Format(time.RFC3339)
-	// Same-currency identity is correct here: correction currency is inherited
-	// and foreign-currency corrections are not yet supported.
-	snapshot := buildIdentitySnapshot(req.Amount, transactionCurrency, original.ReportingCurrency, createdAt)
+	// Resolve the original expense's period reporting currency before any
+	// conversion. Corrections convert against the original period currency, not
+	// the current user currency or default settings (US-CORRECTION-02).
+	period, err := s.periodClient.GetPeriodContext(ctx, userID, original.PeriodYear, original.PeriodMonth)
+	if err != nil {
+		return nil, err
+	}
+
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	if err := validateReportingCurrency(reportingCurrency); err != nil {
+		s.logger.Error("unsupported reporting currency from period context",
+			slog.String("event", "unsupported_reporting_currency"),
+			slog.String("reporting_currency", reportingCurrency),
+		)
+		return nil, err
+	}
+
+	transactionCurrency, err := s.resolveCorrectionTransactionCurrency(original, req)
+	if err != nil {
+		return nil, err
+	}
+
+	nowTS := now.UTC().Format(time.RFC3339)
+
+	// Resolve the correction snapshot before any ledger mutation. A foreign-
+	// currency correction calls FX first; on failure the original remains active
+	// and no correction row is appended.
+	var snapshot model.Expense
+	if transactionCurrency == reportingCurrency {
+		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, reportingCurrency, nowTS)
+	} else {
+		fxResp, convErr := s.fxClient.ConvertAmount(ctx, FxConvertRequest{
+			Amount:         req.Amount,
+			SourceCurrency: transactionCurrency,
+			TargetCurrency: reportingCurrency,
+			RequestedAt:    nowTS,
+		})
+		if convErr != nil {
+			logFxConversionFailure(s.logger, convErr, transactionCurrency, reportingCurrency)
+			return nil, convErr
+		}
+		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+	}
 
 	correction := &model.Expense{
 		ID:                    uuid.New().String(),
@@ -266,15 +304,15 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		ExpenseType:           req.ExpenseType,
 		TagID:                 req.TagID,
 		ExpenseDate:           req.ExpenseDate,
-		PeriodYear:            original.PeriodYear,  // Period is immutable
-		PeriodMonth:           original.PeriodMonth, // Period is immutable
+		PeriodYear:            original.PeriodYear,
+		PeriodMonth:           original.PeriodMonth,
 		Status:                "active",
 		CorrectsID:            original.ID,
 		IsProRata:             original.IsProRata,
 		ProRataGroup:          original.ProRataGroup,
 		ProRataIndex:          original.ProRataIndex,
 		ProRataTotal:          original.ProRataTotal,
-		CreatedAt:             createdAt,
+		CreatedAt:             nowTS,
 		TransactionAmount:     snapshot.TransactionAmount,
 		ReportingAmount:       snapshot.ReportingAmount,
 		ReportingCurrency:     snapshot.ReportingCurrency,
@@ -571,6 +609,18 @@ func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext,
 		s.logger.Info("transaction currency defaulted",
 			slog.String("event", "transaction_currency_defaulted"),
 			slog.String("reporting_currency", transactionCurrency),
+		)
+	}
+	return s.validateTransactionCurrency(transactionCurrency)
+}
+
+func (s *ExpenseService) resolveCorrectionTransactionCurrency(original *model.Expense, req *model.CorrectExpenseRequest) (string, error) {
+	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	if transactionCurrency == "" {
+		transactionCurrency = normalizeCurrencyCode(original.TransactionCurrency)
+		s.logger.Info("correction currency preserved",
+			slog.String("event", "correction_currency_preserved"),
+			slog.String("transaction_currency", transactionCurrency),
 		)
 	}
 	return s.validateTransactionCurrency(transactionCurrency)

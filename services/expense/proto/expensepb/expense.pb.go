@@ -947,16 +947,18 @@ func (x *GetExpenseRequest) GetUserId() string {
 }
 
 type CorrectExpenseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ExpenseId     string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Amount        int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	ExpenseType   string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId         string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate   string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ExpenseId           string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
+	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name                string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Amount              int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	ExpenseType         string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId               string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDate         string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
+	TransactionCurrency string                 `protobuf:"bytes,8,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
+	Currency            string                 `protobuf:"bytes,9,opt,name=currency,proto3" json:"currency,omitempty"` // Deprecated alias during rollout.
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CorrectExpenseRequest) Reset() {
@@ -1034,6 +1036,20 @@ func (x *CorrectExpenseRequest) GetTagId() string {
 func (x *CorrectExpenseRequest) GetExpenseDate() string {
 	if x != nil {
 		return x.ExpenseDate
+	}
+	return ""
+}
+
+func (x *CorrectExpenseRequest) GetTransactionCurrency() string {
+	if x != nil {
+		return x.TransactionCurrency
+	}
+	return ""
+}
+
+func (x *CorrectExpenseRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
 	}
 	return ""
 }
@@ -1497,7 +1513,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"<\n" +
 	"\x11GetExpenseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xd8\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xa7\x02\n" +
 	"\x15CorrectExpenseRequest\x12\x1d\n" +
 	"\n" +
 	"expense_id\x18\x01 \x01(\tR\texpenseId\x12\x17\n" +
@@ -1506,7 +1522,9 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12!\n" +
 	"\fexpense_type\x18\x05 \x01(\tR\vexpenseType\x12\x15\n" +
 	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12!\n" +
-	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\"<\n" +
+	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\x121\n" +
+	"\x14transaction_currency\x18\b \x01(\tR\x13transactionCurrency\x12\x1a\n" +
+	"\bcurrency\x18\t \x01(\tR\bcurrency\"<\n" +
 	"\x1bGetCorrectionHistoryRequest\x12\x1d\n" +
 	"\n" +
 	"expense_id\x18\x01 \x01(\tR\texpenseId\"K\n" +

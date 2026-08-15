@@ -33,7 +33,6 @@ func streamRowFixtures(n int) []*expensepb.ExpenseData {
 			Status:                "active",
 			CreatedAt:             fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
 			TransactionCurrency:   "USD",
-			MoneySnapshotVersion:  1,
 			TransactionAmount:     amount,
 			ReportingAmount:       amount,
 			ReportingCurrency:     "USD",

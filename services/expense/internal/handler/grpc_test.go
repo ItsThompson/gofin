@@ -137,6 +137,83 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+// TestGRPC_CorrectExpense_MapsTransactionCurrency asserts the gRPC correction
+// handler maps transaction_currency into the service request. The deprecated
+// currency alias is no longer mapped.
+func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, func() time.Time { return now }, logger)
+	handler := NewGRPCHandler(expenseSvc)
+
+	original := &model.Expense{
+		ID:                    "exp-original",
+		UserID:                "user-1",
+		Name:                  "Coffee",
+		Amount:                500,
+		TransactionCurrency:   "USD",
+		Currency:              "USD",
+		ExpenseType:           "desires",
+		TagID:                 "tag-food",
+		ExpenseDate:           "2026-05-01",
+		PeriodYear:            2026,
+		PeriodMonth:           5,
+		Status:                "active",
+		CreatedAt:             "2026-05-01T10:00:00Z",
+		TransactionAmount:     500,
+		ReportingAmount:       500,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: "2026-05-01T10:00:00Z",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	repo.On("CorrectExpense", mock.Anything, original, mock.MatchedBy(func(correction *model.Expense) bool {
+		return correction.TransactionCurrency == "USD" && correction.Currency == "USD"
+	})).Return(&model.Expense{
+		ID:                  "exp-correction",
+		UserID:              "user-1",
+		Name:                "Updated Coffee",
+		Amount:              600,
+		TransactionCurrency: "USD",
+		Currency:            "USD",
+		ExpenseType:         "desires",
+		TagID:               "tag-food",
+		ExpenseDate:         "2026-05-01",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+		Status:              "active",
+		CorrectsID:          "exp-original",
+		CreatedAt:           "2026-05-03T10:00:00Z",
+	}, nil)
+
+	resp, err := handler.CorrectExpense(context.Background(), &pb.CorrectExpenseRequest{
+		ExpenseId:           "exp-original",
+		UserId:              "user-1",
+		Name:                "Updated Coffee",
+		Amount:              600,
+		TransactionCurrency: "USD",
+		ExpenseType:         "desires",
+		TagId:               "tag-food",
+		ExpenseDate:         "2026-05-01",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, "USD", resp.GetExpense().GetTransactionCurrency())
+	repo.AssertExpectations(t)
+}
+
 func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
