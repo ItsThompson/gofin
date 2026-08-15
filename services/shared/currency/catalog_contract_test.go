@@ -17,8 +17,9 @@ type catalogEntry struct {
 func TestGeneratedCatalogMatchesSource(t *testing.T) {
 	entries := loadSourceCatalog(t)
 
-	generatedCodes := make([]string, 0, len(SupportedCurrencies))
-	for _, definition := range SupportedCurrencies {
+	definitions := All()
+	generatedCodes := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
 		generatedCodes = append(generatedCodes, definition.Code)
 	}
 
@@ -47,6 +48,20 @@ func TestGeneratedCatalogMatchesSource(t *testing.T) {
 		if definition.MinorUnitDigits != entry.MinorUnitDigits {
 			t.Fatalf("%s minorUnitDigits = %d, want %d", entry.Code, definition.MinorUnitDigits, entry.MinorUnitDigits)
 		}
+	}
+}
+
+func TestAllReturnsCopy(t *testing.T) {
+	definitions := All()
+	if len(definitions) == 0 {
+		t.Fatal("generated catalog is empty")
+	}
+
+	definitions[0].Code = "XXX"
+
+	freshDefinitions := All()
+	if freshDefinitions[0].Code == "XXX" {
+		t.Fatal("All returned mutable package state")
 	}
 }
 

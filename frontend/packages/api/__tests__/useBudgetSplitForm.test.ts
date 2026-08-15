@@ -240,6 +240,36 @@ describe("useBudgetSplitForm", () => {
       expect(error!).toBe("Budget amount must be non-negative");
     });
 
+    it("returns error when budget exceeds currency precision", () => {
+      const { result } = renderHook(() => useBudgetSplitForm({ currency: "JPY" }));
+
+      act(() => {
+        result.current.setField("budgetDollars", "10.50");
+      });
+
+      let error: string | null;
+      act(() => {
+        error = result.current.validate();
+      });
+
+      expect(error!).toBe("Budget amount must be a whole JPY amount");
+    });
+
+    it("allows budget precision within selected currency minor units", () => {
+      const { result } = renderHook(() => useBudgetSplitForm({ currency: "USD" }));
+
+      act(() => {
+        result.current.setField("budgetDollars", "10.50");
+      });
+
+      let error: string | null;
+      act(() => {
+        error = result.current.validate();
+      });
+
+      expect(error!).toBeNull();
+    });
+
     it("returns null when budget is empty string (treated as 0)", () => {
       const { result } = renderHook(() => useBudgetSplitForm());
 

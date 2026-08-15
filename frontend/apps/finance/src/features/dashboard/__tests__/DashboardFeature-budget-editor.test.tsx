@@ -85,6 +85,29 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     expect((putCall!.body as { savingsPercent: number }).savingsPercent).toBe(15);
   });
 
+  it("uses the period currency precision for budget input", async () => {
+    const yenPeriod = buildPeriod({
+      ...testPeriod,
+      budgetAmount: 300000,
+      reportingCurrency: "JPY",
+    });
+
+    global.fetch = createMockApi({
+      "/api/finance/periods/current": { body: { period: yenPeriod } },
+      ...dashboardDataRoutes(),
+    }) as unknown as typeof fetch;
+    renderDashboard();
+
+    await waitFor(() => {
+      expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Budget Settings"));
+
+    expect(screen.getByLabelText("Monthly Budget")).toHaveAttribute("step", "1");
+  });
+
   it("shows API error when budget save fails", async () => {
     const mockApi = createMockApi({
       "/api/finance/periods/current": { body: { period: testPeriod } },

@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import type { User } from "@gofin/core";
 import type { BudgetPeriod } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import {
@@ -32,7 +31,6 @@ import { HealthScoreCard } from "./widgets/HealthScoreCard";
 
 export interface ActiveDashboardProps {
   period: BudgetPeriod;
-  user: User;
   /** When true, hides editing controls and Log Expense CTA. */
   readOnly?: boolean;
 }

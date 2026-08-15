@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   formatCurrency,
+  getCurrencyInputStep,
   getCurrencySymbol,
   getMinorUnitDigits,
+  hasValidMinorUnitPrecision,
   toCents,
   toMajorUnits,
   toMinorUnits,
@@ -102,7 +104,18 @@ describe("minor unit helpers", () => {
 
   it("converts input strings by currency precision", () => {
     expect(toMinorUnits("10.50", "USD")).toBe(1050);
-    expect(toMinorUnits("10.50", "JPY")).toBe(11);
+    expect(toMinorUnits("10", "JPY")).toBe(10);
+  });
+
+  it("builds number input steps from currency precision", () => {
+    expect(getCurrencyInputStep("USD")).toBe("0.01");
+    expect(getCurrencyInputStep("JPY")).toBe("1");
+  });
+
+  it("checks input precision against the currency minor unit", () => {
+    expect(hasValidMinorUnitPrecision("10.50", "USD")).toBe(true);
+    expect(hasValidMinorUnitPrecision("10.50", "JPY")).toBe(false);
+    expect(hasValidMinorUnitPrecision("10", "JPY")).toBe(true);
   });
 });
 

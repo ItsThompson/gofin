@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import {
+  getCurrencyInputStep,
   getCurrencySymbol,
   getMinorUnitDigits,
   SUPPORTED_CURRENCIES,
@@ -51,12 +52,6 @@ function initialReportingCurrency(defaults: DefaultSettings | null, user: User):
   const candidate = (defaults?.currency ?? user.currency).trim().toUpperCase();
   if (SUPPORTED_CURRENCY_CODES.has(candidate)) return candidate;
   return FALLBACK_REPORTING_CURRENCY;
-}
-
-function amountStep(currencyCode: string): string {
-  const minorUnitDigits = getMinorUnitDigits(currencyCode);
-  if (minorUnitDigits === 0) return "1";
-  return `0.${"0".repeat(minorUnitDigits - 1)}1`;
 }
 
 export function CreatePeriodPrompt({
@@ -144,7 +139,7 @@ export function CreatePeriodPrompt({
                   id="budget"
                   type="number"
                   min="0"
-                  step={amountStep(reportingCurrency)}
+                  step={getCurrencyInputStep(reportingCurrency)}
                   placeholder={getMinorUnitDigits(reportingCurrency) === 0 ? "0" : "0.00"}
                   value={form.fields.budgetDollars}
                   onChange={(event) => form.setField("budgetDollars", event.target.value)}

@@ -10,7 +10,7 @@ type Definition struct {
 	MinorUnitDigits int
 }
 
-var SupportedCurrencies = []Definition{
+var supportedCurrencies = []Definition{
 	{Code: "USD", Symbol: "$", Name: "US Dollar", MinorUnitDigits: 2},
 	{Code: "EUR", Symbol: "€", Name: "Euro", MinorUnitDigits: 2},
 	{Code: "GBP", Symbol: "£", Name: "British Pound", MinorUnitDigits: 2},
@@ -23,7 +23,7 @@ var SupportedCurrencies = []Definition{
 	{Code: "HKD", Symbol: "HK$", Name: "Hong Kong Dollar", MinorUnitDigits: 2},
 }
 
-var Catalog = map[string]Definition{
+var catalog = map[string]Definition{
 	"USD": {Code: "USD", Symbol: "$", Name: "US Dollar", MinorUnitDigits: 2},
 	"EUR": {Code: "EUR", Symbol: "€", Name: "Euro", MinorUnitDigits: 2},
 	"GBP": {Code: "GBP", Symbol: "£", Name: "British Pound", MinorUnitDigits: 2},
@@ -36,12 +36,18 @@ var Catalog = map[string]Definition{
 	"HKD": {Code: "HKD", Symbol: "HK$", Name: "Hong Kong Dollar", MinorUnitDigits: 2},
 }
 
+func All() []Definition {
+	definitions := make([]Definition, len(supportedCurrencies))
+	copy(definitions, supportedCurrencies)
+	return definitions
+}
+
 func Get(code string) (Definition, bool) {
-	definition, ok := Catalog[code]
+	definition, ok := catalog[code]
 	return definition, ok
 }
 
 func IsSupported(code string) bool {
-	_, ok := Catalog[code]
+	_, ok := catalog[code]
 	return ok
 }

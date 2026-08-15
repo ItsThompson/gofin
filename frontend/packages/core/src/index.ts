@@ -15,8 +15,10 @@ export {
 } from "./validation";
 export {
   formatCurrency,
+  getCurrencyInputStep,
   getCurrencySymbol,
   getMinorUnitDigits,
+  hasValidMinorUnitPrecision,
   toCents,
   toMajorUnits,
   toMinorUnits,

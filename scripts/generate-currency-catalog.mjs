@@ -87,21 +87,27 @@ type Definition struct {
 \tMinorUnitDigits int
 }
 
-var SupportedCurrencies = []Definition{
+var supportedCurrencies = []Definition{
 ${goCatalog}
 }
 
-var Catalog = map[string]Definition{
+var catalog = map[string]Definition{
 ${goMapEntries}
 }
 
+func All() []Definition {
+\tdefinitions := make([]Definition, len(supportedCurrencies))
+\tcopy(definitions, supportedCurrencies)
+\treturn definitions
+}
+
 func Get(code string) (Definition, bool) {
-\tdefinition, ok := Catalog[code]
+\tdefinition, ok := catalog[code]
 \treturn definition, ok
 }
 
 func IsSupported(code string) bool {
-\t_, ok := Catalog[code]
+\t_, ok := catalog[code]
 \treturn ok
 }
 `;

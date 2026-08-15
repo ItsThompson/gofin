@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import {
   validateEDSSplit,
   DEFAULT_BUDGET_SPLIT,
+  getMinorUnitDigits,
+  hasValidMinorUnitPrecision,
   toMajorUnits,
   toMinorUnits,
 } from "@gofin/core";
@@ -45,6 +47,14 @@ export interface BudgetSplitForm {
   };
   /** Reset form to given options (or defaults). */
   reset: (options?: BudgetSplitFormOptions) => void;
+}
+
+function precisionError(currency: string): string {
+  const minorUnitDigits = getMinorUnitDigits(currency);
+  if (minorUnitDigits === 0) {
+    return `Budget amount must be a whole ${currency} amount`;
+  }
+  return `Budget amount supports up to ${minorUnitDigits} decimal places for ${currency}`;
 }
 
 function buildInitialFields(options?: BudgetSplitFormOptions): BudgetSplitFields {
@@ -101,8 +111,12 @@ export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSpli
       return "Budget amount must be non-negative";
     }
 
+    if (!hasValidMinorUnitPrecision(fields.budgetDollars, currency)) {
+      return precisionError(currency);
+    }
+
     return null;
-  }, [fields]);
+  }, [fields, currency]);
 
   const toPayload = useCallback(() => {
     return {
