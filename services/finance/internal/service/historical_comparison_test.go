@@ -12,7 +12,50 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
-// --- GetHistoricalComparison fan-out regression tests ---
+// --- Cross-currency historical comparison ---
+
+// TestGetHistoricalComparison_MixedCurrencyNotComparable asserts that when the
+// current and previous periods have different reporting currencies, the
+// Comparable flag is false, ChangePercent is zeroed, and the rolling average is
+// suppressed.
+func TestGetHistoricalComparison_MixedCurrencyNotComparable(t *testing.T) {
+	exp := newCountingExpenseClient()
+	currentPeriod := makePeriod("p12", 2026, 12)
+	currentPeriod.ReportingCurrency = "USD"
+	prevPeriod := makePeriod("p11", 2026, 11)
+	prevPeriod.ReportingCurrency = "EUR"
+	periods := []*model.BudgetPeriod{currentPeriod, prevPeriod}
+	exp.set(2026, 12, []ExpenseData{{Amount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{Amount: 70000}})
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.Equal(t, int64(80000), result.CurrentSpent)
+	assert.Equal(t, int64(70000), result.PreviousSpent)
+	assert.Equal(t, "EUR", result.PreviousReportingCurrency)
+	assert.False(t, result.Comparable, "different reporting currencies are not comparable")
+	assert.Equal(t, float64(0), result.ChangePercent, "change percent zeroed when not comparable")
+	assert.Nil(t, result.RollingAverage, "rolling average suppressed for mixed currencies")
+}
+
+// TestGetHistoricalComparison_SameCurrencyComparable asserts that same-currency
+// adjacent periods produce a Comparable=true result with a valid change percent.
+func TestGetHistoricalComparison_SameCurrencyComparable(t *testing.T) {
+	exp := newCountingExpenseClient()
+	periods := []*model.BudgetPeriod{
+		makePeriod("p12", 2026, 12),
+		makePeriod("p11", 2026, 11),
+	}
+	exp.set(2026, 12, []ExpenseData{{Amount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{Amount: 70000}})
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.True(t, result.Comparable)
+	assert.InDelta(t, 14.29, result.ChangePercent, 0.01)
+}
 
 // TestGetHistoricalComparison_FanOutByteIdentical asserts the fan-out yields the
 // expected values (current/previous/change/rolling) while reading each distinct

@@ -100,9 +100,9 @@ func TestHealthScore_ConfigureBudgetShape(t *testing.T) {
 	}
 }
 
-func TestFormulaVersion_IsTwo(t *testing.T) {
-	if FormulaVersion != 2 {
-		t.Errorf("FormulaVersion = %d, want 2 for Phase 2", FormulaVersion)
+func TestFormulaVersion_IsThree(t *testing.T) {
+	if FormulaVersion != 3 {
+		t.Errorf("FormulaVersion = %d, want 3 for Phase 3", FormulaVersion)
 	}
 }
 

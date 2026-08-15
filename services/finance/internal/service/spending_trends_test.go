@@ -164,6 +164,29 @@ func TestComputeSpendingTrends_SingleMonth(t *testing.T) {
 	assert.Equal(t, float64(15), result[0].SavingsPercent)
 }
 
+// --- Trend reporting currency ---
+
+func TestComputeSpendingTrends_ReportingCurrencyPerPoint(t *testing.T) {
+	periods := []*model.BudgetPeriod{
+		{BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrency: "USD"},
+		{BudgetAmount: 30000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrency: "JPY"},
+		nil, // gap month
+	}
+	expensesByMonth := [][]ExpenseData{
+		{{Amount: 100000, ExpenseType: "essentials"}},
+		{{Amount: 30000, ExpenseType: "essentials"}},
+		nil,
+	}
+	years := []int32{2026, 2026, 2026}
+	monthSlice := []int32{1, 2, 3}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Equal(t, "USD", result[0].ReportingCurrency)
+	assert.Equal(t, "JPY", result[1].ReportingCurrency)
+	assert.Equal(t, "", result[2].ReportingCurrency, "nil period yields empty reporting currency")
+}
+
 func TestComputeSpendingTrends_NilPeriodReturnsZeros(t *testing.T) {
 	// When a period is nil (no budget created that month), all fields should be zero
 	periods := []*model.BudgetPeriod{nil}

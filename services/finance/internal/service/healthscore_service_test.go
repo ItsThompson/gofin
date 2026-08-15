@@ -21,6 +21,7 @@ func healthPeriodMonth(year, month int32) *model.BudgetPeriod {
 	return &model.BudgetPeriod{
 		ID: "p", UserID: "user-1", Year: year, Month: month,
 		BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	}
 }
 
@@ -32,7 +33,7 @@ func TestGetHealthScore_ConfigureBudget(t *testing.T) {
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
-		Return(&model.BudgetPeriod{ID: "p0", UserID: "user-1", Year: 2026, Month: 5, BudgetAmount: 0}, nil)
+		Return(&model.BudgetPeriod{ID: "p0", UserID: "user-1", Year: 2026, Month: 5, BudgetAmount: 0, ReportingCurrency: "USD"}, nil)
 
 	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
 
@@ -41,22 +42,23 @@ func TestGetHealthScore_ConfigureBudget(t *testing.T) {
 	assert.Empty(t, score.Components)
 	assert.Equal(t, int32(2026), score.Year)
 	assert.Equal(t, int32(5), score.Month)
+	assert.Equal(t, "USD", score.ReportingCurrency)
 	// Must not read defaults, expenses, or storage when there is no budget.
 	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "GetHealthScore", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	expClient.AssertNotCalled(t, "GetExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
-func TestGetHealthScore_Success_UsesDefaultsCurrency(t *testing.T) {
+func TestGetHealthScore_Success_UsesPeriodReportingCurrency(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
 
+	eurPeriod := healthPeriod(300000, 50, 30, 20)
+	eurPeriod.ReportingCurrency = "EUR"
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
-		Return(healthPeriod(300000, 50, 30, 20), nil)
-	repo.On("GetDefaults", mock.Anything, "user-1").
-		Return(&model.DefaultSettings{UserID: "user-1", Currency: "EUR"}, nil)
+		Return(eurPeriod, nil)
 	// Only the current (provisional) period exists, so the stability window is
 	// empty (building baseline).
 	repo.On("ListPeriods", mock.Anything, "user-1").
@@ -73,22 +75,27 @@ func TestGetHealthScore_Success_UsesDefaultsCurrency(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(79), score.Total)
 	assert.Equal(t, model.HealthKeySavings, score.Insight.Driver)
-	// Currency from defaults drives the money symbol in the nudge.
+	// Currency comes from the period's reporting currency, not default settings.
+	assert.Equal(t, "EUR", score.ReportingCurrency)
 	assert.Contains(t, score.Insight.Nudge, "€300")
+	// Must not read defaults: the period reporting currency is authoritative.
+	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
 	// The provisional current month is never stored.
 	repo.AssertNotCalled(t, "UpsertHealthScore", mock.Anything, mock.Anything, mock.Anything)
 }
 
-func TestGetHealthScore_DefaultsCurrencyFallback(t *testing.T) {
-	// nil defaults -> currency falls back to USD.
+func TestGetHealthScore_EmptyReportingCurrencyFallback(t *testing.T) {
+	// A period with no reporting currency (edge case for pre-migration data)
+	// falls back to USD.
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
 
+	period := healthPeriod(300000, 50, 30, 20)
+	period.ReportingCurrency = ""
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
-		Return(healthPeriod(300000, 50, 30, 20), nil)
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(nil, nil)
+		Return(period, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -102,6 +109,7 @@ func TestGetHealthScore_DefaultsCurrencyFallback(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, score.Insight.Nudge, "$300")
+	assert.Equal(t, "USD", score.ReportingCurrency)
 }
 
 func TestGetHealthScore_PeriodNotFound(t *testing.T) {
@@ -166,6 +174,27 @@ func TestGetHealthScore_ClosedStoredCurrentVersionReturnsStored(t *testing.T) {
 	repo.AssertNotCalled(t, "UpsertHealthScore", mock.Anything, mock.Anything, mock.Anything)
 }
 
+func TestGetHealthScore_ClosedStoredBackfillsReportingCurrency(t *testing.T) {
+	// A stored score persisted before reportingCurrency was added gets backfilled
+	// from the period's immutable reporting currency.
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return nowJuly })
+
+	stored := storedScore(model.FormulaVersion)
+	stored.ReportingCurrency = "" // persisted before the field existed
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return(healthPeriod(300000, 50, 30, 20), nil)
+	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return(stored, nil)
+
+	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "USD", score.ReportingCurrency, "backfilled from period reporting currency")
+}
+
 func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
@@ -175,7 +204,6 @@ func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(healthPeriod(300000, 50, 30, 20), nil)
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, nil) // miss
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -187,6 +215,7 @@ func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.FormulaVersion, score.FormulaVersion)
 	assert.False(t, score.Provisional, "a closed month is not provisional")
+	assert.Equal(t, "USD", score.ReportingCurrency)
 	repo.AssertCalled(t, "UpsertHealthScore", mock.Anything, "user-1", mock.Anything)
 }
 
@@ -201,7 +230,6 @@ func TestGetHealthScore_StaleVersionRecomputesAndUpserts(t *testing.T) {
 		Return(healthPeriod(300000, 50, 30, 20), nil)
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(storedScore(1), nil) // stale version
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -225,7 +253,6 @@ func TestGetHealthScore_ProvisionalNotStored(t *testing.T) {
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(healthPeriod(300000, 50, 30, 20), nil)
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -251,7 +278,6 @@ func TestGetHealthScore_StabilityPresentReadsWindowOncePerMonth(t *testing.T) {
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(healthPeriod(300000, 50, 30, 20), nil)
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	// DESC order: current May (provisional, excluded), then Apr..Jan closed.
 	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{
 		healthPeriodMonth(2026, 5),
@@ -279,4 +305,36 @@ func TestGetHealthScore_StabilityPresentReadsWindowOncePerMonth(t *testing.T) {
 	assert.Equal(t, int32(20), score.Components[3].Score, "steady desires earn full stability marks")
 	// one read for the target plus one per windowed month (Apr..Jan) = 5.
 	expClient.AssertNumberOfCalls(t, "GetExpensesForPeriod", 5)
+}
+
+// --- Health-score currency stability ---
+
+func TestGetHealthScore_StableAfterDefaultCurrencyChange(t *testing.T) {
+	// A period created with USD reporting currency must keep its USD health-score
+	// display even after the user changes their default settings currency to EUR.
+	// The score is computed from the period's immutable reporting currency, not
+	// from default settings.
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return(healthPeriod(300000, 50, 30, 20), nil) // reportingCurrency = USD
+	repo.On("ListPeriods", mock.Anything, "user-1").
+		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return([]ExpenseData{
+			healthExpense("essentials", 130000),
+			healthExpense("desires", 90000),
+			healthExpense("savings", 30000),
+		}, nil)
+
+	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "USD", score.ReportingCurrency)
+	assert.Contains(t, score.Insight.Nudge, "$300")
+	// Default settings are never read for currency resolution.
+	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
 }

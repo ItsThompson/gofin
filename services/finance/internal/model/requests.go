@@ -107,9 +107,18 @@ type HistoricalComparison struct {
 	CurrentSpent int64 `json:"currentSpent"`
 	// PreviousSpent is the total spent in the period before (cents).
 	PreviousSpent int64 `json:"previousSpent"`
+	// PreviousReportingCurrency is the reporting currency of the previous period.
+	// Empty when there is no previous period. When it differs from the current
+	// period's reporting currency, ChangePercent and the amount delta are not
+	// comparable and the frontend must guard the display.
+	PreviousReportingCurrency string `json:"previousReportingCurrency"`
+	// Comparable is false when the current and previous periods have different
+	// reporting currencies, making amount comparisons invalid.
+	Comparable bool `json:"comparable"`
 	// RollingAverage is the average of the last 3 periods' totalSpent. Null if < 3 periods.
 	RollingAverage *int64 `json:"rollingAverage"`
 	// ChangePercent is the percentage change from previous period.
+	// Only meaningful when Comparable is true.
 	ChangePercent float64 `json:"changePercent"`
 }
 
@@ -130,6 +139,10 @@ type TrendPoint struct {
 	EssentialsPercent float64 `json:"essentialsPercent"`
 	DesiresPercent    float64 `json:"desiresPercent"`
 	SavingsPercent    float64 `json:"savingsPercent"`
+	// ReportingCurrency is the period's reporting currency for this data point.
+	// Each trend point may have a different currency when the user has mixed-
+	// currency periods; the frontend uses it to format each point correctly.
+	ReportingCurrency string `json:"reportingCurrency"`
 }
 
 // TrendResponse is the JSON body returned for GET /api/finance/spending/trends.

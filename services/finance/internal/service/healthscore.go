@@ -222,13 +222,14 @@ func ComputeHealthScore(period *model.BudgetPeriod, expenses []ExpenseData, desi
 	})
 
 	return &model.HealthScore{
-		Year:           year,
-		Month:          month,
-		Total:          total,
-		Band:           model.Band(total),
-		Provisional:    isProvisional(year, month, now),
-		FormulaVersion: model.FormulaVersion,
-		Components:     components,
-		Insight:        insight,
+		Year:              year,
+		Month:             month,
+		Total:             total,
+		Band:              model.Band(total),
+		Provisional:       isProvisional(year, month, now),
+		FormulaVersion:    model.FormulaVersion,
+		ReportingCurrency: currency,
+		Components:        components,
+		Insight:           insight,
 	}
 }

@@ -69,7 +69,6 @@ func TestGetHealthScoreTrend_ProvisionalLast(t *testing.T) {
 	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{
 		scalarPoint(2026, 5, 65), scalarPoint(2026, 4, 60),
 	}, nil)
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	for month := int32(4); month <= 6; month++ {
 		expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), month).
 			Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
@@ -126,7 +125,6 @@ func TestGetHealthScoreTrend_StaleScalarRecomputes(t *testing.T) {
 	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
 	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{staleMay}, nil)
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, nil)
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{Currency: "USD"}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 	repo.On("UpsertHealthScore", mock.Anything, "user-1", mock.Anything).Return(nil, nil)
@@ -137,6 +135,33 @@ func TestGetHealthScoreTrend_StaleScalarRecomputes(t *testing.T) {
 	require.Len(t, points, 1)
 	assert.Equal(t, model.FormulaVersion, points[0].FormulaVersion, "stale scalar recomputed to current version")
 	repo.AssertCalled(t, "UpsertHealthScore", mock.Anything, "user-1", mock.Anything)
+}
+
+// --- Health-score trend reporting currency ---
+
+func TestGetHealthScoreTrend_ReportingCurrencyPerPoint(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return nowDecember })
+
+	// Two stored months with different reporting currencies.
+	usdPeriod := healthPeriodMonth(2026, 5)
+	jpyPeriod := healthPeriodMonth(2026, 4)
+	jpyPeriod.ReportingCurrency = "JPY"
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{
+		usdPeriod, jpyPeriod,
+	}, nil)
+	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{
+		scalarPoint(2026, 5, 70), scalarPoint(2026, 4, 65),
+	}, nil)
+
+	points, err := svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 6, 6)
+
+	require.NoError(t, err)
+	require.Len(t, points, 2)
+	assert.Equal(t, "JPY", points[0].ReportingCurrency, "first point gets period reporting currency")
+	assert.Equal(t, "USD", points[1].ReportingCurrency, "second point gets period reporting currency")
 }
 
 func TestGetHealthScoreTrend_ClampsMonths(t *testing.T) {

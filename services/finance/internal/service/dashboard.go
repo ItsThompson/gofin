@@ -160,6 +160,7 @@ func ComputeSpendingTrends(periods []*model.BudgetPeriod, expensesByMonth [][]Ex
 			point.EssentialsPercent = float64(p.EssentialsPercent)
 			point.DesiresPercent = float64(p.DesiresPercent)
 			point.SavingsPercent = float64(p.SavingsPercent)
+			point.ReportingCurrency = p.ReportingCurrency
 		}
 
 		expenses := expensesByMonth[i]
@@ -263,23 +264,43 @@ func (s *FinanceService) computeHistoricalComparison(
 
 	result := &model.HistoricalComparison{
 		CurrentSpent: spent[0],
+		Comparable:   true,
 	}
 
 	if len(priorPeriods) > 0 {
 		prevSpent := spent[1]
 		result.PreviousSpent = prevSpent
+		result.PreviousReportingCurrency = priorPeriods[0].ReportingCurrency
 
-		if prevSpent > 0 {
+		// Cross-currency comparison guard: when the previous period's reporting
+		// currency differs from the current period's, the amount delta and
+		// change percent are not meaningful and the frontend must guard the display.
+		currentCurrency := periods[requestedIdx].ReportingCurrency
+		if currentCurrency != "" && priorPeriods[0].ReportingCurrency != "" && currentCurrency != priorPeriods[0].ReportingCurrency {
+			result.Comparable = false
+			result.ChangePercent = 0
+		} else if prevSpent > 0 {
 			result.ChangePercent = math.Round(float64(spent[0]-prevSpent)/float64(prevSpent)*10000) / 100
 		} else if spent[0] > 0 {
 			result.ChangePercent = 100.0
 		}
 	}
 
-	// Rolling average: need at least 3 prior periods
+	// Rolling average: need at least 3 prior periods in the same reporting currency.
+	// When the prior periods span mixed currencies the average is not meaningful.
 	if hasRollingAverage {
-		avg := (spent[1] + spent[2] + spent[3]) / 3
-		result.RollingAverage = &avg
+		currentCurrency := periods[requestedIdx].ReportingCurrency
+		allSameCurrency := currentCurrency != ""
+		for _, pp := range priorPeriods[:3] {
+			if pp.ReportingCurrency != currentCurrency {
+				allSameCurrency = false
+				break
+			}
+		}
+		if allSameCurrency {
+			avg := (spent[1] + spent[2] + spent[3]) / 3
+			result.RollingAverage = &avg
+		}
 	}
 
 	return result, nil
