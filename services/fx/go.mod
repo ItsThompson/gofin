@@ -3,7 +3,6 @@ module github.com/ItsThompson/gofin/services/fx
 go 1.26
 
 require (
-	github.com/ItsThompson/gofin/services/errkit v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
@@ -16,6 +15,7 @@ require (
 require (
 	github.com/ItsThompson/gofin/services/apierr v0.0.0 // indirect
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
+	github.com/ItsThompson/gofin/services/errkit v0.0.0 // indirect
 	github.com/ItsThompson/gofin/services/metrics v0.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect

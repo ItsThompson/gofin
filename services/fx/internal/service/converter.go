@@ -41,6 +41,9 @@ func (c *Converter) CaptureSnapshot(ctx context.Context, requiredCurrencies []st
 		return nil, err
 	}
 	captured := c.toCapturedSnapshot(snapshot)
+	if err := c.requireFullSupportedRates(captured.RatesByCurrency); err != nil {
+		return nil, err
+	}
 	return &model.SnapshotResult{Snapshot: captured, CacheStatus: cacheStatus}, nil
 }
 
@@ -200,6 +203,15 @@ func (c *Converter) toCapturedSnapshot(snapshot *model.ProviderSnapshot) model.C
 		ExpiresAt:       snapshot.ExpiresAt,
 		RatesByCurrency: rates,
 	}
+}
+
+func (c *Converter) requireFullSupportedRates(rates map[string]string) error {
+	for _, definition := range sharedcurrency.All() {
+		if _, err := rateForCurrency(rates, definition.Code); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateSnapshot(snapshot model.CapturedRateSnapshot) error {
