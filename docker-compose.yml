@@ -214,6 +214,39 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  fx-service:
+    image: ghcr.io/itsthompson/gofin/fx-service:latest
+    build:
+      context: ./services
+      dockerfile: fx/Dockerfile
+    expose:
+      - "8085"
+      - "9085"
+    healthcheck:
+      test: ["CMD", "/service", "--healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    environment:
+      - OPEN_EXCHANGE_RATES_APP_ID=${OPEN_EXCHANGE_RATES_APP_ID}
+      - FX_PROVIDER_TIMEOUT=${FX_PROVIDER_TIMEOUT:-2s}
+      - FX_PROVIDER_RETRY_COUNT=${FX_PROVIDER_RETRY_COUNT:-2}
+      - FX_CACHE_MAX_AGE=${FX_CACHE_MAX_AGE:-1h}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
+    networks:
+      - compute-net
+      - monitoring-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    restart: unless-stopped
+
   datarights-service:
     image: ghcr.io/itsthompson/gofin/datarights-service:latest
     build:

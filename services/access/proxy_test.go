@@ -60,3 +60,11 @@ func TestProxyPrefixes_EveryPrefixHasARoute(t *testing.T) {
 		}
 	}
 }
+
+func TestProxyPrefixes_DoNotExposeFXService(t *testing.T) {
+	for _, prefix := range proxyPrefixes {
+		if prefix.Prefix == "/api/fx" || prefix.Service == "fx" {
+			t.Fatalf("FX service must stay internal, got proxied prefix %+v", prefix)
+		}
+	}
+}

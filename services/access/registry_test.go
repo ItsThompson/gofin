@@ -53,8 +53,10 @@ func TestRoutesFor_PartitionsRegistry(t *testing.T) {
 // TestRoutesFor_UnknownServiceIsEmpty confirms an unknown service yields no
 // routes rather than panicking or leaking cross-service entries.
 func TestRoutesFor_UnknownServiceIsEmpty(t *testing.T) {
-	if routes := RoutesFor("nope"); len(routes) != 0 {
-		t.Errorf("RoutesFor(%q) = %d routes, want 0", "nope", len(routes))
+	for _, service := range []string{"nope", "fx"} {
+		if routes := RoutesFor(service); len(routes) != 0 {
+			t.Errorf("RoutesFor(%q) = %d routes, want 0", service, len(routes))
+		}
 	}
 }
 
@@ -75,6 +77,7 @@ func TestRouteID_NoMatchIsEmpty(t *testing.T) {
 	cases := []struct{ method, pattern string }{
 		{http.MethodGet, ""},
 		{http.MethodGet, "/health"},
+		{http.MethodGet, "/api/fx"},
 		{http.MethodDelete, "/api/expenses"},
 	}
 
