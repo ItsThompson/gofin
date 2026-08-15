@@ -1,5 +1,17 @@
 # Data Model
 
+## Multi-Currency Model
+
+Reporting currency is period-scoped, not user-scoped. Each budget period stores an immutable `reportingCurrency`, and every period-scoped money value is expressed in that currency.
+
+- **Period reporting currency**: chosen at period creation, immutable after creation.
+- **Default settings currency**: seeds future periods only. Changing it never mutates existing periods.
+- **Expense money snapshots**: each post-cutover ledger row stores transaction money, reporting money, and the conversion facts that connect them.
+- **Legacy migration snapshots**: pre-epic rows without a snapshot are synthesized on read as denominated in the migrated period reporting currency with rate `1` and source `migration`.
+- **Pro-rata captured snapshots**: schedules created after this epic store a full USD-based provider rate map so future installments never re-rate against live rates.
+
+The shared currency catalog (`shared/currency/catalog.json`) is the source of truth for supported codes and minor-unit digits. See [Architecture](architecture.md) for service boundaries.
+
 ## Service Database Ownership
 
 Each microservice owns its database schema exclusively. No service queries another service's database directly: cross-service data access happens via gRPC.
@@ -10,6 +22,7 @@ Each microservice owns its database schema exclusively. No service queries anoth
 | Finance Service | PostgreSQL (`finance` schema) | sqlc | Budget periods, default settings, tags, pro-rata schedules |
 | Datarights Service | PostgreSQL (`datarights` schema) | pgx | Export job records |
 | Expense Service | immudb | Native Go client | Expense ledger entries |
+| FX Service | none | n/a | No persistent state; one-hour provider snapshot in process memory |
 
 PostgreSQL runs as a single instance with separate schemas and connection credentials per service. This provides logical isolation with the option to split into separate databases later.
 
@@ -62,7 +75,7 @@ Stores user accounts with credentials and profile data. Key design points:
 
 - `password_hash`: bcrypt-hashed password
 - `role`: supports `'user'` and `'admin'` (checked via RBAC at every layer). `admin` is an operator-only identity and owns no finance data (see the Finance Schema note below).
-- `currency`: the user's display currency, returned by `GET /api/auth/me` for frontend formatting
+- `currency`: display-only profile currency, still returned by `GET /api/auth/me` for frontend display. It does not control period reporting; each budget period owns its reporting currency.
 - `has_completed_onboarding`: gates the onboarding redirect flow
 - `tokens_revoked_at`: set on password change; any token with `iat` before this timestamp is rejected, forcing re-login on all other sessions
 
@@ -78,11 +91,17 @@ Canonical source: `services/finance/db/migrations/`
 
 ### `finance.budget_periods`
 
-One row per user per calendar month. Stores the budget amount and E/D/S percentage split. Constrained so percentages always sum to 100 and each user has at most one period per month.
+One row per user per calendar month. Stores the budget amount in the period's reporting currency and an E/D/S percentage split. Constrained so percentages always sum to 100 and each user has at most one period per month.
+
+- `reporting_currency`: immutable after period creation. Set from the create request, or defaulted from `finance.default_settings.currency` when the request omits it.
+- `budget_amount`: minor units of the period's reporting currency.
+- Historical periods backfilled during migration inherit the current default, user, or app fallback currency, in that precedence order.
 
 ### `finance.default_settings`
 
-One row per user. Stores the default budget amount, E/D/S split, and currency applied when a new month's period is created. A budget amount of 0 means "not yet configured" (user skipped onboarding).
+One row per user. Stores the default budget amount, E/D/S split, and default reporting currency applied when a future month's period is created. A budget amount of 0 means "not yet configured" (user skipped onboarding).
+
+`currency` is future-scoped: it seeds newly created periods only. Updating it never changes the reporting currency of an existing period.
 
 ### `finance.tags`
 
@@ -90,7 +109,14 @@ User-defined expense categories. Tag names are unique per user (case-insensitive
 
 ### `finance.pro_rata_schedules`
 
-Tracks future installments of pro-rata expenses. Each row represents a single installment for a specific target month. Rows have a `status` of `'pending'` until the finance service applies them during budget period creation, at which point they transition to `'applied'`.
+Tracks future installments of pro-rata expenses. Each row represents a single installment for a specific target month. Rows have a `status` of `pending` until the finance service applies them during budget period creation, at which point they transition to `applied`. Deterministic failures transition them to `failed` with a typed `failure_reason`.
+
+Post-epic rows also store:
+
+- `transaction_amount` and `transaction_currency`: the installment's original charged money.
+- `creation_reporting_currency`: the reporting currency of the period where the schedule was created.
+- `captured_rate_snapshot`: a full USD-based provider snapshot captured once at schedule creation. Future installments derive target-period reporting amounts from this snapshot, never from live rates.
+- `failure_reason`: one of `missing_target_period`, `missing_captured_rate_snapshot`, `expense_write_failed`, or `snapshot_currency_missing`.
 
 All installments in a pro-rata group share a `pro_rata_group` UUID, enabling queries that retrieve the full set of related installments.
 
@@ -106,10 +132,19 @@ The expense service creates its schema at startup (`CREATE TABLE IF NOT EXISTS`)
 
 The immutable expense ledger. Key design points:
 
-- **Amounts in cents** (integer): avoids floating-point precision issues. $12.50 is stored as `1250`.
+- **Amounts in minor units** (integer): avoids floating-point precision issues. $12.50 is stored as `1250`; ¥1250 is stored as `1250`.
 - **String dates**: immudb's SQL dialect has limited date type support, so dates are stored as ISO strings and parsed at the application layer.
 - **Tag by ID**: tags live in PostgreSQL (finance schema). The ledger stores the tag UUID, not the tag name, so tag renames do not affect historical data.
-- **Currency per expense**: even though MVP is single-currency, each expense carries its own currency field for future multi-currency support.
+- **Money snapshots**: rows written after the multi-currency cutover carry `money_snapshot_version = 1` plus `transaction_amount`, `transaction_currency`, `reporting_amount`, `reporting_currency`, `exchange_rate`, `exchange_rate_source`, `exchange_rate_timestamp`, and optional `exchange_rate_expires_at`.
+- **Legacy migration synthesis**: rows with a null `money_snapshot_version` are legacy. Reads synthesize a migration snapshot from the legacy `amount` and the period's reporting currency, with `exchangeRate = "1"` and `exchangeRateSource = "migration"`. The legacy `currency` column is obsolete metadata used only for mismatch telemetry.
+
+Snapshot sources:
+
+| Source | Meaning |
+|--------|---------|
+| `identity` | Same-currency write or correction; rate `1`, no provider call |
+| `open_exchange_rates` | Foreign-currency write or correction through FX Service |
+| `migration` | Legacy row synthesized on read; rate `1` in the period reporting currency |
 
 ### Correction Chain
 
@@ -127,17 +162,21 @@ Services reference each other's data by UUID convention (no foreign key constrai
 - The finance service validates `tag_id` before calling the expense service
 - Tag deletion checks both expense usage and pending pro-rata schedules via gRPC
 
-### Currency Dual Ownership
+### Currency Ownership
 
-Currency appears in both `auth.users.currency` and `finance.default_settings.currency`:
+Currency has one reporting authority: the budget period. The shared catalog is the single source of supported codes.
 
-- `auth.users.currency`: display currency, returned by `GET /api/auth/me` for frontend formatting
-- `finance.default_settings.currency`: default currency for new expenses
-
-These are kept in sync by the onboarding and settings update endpoints. The finance service is the source of truth; the auth copy exists solely so the frontend can display currency symbols without an extra call to the finance service.
+- `finance.budget_periods.reporting_currency`: immutable reporting currency for a period; this controls dashboard totals, history rows, and health scores.
+- `finance.default_settings.currency`: default for future period creation only.
+- `auth.users.currency`: display-only profile copy, returned by `GET /api/auth/me` for frontend display. It does not control reporting output.
+- `shared/currency/catalog.json`: static source of truth for supported codes, symbols, and minor-unit digits. Frontend and Go services consume generated artifacts from this file; Open Exchange Rates does not expand the supported set.
 
 ## Migration Strategy
 
 **PostgreSQL**: managed by [golang-migrate](https://github.com/golang-migrate/migrate). Files follow `000001_description.up.sql` / `.down.sql` naming. Each service runs its own migrations against its schema.
 
-**immudb**: no migration tool. The expense service creates tables and indexes at startup via `CREATE TABLE IF NOT EXISTS`. Schema evolution is additive only.
+**immudb**: no migration tool. The expense service creates tables and indexes at startup via `CREATE TABLE IF NOT EXISTS`. Schema evolution is additive only. The multi-currency migration adds nullable snapshot columns to the existing table; legacy rows keep their legacy `amount` and `currency` columns and resolve through the migration snapshot synthesis described above.
+
+### Historical Migration Semantics
+
+Historical periods inherit their reporting currency silently from the current default settings currency, then the user's auth profile currency, then the configured app fallback. Historical expenses are treated as already denominated in the migrated period reporting currency: no provider conversion is performed, and legacy `currency` is obsolete metadata used only for mismatch telemetry.
