@@ -143,6 +143,43 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
+// TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable asserts a
+// transaction currency that differs from the period reporting currency maps
+// to codes.Unavailable (FX not yet wired) and does not write a ledger row.
+func TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:              "user-1",
+		Name:                "Coffee",
+		Amount:              450,
+		TransactionCurrency: "EUR",
+		ExpenseType:         "desires",
+		TagId:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+	})
+
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Unavailable, st.Code())
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
 // TestGRPC_GetExpense_WrappedTypedErrorClassifies asserts a typed *apierr.Error
 // that the service %w-wraps before it reaches the gRPC handler must still
 // classify via errors.As (not collapse to codes.Internal).

@@ -244,6 +244,38 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+// TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable asserts a
+// transaction currency that differs from the period reporting currency maps
+// to HTTP 503 CONVERSION_UNAVAILABLE and does not write a ledger row.
+func TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	r := setupTestRouterWithPeriod(repo, periodClient)
+
+	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
+		"name":                "Coffee",
+		"amount":              450,
+		"transactionCurrency": "EUR",
+		"expenseType":         "desires",
+		"tagId":               "tag-food",
+		"expenseDate":         "2026-05-03",
+		"periodYear":          2026,
+		"periodMonth":         5,
+	})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), model.ErrConversionUnavailable)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
 func TestCreateExpenseHandler_MissingUserID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	r := setupTestRouter(repo)
