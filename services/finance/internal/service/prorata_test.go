@@ -272,6 +272,58 @@ func TestCreateProRataExpense_LegacyCurrencyAlias(t *testing.T) {
 	assert.Equal(t, "GBP", result.Expense.Currency)
 }
 
+func TestCreateProRataExpense_BothCurrenciesSame(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
+
+	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
+		return req.Currency == "JPY"
+	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
+
+	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
+		Return(&model.ProRataSchedule{ID: "sched-1", Status: "pending"}, nil)
+
+	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name:                "Insurance",
+		TotalAmount:         6000,
+		TransactionCurrency: "JPY",
+		Currency:            "jpy",
+		ExpenseType:         "essentials",
+		TagID:               "tag-1",
+		ExpenseDate:         "2026-05-15",
+		Months:              2,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "JPY", result.Expense.Currency)
+}
+
+func TestCreateProRataExpense_BothCurrenciesDifferent(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
+
+	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name:                "Insurance",
+		TotalAmount:         6000,
+		TransactionCurrency: "USD",
+		Currency:            "EUR",
+		ExpenseType:         "essentials",
+		TagID:               "tag-1",
+		ExpenseDate:         "2026-05-15",
+		Months:              2,
+	})
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrCurrencyConflict, svcErr.Code)
+	assert.Equal(t, 400, svcErr.Status)
+	expClient.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateProRataSchedule", mock.Anything, mock.Anything)
+}
+
 func TestCreateProRataExpense_MissingCurrency(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)

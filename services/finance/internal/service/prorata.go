@@ -75,8 +75,23 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	}
 
 	resolvedCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	legacyCurrency := normalizeCurrencyCode(req.Currency)
+
+	if resolvedCurrency != "" && legacyCurrency != "" {
+		if resolvedCurrency != legacyCurrency {
+			return nil, &apierr.Error{
+				Code:    model.ErrCurrencyConflict,
+				Message: "transactionCurrency and currency must match when both are provided",
+				Status:  400,
+				Fields: map[string]string{
+					"transactionCurrency": "must match currency",
+					"currency":            "must match transactionCurrency",
+				},
+			}
+		}
+	}
 	if resolvedCurrency == "" {
-		resolvedCurrency = normalizeCurrencyCode(req.Currency)
+		resolvedCurrency = legacyCurrency
 	}
 	if resolvedCurrency == "" {
 		return nil, apierr.Validation("Currency is required", map[string]string{"transactionCurrency": "required"})
