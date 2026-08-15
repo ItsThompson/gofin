@@ -13,9 +13,15 @@ import (
 )
 
 // reportingAmount returns the period-reporting amount to aggregate for an
-// expense. New rows (and synthesized legacy rows) populate ReportingAmount; the
-// Amount fallback keeps existing test fixtures and any caller that only sets
-// Amount working during the rollout.
+// expense. Every production row populates ReportingAmount: identity snapshots,
+// provider-converted rows (ticket #7), and migration-synthesized legacy rows
+// all set it to a positive value (amount validation guarantees > 0). The
+// Amount fallback exists only so existing test fixtures that set just Amount
+// (and callers that have not yet migrated) keep working during the rollout; it
+// must not be relied on by new production code. Once foreign-currency rows land in
+// #7 and the test fixtures are migrated to set ReportingAmount, the fallback
+// should be removed so a forgotten field fails loudly instead of silently
+// aggregating in the transaction currency.
 func reportingAmount(exp ExpenseData) int64 {
 	if exp.ReportingAmount != 0 {
 		return exp.ReportingAmount

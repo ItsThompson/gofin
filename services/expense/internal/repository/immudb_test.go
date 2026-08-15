@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -173,6 +174,44 @@ func TestRowToExpense_IdentitySnapshotRowUsesExplicitFields(t *testing.T) {
 	assert.Equal(t, "2026-08-14T10:00:00Z", expense.ExchangeRateTimestamp)
 }
 
+// TestRowToExpense_Version1WithMissingFieldsReturnsIntegrityError asserts a
+// version-1 row that is missing a required snapshot field is treated as a
+// data-integrity error (spec 06) rather than being silently synthesized or
+// blended with legacy fields. No such row can be written by this ticket; this
+// guards the invariant for future snapshot-writing tickets.
+func TestRowToExpense_Version1WithMissingFieldsReturnsIntegrityError(t *testing.T) {
+	row := legacyRow()
+	row.Values[17] = fakeSQLValue{intValue: 1}        // money_snapshot_version
+	row.Values[18] = fakeSQLValue{intValue: 1250}     // transaction_amount
+	row.Values[19] = fakeSQLValue{stringValue: "EUR"} // transaction_currency
+	// reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
+	// and exchange_rate_timestamp are left empty (missing).
+
+	expense, err := rowToExpense(row)
+	require.Error(t, err)
+	assert.Nil(t, expense)
+	assert.Contains(t, err.Error(), "money_snapshot_version=1 missing required snapshot fields")
+	assert.Contains(t, err.Error(), "exp-1")
+}
+
+// TestRowToExpense_Version1WithExchangeRateTimestampMissingReturnsIntegrityError
+// asserts the timestamp is a required snapshot field (it is not optional).
+func TestRowToExpense_Version1WithExchangeRateTimestampMissingReturnsIntegrityError(t *testing.T) {
+	raw := legacyRow()
+	raw.Values[17] = fakeSQLValue{intValue: 1}
+	raw.Values[18] = fakeSQLValue{intValue: 2500}
+	raw.Values[19] = fakeSQLValue{stringValue: "USD"}
+	raw.Values[20] = fakeSQLValue{intValue: 2500}
+	raw.Values[21] = fakeSQLValue{stringValue: "USD"}
+	raw.Values[22] = fakeSQLValue{stringValue: "1"}
+	raw.Values[23] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity}
+	raw.Values[24] = fakeSQLValue{stringValue: ""} // exchange_rate_timestamp missing
+
+	_, err := rowToExpense(raw)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "money_snapshot_version=1 missing required snapshot fields")
+}
+
 // TestInitSchema_ReconcilesSnapshotColumns asserts InitSchema issues the ALTER
 // TABLE ADD COLUMN statements for the money snapshot columns and does not fail
 // when the columns already exist (the recording client returns errors that the
@@ -186,4 +225,33 @@ func TestInitSchema_ReconcilesSnapshotColumns(t *testing.T) {
 
 	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
 		"expected one ALTER per snapshot column")
+}
+
+// alterFailingImmudbClient wraps the recording client and fails every ALTER TABLE
+// SQLExec with a "column already exists" error, modelling the idempotent
+// reconcile path on a table that already has the snapshot columns.
+type alterFailingImmudbClient struct {
+	*recordingImmudbClient
+}
+
+func (c *alterFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+	if strings.Contains(strings.ToUpper(sql), "ALTER TABLE") {
+		c.record(sql, params)
+		return nil, errors.New("column already exists")
+	}
+	return c.recordingImmudbClient.SQLExec(ctx, sql, params)
+}
+
+// TestInitSchema_SwallowsColumnExistsError asserts the reconcile ALTER path is
+// idempotent: when the snapshot columns already exist (ALTER returns an
+// error), InitSchema still succeeds and issues all 9 ALTER statements.
+func TestInitSchema_SwallowsColumnExistsError(t *testing.T) {
+	client := &alterFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	require.NoError(t, repo.InitSchema(context.Background()))
+
+	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
+		"expected all 9 ALTER statements to be issued even when they fail")
 }

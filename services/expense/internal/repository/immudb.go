@@ -349,12 +349,15 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		ExchangeRateExpiresAt: values[25].GetString(),
 	}
 
-	// Legacy row: money_snapshot_version is absent/null (read as 0). Synthesize a
-	// migration snapshot so every read expense resolves to exactly one reporting
-	// amount and currency (dashboard aggregation invariant). The legacy amount
-	// is treated as already denominated in the legacy currency (which for real
-	// pre-epic data equals the period reporting currency).
-	if exp.MoneySnapshotVersion != 1 {
+	switch exp.MoneySnapshotVersion {
+	case 0:
+		// Legacy row: money_snapshot_version is absent/null (read as 0). Synthesize
+		// a migration snapshot so every read expense resolves to exactly one
+		// reporting amount and currency (dashboard aggregation invariant). The
+		// legacy amount is treated as already denominated in the legacy currency
+		// (which for real pre-epic data equals the period reporting currency).
+		// Period-context-aware normalization and mismatch telemetry are deferred
+		// to the migration compatibility ticket.
 		exp.MoneySnapshotVersion = 1
 		exp.TransactionAmount = exp.Amount
 		if exp.TransactionCurrency == "" {
@@ -368,6 +371,23 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 			exp.ExchangeRateTimestamp = exp.CreatedAt
 		}
 		exp.ExchangeRateExpiresAt = ""
+	case 1:
+		// Version-1 rows must carry every required snapshot field. A version-1 row
+		// missing a required field is a data-integrity error (spec 06): report it
+		// rather than silently blending legacy and explicit fields. No such row
+		// can exist yet (this ticket only writes complete identity snapshots), so
+		// this guard is forward-looking. exchange_rate_expires_at is optional.
+		if exp.TransactionAmount == 0 || exp.TransactionCurrency == "" ||
+			exp.ReportingAmount == 0 || exp.ReportingCurrency == "" ||
+			exp.ExchangeRate == "" || exp.ExchangeRateSource == "" ||
+			exp.ExchangeRateTimestamp == "" {
+			return nil, fmt.Errorf("expense row %s: money_snapshot_version=1 missing required snapshot fields", exp.ID)
+		}
+	default:
+		// Unknown future snapshot version: pass through unchanged. A future
+		// version that adds columns will trip the short-row guard first, so an
+		// unknown version here is a forward-compatible read of an unchanged row
+		// shape.
 	}
 
 	return exp, nil
