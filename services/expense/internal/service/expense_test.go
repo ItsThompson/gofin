@@ -217,6 +217,14 @@ func (m *mockFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 	return args.Get(0).(*FxConvertResponse), args.Error(1)
 }
 
+func (m *mockFxClient) ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*FxConvertResponse), args.Error(1)
+}
+
 // stubFxClient is a non-nil FxClient for tests that never exercise FX. A call
 // to it means a same-currency test accidentally routed a foreign-currency
 // request, so it fails loudly instead of returning zero values.
@@ -224,6 +232,10 @@ type stubFxClient struct{}
 
 func (stubFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) (*FxConvertResponse, error) {
 	return nil, fmt.Errorf("stubFxClient: unexpected ConvertAmount call")
+}
+
+func (stubFxClient) ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error) {
+	return nil, fmt.Errorf("stubFxClient: unexpected ConvertWithSnapshot call")
 }
 
 // TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot

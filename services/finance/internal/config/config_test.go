@@ -21,20 +21,33 @@ func TestLoad_RequiredVars(t *testing.T) {
 func TestLoad_MissingExpenseAddr(t *testing.T) {
 	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
 	_ = os.Unsetenv("EXPENSE_SERVICE_ADDR")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 
 	_, err := Load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EXPENSE_SERVICE_ADDR")
 }
 
+func TestLoad_MissingFxAddr(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	_ = os.Unsetenv("FX_SERVICE_ADDR")
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FX_SERVICE_ADDR")
+}
+
 func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
 	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, "postgres://localhost/test", cfg.DBUrl)
 	assert.Equal(t, "localhost:9082", cfg.ExpenseServiceAddr)
+	assert.Equal(t, "localhost:9085", cfg.FxServiceAddr)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "development", cfg.Environment)
 	assert.Equal(t, "8083", cfg.RESTPort)
@@ -45,6 +58,7 @@ func TestLoad_Defaults(t *testing.T) {
 func TestLoad_Production(t *testing.T) {
 	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
 	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 	t.Setenv("ENVIRONMENT", "production")
 
 	cfg, err := Load()

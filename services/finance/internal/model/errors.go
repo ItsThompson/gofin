@@ -12,4 +12,5 @@ const (
 	ErrPeriodLocked               = "PERIOD_LOCKED"
 	ErrUnsupportedCurrency        = "UNSUPPORTED_CURRENCY"
 	ErrReportingCurrencyImmutable = "REPORTING_CURRENCY_IMMUTABLE"
+	ErrConversionUnavailable      = "CONVERSION_UNAVAILABLE"
 )

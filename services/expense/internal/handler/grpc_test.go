@@ -40,12 +40,24 @@ func (m *mockFxClient) ConvertAmount(ctx context.Context, req service.FxConvertR
 	return args.Get(0).(*service.FxConvertResponse), args.Error(1)
 }
 
+func (m *mockFxClient) ConvertWithSnapshot(ctx context.Context, req service.FxConvertWithSnapshotRequest) (*service.FxConvertResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.FxConvertResponse), args.Error(1)
+}
+
 // stubFxClient is a non-nil FxClient for handler tests that never exercise FX.
 // A call to it means a test accidentally routed a foreign-currency request.
 type stubFxClient struct{}
 
 func (stubFxClient) ConvertAmount(ctx context.Context, req service.FxConvertRequest) (*service.FxConvertResponse, error) {
 	return nil, fmt.Errorf("stubFxClient: unexpected ConvertAmount call")
+}
+
+func (stubFxClient) ConvertWithSnapshot(ctx context.Context, req service.FxConvertWithSnapshotRequest) (*service.FxConvertResponse, error) {
+	return nil, fmt.Errorf("stubFxClient: unexpected ConvertWithSnapshot call")
 }
 
 // TestGRPC_RemovedReadRPCsAreNotRegistered asserts GetCorrectionHistory and

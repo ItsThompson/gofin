@@ -14,12 +14,12 @@ type FinanceBudgetPeriod struct {
 	Year              int32              `json:"year"`
 	Month             int32              `json:"month"`
 	BudgetAmount      int64              `json:"budget_amount"`
-	ReportingCurrency string             `json:"reporting_currency"`
 	EssentialsPercent int32              `json:"essentials_percent"`
 	DesiresPercent    int32              `json:"desires_percent"`
 	SavingsPercent    int32              `json:"savings_percent"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ReportingCurrency string             `json:"reporting_currency"`
 }
 
 type FinanceDefaultSetting struct {
@@ -44,22 +44,35 @@ type FinanceHealthScore struct {
 	ComputedAt     pgtype.Timestamptz `json:"computed_at"`
 }
 
+type FinancePeriodReportingCurrencyMigrationReport struct {
+	PeriodID          pgtype.UUID        `json:"period_id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	ReportingCurrency string             `json:"reporting_currency"`
+	Reason            string             `json:"reason"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type FinanceProRataSchedule struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	ProRataGroup     pgtype.UUID        `json:"pro_rata_group"`
-	Name             string             `json:"name"`
-	Amount           int64              `json:"amount"`
-	Currency         string             `json:"currency"`
-	ExpenseType      string             `json:"expense_type"`
-	TagID            pgtype.UUID        `json:"tag_id"`
-	TargetYear       int32              `json:"target_year"`
-	TargetMonth      int32              `json:"target_month"`
-	InstallmentIndex int32              `json:"installment_index"`
-	InstallmentTotal int32              `json:"installment_total"`
-	Status           string             `json:"status"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	AppliedAt        pgtype.Timestamptz `json:"applied_at"`
+	ID                        pgtype.UUID        `json:"id"`
+	UserID                    pgtype.UUID        `json:"user_id"`
+	ProRataGroup              pgtype.UUID        `json:"pro_rata_group"`
+	Name                      string             `json:"name"`
+	Amount                    int64              `json:"amount"`
+	Currency                  string             `json:"currency"`
+	ExpenseType               string             `json:"expense_type"`
+	TagID                     pgtype.UUID        `json:"tag_id"`
+	TargetYear                int32              `json:"target_year"`
+	TargetMonth               int32              `json:"target_month"`
+	InstallmentIndex          int32              `json:"installment_index"`
+	InstallmentTotal          int32              `json:"installment_total"`
+	Status                    string             `json:"status"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	AppliedAt                 pgtype.Timestamptz `json:"applied_at"`
+	TransactionAmount         pgtype.Int8        `json:"transaction_amount"`
+	TransactionCurrency       pgtype.Text        `json:"transaction_currency"`
+	CreationReportingCurrency pgtype.Text        `json:"creation_reporting_currency"`
+	CapturedRateSnapshot      []byte             `json:"captured_rate_snapshot"`
+	FailureReason             pgtype.Text        `json:"failure_reason"`
 }
 
 type FinanceTag struct {
@@ -69,4 +82,14 @@ type FinanceTag struct {
 	IsDefault bool               `json:"is_default"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PeriodReportingCurrencyBackfill struct {
+	PeriodID          pgtype.UUID `json:"period_id"`
+	ReportingCurrency string      `json:"reporting_currency"`
+	Source            string      `json:"source"`
+}
+
+type PeriodReportingCurrencySupported struct {
+	Code string `json:"code"`
 }

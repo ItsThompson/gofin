@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,6 +19,18 @@ import (
 // int64Ptr returns a pointer to v for building *int64 request fields.
 func int64Ptr(v int64) *int64 { return &v }
 
+// mockFxClient implements FxClient for service tests.
+type mockFxClient struct {
+	mock.Mock
+}
+
+func (m *mockFxClient) CaptureRateSnapshot(ctx context.Context, req FxCaptureRequest) (*model.CapturedRateSnapshot, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.CapturedRateSnapshot), args.Error(1)
+}
 // --- CalculateInstallments Tests ---
 
 func TestCalculateInstallments_EvenSplit(t *testing.T) {
@@ -135,43 +150,101 @@ func TestComputeMissedMonths_SameMonth(t *testing.T) {
 
 // --- CreateProRataExpense Tests ---
 
+func snapshotFixture() *model.CapturedRateSnapshot {
+	return &model.CapturedRateSnapshot{
+		SnapshotVersion: 1,
+		Source:          "open_exchange_rates",
+		BaseCurrency:    "USD",
+		RateTimestamp:   "2026-05-15T10:00:00Z",
+		CapturedAt:      "2026-05-15T12:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+		RatesByCurrency: map[string]string{
+			"USD": "1",
+			"EUR": "0.92",
+			"GBP": "0.79",
+			"JPY": "150.00",
+		},
+	}
+}
+
+func newProRataTestService(repo *mockRepo, txBeg *mockTxBeg, expClient *mockExpClient, fxClient *mockFxClient, nowFunc func() time.Time) *FinanceService {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	var ec ExpenseClient
+	if expClient != nil {
+		ec = expClient
+	}
+	var fc FxClient
+	if fxClient != nil {
+		fc = fxClient
+	}
+	return NewFinanceServiceWithFx(repo, txBeg, ec, fc, nowFunc, logger)
+}
+
+// stubProRataRepo wires GetCurrentPeriod for the creation period so tests that
+// reach the period check do not need to repeat the mock setup.
+func stubCreationPeriod(repo *mockRepo, year, month int32) {
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", year, month).
+		Return(makePeriod("period-"+fmt.Sprintf("%d-%02d", year, month), year, month), nil)
+}
+
 func TestCreateProRataExpense_Success(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
 
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
+	stubCreationPeriod(repo, 2026, 5)
+	snapshot := snapshotFixture()
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.MatchedBy(func(req FxCaptureRequest) bool {
+		return len(req.RequiredCurrencies) == 2 && req.RequiredCurrencies[0] == "USD" && req.RequiredCurrencies[1] == "USD"
+	})).Return(snapshot, nil)
+
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		return req.Name == "Annual subscription" &&
-			req.Amount == int64(3334) && // 10000/3 = 3333, first gets +1
-			req.IsProRata &&
+			req.Amount == int64(3334) &&
+			req.Currency == "USD" &&
 			req.ProRataIndex == int32(1) &&
 			req.ProRataTotal == int32(3) &&
-			req.PeriodYear == int32(2026) &&
-			req.PeriodMonth == int32(5)
+			req.PeriodContext.PeriodID == "period-2026-05" &&
+			req.PeriodContext.UserID == "user-1" &&
+			req.PeriodContext.Year == 2026 &&
+			req.PeriodContext.Month == 5 &&
+			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.Source == "finance_service" &&
+			req.CapturedRateSnapshot == snapshot
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
-	// Schedules for months 2 and 3
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
-		return s.InstallmentIndex == 2 && s.TargetYear == 2026 && s.TargetMonth == 6
+		return s.InstallmentIndex == 2 && s.TargetYear == 2026 && s.TargetMonth == 6 &&
+			s.TransactionAmount == 3333 && s.TransactionCurrency == "USD" &&
+			s.CreationReportingCurrency == "USD" &&
+			s.CapturedRateSnapshot.RateTimestamp == snapshot.RateTimestamp &&
+			s.CapturedRateSnapshot.Source == snapshot.Source
 	})).Return(&model.ProRataSchedule{
 		ID: "sched-1", InstallmentIndex: 2, TargetYear: 2026, TargetMonth: 6, Amount: 3333, Status: "pending",
 	}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
-		return s.InstallmentIndex == 3 && s.TargetYear == 2026 && s.TargetMonth == 7
+		return s.InstallmentIndex == 3 && s.TargetYear == 2026 && s.TargetMonth == 7 &&
+			s.TransactionAmount == 3333 && s.TransactionCurrency == "USD" &&
+			s.CreationReportingCurrency == "USD" &&
+			s.CapturedRateSnapshot.RateTimestamp == snapshot.RateTimestamp &&
+			s.CapturedRateSnapshot.Source == snapshot.Source
 	})).Return(&model.ProRataSchedule{
 		ID: "sched-2", InstallmentIndex: 3, TargetYear: 2026, TargetMonth: 7, Amount: 3333, Status: "pending",
 	}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:                "Annual subscription",
-		TotalAmount:         10000,
+		Name:        "Annual subscription",
+		TotalAmount: 10000,
 		TransactionCurrency: "USD",
-		ExpenseType:         "essentials",
-		TagID:               "tag-1",
-		ExpenseDate:         "2026-05-15",
-		Months:              3,
+		ExpenseType: "essentials",
+		TagID:       "tag-1",
+		ExpenseDate: "2026-05-15",
+		Months:      3,
+		PeriodYear:  2026,
+		PeriodMonth: 5,
 	})
 
 	require.NoError(t, err)
@@ -181,15 +254,21 @@ func TestCreateProRataExpense_Success(t *testing.T) {
 	assert.Len(t, result.Schedules, 2)
 	assert.Equal(t, int32(6), result.Schedules[0].TargetMonth)
 	assert.Equal(t, int32(7), result.Schedules[1].TargetMonth)
+	fxClient.AssertExpectations(t)
+	expClient.AssertExpectations(t)
+	repo.AssertExpectations(t)
 }
 
 func TestCreateProRataExpense_YearRollover(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 11, 1))
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 11, 1))
 
-	expClient.On("CreateExpense", mock.Anything, mock.Anything).
+	stubCreationPeriod(repo, 2026, 11)
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.Anything).Return(snapshotFixture(), nil)
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-11-01T00:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
@@ -202,7 +281,7 @@ func TestCreateProRataExpense_YearRollover(t *testing.T) {
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
 		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-11-01", Months: 3,
+		TagID: "tag-1", ExpenseDate: "2026-11-01", Months: 3, PeriodYear: 2026, PeriodMonth: 11,
 	})
 
 	require.NoError(t, err)
@@ -217,14 +296,17 @@ func TestCreateProRataExpense_TransactionCurrencyOnly(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
 
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.TransactionCurrency == "EUR"
+	stubCreationPeriod(repo, 2026, 5)
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.Anything).Return(snapshotFixture(), nil)
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.Currency == "EUR"
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
-		return s.Currency == "EUR"
+		return s.TransactionCurrency == "EUR"
 	})).Return(&model.ProRataSchedule{
 		ID: "sched-1", Status: "pending",
 	}, nil)
@@ -237,47 +319,126 @@ func TestCreateProRataExpense_TransactionCurrencyOnly(t *testing.T) {
 		TagID:               "tag-1",
 		ExpenseDate:         "2026-05-15",
 		Months:              2,
+		PeriodYear:          2026,
+		PeriodMonth:         5,
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "EUR", result.Expense.Currency)
+	assert.Equal(t, "EUR", result.Expense.TransactionCurrency)
 	expClient.AssertExpectations(t)
 	repo.AssertExpectations(t)
 }
 
-func TestCreateProRataExpense_MissingCurrency(t *testing.T) {
+func TestCreateProRataExpense_MissingCurrencyDefaultsToPeriodReportingCurrency(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
+	expClient := new(mockExpClient)
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
 
-	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:        "Test",
+	stubCreationPeriod(repo, 2026, 5)
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.Anything).Return(snapshotFixture(), nil)
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.Currency == "USD"
+	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
+
+	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
+		Return(&model.ProRataSchedule{ID: "sched-1", Status: "pending"}, nil)
+
+	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name:        "Insurance",
 		TotalAmount: 6000,
 		ExpenseType: "essentials",
 		TagID:       "tag-1",
 		ExpenseDate: "2026-05-15",
 		Months:      2,
+		PeriodYear:  2026,
+		PeriodMonth: 5,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "USD", result.Expense.TransactionCurrency)
+}
+
+func TestCreateProRataExpense_MissingPeriodFields(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
+
+	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2,
 	})
 
 	svcErr := requireAPIError(t, err)
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
-	assert.Contains(t, svcErr.Fields, "transactionCurrency")
+	assert.Contains(t, svcErr.Fields, "periodYear")
+	repo.AssertNotCalled(t, "GetCurrentPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	fxClient.AssertNotCalled(t, "CaptureRateSnapshot", mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateProRataSchedule", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataExpense_MissingCreationPeriod(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(6)).Return(nil, nil)
+
+	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2, PeriodYear: 2026, PeriodMonth: 6,
+	})
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrPeriodNotFound, svcErr.Code)
+	fxClient.AssertNotCalled(t, "CaptureRateSnapshot", mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateProRataSchedule", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataExpense_FxCaptureFailure(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
+
+	stubCreationPeriod(repo, 2026, 5)
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.Anything).
+		Return(nil, &apierr.Error{Code: model.ErrConversionUnavailable, Message: "conversion unavailable", Status: 503})
+
+	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2, PeriodYear: 2026, PeriodMonth: 5,
+	})
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrConversionUnavailable, svcErr.Code)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateProRataSchedule", mock.Anything, mock.Anything)
 }
 
 func TestCreateProRataExpense_Validation(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
-	svc := newTagTestService(repo, txBeg, nil)
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, nil, fxClient, fixedNow(2026, 5, 15))
 
 	tests := []struct {
 		name string
 		req  *model.CreateProRataRequest
 		msg  string
 	}{
-		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "Name is required"},
-		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "positive"},
-		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "at least 2"},
-		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01"}, "essentials, desires, or savings"},
+		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "Name is required"},
+		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "positive"},
+		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "at least 2"},
+		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "essentials, desires, or savings"},
 	}
 
 	for _, tt := range tests {
@@ -295,9 +456,12 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
 
-	expClient.On("CreateExpense", mock.Anything, mock.Anything).
+	stubCreationPeriod(repo, 2026, 5)
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.Anything).Return(snapshotFixture(), nil)
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
@@ -305,7 +469,7 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
 		Name: "Test", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2,
+		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2, PeriodYear: 2026, PeriodMonth: 5,
 	})
 
 	require.Error(t, err)

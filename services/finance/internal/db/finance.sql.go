@@ -43,7 +43,7 @@ const createPeriod = `-- name: CreatePeriod :one
 INSERT INTO finance.budget_periods
     (user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at
+RETURNING id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at, reporting_currency
 `
 
 type CreatePeriodParams struct {
@@ -75,12 +75,12 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Fin
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
-		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportingCurrency,
 	)
 	return i, err
 }
@@ -88,23 +88,31 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Fin
 const createProRataSchedule = `-- name: CreateProRataSchedule :one
 INSERT INTO finance.pro_rata_schedules
     (user_id, pro_rata_group, name, amount, currency, expense_type, tag_id,
-     target_year, target_month, installment_index, installment_total)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at
+     target_year, target_month, installment_index, installment_total,
+     transaction_amount, transaction_currency, creation_reporting_currency,
+     captured_rate_snapshot, failure_reason)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+        $12, $13, $14, $15, $16)
+RETURNING id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at, transaction_amount, transaction_currency, creation_reporting_currency, captured_rate_snapshot, failure_reason
 `
 
 type CreateProRataScheduleParams struct {
-	UserID           pgtype.UUID `json:"user_id"`
-	ProRataGroup     pgtype.UUID `json:"pro_rata_group"`
-	Name             string      `json:"name"`
-	Amount           int64       `json:"amount"`
-	Currency         string      `json:"currency"`
-	ExpenseType      string      `json:"expense_type"`
-	TagID            pgtype.UUID `json:"tag_id"`
-	TargetYear       int32       `json:"target_year"`
-	TargetMonth      int32       `json:"target_month"`
-	InstallmentIndex int32       `json:"installment_index"`
-	InstallmentTotal int32       `json:"installment_total"`
+	UserID                    pgtype.UUID `json:"user_id"`
+	ProRataGroup              pgtype.UUID `json:"pro_rata_group"`
+	Name                      string      `json:"name"`
+	Amount                    int64       `json:"amount"`
+	Currency                  string      `json:"currency"`
+	ExpenseType               string      `json:"expense_type"`
+	TagID                     pgtype.UUID `json:"tag_id"`
+	TargetYear                int32       `json:"target_year"`
+	TargetMonth               int32       `json:"target_month"`
+	InstallmentIndex          int32       `json:"installment_index"`
+	InstallmentTotal          int32       `json:"installment_total"`
+	TransactionAmount         pgtype.Int8 `json:"transaction_amount"`
+	TransactionCurrency       pgtype.Text `json:"transaction_currency"`
+	CreationReportingCurrency pgtype.Text `json:"creation_reporting_currency"`
+	CapturedRateSnapshot      []byte      `json:"captured_rate_snapshot"`
+	FailureReason             pgtype.Text `json:"failure_reason"`
 }
 
 func (q *Queries) CreateProRataSchedule(ctx context.Context, arg CreateProRataScheduleParams) (FinanceProRataSchedule, error) {
@@ -120,6 +128,11 @@ func (q *Queries) CreateProRataSchedule(ctx context.Context, arg CreateProRataSc
 		arg.TargetMonth,
 		arg.InstallmentIndex,
 		arg.InstallmentTotal,
+		arg.TransactionAmount,
+		arg.TransactionCurrency,
+		arg.CreationReportingCurrency,
+		arg.CapturedRateSnapshot,
+		arg.FailureReason,
 	)
 	var i FinanceProRataSchedule
 	err := row.Scan(
@@ -138,6 +151,11 @@ func (q *Queries) CreateProRataSchedule(ctx context.Context, arg CreateProRataSc
 		&i.Status,
 		&i.CreatedAt,
 		&i.AppliedAt,
+		&i.TransactionAmount,
+		&i.TransactionCurrency,
+		&i.CreationReportingCurrency,
+		&i.CapturedRateSnapshot,
+		&i.FailureReason,
 	)
 	return i, err
 }
@@ -228,7 +246,7 @@ func (q *Queries) DeleteTag(ctx context.Context, arg DeleteTagParams) error {
 }
 
 const getCurrentPeriod = `-- name: GetCurrentPeriod :one
-SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at, reporting_currency FROM finance.budget_periods
 WHERE user_id = $1 AND year = $2 AND month = $3
 `
 
@@ -247,12 +265,12 @@ func (q *Queries) GetCurrentPeriod(ctx context.Context, arg GetCurrentPeriodPara
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
-		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportingCurrency,
 	)
 	return i, err
 }
@@ -305,7 +323,7 @@ func (q *Queries) GetHealthScore(ctx context.Context, arg GetHealthScoreParams) 
 }
 
 const getLatestPeriod = `-- name: GetLatestPeriod :one
-SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at, reporting_currency FROM finance.budget_periods
 WHERE user_id = $1
 ORDER BY year DESC, month DESC
 LIMIT 1
@@ -320,18 +338,18 @@ func (q *Queries) GetLatestPeriod(ctx context.Context, userID pgtype.UUID) (Fina
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
-		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportingCurrency,
 	)
 	return i, err
 }
 
 const getPendingProRata = `-- name: GetPendingProRata :many
-SELECT id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at FROM finance.pro_rata_schedules
+SELECT id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at, transaction_amount, transaction_currency, creation_reporting_currency, captured_rate_snapshot, failure_reason FROM finance.pro_rata_schedules
 WHERE user_id = $1 AND target_year = $2 AND target_month = $3 AND status = 'pending'
 ORDER BY installment_index ASC
 `
@@ -367,6 +385,11 @@ func (q *Queries) GetPendingProRata(ctx context.Context, arg GetPendingProRataPa
 			&i.Status,
 			&i.CreatedAt,
 			&i.AppliedAt,
+			&i.TransactionAmount,
+			&i.TransactionCurrency,
+			&i.CreationReportingCurrency,
+			&i.CapturedRateSnapshot,
+			&i.FailureReason,
 		); err != nil {
 			return nil, err
 		}
@@ -379,7 +402,7 @@ func (q *Queries) GetPendingProRata(ctx context.Context, arg GetPendingProRataPa
 }
 
 const getPeriodByID = `-- name: GetPeriodByID :one
-SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at, reporting_currency FROM finance.budget_periods
 WHERE id = $1 AND user_id = $2
 `
 
@@ -397,12 +420,12 @@ func (q *Queries) GetPeriodByID(ctx context.Context, arg GetPeriodByIDParams) (F
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
-		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportingCurrency,
 	)
 	return i, err
 }
@@ -432,7 +455,7 @@ func (q *Queries) GetTagByID(ctx context.Context, arg GetTagByIDParams) (Finance
 }
 
 const getUpcomingProRata = `-- name: GetUpcomingProRata :many
-SELECT id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at FROM finance.pro_rata_schedules
+SELECT id, user_id, pro_rata_group, name, amount, currency, expense_type, tag_id, target_year, target_month, installment_index, installment_total, status, created_at, applied_at, transaction_amount, transaction_currency, creation_reporting_currency, captured_rate_snapshot, failure_reason FROM finance.pro_rata_schedules
 WHERE user_id = $1 AND status = 'pending'
 ORDER BY target_year ASC, target_month ASC, installment_index ASC
 `
@@ -462,6 +485,11 @@ func (q *Queries) GetUpcomingProRata(ctx context.Context, userID pgtype.UUID) ([
 			&i.Status,
 			&i.CreatedAt,
 			&i.AppliedAt,
+			&i.TransactionAmount,
+			&i.TransactionCurrency,
+			&i.CreationReportingCurrency,
+			&i.CapturedRateSnapshot,
+			&i.FailureReason,
 		); err != nil {
 			return nil, err
 		}
@@ -517,7 +545,7 @@ func (q *Queries) ListHealthScoreScalars(ctx context.Context, userID pgtype.UUID
 }
 
 const listPeriods = `-- name: ListPeriods :many
-SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at, reporting_currency FROM finance.budget_periods
 WHERE user_id = $1
 ORDER BY year DESC, month DESC
 `
@@ -537,12 +565,12 @@ func (q *Queries) ListPeriods(ctx context.Context, userID pgtype.UUID) ([]Financ
 			&i.Year,
 			&i.Month,
 			&i.BudgetAmount,
-			&i.ReportingCurrency,
 			&i.EssentialsPercent,
 			&i.DesiresPercent,
 			&i.SavingsPercent,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReportingCurrency,
 		); err != nil {
 			return nil, err
 		}
@@ -603,7 +631,7 @@ UPDATE finance.budget_periods
 SET budget_amount = $1, essentials_percent = $2, desires_percent = $3,
     savings_percent = $4, updated_at = now()
 WHERE id = $5 AND user_id = $6
-RETURNING id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at
+RETURNING id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at, reporting_currency
 `
 
 type UpdatePeriodParams struct {
@@ -631,12 +659,12 @@ func (q *Queries) UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (Fin
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
-		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportingCurrency,
 	)
 	return i, err
 }

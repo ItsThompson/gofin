@@ -35,6 +35,7 @@ type FinanceService struct {
 	repo          repository.FinanceRepository
 	txBeginner    repository.TxBeginner
 	expenseClient ExpenseClient
+	fxClient      FxClient
 	nowFunc       func() time.Time
 	logger        *slog.Logger
 }
@@ -42,11 +43,27 @@ type FinanceService struct {
 // NewFinanceService creates a new FinanceService with all dependencies injected.
 // expenseClient is always supplied, so the dashboard and pro-rata paths
 // dereference it without a nil guard. nowFunc is the clock seam (pass time.Now
-// in production); a nil nowFunc defaults to time.Now.
+// in production); a nil nowFunc defaults to time.Now. fxClient is nil: callers
+// that create pro-rata schedules must use NewFinanceServiceWithFx instead.
 func NewFinanceService(
 	repo repository.FinanceRepository,
 	txBeginner repository.TxBeginner,
 	expenseClient ExpenseClient,
+	nowFunc func() time.Time,
+	logger *slog.Logger,
+) *FinanceService {
+	return NewFinanceServiceWithFx(repo, txBeginner, expenseClient, nil, nowFunc, logger)
+}
+
+// NewFinanceServiceWithFx creates a FinanceService with the FX client used for
+// pro-rata snapshot capture. Production wiring passes a real GRPCFxClient; tests
+// pass a mock. A nil fxClient makes CreateProRataExpense fail with an internal
+// error rather than skipping the required capture.
+func NewFinanceServiceWithFx(
+	repo repository.FinanceRepository,
+	txBeginner repository.TxBeginner,
+	expenseClient ExpenseClient,
+	fxClient FxClient,
 	nowFunc func() time.Time,
 	logger *slog.Logger,
 ) *FinanceService {
@@ -57,6 +74,7 @@ func NewFinanceService(
 		repo:          repo,
 		txBeginner:    txBeginner,
 		expenseClient: expenseClient,
+		fxClient:      fxClient,
 		nowFunc:       nowFunc,
 		logger:        logger,
 	}

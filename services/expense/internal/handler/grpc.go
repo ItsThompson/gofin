@@ -31,13 +31,14 @@ type operation struct {
 }
 
 var (
-	opCreate     = operation{name: "expense.create", rpc: "CreateExpense"}
-	opList       = operation{name: "expense.list", rpc: "GetExpensesForPeriod"}
-	opGet        = operation{name: "expense.get", rpc: "GetExpense"}
-	opCorrect    = operation{name: "expense.correct", rpc: "CorrectExpense"}
-	opCountByTag = operation{name: "expense.count_by_tag", rpc: "CountExpensesByTag"}
-	opStreamAll  = operation{name: "expense.stream_all", rpc: "StreamAllUserExpenses"}
-	opAnonymize  = operation{name: "expense.anonymize", rpc: "AnonymizeAllUserExpenses"}
+	opCreate             = operation{name: "expense.create", rpc: "CreateExpense"}
+	opProRataInstallment = operation{name: "expense.create_pro_rata_installment", rpc: "CreateProRataInstallment"}
+	opList               = operation{name: "expense.list", rpc: "GetExpensesForPeriod"}
+	opGet                = operation{name: "expense.get", rpc: "GetExpense"}
+	opCorrect            = operation{name: "expense.correct", rpc: "CorrectExpense"}
+	opCountByTag         = operation{name: "expense.count_by_tag", rpc: "CountExpensesByTag"}
+	opStreamAll          = operation{name: "expense.stream_all", rpc: "StreamAllUserExpenses"}
+	opAnonymize          = operation{name: "expense.anonymize", rpc: "AnonymizeAllUserExpenses"}
 )
 
 // GRPCHandler implements the ExpenseService gRPC server. Each RPC delegates to
@@ -71,6 +72,51 @@ func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRe
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCreate, req.GetUserId())
+	}
+
+	return &pb.ExpenseResponse{
+		Expense: expenseToProto(expense),
+	}, nil
+}
+
+func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.CreateProRataInstallmentRequest) (*pb.ExpenseResponse, error) {
+	reqModel := &service.CreateProRataInstallmentRequest{
+		UserID:              req.GetUserId(),
+		Name:                req.GetName(),
+		Amount:              req.GetAmount(),
+		TransactionCurrency: req.GetTransactionCurrency(),
+		ExpenseType:         req.GetExpenseType(),
+		TagID:               req.GetTagId(),
+		ExpenseDate:         req.GetExpenseDate(),
+		ProRataGroup:        req.GetProRataGroup(),
+		ProRataIndex:        req.GetProRataIndex(),
+		ProRataTotal:        req.GetProRataTotal(),
+	}
+	if pc := req.GetPeriodContext(); pc != nil {
+		reqModel.PeriodContext = service.TrustedPeriodContext{
+			PeriodID:          pc.GetPeriodId(),
+			UserID:            pc.GetUserId(),
+			Year:              pc.GetYear(),
+			Month:             pc.GetMonth(),
+			ReportingCurrency: pc.GetReportingCurrency(),
+			Source:            pc.GetSource(),
+		}
+	}
+	if snap := req.GetCapturedRateSnapshot(); snap != nil {
+		reqModel.CapturedRateSnapshot = &service.CapturedRateSnapshot{
+			SnapshotVersion: snap.GetSnapshotVersion(),
+			Source:          snap.GetSource(),
+			BaseCurrency:    snap.GetBaseCurrency(),
+			RateTimestamp:   snap.GetRateTimestamp(),
+			CapturedAt:      snap.GetCapturedAt(),
+			ExpiresAt:       snap.GetExpiresAt(),
+			RatesByCurrency: snap.GetRatesByCurrency(),
+		}
+	}
+
+	expense, err := h.expenseService.CreateProRataInstallment(ctx, reqModel)
+	if err != nil {
+		return nil, h.mapServiceError(ctx, err, opProRataInstallment, req.GetUserId())
 	}
 
 	return &pb.ExpenseResponse{
@@ -261,6 +307,8 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 			// FX provider unavailable: a client-retryable outcome, not an internal
 			// failure, so it is not reported.
 			return status.Error(codes.Unavailable, apiErr.Message)
+		case model.ErrSnapshotCurrencyMissing:
+			return status.Error(codes.FailedPrecondition, apiErr.Message)
 		default:
 			reportServerFailure(ctx, err, errkit.Meta{
 				Op:     op.name,

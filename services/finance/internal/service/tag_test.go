@@ -211,8 +211,8 @@ type mockTxn struct {
 }
 
 func (m *mockTxn) Commit(ctx context.Context) error   { return m.Called(ctx).Error(0) }
-func (m *mockTxn) Rollback(ctx context.Context) error  { return m.Called(ctx).Error(0) }
-func (m *mockTxn) Repo() repository.FinanceRepository  { return m.repo }
+func (m *mockTxn) Rollback(ctx context.Context) error { return m.Called(ctx).Error(0) }
+func (m *mockTxn) Repo() repository.FinanceRepository { return m.repo }
 
 // mockExpClient implements ExpenseClient for service tests.
 type mockExpClient struct {
@@ -233,6 +233,14 @@ func (m *mockExpClient) CountExpensesByTag(ctx context.Context, userID, tagID st
 }
 
 func (m *mockExpClient) CreateExpense(ctx context.Context, req CreateExpenseInput) (*CreatedExpenseData, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*CreatedExpenseData), args.Error(1)
+}
+
+func (m *mockExpClient) CreateProRataInstallment(ctx context.Context, req CreateProRataInstallmentInput) (*CreatedExpenseData, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)

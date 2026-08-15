@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	ExpenseService_CreateExpense_FullMethodName            = "/expense.ExpenseService/CreateExpense"
+	ExpenseService_CreateProRataInstallment_FullMethodName = "/expense.ExpenseService/CreateProRataInstallment"
 	ExpenseService_GetExpensesForPeriod_FullMethodName     = "/expense.ExpenseService/GetExpensesForPeriod"
 	ExpenseService_GetExpense_FullMethodName               = "/expense.ExpenseService/GetExpense"
 	ExpenseService_CountExpensesByTag_FullMethodName       = "/expense.ExpenseService/CountExpensesByTag"
@@ -33,6 +34,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExpenseServiceClient interface {
 	CreateExpense(ctx context.Context, in *CreateExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
+	CreateProRataInstallment(ctx context.Context, in *CreateProRataInstallmentRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	GetExpensesForPeriod(ctx context.Context, in *GetExpensesForPeriodRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
 	GetExpense(ctx context.Context, in *GetExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	// Tag usage check (called by finance service during tag deletion)
@@ -60,6 +62,16 @@ func (c *expenseServiceClient) CreateExpense(ctx context.Context, in *CreateExpe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExpenseResponse)
 	err := c.cc.Invoke(ctx, ExpenseService_CreateExpense_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *expenseServiceClient) CreateProRataInstallment(ctx context.Context, in *CreateProRataInstallmentRequest, opts ...grpc.CallOption) (*ExpenseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExpenseResponse)
+	err := c.cc.Invoke(ctx, ExpenseService_CreateProRataInstallment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +152,7 @@ func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectEx
 // for forward compatibility.
 type ExpenseServiceServer interface {
 	CreateExpense(context.Context, *CreateExpenseRequest) (*ExpenseResponse, error)
+	CreateProRataInstallment(context.Context, *CreateProRataInstallmentRequest) (*ExpenseResponse, error)
 	GetExpensesForPeriod(context.Context, *GetExpensesForPeriodRequest) (*ExpenseListResponse, error)
 	GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error)
 	// Tag usage check (called by finance service during tag deletion)
@@ -165,6 +178,9 @@ type UnimplementedExpenseServiceServer struct{}
 
 func (UnimplementedExpenseServiceServer) CreateExpense(context.Context, *CreateExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateExpense not implemented")
+}
+func (UnimplementedExpenseServiceServer) CreateProRataInstallment(context.Context, *CreateProRataInstallmentRequest) (*ExpenseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateProRataInstallment not implemented")
 }
 func (UnimplementedExpenseServiceServer) GetExpensesForPeriod(context.Context, *GetExpensesForPeriodRequest) (*ExpenseListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetExpensesForPeriod not implemented")
@@ -219,6 +235,24 @@ func _ExpenseService_CreateExpense_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ExpenseServiceServer).CreateExpense(ctx, req.(*CreateExpenseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ExpenseService_CreateProRataInstallment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateProRataInstallmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExpenseServiceServer).CreateProRataInstallment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExpenseService_CreateProRataInstallment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExpenseServiceServer).CreateProRataInstallment(ctx, req.(*CreateProRataInstallmentRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -334,6 +368,10 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateExpense",
 			Handler:    _ExpenseService_CreateExpense_Handler,
+		},
+		{
+			MethodName: "CreateProRataInstallment",
+			Handler:    _ExpenseService_CreateProRataInstallment_Handler,
 		},
 		{
 			MethodName: "GetExpensesForPeriod",

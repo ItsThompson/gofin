@@ -261,6 +261,8 @@ message CreateProRataExpenseRequest {
   string expense_date = 7;
   int32 months = 8;
   string transaction_currency = 9;
+  int32 period_year = 10;
+  int32 period_month = 11;
 }
 
 message ProRataResponse {

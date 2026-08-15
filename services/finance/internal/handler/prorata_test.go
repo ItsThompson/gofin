@@ -21,22 +21,47 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)
 	expClient := new(mockExpenseClient)
+	fxClient := new(mockFxClient)
 
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	financeSvc := service.NewFinanceService(repo, txBeginner, expClient, func() time.Time { return now }, logger)
+	financeSvc := service.NewFinanceServiceWithFx(repo, txBeginner, expClient, fxClient, func() time.Time { return now }, logger)
 
 	gin.SetMode(gin.TestMode)
 	h := NewRESTHandler(financeSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
 
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req service.CreateExpenseInput) bool {
-		return req.TransactionCurrency == "EUR" && req.IsProRata
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return(&model.BudgetPeriod{
+			ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrency: "USD",
+		}, nil)
+
+	snapshot := &model.CapturedRateSnapshot{
+		SnapshotVersion: 1,
+		Source:          "open_exchange_rates",
+		BaseCurrency:    "USD",
+		RateTimestamp:   "2026-05-15T10:00:00Z",
+		CapturedAt:      "2026-05-15T12:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+		RatesByCurrency: map[string]string{"USD": "1", "EUR": "0.92"},
+	}
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.MatchedBy(func(req service.FxCaptureRequest) bool {
+		return len(req.RequiredCurrencies) == 2 && req.RequiredCurrencies[0] == "EUR" && req.RequiredCurrencies[1] == "USD"
+	})).Return(snapshot, nil)
+
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req service.CreateProRataInstallmentInput) bool {
+		return req.Currency == "EUR" &&
+			req.PeriodContext.Year == 2026 &&
+			req.PeriodContext.Month == 5 &&
+			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.CapturedRateSnapshot == snapshot
 	})).Return(&service.CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
-		return s.Currency == "EUR"
+		return s.TransactionCurrency == "EUR" &&
+			s.CreationReportingCurrency == "USD" &&
+			s.CapturedRateSnapshot.RateTimestamp == snapshot.RateTimestamp
 	})).Return(&model.ProRataSchedule{
 		ID: "sched-1", Status: "pending",
 	}, nil)
@@ -49,6 +74,8 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 		"tagId":               "tag-1",
 		"expenseDate":         "2026-05-15",
 		"months":              2,
+		"periodYear":          2026,
+		"periodMonth":         5,
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -56,6 +83,7 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 	var resp model.ProRataResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "exp-1", resp.Expense.ID)
-	assert.Equal(t, "EUR", resp.Expense.Currency)
+	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
 	expClient.AssertExpectations(t)
+	fxClient.AssertExpectations(t)
 }

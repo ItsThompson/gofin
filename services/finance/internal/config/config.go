@@ -24,6 +24,7 @@ func ResolveRESTPort() string {
 type Config struct {
 	DBUrl              string
 	ExpenseServiceAddr string // gRPC address for expense service (e.g., "expense-service:9082")
+	FxServiceAddr      string // gRPC address for fx service (e.g., "fx-service:9085")
 	LogLevel           string
 	Environment        string
 	RESTPort           string
@@ -41,6 +42,11 @@ func Load() (*Config, error) {
 	expenseAddr := os.Getenv("EXPENSE_SERVICE_ADDR")
 	if expenseAddr == "" {
 		return nil, fmt.Errorf("EXPENSE_SERVICE_ADDR is required")
+	}
+
+	fxAddr := os.Getenv("FX_SERVICE_ADDR")
+	if fxAddr == "" {
+		return nil, fmt.Errorf("FX_SERVICE_ADDR is required")
 	}
 
 	logLevel := os.Getenv("LOG_LEVEL")
@@ -63,6 +69,7 @@ func Load() (*Config, error) {
 	return &Config{
 		DBUrl:              dbURL,
 		ExpenseServiceAddr: expenseAddr,
+		FxServiceAddr:      fxAddr,
 		LogLevel:           logLevel,
 		Environment:        environment,
 		RESTPort:           restPort,

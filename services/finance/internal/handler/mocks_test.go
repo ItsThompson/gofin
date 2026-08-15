@@ -242,3 +242,24 @@ func (m *mockExpenseClient) CreateExpense(ctx context.Context, req service.Creat
 	}
 	return args.Get(0).(*service.CreatedExpenseData), args.Error(1)
 }
+
+func (m *mockExpenseClient) CreateProRataInstallment(ctx context.Context, req service.CreateProRataInstallmentInput) (*service.CreatedExpenseData, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.CreatedExpenseData), args.Error(1)
+}
+
+// mockFxClient implements service.FxClient for handler tests.
+type mockFxClient struct {
+	mock.Mock
+}
+
+func (m *mockFxClient) CaptureRateSnapshot(ctx context.Context, req service.FxCaptureRequest) (*model.CapturedRateSnapshot, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.CapturedRateSnapshot), args.Error(1)
+}
