@@ -59,8 +59,13 @@ All expense ledger entries (both active and corrected) in chronological order.
 |--------|------|-------|
 | `id` | UUID | |
 | `name` | string | Expense description |
-| `amount` | decimal | Dollars with 2 decimal places (e.g., `12.50`) |
-| `currency` | string | ISO 4217 code |
+| `transaction_amount` | decimal string | Formatted using `transaction_currency` minor-unit digits |
+| `transaction_currency` | string | ISO 4217 code of the original charge |
+| `reporting_amount` | decimal string | Formatted using `reporting_currency` minor-unit digits |
+| `reporting_currency` | string | Budget period reporting currency |
+| `exchange_rate` | decimal string | Source-to-target rate used for the row |
+| `exchange_rate_source` | string | `identity`, `open_exchange_rates`, or `migration` |
+| `exchange_rate_timestamp` | timestamp | Snapshot timestamp |
 | `expense_type` | string | `essentials`, `desires`, or `savings` |
 | `tag_name` | string | Resolved tag name (not ID). `Unknown` if tag was deleted |
 | `expense_date` | string | ISO date |
@@ -94,7 +99,8 @@ All budget periods (one per month configured).
 | `id` | UUID | |
 | `year` | int | |
 | `month` | int | 1-12 |
-| `budget_amount` | decimal | Dollars with 2 decimal places |
+| `budget_amount` | decimal string | Formatted using `reporting_currency` minor-unit digits |
+| `reporting_currency` | string | Immutable period currency |
 | `essentials_percent` | int | 0-100 |
 | `desires_percent` | int | 0-100 |
 | `savings_percent` | int | 0-100 |
@@ -106,11 +112,27 @@ Single row with current budget defaults (empty if not configured).
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `budget_amount` | decimal | Dollars with 2 decimal places |
+| `budget_amount` | decimal string | Formatted using the default settings currency |
 | `essentials_percent` | int | 0-100 |
 | `desires_percent` | int | 0-100 |
 | `savings_percent` | int | 0-100 |
-| `currency` | string | ISO 4217 code |
+| `currency` | string | Future-period default reporting currency |
+
+### Currency Precision Formatting
+
+Amount columns use the shared currency catalog's `minorUnitDigits` to scale integer minor units into decimal strings:
+
+| Rule | Behavior |
+|------|----------|
+| Transaction amount | Use `transactionCurrency` minor-unit digits |
+| Reporting amount | Use `reportingCurrency` minor-unit digits |
+| Zero-digit currencies | Render as a plain integer (JPY gets no forced `.00`) |
+| Same-currency row | `exchange_rate = 1`, `exchange_rate_source = identity` |
+| Provider-converted row | Include provider rate and timestamp |
+| Legacy migration row | `exchange_rate_source = migration`, rate `1`; both amount columns use the migrated period reporting currency |
+| Legacy stored-currency mismatch | Normalize export currency fields to the period reporting currency and rely on telemetry for the mismatch |
+
+See `services/datarights/internal/engine/providers/format.go` for the canonical `formatMinorUnits` implementation.
 
 ## Adding a Data Provider
 
@@ -169,7 +191,7 @@ A finance-backed provider takes the `finance` parameter: a per-job `MemoizedFina
 
 `services/datarights/internal/engine/providers/format.go` provides:
 
-- `formatCentsToDollars(cents int64)`: converts cents to `"12.50"` format
+- `formatMinorUnits(amount int64, code string)`: scales integer minor units to a decimal string using the currency's `minorUnitDigits` (JPY renders as a plain integer)
 - `formatBool(b bool)`: renders `"true"` / `"false"`
 - `resolveTagName(tagID, tagMap)`: looks up tag names with `"Unknown"` fallback
 - `formatOptionalInt(value, condition)`: renders empty string when condition is false
