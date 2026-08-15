@@ -1,9 +1,11 @@
 import type { User } from "@gofin/core";
+import { getCurrencyInputStep, getMinorUnitDigits } from "@gofin/core";
 import { useSupportedCurrencyOptions } from "@gofin/api";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
   Form,
+  FormDescription,
   FormField,
   FormLabel,
   FormMessage,
@@ -35,7 +37,8 @@ export function DefaultBudgetSection({ user }: { user: User }) {
           id="budget-amount"
           type="number"
           min="0"
-          step="0.01"
+          step={getCurrencyInputStep(state.currency)}
+          placeholder={getMinorUnitDigits(state.currency) === 0 ? "0" : "0.00"}
           value={state.budgetDollars}
           onChange={(event) => actions.setBudgetDollars(event.target.value)}
         />
@@ -78,7 +81,7 @@ export function DefaultBudgetSection({ user }: { user: User }) {
       </div>
 
       <FormField>
-        <FormLabel htmlFor="currency-select">Currency</FormLabel>
+        <FormLabel htmlFor="currency-select">Default Currency</FormLabel>
         <select
           id="currency-select"
           value={state.currency}
@@ -91,6 +94,13 @@ export function DefaultBudgetSection({ user }: { user: User }) {
             </option>
           ))}
         </select>
+        <FormDescription>
+          Default currency applies only when you create a new budget period. It does not
+          change current or past periods.
+        </FormDescription>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Default currency applies only when you create a new budget period. It does not change current or past periods.
+        </p>
       </FormField>
 
       <FormMessage>{state.validationError || saveError}</FormMessage>

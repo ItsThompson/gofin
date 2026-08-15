@@ -38,6 +38,9 @@ describe("DashboardFeature", () => {
       expect(
         screen.getByText(/reporting currency cannot be changed/i),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(/default currency changes only apply to future periods/i),
+      ).toBeInTheDocument();
     });
 
     it("shows zero-budget warning when default budget is $0", async () => {

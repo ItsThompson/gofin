@@ -113,6 +113,10 @@ describe("SettingsFeature", () => {
 
       const savingsInputs = screen.getAllByLabelText("Savings %");
       expect((savingsInputs[0] as HTMLInputElement).value).toBe("20");
+
+      expect(
+        screen.getAllByText(/default currency applies only when you create a new budget period/i)[0],
+      ).toBeInTheDocument();
     });
 
     it("validates E/D/S split sums to 100%", async () => {

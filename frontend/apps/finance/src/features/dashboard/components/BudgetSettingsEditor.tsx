@@ -80,7 +80,7 @@ export function BudgetSettingsEditor({
       </CardHeader>
       <CardContent>
         <Form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
             <FormField>
               <FormLabel htmlFor="edit-budget">Monthly Budget</FormLabel>
               <div className="relative">
@@ -97,6 +97,16 @@ export function BudgetSettingsEditor({
                   className="pl-6"
                 />
               </div>
+            </FormField>
+            <FormField>
+              <FormLabel htmlFor="edit-reporting-currency">Reporting Currency</FormLabel>
+              <Input
+                id="edit-reporting-currency"
+                value={period.reportingCurrency}
+                readOnly
+                aria-readonly="true"
+              />
+              <FormDescription>Cannot change after period creation.</FormDescription>
             </FormField>
             <FormField>
               <FormLabel htmlFor="edit-essentials">Essentials %</FormLabel>

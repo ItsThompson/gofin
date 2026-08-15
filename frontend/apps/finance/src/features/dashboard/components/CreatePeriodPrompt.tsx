@@ -159,7 +159,7 @@ export function CreatePeriodPrompt({
               {currencyError && <FormMessage>{currencyError}</FormMessage>}
               <FormDescription>
                 Reporting currency cannot be changed after this period is created.
-                Default budget changes only apply to future periods.
+                Default currency changes only apply to future periods.
               </FormDescription>
             </FormField>
 
