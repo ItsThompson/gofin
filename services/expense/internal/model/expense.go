@@ -36,6 +36,17 @@ type Expense struct {
 	ExchangeRateSource    string `json:"exchangeRateSource"`
 	ExchangeRateTimestamp string `json:"exchangeRateTimestamp"`
 	ExchangeRateExpiresAt string `json:"exchangeRateExpiresAt,omitempty"`
+
+	// LegacySynthesized is set by the repository when a row had no
+	// money_snapshot_version (legacy) and the snapshot was synthesized. It is
+	// not serialized (json:"-") and not mapped to proto. The service layer uses
+	// it to apply period-context-aware currency normalization and telemetry.
+	LegacySynthesized bool `json:"-"`
+
+	// PartialSnapshotFields is set when a legacy row (null version) had some
+	// nullable snapshot columns partially present from an incomplete migration
+	// attempt. The service layer emits repair telemetry for these rows.
+	PartialSnapshotFields bool `json:"-"`
 }
 
 // ValidExpenseTypes is the set of allowed expense_type values.
