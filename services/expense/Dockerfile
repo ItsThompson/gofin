@@ -16,6 +16,8 @@ COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
 COPY apierr/go.mod apierr/go.sum* ./apierr/
 COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY httpx/go.mod httpx/go.sum* ./httpx/
+COPY finance/go.mod finance/go.sum* ./finance/
+COPY shared/currency/go.mod ./shared/currency/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd expense && GOWORK=off go mod download
 
@@ -29,6 +31,8 @@ COPY dbmigrate/ ./dbmigrate/
 COPY apierr/ ./apierr/
 COPY errkit/ ./errkit/
 COPY httpx/ ./httpx/
+COPY finance/proto/ ./finance/proto/
+COPY shared/currency/ ./shared/currency/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

@@ -5,14 +5,15 @@ package model
 // service layer's validateCreateExpenseRequest, which returns field-level error
 // details in the error response.
 type CreateExpenseRequest struct {
-	Name        string `json:"name"`
-	Amount      int64  `json:"amount"`
-	Currency    string `json:"currency"`
-	ExpenseType string `json:"expenseType"`
-	TagID       string `json:"tagId"`
-	ExpenseDate string `json:"expenseDate"`
-	PeriodYear  int32  `json:"periodYear"`
-	PeriodMonth int32  `json:"periodMonth"`
+	Name                string `json:"name"`
+	Amount              int64  `json:"amount"`
+	TransactionCurrency string `json:"transactionCurrency"`
+	Currency            string `json:"currency"`
+	ExpenseType         string `json:"expenseType"`
+	TagID               string `json:"tagId"`
+	ExpenseDate         string `json:"expenseDate"`
+	PeriodYear          int32  `json:"periodYear"`
+	PeriodMonth         int32  `json:"periodMonth"`
 
 	// Pro-rata fields (optional for standard expenses)
 	IsProRata    bool   `json:"isProRata,omitempty"`

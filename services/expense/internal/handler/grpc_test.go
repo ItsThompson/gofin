@@ -15,13 +15,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
 func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
 	return NewGRPCHandler(expenseSvc)
 }
 
@@ -48,6 +49,39 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	assert.Contains(t, registered, "CountExpensesByTag")
 	assert.Contains(t, registered, "AnonymizeAllUserExpenses")
 	assert.Contains(t, registered, "StreamAllUserExpenses")
+}
+
+func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler := newTestGRPCHandler(repo)
+
+	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
+		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+	})).Return(&model.Expense{
+		ID:                  "exp-1",
+		UserID:              "user-1",
+		Amount:              1200,
+		TransactionCurrency: "EUR",
+		Currency:            "EUR",
+		Status:              "active",
+	}, nil)
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:              "user-1",
+		Name:                "Coffee",
+		Amount:              1200,
+		TransactionCurrency: "EUR",
+		ExpenseType:         "desires",
+		TagId:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.GetExpense())
+	assert.Equal(t, "EUR", resp.GetExpense().GetTransactionCurrency())
+	repo.AssertExpectations(t)
 }
 
 // TestGRPC_GetExpense_WrappedTypedErrorClassifies asserts a typed *apierr.Error

@@ -105,7 +105,7 @@ func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, user
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -171,6 +171,49 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 	assert.Equal(t, int64(2500), resp.Expense.Amount)
 	assert.Equal(t, "essentials", resp.Expense.ExpenseType)
 	assert.Equal(t, "active", resp.Expense.Status)
+}
+
+func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+
+	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
+		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+	})).Return(&model.Expense{
+		ID:                  "exp-123",
+		UserID:              "user-1",
+		Name:                "Coffee",
+		Amount:              450,
+		TransactionCurrency: "EUR",
+		Currency:            "EUR",
+		ExpenseType:         "desires",
+		TagID:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+		Status:              "active",
+		CreatedAt:           "2026-05-03T10:00:00Z",
+	}, nil)
+
+	r := setupTestRouter(repo)
+
+	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
+		"name":                "Coffee",
+		"amount":              450,
+		"transactionCurrency": "EUR",
+		"expenseType":         "desires",
+		"tagId":               "tag-food",
+		"expenseDate":         "2026-05-03",
+		"periodYear":          2026,
+		"periodMonth":         5,
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var resp model.ExpenseResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
+	assert.Equal(t, "EUR", resp.Expense.Currency)
+	repo.AssertExpectations(t)
 }
 
 func TestCreateExpenseHandler_MissingUserID(t *testing.T) {
@@ -427,7 +470,7 @@ func TestGetExpenseHandler_NotFound(t *testing.T) {
 func setupTestRouterWithClock(repo *mockExpenseRepository, now time.Time) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, func() time.Time { return now }, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), func() time.Time { return now }, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)

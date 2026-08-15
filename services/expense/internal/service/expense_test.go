@@ -97,9 +97,33 @@ func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, user
 	return rows, args.Get(1).(repository.ExpenseCursor), args.Bool(2), args.Error(3)
 }
 
+type mockPeriodContextClient struct {
+	mock.Mock
+}
+
+func (m *mockPeriodContextClient) GetPeriodContext(ctx context.Context, userID string, year, month int32) (*PeriodContext, error) {
+	args := m.Called(ctx, userID, year, month)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*PeriodContext), args.Error(1)
+}
+
+func newTestPeriodClient() *mockPeriodContextClient {
+	client := new(mockPeriodContextClient)
+	client.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+	return client
+}
+
 func newTestService(repo *mockExpenseRepository) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewExpenseService(repo, time.Now, logger)
+	return NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
 }
 
 // requireAPIError asserts that err carries an *apierr.Error (via errors.As, so a
@@ -113,14 +137,15 @@ func requireAPIError(t *testing.T, err error) *apierr.Error {
 
 func validCreateRequest() *model.CreateExpenseRequest {
 	return &model.CreateExpenseRequest{
-		Name:        "Grocery shopping",
-		Amount:      2500,
-		Currency:    "USD",
-		ExpenseType: "essentials",
-		TagID:       "tag-food",
-		ExpenseDate: "2026-05-03",
-		PeriodYear:  2026,
-		PeriodMonth: 5,
+		Name:                "Grocery shopping",
+		Amount:              2500,
+		TransactionCurrency: "USD",
+		Currency:            "USD",
+		ExpenseType:         "essentials",
+		TagID:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
 	}
 }
 
@@ -153,6 +178,115 @@ func TestCreateExpense_Success(t *testing.T) {
 	assert.Equal(t, int64(2500), expense.Amount)
 	assert.Equal(t, "essentials", expense.ExpenseType)
 	assert.Equal(t, "active", expense.Status)
+}
+
+func TestCreateExpense_MissingPeriodDoesNotWrite(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	svc := NewExpenseService(repo, periodClient, time.Now, logger)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, periodNotFoundError(2026, 5))
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrPeriodNotFound, svcErr.Code)
+	assert.Equal(t, "2026", svcErr.Fields["periodYear"])
+	assert.Equal(t, "5", svcErr.Fields["periodMonth"])
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
+	tests := []struct {
+		name                 string
+		transactionCurrency  string
+		legacyCurrency       string
+		reportingCurrency    string
+		expectedCurrency     string
+		expectedErrorCode    string
+		expectRepositoryCall bool
+	}{
+		{
+			name:                 "transactionCurrency only",
+			transactionCurrency:  "EUR",
+			expectedCurrency:     "EUR",
+			expectRepositoryCall: true,
+		},
+		{
+			name:                 "legacy currency only",
+			legacyCurrency:       "gbp",
+			expectedCurrency:     "GBP",
+			expectRepositoryCall: true,
+		},
+		{
+			name:                 "both fields same",
+			transactionCurrency:  "JPY",
+			legacyCurrency:       "jpy",
+			expectedCurrency:     "JPY",
+			expectRepositoryCall: true,
+		},
+		{
+			name:                "both fields different",
+			transactionCurrency: "USD",
+			legacyCurrency:      "EUR",
+			expectedErrorCode:   model.ErrCurrencyConflict,
+		},
+		{
+			name:                 "neither field defaults to period reporting currency",
+			reportingCurrency:    "CHF",
+			expectedCurrency:     "CHF",
+			expectRepositoryCall: true,
+		},
+		{
+			name:                "unsupported canonical transaction currency",
+			transactionCurrency: "ZZZ",
+			expectedErrorCode:   model.ErrUnsupportedCurrency,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := new(mockExpenseRepository)
+			periodClient := new(mockPeriodContextClient)
+			logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+			svc := NewExpenseService(repo, periodClient, time.Now, logger)
+
+			reportingCurrency := tt.reportingCurrency
+			if reportingCurrency == "" {
+				reportingCurrency = "USD"
+			}
+			periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+				PeriodID:          "period-1",
+				UserID:            "user-1",
+				Year:              2026,
+				Month:             5,
+				ReportingCurrency: reportingCurrency,
+			}, nil)
+
+			if tt.expectRepositoryCall {
+				repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
+					return expense.TransactionCurrency == tt.expectedCurrency && expense.Currency == tt.expectedCurrency
+				})).Return(&model.Expense{ID: "exp-123", TransactionCurrency: tt.expectedCurrency, Currency: tt.expectedCurrency, Status: "active"}, nil)
+			}
+
+			req := validCreateRequest()
+			req.TransactionCurrency = tt.transactionCurrency
+			req.Currency = tt.legacyCurrency
+
+			expense, err := svc.CreateExpense(context.Background(), "user-1", req)
+			if tt.expectedErrorCode != "" {
+				svcErr := requireAPIError(t, err)
+				assert.Equal(t, tt.expectedErrorCode, svcErr.Code)
+				repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedCurrency, expense.TransactionCurrency)
+			repo.AssertExpectations(t)
+		})
+	}
 }
 
 func TestCreateExpense_AmountMustBePositive(t *testing.T) {
@@ -188,7 +322,6 @@ func TestCreateExpense_RequiredFields(t *testing.T) {
 		modify func(req *model.CreateExpenseRequest)
 	}{
 		{"missing name", func(req *model.CreateExpenseRequest) { req.Name = "" }},
-		{"missing currency", func(req *model.CreateExpenseRequest) { req.Currency = "" }},
 		{"missing tagId", func(req *model.CreateExpenseRequest) { req.TagID = "" }},
 		{"missing expenseDate", func(req *model.CreateExpenseRequest) { req.ExpenseDate = "" }},
 		{"zero periodYear", func(req *model.CreateExpenseRequest) { req.PeriodYear = 0 }},
@@ -440,7 +573,7 @@ func validCorrectRequest() *model.CorrectExpenseRequest {
 
 func newTestServiceWithClock(repo *mockExpenseRepository, now time.Time) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewExpenseService(repo, func() time.Time { return now }, logger)
+	return NewExpenseService(repo, newTestPeriodClient(), func() time.Time { return now }, logger)
 }
 
 func TestCorrectExpense_Success(t *testing.T) {

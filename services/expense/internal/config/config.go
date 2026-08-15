@@ -22,13 +22,14 @@ func ResolveRESTPort() string {
 
 // Config holds all configuration for the expense service, loaded from environment variables.
 type Config struct {
-	ImmudbAddr     string
-	ImmudbUsername string
-	ImmudbPassword string
-	LogLevel       string
-	Environment    string
-	RESTPort       string
-	GRPCPort       string
+	ImmudbAddr         string
+	ImmudbUsername     string
+	ImmudbPassword     string
+	FinanceServiceAddr string
+	LogLevel           string
+	Environment        string
+	RESTPort           string
+	GRPCPort           string
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -49,6 +50,11 @@ func Load() (*Config, error) {
 		immudbPassword = "immudb"
 	}
 
+	financeServiceAddr := os.Getenv("FINANCE_SERVICE_ADDR")
+	if financeServiceAddr == "" {
+		return nil, fmt.Errorf("FINANCE_SERVICE_ADDR is required")
+	}
+
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
@@ -67,13 +73,14 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		ImmudbAddr:     immudbAddr,
-		ImmudbUsername: immudbUsername,
-		ImmudbPassword: immudbPassword,
-		LogLevel:       logLevel,
-		Environment:    environment,
-		RESTPort:       restPort,
-		GRPCPort:       grpcPort,
+		ImmudbAddr:         immudbAddr,
+		ImmudbUsername:     immudbUsername,
+		ImmudbPassword:     immudbPassword,
+		FinanceServiceAddr: financeServiceAddr,
+		LogLevel:           logLevel,
+		Environment:        environment,
+		RESTPort:           restPort,
+		GRPCPort:           grpcPort,
 	}, nil
 }
 
