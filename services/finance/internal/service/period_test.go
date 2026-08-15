@@ -36,6 +36,59 @@ func makePeriod(id string, year int32, month int32) *model.BudgetPeriod {
 	}
 }
 
+// --- Default Settings Tests ---
+
+func TestUpdateDefaults_RejectsUnsupportedCurrency(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	svc := newTagTestService(repo, txBeg, nil)
+
+	result, err := svc.UpdateDefaults(context.Background(), "user-1", &model.UpdateDefaultsRequest{
+		BudgetAmount:      300000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		Currency:          "XYZ",
+	})
+
+	assert.Nil(t, result)
+	require.Error(t, err)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrUnsupportedCurrency, svcErr.Code)
+	assert.Equal(t, "unsupported currency", svcErr.Fields["currency"])
+	repo.AssertNotCalled(t, "UpsertDefaults", mock.Anything, mock.Anything)
+}
+
+func TestUpdateDefaults_DoesNotUpdateExistingPeriods(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	svc := newTagTestService(repo, txBeg, nil)
+
+	repo.On("UpsertDefaults", mock.Anything, mock.MatchedBy(func(settings *model.DefaultSettings) bool {
+		return settings.UserID == "user-1" && settings.Currency == "JPY"
+	})).Return(&model.DefaultSettings{
+		UserID:            "user-1",
+		BudgetAmount:      300000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		Currency:          "JPY",
+	}, nil)
+
+	result, err := svc.UpdateDefaults(context.Background(), "user-1", &model.UpdateDefaultsRequest{
+		BudgetAmount:      300000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		Currency:          "jpy",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "JPY", result.Currency)
+	repo.AssertNotCalled(t, "UpdatePeriod", mock.Anything, mock.Anything)
+}
+
 // --- UpdatePeriod Tests ---
 
 func TestUpdatePeriod_Success(t *testing.T) {

@@ -290,6 +290,40 @@ func TestCreatePeriodWithProRata_NoPriorPeriod(t *testing.T) {
 	assert.Equal(t, 0, result.AutoCreatedPeriods)
 }
 
+func TestCreatePeriodWithProRata_AutoCreatedPeriodsUseDefaultCurrency(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	repo.On("GetLatestPeriod", mock.Anything, "user-1").
+		Return(makePeriod("p-mar", 2026, 3), nil)
+	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{
+		BudgetAmount:      200000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+		Currency:          "EUR",
+	}, nil)
+	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
+		return p.Year == 2026 && p.Month == 4 && p.ReportingCurrency == "EUR"
+	})).Return(makePeriod("p-apr", 2026, 4), nil)
+	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
+		return p.Year == 2026 && p.Month == 5 && p.ReportingCurrency == "JPY"
+	})).Return(makePeriod("p-may", 2026, 5), nil)
+	repo.On("GetPendingProRata", mock.Anything, "user-1", mock.Anything, mock.Anything).
+		Return([]*model.ProRataSchedule{}, nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
+		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "JPY",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.AutoCreatedPeriods)
+	repo.AssertExpectations(t)
+}
 func TestCreatePeriodWithProRata_RejectsUnsupportedReportingCurrency(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)

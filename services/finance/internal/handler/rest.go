@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -433,6 +436,9 @@ func (h *RESTHandler) UpdatePeriod(c *gin.Context) {
 	}
 
 	periodID := c.Param("id")
+	if rejectImmutableReportingCurrencyUpdate(c) {
+		return
+	}
 
 	var req model.UpdatePeriodRequest
 	if !httpx.BindJSON(c, &req) {
@@ -448,6 +454,42 @@ func (h *RESTHandler) UpdatePeriod(c *gin.Context) {
 	c.JSON(http.StatusOK, model.PeriodResponse{
 		Period: period,
 	})
+}
+
+func rejectImmutableReportingCurrencyUpdate(c *gin.Context) bool {
+	fields := immutableReportingCurrencyFields(c)
+	if len(fields) == 0 {
+		return false
+	}
+
+	apierr.Respond(c, &apierr.Error{
+		Code:    model.ErrReportingCurrencyImmutable,
+		Message: "Reporting currency cannot be changed after period creation",
+		Status:  http.StatusBadRequest,
+		Fields:  fields,
+	})
+	return true
+}
+
+func immutableReportingCurrencyFields(c *gin.Context) map[string]string {
+	body, err := c.GetRawData()
+	if err != nil {
+		return nil
+	}
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+
+	fields := map[string]string{}
+	for _, field := range []string{"reportingCurrency", "reporting_currency"} {
+		if _, ok := payload[field]; ok {
+			fields[field] = "immutable"
+		}
+	}
+	return fields
 }
 
 // GetHistoricalComparison handles GET /api/finance/spending/comparison?year=YYYY&month=MM.
