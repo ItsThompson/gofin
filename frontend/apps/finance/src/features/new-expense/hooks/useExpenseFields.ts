@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { parseInput } from "@gofin/core";
 import type { ExpenseFields, ValidateExpenseOptions } from "../../../lib/validate-expense-fields";
 import { validateExpenseFields } from "../../../lib/validate-expense-fields";
 import { toLocalISODate } from "../../../lib/date-utils";
@@ -26,7 +27,7 @@ export interface UseExpenseFieldsResult {
   validate: (options?: ValidateExpenseOptions) => boolean;
   /** Reset all fields to initial values. Clears all errors. */
   reset: (init?: ExpenseFieldsInit) => void;
-  /** Derived: amount in cents (for payload construction). */
+  /** Derived: amount in selected currency minor units for payload construction. */
   amountCents: number;
 }
 
@@ -50,7 +51,10 @@ function buildInitialFields(init?: ExpenseFieldsInit): ExpenseFields {
  * Compose this with `useFormMutation` and feature-specific state to build
  * complete form hooks like `useNewExpenseForm` or `useCorrectionForm`.
  */
-export function useExpenseFields(init?: ExpenseFieldsInit): UseExpenseFieldsResult {
+export function useExpenseFields(
+  init?: ExpenseFieldsInit,
+  currency = "USD",
+): UseExpenseFieldsResult {
   const [fields, setFields] = useState<ExpenseFields>(() => buildInitialFields(init));
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -78,11 +82,11 @@ export function useExpenseFields(init?: ExpenseFieldsInit): UseExpenseFieldsResu
 
   const validate = useCallback(
     (options?: ValidateExpenseOptions): boolean => {
-      const errors = validateExpenseFields(fields, options);
+      const errors = validateExpenseFields(fields, { currency, ...options });
       setFieldErrors(errors);
       return Object.keys(errors).length === 0;
     },
-    [fields],
+    [fields, currency],
   );
 
   const reset = useCallback((resetInit?: ExpenseFieldsInit) => {
@@ -90,7 +94,12 @@ export function useExpenseFields(init?: ExpenseFieldsInit): UseExpenseFieldsResu
     setFieldErrors({});
   }, []);
 
-  const amountCents = Math.round(parseFloat(fields.amountDollars) * 100) || 0;
+  let amountCents = 0;
+  try {
+    amountCents = parseInput(fields.amountDollars, currency);
+  } catch {
+    amountCents = 0;
+  }
 
   return {
     fields,

@@ -30,6 +30,7 @@ describe("createExpenseSuggestionPatch", () => {
     expect(createExpenseSuggestionPatch(suggestion, tags)).toEqual({
       name: "Groceries",
       amountDollars: "12.99",
+      currency: "USD",
       expenseType: "essentials",
       tagId: "tag-food",
     });
@@ -44,8 +45,21 @@ describe("createExpenseSuggestionPatch", () => {
     ).toEqual({
       name: "Groceries",
       amountDollars: "12.99",
+      currency: "USD",
       expenseType: "essentials",
       tagId: null,
+    });
+  });
+
+  it("formats zero-decimal suggestion amounts with their currency precision", () => {
+    expect(
+      createExpenseSuggestionPatch({ ...suggestion, amount: 1299, currency: "JPY" }, tags),
+    ).toEqual({
+      name: "Groceries",
+      amountDollars: "1299",
+      currency: "JPY",
+      expenseType: "essentials",
+      tagId: "tag-food",
     });
   });
 });

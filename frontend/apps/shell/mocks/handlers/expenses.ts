@@ -73,6 +73,7 @@ export const expensesHandlers = [
         name: body.name,
         amount: body.amount,
         currency: currentMockUser.currency,
+        transactionCurrency: currentMockUser.currency,
         expenseType: body.expenseType,
         tagId: body.tagId,
         expenseDate: body.expenseDate,

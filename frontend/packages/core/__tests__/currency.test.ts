@@ -1,11 +1,14 @@
 import { beforeAll, describe, it, expect } from "vitest";
 import {
+  formatAmount,
   formatCurrency,
   getCurrencyInputStep,
   hasValidMinorUnitPrecision,
+  parseInput,
   toCents,
   toMajorUnits,
   toMinorUnits,
+  validateInputPrecision,
 } from "../src/currency";
 import {
   getCurrencySymbol,
@@ -96,11 +99,59 @@ describe("formatCurrency", () => {
       expect(formatCurrency(1000, "XYZ")).toBe("XYZ10.00");
     });
   });
+
+  describe("formatAmount", () => {
+    it("formats integer minor units with catalog precision", () => {
+      expect(formatAmount(1234, "USD")).toBe("$12.34");
+      expect(formatAmount(1234, "EUR")).toBe("€12.34");
+      expect(formatAmount(1234, "JPY")).toBe("¥1,234");
+    });
+
+    it("falls back to default precision for unknown currency", () => {
+      expect(formatAmount(1234, "XYZ")).toBe("XYZ12.34");
+    });
+  });
+
+  describe("parseInput", () => {
+    it("parses decimal input into integer minor units", () => {
+      expect(parseInput("12.34", "USD")).toBe(1234);
+      expect(parseInput("12.34", "EUR")).toBe(1234);
+      expect(parseInput("1234", "JPY")).toBe(1234);
+    });
+
+    it("preserves negative values for callers that allow them", () => {
+      expect(parseInput("-12.34", "USD")).toBe(-1234);
+      expect(parseInput("-1234", "JPY")).toBe(-1234);
+    });
+
+    it("falls back to default precision for unknown currency", () => {
+      expect(parseInput("12.34", "XYZ")).toBe(1234);
+    });
+  });
+
+  describe("validateInputPrecision", () => {
+    it("validates USD, EUR, and JPY precision", () => {
+      expect(validateInputPrecision("10.50", "USD")).toEqual({ isValid: true });
+      expect(validateInputPrecision("10.50", "EUR")).toEqual({ isValid: true });
+      expect(validateInputPrecision("10", "JPY")).toEqual({ isValid: true });
+      expect(validateInputPrecision("10.50", "JPY")).toEqual({
+        isValid: false,
+        fieldError: "Amount must be a whole JPY amount",
+      });
+    });
+
+    it("falls back to default precision for unknown currency", () => {
+      expect(validateInputPrecision("12.34", "XYZ")).toEqual({
+        isValid: true,
+      });
+    });
+  });
 });
 
 describe("minor unit helpers", () => {
   it("reads currency precision from the currency catalog", () => {
     expect(getMinorUnitDigits("USD")).toBe(2);
+    expect(getMinorUnitDigits("EUR")).toBe(2);
     expect(getMinorUnitDigits("JPY")).toBe(0);
     expect(getMinorUnitDigits("XYZ")).toBe(2);
   });

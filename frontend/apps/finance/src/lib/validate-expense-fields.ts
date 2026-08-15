@@ -1,3 +1,4 @@
+import { validateInputPrecision } from "@gofin/core";
 import type { ExpenseType } from "@gofin/core";
 
 /** The core expense field values managed by useExpenseFields. */
@@ -20,6 +21,8 @@ export interface ValidateExpenseOptions {
   isProRata?: boolean;
   /** Number of pro-rata months (only validated when isProRata is true). */
   proRataMonths?: string;
+  /** Currency used to validate the amount's allowed precision. */
+  currency?: string;
 }
 
 /**
@@ -27,6 +30,10 @@ export interface ValidateExpenseOptions {
  * Returns empty record if all fields are valid.
  * Returns record mapping field names to error messages for invalid fields.
  */
+function isDecimalInput(value: string): boolean {
+  return /^([+-]?)(?:(\d+)(\.(\d*)?)?|\.(\d+))$/.test(value.trim());
+}
+
 export function validateExpenseFields(
   fields: ExpenseFields,
   options?: ValidateExpenseOptions,
@@ -40,6 +47,16 @@ export function validateExpenseFields(
   const parsedAmount = parseFloat(fields.amountDollars);
   if (!fields.amountDollars || isNaN(parsedAmount) || parsedAmount <= 0) {
     errors.amount = "Amount must be greater than 0";
+  } else if (!isDecimalInput(fields.amountDollars)) {
+    errors.amount = "Enter a valid amount";
+  } else if (options?.currency) {
+    const precisionValidation = validateInputPrecision(
+      fields.amountDollars,
+      options.currency,
+    );
+    if (!precisionValidation.isValid) {
+      errors.amount = precisionValidation.fieldError ?? "Invalid amount precision";
+    }
   }
 
   if (!fields.expenseDate) {

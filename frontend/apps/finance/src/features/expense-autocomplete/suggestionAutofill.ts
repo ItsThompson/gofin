@@ -1,8 +1,9 @@
+import { getMinorUnitDigits, toMajorUnits } from "@gofin/core";
 import type { Tag } from "@gofin/core";
 import type { ExpenseSuggestion, ExpenseSuggestionPatch } from "./types";
 
-function formatMinorUnits(amount: number): string {
-  return (amount / 100).toFixed(2);
+function formatMinorUnits(amount: number, currency: string): string {
+  return toMajorUnits(amount, currency).toFixed(getMinorUnitDigits(currency));
 }
 
 export function createExpenseSuggestionPatch(
@@ -13,7 +14,8 @@ export function createExpenseSuggestionPatch(
 
   return {
     name: suggestion.name,
-    amountDollars: formatMinorUnits(suggestion.amount),
+    amountDollars: formatMinorUnits(suggestion.amount, suggestion.currency),
+    currency: suggestion.currency,
     expenseType: suggestion.expenseType,
     tagId: hasValidTag ? suggestion.tagId : null,
   };

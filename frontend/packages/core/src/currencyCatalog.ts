@@ -68,6 +68,12 @@ function findCurrency(currencyCode: string): SupportedCurrency | undefined {
   return cachedCurrencies.find((currency) => currency.code === currencyCode);
 }
 
+export function getCurrencyDefinition(
+  currencyCode: string,
+): SupportedCurrency | undefined {
+  return findCurrency(currencyCode);
+}
+
 export function isSupportedCurrency(currencyCode: string): boolean {
   return findCurrency(currencyCode) !== undefined;
 }

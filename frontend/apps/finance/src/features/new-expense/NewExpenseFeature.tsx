@@ -1,4 +1,12 @@
-import { getCurrencySymbol } from "@gofin/core";
+import { useEffect, useState } from "react";
+import { ApiRequestError, apiClient } from "@gofin/api";
+import {
+  getCurrencyInputStep,
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  SUPPORTED_CURRENCY_OPTIONS,
+} from "@gofin/core";
+import type { BudgetPeriod, PeriodResponse } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -14,22 +22,96 @@ import {
   FormLabel,
   FormMessage,
 } from "@gofin/ui/components/form";
-import { PlusCircle } from "lucide-react";
+import { LayoutDashboard, PlusCircle } from "lucide-react";
 import type { FinancePageProps } from "../../types";
 import { ExpenseNameCombobox } from "../expense-autocomplete";
 import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
 
-/**
- * New expense form page. Allows users to log a standard expense.
- * Amount is entered in dollars (with decimals) and converted to cents
- * before submission. On success, shows feedback and resets the form.
- */
 export function NewExpenseFeature({ user }: FinancePageProps) {
-  const currencySymbol = getCurrencySymbol(user.currency);
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
-  const { state, actions } = useNewExpenseForm(user.currency);
+  const [period, setPeriod] = useState<BudgetPeriod | null>(null);
+  const [isLoadingPeriod, setIsLoadingPeriod] = useState(true);
+  const [isPeriodMissing, setIsPeriodMissing] = useState(false);
+  const [periodError, setPeriodError] = useState<string | null>(null);
+  const { state, actions } = useNewExpenseForm(
+    period?.reportingCurrency ?? user.currency,
+    period?.year ?? currentYear,
+    period?.month ?? currentMonth,
+  );
+  const currencySymbol = getCurrencySymbol(state.transactionCurrency);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchPeriodContext() {
+      try {
+        const response = await apiClient<PeriodResponse>(
+          `/api/finance/periods/current?year=${currentYear}&month=${currentMonth}`,
+        );
+        if (!isMounted) return;
+        setPeriod(response.period);
+        setIsPeriodMissing(false);
+        setPeriodError(null);
+      } catch (error) {
+        if (!isMounted) return;
+        if (error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
+          setIsPeriodMissing(true);
+          setPeriodError(null);
+          return;
+        }
+        setPeriodError("Failed to load budget period context.");
+      } finally {
+        if (isMounted) {
+          setIsLoadingPeriod(false);
+        }
+      }
+    }
+
+    fetchPeriodContext();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentMonth, currentYear]);
+
+  if (isLoadingPeriod) {
+    return (
+      <div className="flex items-start justify-center pt-4 md:pt-8">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle className="text-2xl">New Expense</CardTitle>
+            <CardDescription>Loading budget period context...</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isPeriodMissing || !period) {
+    return (
+      <div className="flex items-start justify-center pt-4 md:pt-8">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <LayoutDashboard className="size-6 text-primary" />
+              <CardTitle className="text-2xl">Create a budget period first</CardTitle>
+            </div>
+            <CardDescription>
+              Expenses need a budget period for {currentMonth}/{currentYear} before they can be saved.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {periodError ? <FormMessage>{periodError}</FormMessage> : null}
+            <Button asChild className="w-full">
+              <a href="/dashboard">Go to dashboard setup</a>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-start justify-center pt-4 md:pt-8">
@@ -48,7 +130,7 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form onSubmit={actions.handleSubmit}>
+          <Form onSubmit={actions.handleSubmit} noValidate>
             <FormField>
               <FormLabel htmlFor="expense-name">Name</FormLabel>
               <ExpenseNameCombobox
@@ -71,9 +153,9 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                 <Input
                   id="expense-amount"
                   type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
+                  min={getMinorUnitDigits(state.transactionCurrency) === 0 ? "1" : "0.01"}
+                  step={getCurrencyInputStep(state.transactionCurrency)}
+                  placeholder={getMinorUnitDigits(state.transactionCurrency) === 0 ? "0" : "0.00"}
                   value={state.fields.amountDollars}
                   onChange={(event) => {
                     actions.setField("amountDollars", event.target.value);
@@ -83,6 +165,22 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
                 />
               </div>
               <FormMessage>{state.fieldErrors.amount}</FormMessage>
+            </FormField>
+
+            <FormField>
+              <FormLabel htmlFor="transaction-currency">Transaction Currency</FormLabel>
+              <select
+                id="transaction-currency"
+                value={state.transactionCurrency}
+                onChange={(event) => actions.setTransactionCurrency(event.target.value)}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {SUPPORTED_CURRENCY_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </FormField>
 
             <FormField>

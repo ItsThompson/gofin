@@ -1,5 +1,11 @@
 import type { FormEvent } from "react";
-import { getCurrencySymbol, EXPENSE_TYPES } from "@gofin/core";
+import {
+  EXPENSE_TYPES,
+  getCurrencyInputStep,
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  SUPPORTED_CURRENCY_OPTIONS,
+} from "@gofin/core";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
 import type { Tag } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
@@ -25,6 +31,7 @@ interface CorrectionFormProps {
   onCancel: () => void;
   onSubmit: (event: FormEvent) => void;
   onFieldChange: (key: keyof ExpenseFields, value: string) => void;
+  onCurrencyChange: (value: string) => void;
   onSelectSuggestion: (suggestion: ExpenseSuggestion) => void;
 }
 
@@ -38,12 +45,13 @@ export function CorrectionForm({
   onCancel,
   onSubmit,
   onFieldChange,
+  onCurrencyChange,
   onSelectSuggestion,
 }: CorrectionFormProps) {
   const currencySymbol = getCurrencySymbol(currency);
 
   return (
-    <Form onSubmit={onSubmit}>
+    <Form onSubmit={onSubmit} noValidate>
       <FormField>
         <FormLabel htmlFor="correct-name">Name</FormLabel>
         <ExpenseNameCombobox
@@ -64,8 +72,8 @@ export function CorrectionForm({
           <Input
             id="correct-amount"
             type="number"
-            min="0.01"
-            step="0.01"
+            min={getMinorUnitDigits(currency) === 0 ? "1" : "0.01"}
+            step={getCurrencyInputStep(currency)}
             value={fields.amountDollars}
             onChange={(event) =>
               onFieldChange("amountDollars", event.target.value)
@@ -75,6 +83,22 @@ export function CorrectionForm({
           />
         </div>
         <FormMessage>{fieldErrors.amount}</FormMessage>
+      </FormField>
+
+      <FormField>
+        <FormLabel htmlFor="correct-currency">Transaction Currency</FormLabel>
+        <select
+          id="correct-currency"
+          value={currency}
+          onChange={(event) => onCurrencyChange(event.target.value)}
+          className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {SUPPORTED_CURRENCY_OPTIONS.map((option) => (
+            <option key={option.code} value={option.code}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </FormField>
 
       <FormField>

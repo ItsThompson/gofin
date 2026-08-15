@@ -11,6 +11,7 @@ export const mockUpcomingProRata: ProRataSchedule[] = [
     name: "New laptop",
     amount: 50000, // $500 installment
     currency: "USD",
+    transactionCurrency: "USD",
     expenseType: "essentials",
     tagId: tagIds.selfInvestment,
     targetYear: currentMonth === 12 ? currentYear + 1 : currentYear,

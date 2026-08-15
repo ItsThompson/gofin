@@ -39,6 +39,7 @@ const mockExpense: Expense = {
   name: "Groceries",
   amount: 5000,
   currency: "USD",
+  transactionCurrency: "USD",
   expenseType: "essentials",
   tagId: "tag-food",
   expenseDate: "2026-05-02",
@@ -225,6 +226,7 @@ describe("useCorrectionForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Groceries",
         amount: 5000,
+        currency: "USD",
         expenseType: "essentials",
         tagId: "tag-food",
         expenseDate: "2026-05-02",
@@ -386,10 +388,28 @@ describe("useCorrectionForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Updated Name",
         amount: 7550,
+        currency: "USD",
         expenseType: "desires",
         tagId: "tag-transport",
         expenseDate: "2026-05-10",
       });
+    });
+
+    it("revalidates amount precision when transaction currency changes", () => {
+      const onSubmit = vi.fn();
+      const { result } = renderHook(() =>
+        useCorrectionForm(mockExpense, onSubmit),
+      );
+
+      act(() => {
+        result.current.actions.setField("amountDollars", "50.50");
+      });
+      act(() => {
+        result.current.actions.setTransactionCurrency("JPY");
+      });
+
+      expect(result.current.state.transactionCurrency).toBe("JPY");
+      expect(result.current.state.fieldErrors.amount).toBe("Amount must be a whole JPY amount");
     });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
@@ -7,7 +7,7 @@ import { toLocalISODate } from "../../../lib/date-utils";
 import {
   jsonResponse,
   mockFetch,
-  mockUser,
+  mockPeriod,
   setNewExpenseFetchMock,
 } from "../__mocks__";
 import {
@@ -62,6 +62,7 @@ describe("NewExpenseFeature", () => {
     expect(screen.getByLabelText("Amount")).toBeInTheDocument();
     expect(screen.getByLabelText("Date")).toBeInTheDocument();
     expect(screen.getByLabelText("Tag")).toBeInTheDocument();
+    expect(screen.getByLabelText("Transaction Currency")).toBeInTheDocument();
 
     expect(screen.getByLabelText("essentials")).toBeInTheDocument();
     expect(screen.getByLabelText("desires")).toBeInTheDocument();
@@ -89,8 +90,8 @@ describe("NewExpenseFeature", () => {
     expect(essentialsRadio.checked).toBe(true);
   });
 
-  it("displays currency symbol from user profile", async () => {
-    renderNewExpense({ user: { ...mockUser, currency: "EUR" } });
+  it("displays currency symbol from the resolved budget period", async () => {
+    renderNewExpense({ period: { ...mockPeriod, reportingCurrency: "EUR" } });
     await waitForFormBootstrap();
 
     expect(screen.getByText("€")).toBeInTheDocument();
@@ -99,6 +100,8 @@ describe("NewExpenseFeature", () => {
   it("shows validation errors for empty required fields", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     // Submit without filling any fields
     const submitButton = screen.getByRole("button", { name: "Log Expense" });
@@ -116,6 +119,8 @@ describe("NewExpenseFeature", () => {
   it("shows validation error when amount is not entered", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     const nameInput = screen.getByLabelText("Name");
     await user.type(nameInput, "Coffee");
@@ -153,10 +158,72 @@ describe("NewExpenseFeature", () => {
     const postCall = findExpensePostCall();
     expect(postCall).toBeDefined();
     const body = JSON.parse(postCall![1].body);
-    expect(body.amount).toBe(450); // $4.50 = 450 cents
+    expect(body.amount).toBe(450);
     expect(body.name).toBe("Coffee");
     expect(body.expenseType).toBe("desires");
-    expect(body.currency).toBe("USD");
+    expect(body.transactionCurrency).toBe("USD");
+    expect(body.currency).toBeUndefined();
+  });
+
+  it("rejects JPY decimals and keeps the field error on amount", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitForFormBootstrap();
+
+    await user.type(screen.getByLabelText("Name"), "Ramen");
+    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "JPY");
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1200.50" } });
+
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    expect(screen.getByText("Amount must be a whole JPY amount")).toBeInTheDocument();
+    expect(screen.getByLabelText("Amount")).toHaveAttribute("aria-invalid", "true");
+    expect(findExpensePostCall()).toBeUndefined();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("submits EUR decimal input as integer minor units", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitForFormBootstrap();
+
+    await user.type(screen.getByLabelText("Name"), "Museum");
+    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "EUR");
+    await user.type(screen.getByLabelText("Amount"), "12.34");
+
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved");
+    });
+
+    const postCall = findExpensePostCall();
+    expect(postCall).toBeDefined();
+    const body = JSON.parse(postCall![1].body);
+    expect(body.amount).toBe(1234);
+    expect(body.transactionCurrency).toBe("EUR");
+    expect(body.currency).toBeUndefined();
+  });
+
+  it("shows a dashboard setup link when the selected period is missing", async () => {
+    renderNewExpense({
+      periodResponse: jsonResponse(
+        {
+          code: "PERIOD_NOT_FOUND",
+          message: "No budget period found for 2026-05",
+        },
+        404,
+      ),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Create a budget period first")).toBeInTheDocument();
+    });
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to dashboard setup" })).toHaveAttribute("href", "/dashboard");
   });
 
   it("resets standard success to fresh defaults without refetching bootstrap data", async () => {
@@ -252,6 +319,8 @@ describe("NewExpenseFeature", () => {
   it("allows selecting different expense types", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     const savingsRadio = screen.getByLabelText("savings") as HTMLInputElement;
     await user.click(savingsRadio);

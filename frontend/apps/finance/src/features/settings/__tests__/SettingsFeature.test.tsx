@@ -119,6 +119,20 @@ describe("SettingsFeature", () => {
       ).toBeInTheDocument();
     });
 
+    it("updates budget input precision when default currency changes", async () => {
+      mockDefaultsFound();
+      const user = userEvent.setup();
+      renderSettings();
+
+      await waitFor(() => {
+        expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute("step", "0.01");
+      });
+
+      await user.selectOptions(screen.getAllByLabelText("Default Currency")[0], "JPY");
+
+      expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute("step", "1");
+    });
+
     it("validates E/D/S split sums to 100%", async () => {
       mockDefaultsFound();
       const user = userEvent.setup();

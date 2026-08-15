@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import { mockTags, emptySuggestions } from "./fixtures";
+import { mockPeriod, mockTags, emptySuggestions } from "./fixtures";
 
 // Shared fetch mock. Each test file resets this in beforeEach and layers its
 // own mockResolvedValueOnce/mockRejectedValueOnce/mockImplementation as needed.
@@ -25,6 +25,7 @@ function toResponder(value: ResponderOrResult): FetchResponder {
 
 /** Per-endpoint overrides for {@link setNewExpenseFetchMock}. */
 export interface NewExpenseFetchOverrides {
+  period?: ResponderOrResult;
   tags?: ResponderOrResult;
   suggestions?: ResponderOrResult;
   expensePost?: ResponderOrResult;
@@ -41,6 +42,9 @@ export interface NewExpenseFetchOverrides {
 export function setNewExpenseFetchMock(
   overrides: NewExpenseFetchOverrides = {},
 ): void {
+  const respondPeriod = toResponder(
+    overrides.period ?? jsonResponse({ period: mockPeriod }),
+  );
   const respondTags = toResponder(
     overrides.tags ?? jsonResponse({ tags: mockTags }),
   );
@@ -71,6 +75,9 @@ export function setNewExpenseFetchMock(
   );
 
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.includes("/api/finance/periods/current")) {
+      return respondPeriod(url, init);
+    }
     if (url.includes("/api/finance/tags")) {
       return respondTags(url, init);
     }

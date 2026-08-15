@@ -4,6 +4,7 @@ export {
   SUPPORTED_CURRENCIES,
   SUPPORTED_CURRENCY_OPTIONS,
   isSupportedCurrency,
+  getCurrencyDefinition,
   getCurrencySymbol,
   getMinorUnitDigits,
   loadSupportedCurrencies,
@@ -20,12 +21,16 @@ export {
   validateUsername,
 } from "./validation";
 export {
+  formatAmount,
   formatCurrency,
   getCurrencyInputStep,
   hasValidMinorUnitPrecision,
+  parseInput,
   toCents,
   toMajorUnits,
   toMinorUnits,
+  validateInputPrecision,
+  type CurrencyValidationResult,
 } from "./currency";
 export {
   canUseFinanceFeatures,

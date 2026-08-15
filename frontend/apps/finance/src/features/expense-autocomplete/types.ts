@@ -3,6 +3,7 @@ import type { ExpenseType } from "@gofin/core";
 export interface ExpenseSuggestionPatch {
   name: string;
   amountDollars: string;
+  currency: string;
   expenseType: ExpenseType;
   tagId: string | null;
 }

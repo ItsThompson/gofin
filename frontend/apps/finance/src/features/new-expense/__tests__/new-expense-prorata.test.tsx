@@ -134,6 +134,10 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     expect(body.months).toBe(3);
     expect(body.name).toBe("Annual subscription");
     expect(body.expenseType).toBe("savings");
+    expect(body.transactionCurrency).toBe("USD");
+    expect(body.currency).toBeUndefined();
+    expect(body.periodYear).toBe(2026);
+    expect(body.periodMonth).toBe(5);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Spread across months")).not.toBeChecked();
@@ -186,6 +190,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     expect(body).toMatchObject({
       name: "Annual subscription",
       totalAmount: 12000,
+      transactionCurrency: "USD",
+      periodYear: 2026,
+      periodMonth: 5,
       months: 3,
     });
 
