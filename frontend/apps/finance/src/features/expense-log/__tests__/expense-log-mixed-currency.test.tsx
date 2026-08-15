@@ -174,8 +174,8 @@ describe("ExpenseLogFeature mixed-currency", () => {
 
     // Transaction amount formatted in EUR
     expect(screen.getAllByText("€150.00").length).toBeGreaterThanOrEqual(1);
-    // Secondary reporting amount formatted in USD
-    expect(screen.getAllByText("$162.00").length).toBeGreaterThanOrEqual(1);
+    // Secondary reporting amount formatted in USD with a distinguishing label
+    expect(screen.getAllByText("Budget impact: $162.00").length).toBeGreaterThanOrEqual(1);
   });
 
   it("JPY transaction shows zero-decimal transaction amount and USD reporting amount", async () => {
@@ -189,7 +189,7 @@ describe("ExpenseLogFeature mixed-currency", () => {
     // JPY has 0 minor unit digits
     expect(screen.getAllByText("¥2,000").length).toBeGreaterThanOrEqual(1);
     // USD reporting amount
-    expect(screen.getAllByText("$13.50").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Budget impact: $13.50").length).toBeGreaterThanOrEqual(1);
   });
 
   it("sorts by reporting amount when clicking Amount header", async () => {
@@ -299,10 +299,18 @@ describe("ExpenseLogFeature mixed-currency", () => {
       expect(screen.getAllByText("Hotel").length).toBeGreaterThanOrEqual(1);
     });
 
-    // Mobile list renders both transaction and reporting amounts.
-    // Both the desktop table and mobile list are in the DOM (CSS controls visibility).
-    // The mobile list shows the reporting amount as a secondary text.
-    const reportingAmounts = screen.getAllByText("$162.00");
-    expect(reportingAmounts.length).toBeGreaterThanOrEqual(1);
+    // Both the desktop table and mobile list are in the DOM (CSS controls
+    // visibility). For a single foreign expense, the labeled secondary amount
+    // must appear once in the desktop table and once in the mobile list.
+    const mobileList = document.querySelector(".md\\:hidden");
+    expect(mobileList).not.toBeNull();
+    const mobileReportingAmounts = mobileList
+      ? within(mobileList as HTMLElement).getAllByText("Budget impact: $162.00")
+      : [];
+    expect(mobileReportingAmounts.length).toBe(1);
+
+    // The desktop table also renders the secondary amount.
+    const desktopReportingAmounts = screen.getAllByText("Budget impact: $162.00");
+    expect(desktopReportingAmounts.length).toBeGreaterThanOrEqual(2);
   });
 });

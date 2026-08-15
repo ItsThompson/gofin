@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useExpenseLogData, EMPTY_FETCH_RESULT } from "../hooks/useExpenseLogData";
+import { useExpenseLogData, EMPTY_FETCH_RESULT, FALLBACK_REPORTING_CURRENCY } from "../hooks/useExpenseLogData";
 import type { FilterCriteria } from "../hooks/useExpenseFilters";
 import type { Expense, Tag, BudgetPeriod } from "@gofin/core";
 
@@ -307,6 +307,32 @@ describe("useExpenseLogData", () => {
       expect(typeof result.current.setSelectedYear).toBe("function");
       expect(typeof result.current.setSelectedMonth).toBe("function");
       expect(typeof result.current.refresh).toBe("function");
+    });
+  });
+
+  describe("reporting currency derivation", () => {
+    it("derives reportingCurrency from the selected period", async () => {
+      mockSuccessfulFetch();
+
+      const { result } = renderHook(() => useExpenseLogData(emptyFilters));
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // The mock period for 2026-05 reports in USD.
+      expect(result.current.reportingCurrency).toBe("USD");
+    });
+
+    it("falls back to FALLBACK_REPORTING_CURRENCY before periods load", () => {
+      mockGetExpenses.mockReturnValue(new Promise(() => {}));
+      mockGetTags.mockReturnValue(new Promise(() => {}));
+      mockGetPeriods.mockReturnValue(new Promise(() => {}));
+
+      const { result } = renderHook(() => useExpenseLogData(emptyFilters));
+
+      // Initial state has no periods, so the explicit fallback applies.
+      expect(result.current.reportingCurrency).toBe(FALLBACK_REPORTING_CURRENCY);
     });
   });
 });

@@ -12,12 +12,20 @@ export interface ExpenseLogFetchResult {
   periods: BudgetPeriod[];
 }
 
-/** Empty state constant for initial state and resets. */
 export const EMPTY_FETCH_RESULT: ExpenseLogFetchResult = {
   rawExpenses: [],
   tags: [],
   periods: [],
 };
+
+/**
+ * Fallback used only before the period list has loaded. The expense log is
+ * period-scoped, and every real render resolves the selected period's
+ * reporting currency from `periods`. This value never drives formatting for a
+ * loaded period: it only prevents an undefined-currency pass into the detail
+ * modal and row enrichment during the initial fetch window.
+ */
+export const FALLBACK_REPORTING_CURRENCY = "USD";
 
 export interface ExpenseLogData {
   expenses: ExpenseRow[];
@@ -101,7 +109,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
     const selected = fetchResult.periods.find(
       (p) => p.year === selectedYear && p.month === selectedMonth,
     );
-    return selected?.reportingCurrency ?? "USD";
+    return selected?.reportingCurrency ?? FALLBACK_REPORTING_CURRENCY;
   }, [fetchResult.periods, selectedYear, selectedMonth]);
 
   const expenses = useMemo(() => {

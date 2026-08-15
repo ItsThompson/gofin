@@ -52,7 +52,7 @@ export function ExpenseList({ table, onRowClick }: ExpenseListProps) {
                   </span>
                   {expense.showReportingAmount && (
                     <span className={`text-xs text-muted-foreground ${className}`}>
-                      {formatAmount(
+                      Budget impact: {formatAmount(
                         expense.reportingAmountEffective,
                         expense.reportingCurrencyEffective,
                       )}

@@ -62,8 +62,11 @@ export function buildExpenseColumns() {
         return (
           <div className="flex flex-col">
             <span className={className}>{transactionFormatted}</span>
-            <span className={`text-xs text-muted-foreground ${className}`}>
-              {reportingFormatted}
+            <span
+              className={`text-xs text-muted-foreground ${className}`}
+              aria-label={`Budget impact: ${reportingFormatted}`}
+            >
+              Budget impact: {reportingFormatted}
             </span>
           </div>
         );
