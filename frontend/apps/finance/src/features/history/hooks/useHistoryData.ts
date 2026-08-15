@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { apiClient, useApiToast } from "@gofin/api";
 import type { PeriodListResponse, SummaryResponse } from "@gofin/core";
-import type { HistoricalPeriodRow, HistoryDataResult } from "../types";
+import type { HistoricalPeriodRow, LoadedPeriodRow, HistoryDataResult, PeriodDelta } from "../types";
 
 /**
  * Fetches all budget periods and computes totalSpent/surplus for each. A period
@@ -44,7 +44,26 @@ export function useHistoryData(): HistoryDataResult {
       });
 
       if (result) {
-        setPeriods(result);
+        // Compute deltas between adjacent loaded rows, guarded by currency
+        // comparability. The API returns periods in year DESC, month DESC order;
+        // we keep that order for display, so "previous" is the next row in the
+        // list (the older month).
+        const rows = result as LoadedPeriodRow[];
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.status !== "loaded") continue;
+          const prev = rows[i + 1];
+          if (prev && prev.status === "loaded") {
+            const comparable =
+              row.period.reportingCurrency === prev.period.reportingCurrency;
+            const delta: PeriodDelta = {
+              amount: row.totalSpent - prev.totalSpent,
+              comparable,
+            };
+            row.deltaFromPrevious = delta;
+          }
+        }
+        setPeriods(rows);
       }
       setLoading(false);
     }

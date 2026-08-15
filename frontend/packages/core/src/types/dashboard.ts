@@ -75,9 +75,13 @@ export interface HistoricalComparison {
   currentSpent: number;
   /** Previous period total spent in minor units (cents). */
   previousSpent: number;
-  /** Rolling average of last 3 periods' totalSpent. Null if < 3 periods. */
+  /** Reporting currency of the previous period. Empty when no previous period. */
+  previousReportingCurrency: string;
+  /** False when current and previous periods have different reporting currencies. */
+  comparable: boolean;
+  /** Rolling average of last 3 periods' totalSpent. Null if < 3 periods or mixed currencies. */
   rollingAverage: number | null;
-  /** Percentage change from previous period. */
+  /** Percentage change from previous period. Only meaningful when comparable is true. */
   changePercent: number;
 }
 

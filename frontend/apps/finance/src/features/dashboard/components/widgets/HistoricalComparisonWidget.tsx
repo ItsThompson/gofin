@@ -23,6 +23,7 @@ export function HistoricalComparisonWidget({
 }: HistoricalComparisonWidgetProps) {
   const hasPrevious = comparison.previousSpent > 0 || comparison.currentSpent > 0;
   const isOnlyOnePeriod = comparison.previousSpent === 0 && comparison.changePercent === 0;
+  const prevCurrency = comparison.previousReportingCurrency || currency;
 
   return (
     <Card data-testid="historical-comparison" className="h-full">
@@ -48,8 +49,13 @@ export function HistoricalComparisonWidget({
             <div>
               <p className="text-xs text-muted-foreground">Previous Period</p>
               <p className="text-lg font-semibold">
-                {formatCurrency(comparison.previousSpent, currency)}
+                {formatCurrency(comparison.previousSpent, prevCurrency)}
               </p>
+              {!comparison.comparable && (
+                <p className="text-xs text-muted-foreground" data-testid="not-comparable">
+                  Different currency - not comparable
+                </p>
+              )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">
@@ -60,7 +66,7 @@ export function HistoricalComparisonWidget({
                   {formatCurrency(comparison.rollingAverage, currency)}
                 </p>
               ) : null}
-              {hasPrevious && (
+              {hasPrevious && comparison.comparable && (
                 <div className="flex items-center gap-1 mt-1">
                   {comparison.changePercent > 0 ? (
                     <TrendingUp className="size-4 text-red-600 dark:text-red-400" />

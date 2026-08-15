@@ -174,6 +174,8 @@ export function dashboardDataWithExpensesRoutes() {
         comparison: {
           currentSpent: 54500,
           previousSpent: 48000,
+          previousReportingCurrency: "USD",
+          comparable: true,
           rollingAverage: null,
           changePercent: 13.54,
         },

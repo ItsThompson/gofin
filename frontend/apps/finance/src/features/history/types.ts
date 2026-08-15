@@ -1,5 +1,13 @@
 import type { BudgetPeriod } from "@gofin/core";
 
+/** Delta from the previous history row, guarded for currency comparability. */
+export interface PeriodDelta {
+  /** Signed amount difference (current totalSpent - previous totalSpent). */
+  amount: number;
+  /** False when the two periods have different reporting currencies. */
+  comparable: boolean;
+}
+
 /** Base properties available in all history row states. */
 interface HistoricalPeriodRowBase {
   /** The budget period the row describes. */
@@ -13,6 +21,9 @@ export interface LoadedPeriodRow extends HistoricalPeriodRowBase {
   totalSpent: number;
   /** budgetAmount minus totalSpent. Negative means a deficit. */
   surplus: number;
+  /** Delta from the previous row when both rows are loaded. Undefined for the
+   * first row or when the previous row is unavailable. */
+  deltaFromPrevious?: PeriodDelta;
 }
 
 /** The period's summary fetch failed, so its spend is unknown. */

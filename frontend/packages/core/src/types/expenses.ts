@@ -26,6 +26,23 @@ export interface Expense {
   proRataIndex?: number;
   proRataTotal?: number;
   createdAt: string;
+  // --- Money snapshot fields (present on rows written after multi-currency cutover) ---
+  /** Snapshot version; 1 for rows written after the cutover. */
+  moneySnapshotVersion?: number;
+  /** Original amount in transaction currency minor units. */
+  transactionAmount?: number;
+  /** Converted amount in the period reporting currency minor units. */
+  reportingAmount?: number;
+  /** Budget period reporting currency for this ledger row. */
+  reportingCurrency?: string;
+  /** Source-to-target exchange rate used for this row. */
+  exchangeRate?: string;
+  /** "open_exchange_rates" | "identity" | "migration". */
+  exchangeRateSource?: string;
+  /** Provider, identity, or migration timestamp. */
+  exchangeRateTimestamp?: string;
+  /** Present for live provider snapshots with cache expiry metadata. */
+  exchangeRateExpiresAt?: string;
 }
 
 /** Response from POST /api/expenses. */

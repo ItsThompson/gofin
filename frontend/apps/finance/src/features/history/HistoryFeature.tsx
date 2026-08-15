@@ -13,7 +13,8 @@ import { PeriodRow } from "./components/PeriodRow";
  * History page: shows past budget periods with spent/surplus data.
  * Clicking a period shows a read-only dashboard view.
  */
-export function HistoryFeature({ user }: FinancePageProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function HistoryFeature(_props: FinancePageProps) {
   const { periods, loading } = useHistoryData();
   const [selectedPeriod, setSelectedPeriod] = useState<BudgetPeriod | null>(
     null,
@@ -66,7 +67,6 @@ export function HistoryFeature({ user }: FinancePageProps) {
             <PeriodRow
               key={row.period.id}
               row={row}
-              currency={user.currency}
               onSelect={() => setSelectedPeriod(row.period)}
             />
           ))}

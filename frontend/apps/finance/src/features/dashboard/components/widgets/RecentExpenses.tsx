@@ -13,6 +13,13 @@ interface RecentExpensesProps {
   currency: string;
 }
 
+/**
+ * Recent expense list on the dashboard. Each row shows the budget-impact
+ * (reporting) amount formatted in the period reporting currency, not the
+ * transaction amount. For legacy rows without a reportingAmount, the amount
+ * field is used as a fallback (it equals the reporting amount for same-currency
+ * legacy rows).
+ */
 export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
   return (
     <Card>
@@ -29,22 +36,26 @@ export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
       </CardHeader>
       <CardContent>
         <div className="divide-y">
-          {expenses.map((expense) => (
-            <div
-              key={expense.id}
-              className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">{expense.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {expense.expenseDate}
+          {expenses.map((expense) => {
+            const reportingAmount =
+              expense.reportingAmount ?? expense.amount;
+            return (
+              <div
+                key={expense.id}
+                className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">{expense.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {expense.expenseDate}
+                  </span>
+                </div>
+                <span className="text-sm font-semibold">
+                  {formatCurrency(reportingAmount, currency)}
                 </span>
               </div>
-              <span className="text-sm font-semibold">
-                {formatCurrency(expense.amount, currency)}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

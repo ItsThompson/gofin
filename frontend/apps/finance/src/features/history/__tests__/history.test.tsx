@@ -261,4 +261,79 @@ describe("HistoryFeature", () => {
       expect(screen.getByText("No budget periods yet.")).toBeInTheDocument();
     });
   });
+
+  // --- Reporting currency and mixed-currency guards ---
+
+  it("formats each row with the period reporting currency, not user.currency", async () => {
+    const jpyPeriods = [
+      {
+        ...mockPeriods[0],
+        id: "p3-jpy",
+        budgetAmount: 30000,
+        reportingCurrency: "JPY",
+      },
+    ];
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ periods: jpyPeriods }),
+    });
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(20000));
+
+    renderHistory();
+
+    await waitFor(() => {
+      expect(screen.getByText("March 2026")).toBeInTheDocument();
+    });
+
+    // JPY has 0 minor unit digits, so no decimals.
+    expect(screen.getByText("Spent: ¥20,000")).toBeInTheDocument();
+    expect(screen.getByText(/Budget:.*¥30,000/)).toBeInTheDocument();
+  });
+
+  it("hides amount delta for adjacent rows with different reporting currencies", async () => {
+    const mixedPeriods = [
+      {
+        ...mockPeriods[0],
+        id: "p3-usd",
+        reportingCurrency: "USD",
+      },
+      {
+        ...mockPeriods[1],
+        id: "p2-eur",
+        reportingCurrency: "EUR",
+      },
+    ];
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ periods: mixedPeriods }),
+    });
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(200000)); // March USD
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(180000)); // Feb EUR
+
+    renderHistory();
+
+    await waitFor(() => {
+      expect(screen.getByText("March 2026")).toBeInTheDocument();
+    });
+
+    // The delta should be labeled not comparable.
+    expect(screen.getByText(/not comparable/i)).toBeInTheDocument();
+  });
+
+  it("shows amount delta for adjacent rows with the same reporting currency", async () => {
+    mockPeriodsResponse();
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(200000)); // March
+    mockFetch.mockResolvedValueOnce(mockSummaryResponse(280000)); // Feb
+
+    renderHistory();
+
+    await waitFor(() => {
+      expect(screen.getByText("March 2026")).toBeInTheDocument();
+    });
+
+    // Delta = 200000 - 280000 = -80000 => -$800.00
+    expect(screen.getByText(/Δ.*\$800.00 from last/i)).toBeInTheDocument();
+  });
 });

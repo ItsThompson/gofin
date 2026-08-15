@@ -45,6 +45,8 @@ export interface HealthScore {
   /** True for the current (open) month; firms up when the month closes. */
   provisional: boolean;
   formulaVersion: number;
+  /** The scored period's immutable reporting currency. */
+  reportingCurrency: string;
   components: HealthComponent[];
   insight: HealthInsight;
 }
@@ -70,6 +72,8 @@ export interface HealthScoreTrendPoint {
   band: HealthBand;
   provisional: boolean;
   formulaVersion: number;
+  /** The scored period's immutable reporting currency. */
+  reportingCurrency: string;
 }
 
 /** Response from GET /api/finance/health-score/trend. */

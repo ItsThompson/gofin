@@ -18,6 +18,8 @@ export interface TrendPoint {
   desiresPercent: number;
   /** Budgeted savings percentage (0-100). */
   savingsPercent: number;
+  /** The period's reporting currency for this data point. */
+  reportingCurrency: string;
 }
 
 /** Response from GET /api/finance/spending/trends. */
