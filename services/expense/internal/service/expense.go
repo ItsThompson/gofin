@@ -66,23 +66,13 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
-	transactionCurrency, err := s.resolveCreateTransactionCurrency(period, req)
-	if err != nil {
-		return nil, err
-	}
-
-	now := s.clock().UTC().Format(time.RFC3339)
-
-	// Normalize the period reporting currency once and use it for validation,
-	// the identity-vs-FX decision, the snapshot, and the FX target. Finance owns
-	// the stored value, but normalizing here keeps casing/whitespace drift from
+	// Normalize the period reporting currency once and validate it before any
+	// currency resolution or FX work. Finance owns the stored value, but an
+	// unsupported reporting currency is an internal invariant violation that
+	// must surface as a 500, not a 400 transaction-currency error from the
+	// defaulting branch. Normalization keeps casing/whitespace drift from
 	// routing a same-currency write to FX or persisting mismatched casing.
 	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
-
-	// Validate the period reporting currency before any FX call. The period
-	// context is the source of truth for the reporting currency; an unsupported
-	// reporting currency is an internal invariant violation, not a user input
-	// error, so it is reported and mapped to a safe internal error.
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		s.logger.Error("unsupported reporting currency from period context",
 			slog.String("event", "unsupported_reporting_currency"),
@@ -90,6 +80,13 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		)
 		return nil, err
 	}
+
+	transactionCurrency, err := s.resolveCreateTransactionCurrency(period, req)
+	if err != nil {
+		return nil, err
+	}
+
+	now := s.clock().UTC().Format(time.RFC3339)
 
 	// Resolve the money snapshot. Same-currency expenses bypass the FX provider
 	// and write an identity snapshot (rate "1", source "identity"). Foreign-currency
@@ -105,11 +102,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 			RequestedAt:    now,
 		})
 		if convErr != nil {
-			s.logger.Info("foreign currency conversion unavailable",
-				slog.String("event", "foreign_currency_conversion_unavailable"),
-				slog.String("transaction_currency", transactionCurrency),
-				slog.String("reporting_currency", reportingCurrency),
-			)
+			logFxConversionFailure(s.logger, convErr, transactionCurrency, reportingCurrency)
 			return nil, convErr
 		}
 		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
@@ -502,6 +495,28 @@ func conversionUnavailableError() *apierr.Error {
 		Message: "Conversion unavailable. Try again later, or enter the manually converted amount in the period currency.",
 		Status:  http.StatusServiceUnavailable,
 	}
+}
+
+// logFxConversionFailure logs an FX conversion failure with an event whose
+// severity matches the failure: retryable conversion outages are Info, while
+// unexpected FX server failures (500) are Error so they are visible as defects
+// rather than as routine provider outages.
+func logFxConversionFailure(logger *slog.Logger, err error, transactionCurrency, reportingCurrency string) {
+	var apiErr *apierr.Error
+	if errors.As(err, &apiErr) && apiErr.Code == model.ErrConversionUnavailable {
+		logger.Info("foreign currency conversion unavailable",
+			slog.String("event", "foreign_currency_conversion_unavailable"),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", reportingCurrency),
+		)
+		return
+	}
+	logger.Error("foreign currency conversion failed",
+		slog.String("event", "foreign_currency_conversion_failed"),
+		slog.String("transaction_currency", transactionCurrency),
+		slog.String("reporting_currency", reportingCurrency),
+		slog.String("error", err.Error()),
+	)
 }
 
 // buildIdentitySnapshot builds the money snapshot for a same-currency expense:

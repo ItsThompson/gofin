@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -427,6 +428,72 @@ func TestCreateExpense_UnsupportedTransactionCurrencyDoesNotCallFx(t *testing.T)
 	assert.Equal(t, http.StatusBadRequest, svcErr.Status)
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 	fxClient.AssertNotCalled(t, "ConvertAmount", mock.Anything, mock.Anything)
+}
+
+// TestCreateExpense_UnsupportedReportingCurrencyDefaultsToInternal asserts that
+// when both currency fields are omitted and the period reporting currency is
+// unsupported, the reporting-currency invariant is checked before the
+// transaction-currency defaulting branch, so the service returns a 500 internal
+// error rather than a 400 UNSUPPORTED_CURRENCY.
+func TestCreateExpense_UnsupportedReportingCurrencyDefaultsToInternal(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	svc := NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "XXX",
+	}, nil)
+
+	req := validCreateRequest()
+	req.TransactionCurrency = ""
+	req.Currency = ""
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
+	assert.Equal(t, http.StatusInternalServerError, svcErr.Status)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+	fxClient.AssertNotCalled(t, "ConvertAmount", mock.Anything, mock.Anything)
+}
+
+// TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent asserts an FX
+// server failure (500) is logged as a conversion failure at Error level, not as
+// a routine conversion-unavailable Info event.
+func TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	svc := NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, apierr.Internal("currency conversion failed internally"))
+
+	req := validCreateRequest()
+	req.TransactionCurrency = "EUR"
+	req.Currency = ""
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	requireAPIError(t, err)
+	assert.Contains(t, buf.String(), "foreign_currency_conversion_failed")
+	assert.NotContains(t, buf.String(), "foreign_currency_conversion_unavailable")
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
 // TestMapFxError asserts FX gRPC status codes preserve their category (spec 05):
