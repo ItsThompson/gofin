@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
@@ -292,5 +292,26 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
     expect(screen.getByText("Date is required")).toBeInTheDocument();
+  });
+
+  it("rejects decimal amounts when pro-rata currency is set to JPY", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitForFormBootstrap();
+
+    await user.type(screen.getByLabelText("Name"), "Annual subscription");
+    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "JPY");
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1200.50" } });
+
+    const checkbox = screen.getByLabelText("Spread across months");
+    await user.click(checkbox);
+    await user.type(screen.getByLabelText("Number of months"), "3");
+
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    expect(screen.getByText("Amount must be a whole JPY amount")).toBeInTheDocument();
+    expect(findProRataPostCall()).toBeUndefined();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });

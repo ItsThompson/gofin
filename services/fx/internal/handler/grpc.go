@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
 	pb "github.com/ItsThompson/gofin/services/fx/proto/fxpb"
 )
@@ -29,7 +30,7 @@ func NewGRPCHandler(converter Converter) *GRPCHandler {
 func (h *GRPCHandler) CaptureRateSnapshot(ctx context.Context, request *pb.CaptureRateSnapshotRequest) (*pb.CaptureRateSnapshotResponse, error) {
 	response, err := h.converter.CaptureSnapshot(ctx, request.GetRequiredCurrencies())
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return &pb.CaptureRateSnapshotResponse{
 		Snapshot:    toProtoSnapshot(response.Snapshot),
@@ -45,7 +46,7 @@ func (h *GRPCHandler) ConvertAmount(ctx context.Context, request *pb.ConvertAmou
 		RequestedAt:    request.GetRequestedAt(),
 	})
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return toProtoConvertResponse(response), nil
 }
@@ -59,20 +60,57 @@ func (h *GRPCHandler) ConvertWithSnapshot(ctx context.Context, request *pb.Conve
 		Snapshot:       fromProtoSnapshot(request.GetSnapshot()),
 	})
 	if err != nil {
-		return nil, grpcError(err)
+		return nil, grpcError(ctx, err)
 	}
 	return toProtoConvertResponse(response), nil
 }
 
-func grpcError(err error) error {
+// grpcError maps an fx model.Error to a gRPC status code and reports operational
+// failures (conversion unavailable, provider auth/response errors, and
+// unclassified internal errors) through errkit so they surface in Sentry.
+// Validation errors (unsupported currency, invalid amount) and precondition
+// errors (missing rate, snapshot integrity) are caller input problems and do not
+// report: they are expected conditions, not operational failures.
+func grpcError(ctx context.Context, err error) error {
 	var fxErr *model.Error
 	if !errors.As(err, &fxErr) {
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "fx.convert",
+			Domain: "fx",
+			Kind:   errkit.KindInternal,
+			Msg:    "unclassified fx error",
+		})
 		return status.Error(codes.Internal, "INTERNAL")
 	}
 	switch fxErr.Code {
 	case model.ErrorUnsupportedCurrency, model.ErrorInvalidAmount:
 		return status.Error(codes.InvalidArgument, string(fxErr.Code))
-	case model.ErrorConversionUnavailable, model.ErrorProviderAuthFailed, model.ErrorProviderResponseInvalid:
+	case model.ErrorConversionUnavailable:
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "fx.convert",
+			Domain: "fx",
+			Kind:   errkit.KindUpstream,
+			Msg:    "fx conversion unavailable",
+			Tags:   map[string]string{"error_code": string(fxErr.Code)},
+		})
+		return status.Error(codes.Unavailable, string(fxErr.Code))
+	case model.ErrorProviderAuthFailed:
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "fx.provider",
+			Domain: "fx",
+			Kind:   errkit.KindUpstream,
+			Msg:    "fx provider authentication failed",
+			Tags:   map[string]string{"error_code": string(fxErr.Code)},
+		})
+		return status.Error(codes.Unavailable, string(fxErr.Code))
+	case model.ErrorProviderResponseInvalid:
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "fx.provider",
+			Domain: "fx",
+			Kind:   errkit.KindUpstream,
+			Msg:    "fx provider response invalid",
+			Tags:   map[string]string{"error_code": string(fxErr.Code)},
+		})
 		return status.Error(codes.Unavailable, string(fxErr.Code))
 	case model.ErrorRateMissing, model.ErrorSnapshotIntegrityFailure:
 		return status.Error(codes.FailedPrecondition, string(fxErr.Code))

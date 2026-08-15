@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"math/big"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -124,9 +125,18 @@ func (p *OpenRatesProvider) fetchOnce(ctx context.Context, expiresAt time.Time) 
 	return snapshot, nil
 }
 
+const (
+	retryBaseDelay = 100 * time.Millisecond
+	retryMaxDelay  = 2 * time.Second
+)
+
 func (p *OpenRatesProvider) waitBeforeRetry(ctx context.Context, attempt int) {
-	delay := time.Duration(attempt*attempt) * 100 * time.Millisecond
-	timer := time.NewTimer(delay)
+	delay := retryBaseDelay * time.Duration(1<<attempt)
+	if delay > retryMaxDelay {
+		delay = retryMaxDelay
+	}
+	jitter := time.Duration(rand.Int64N(int64(retryBaseDelay)))
+	timer := time.NewTimer(delay + jitter)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
