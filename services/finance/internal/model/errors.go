@@ -13,4 +13,13 @@ const (
 	ErrUnsupportedCurrency        = "UNSUPPORTED_CURRENCY"
 	ErrReportingCurrencyImmutable = "REPORTING_CURRENCY_IMMUTABLE"
 	ErrConversionUnavailable      = "CONVERSION_UNAVAILABLE"
+	// ErrSnapshotCurrencyMissing is returned when a captured pro-rata snapshot
+	// lacks a rate needed to derive a target-period reporting amount. The
+	// schedule moves to failed and no ledger row is written.
+	ErrSnapshotCurrencyMissing = "SNAPSHOT_CURRENCY_MISSING"
+	// ErrMissingCapturedRateSnapshot is returned when a legacy pending
+	// pro-rata schedule has no captured snapshot and the target period
+	// reporting currency differs from the stored schedule currency. The
+	// schedule moves to failed and no ledger row is written.
+	ErrMissingCapturedRateSnapshot = "MISSING_CAPTURED_RATE_SNAPSHOT"
 )
