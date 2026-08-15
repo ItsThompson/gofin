@@ -9,6 +9,7 @@ use (
 	./errkit
 	./expense
 	./finance
+	./fx
 	./gateway
 	./healthcheck
 	./httpx

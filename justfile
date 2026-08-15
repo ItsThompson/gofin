@@ -66,6 +66,7 @@ test-backend:
     cd auth && go test ./... && \
     cd ../expense && go test ./... && \
     cd ../finance && go test ./... && \
+    cd ../fx && go test ./... && \
     cd ../gateway && go test ./...
 
 # Run frontend tests
@@ -137,6 +138,7 @@ proto-all:
     just proto auth
     just proto expense
     just proto finance
+    just proto fx
 
 # Lint backend
 lint-backend:
