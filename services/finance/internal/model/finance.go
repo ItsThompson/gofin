@@ -29,6 +29,16 @@ type BudgetPeriod struct {
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
+// PeriodContext is the read-only period state needed before expense writes.
+type PeriodContext struct {
+	PeriodID          string
+	UserID            string
+	Year              int32
+	Month             int32
+	ReportingCurrency string
+	IsLocked          bool
+}
+
 // Tag represents a user-owned expense tag.
 type Tag struct {
 	ID        string    `json:"id"`

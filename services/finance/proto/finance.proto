@@ -24,6 +24,7 @@ service FinanceService {
   rpc CreatePeriod(CreatePeriodRequest) returns (PeriodResponse);
   rpc UpdatePeriod(UpdatePeriodRequest) returns (PeriodResponse);
   rpc ListPeriods(ListPeriodsRequest) returns (PeriodListResponse);
+  rpc GetPeriodContext(GetPeriodContextRequest) returns (GetPeriodContextResponse);
 
   // Tag operations
   rpc ListTags(ListTagsRequest) returns (TagListResponse);
@@ -179,6 +180,21 @@ message PeriodResponse {
 message PeriodListResponse {
   repeated PeriodData periods = 1;
   int32 total = 2;
+}
+
+message GetPeriodContextRequest {
+  string user_id = 1;
+  int32 year = 2;
+  int32 month = 3;
+}
+
+message GetPeriodContextResponse {
+  string period_id = 1;
+  string user_id = 2;
+  int32 year = 3;
+  int32 month = 4;
+  string reporting_currency = 5;
+  bool is_locked = 6;
 }
 
 // ---------------------------------------------------------------------------

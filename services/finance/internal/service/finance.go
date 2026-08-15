@@ -290,6 +290,26 @@ func (s *FinanceService) ListPeriods(ctx context.Context, userID string) ([]*mod
 	return periods, nil
 }
 
+// GetPeriodContext returns read-only period facts needed by expense writes.
+func (s *FinanceService) GetPeriodContext(ctx context.Context, userID string, year, month int32) (*model.PeriodContext, error) {
+	period, err := s.GetCurrentPeriod(ctx, userID, year, month)
+	if err != nil {
+		return nil, err
+	}
+
+	now := s.nowFunc()
+	isLocked := period.Year != int32(now.Year()) || period.Month != int32(now.Month())
+
+	return &model.PeriodContext{
+		PeriodID:          period.ID,
+		UserID:            period.UserID,
+		Year:              period.Year,
+		Month:             period.Month,
+		ReportingCurrency: period.ReportingCurrency,
+		IsLocked:          isLocked,
+	}, nil
+}
+
 // UpdatePeriod updates the budget and E/D/S split for a period.
 // Only the current period can be updated: past periods are immutable (PERIOD_LOCKED).
 func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID string, req *model.UpdatePeriodRequest) (*model.BudgetPeriod, error) {
