@@ -19,9 +19,9 @@ func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) 
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-old", CreatedAt: "2026-05-20T10:00:00Z"},
-		{ID: "exp-2", Name: "Groceries", Amount: 1250, Currency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
-		{ID: "exp-3", Name: "Coffee", Amount: 500, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-01T10:00:00Z"},
+		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", TransactionAmount: 1000, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-old", CreatedAt: "2026-05-20T10:00:00Z"},
+		{ID: "exp-2", Name: "Groceries", Amount: 1250, Currency: "USD", TransactionAmount: 1250, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-3", Name: "Coffee", Amount: 500, Currency: "USD", TransactionAmount: 500, TransactionCurrency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-01T10:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 1})
@@ -34,10 +34,55 @@ func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) 
 	require.Len(t, result.Data, 1)
 	assert.Equal(t, "Groceries", result.Data[0].Name)
 	assert.Equal(t, int64(1250), result.Data[0].Amount)
+	assert.Equal(t, int64(1250), result.Data[0].TransactionAmount)
+	assert.Equal(t, "USD", result.Data[0].TransactionCurrency)
+	assert.Equal(t, "USD", result.Data[0].Currency)
 	assert.Equal(t, "tag-new", result.Data[0].TagID)
 	assert.Equal(t, int32(2), result.Data[0].Frequency)
 	assert.Equal(t, "last_7_days", result.Data[0].RecencyBucket)
 	assert.Equal(t, float64(8), result.Data[0].FrecencyScore)
+}
+
+func TestGetExpenseSuggestions_PreservesForeignTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		{ID: "exp-1", Name: "Hotel", Amount: 15000, Currency: "EUR", TransactionAmount: 15000, TransactionCurrency: "EUR", ExpenseType: "desires", TagID: "tag-travel", CreatedAt: "2026-05-28T10:00:00Z"},
+		{ID: "exp-2", Name: "Hotel", Amount: 16000, Currency: "EUR", TransactionAmount: 16000, TransactionCurrency: "EUR", ExpenseType: "desires", TagID: "tag-travel", CreatedAt: "2026-05-30T10:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	require.Len(t, result.Data, 1)
+	// The latest active matching expense determines the suggestion values.
+	assert.Equal(t, int64(16000), result.Data[0].TransactionAmount)
+	assert.Equal(t, "EUR", result.Data[0].TransactionCurrency)
+	// Deprecated fields mirror transaction values for rollout compatibility.
+	assert.Equal(t, int64(16000), result.Data[0].Amount)
+	assert.Equal(t, "EUR", result.Data[0].Currency)
+}
+
+func TestGetExpenseSuggestions_LegacyRowFallsBackToAmountCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		// Legacy row: TransactionAmount is 0 and TransactionCurrency is empty.
+		// The service should still produce a valid suggestion using the legacy
+		// fallback values populated by the repository.
+		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "JPY", TransactionAmount: 1200, TransactionCurrency: "JPY", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-20T10:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	require.Len(t, result.Data, 1)
+	assert.Equal(t, int64(1200), result.Data[0].TransactionAmount)
+	assert.Equal(t, "JPY", result.Data[0].TransactionCurrency)
+	assert.Equal(t, int64(1200), result.Data[0].Amount)
+	assert.Equal(t, "JPY", result.Data[0].Currency)
 }
 
 func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
@@ -82,8 +127,8 @@ func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "USD", ExpenseType: "desires", TagID: "tag-old", CreatedAt: "2026-05-31T10:00:00Z"},
-		{ID: "exp-2", Name: "Lunch", Amount: 1500, Currency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "USD", TransactionAmount: 1200, TransactionCurrency: "USD", ExpenseType: "desires", TagID: "tag-old", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-2", Name: "Lunch", Amount: 1500, Currency: "USD", TransactionAmount: 1500, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
