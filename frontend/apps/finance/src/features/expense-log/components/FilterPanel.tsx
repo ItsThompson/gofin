@@ -1,6 +1,6 @@
 import type { Tag } from "@gofin/core";
+import { EXPENSE_TYPES, SUPPORTED_CURRENCIES } from "@gofin/core";
 import type { ExpenseFilters } from "../hooks/useExpenseFilters";
-import { EXPENSE_TYPES } from "@gofin/core";
 import { Input } from "@gofin/ui/components/input";
 import { Card, CardContent } from "@gofin/ui/components/card";
 
@@ -62,6 +62,50 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
             </div>
           </div>
         )}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Transaction Currency
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {SUPPORTED_CURRENCIES.map((currency) => (
+              <button
+                key={currency.code}
+                type="button"
+                onClick={() => filters.toggleTransactionCurrency(currency.code)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  filters.criteria.selectedTransactionCurrencies.has(currency.code)
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input bg-transparent hover:bg-muted"
+                }`}
+              >
+                {currency.code}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">
+            Reporting Currency
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {SUPPORTED_CURRENCIES.map((currency) => (
+              <button
+                key={currency.code}
+                type="button"
+                onClick={() => filters.toggleReportingCurrency(currency.code)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  filters.criteria.selectedReportingCurrencies.has(currency.code)
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-input bg-transparent hover:bg-muted"
+                }`}
+              >
+                {currency.code}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">

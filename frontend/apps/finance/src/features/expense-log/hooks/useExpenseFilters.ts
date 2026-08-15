@@ -5,6 +5,8 @@ import { useSearchParams } from "react-router";
 export interface FilterCriteria {
   selectedTypes: Set<string>;
   selectedTags: Set<string>;
+  selectedTransactionCurrencies: Set<string>;
+  selectedReportingCurrencies: Set<string>;
   dateFrom: string;
   dateTo: string;
 }
@@ -13,6 +15,8 @@ export interface FilterCriteria {
 export const EMPTY_CRITERIA: FilterCriteria = {
   selectedTypes: new Set(),
   selectedTags: new Set(),
+  selectedTransactionCurrencies: new Set(),
+  selectedReportingCurrencies: new Set(),
   dateFrom: "",
   dateTo: "",
 };
@@ -28,6 +32,10 @@ export interface ExpenseFilters {
   toggleType: (type: string) => void;
   /** Toggle a tag in/out of the selected set. Syncs URL param. */
   toggleTag: (tagId: string) => void;
+  /** Toggle a transaction currency in/out of the selected set. */
+  toggleTransactionCurrency: (currency: string) => void;
+  /** Toggle a reporting currency in/out of the selected set. */
+  toggleReportingCurrency: (currency: string) => void;
   /** Toggle filter panel visibility. */
   toggleFilters: () => void;
   /** Reset all filters to empty. */
@@ -51,6 +59,8 @@ export function useExpenseFilters(): ExpenseFilters {
     return {
       selectedTypes: new Set(),
       selectedTags: tagParam ? new Set([tagParam]) : new Set(),
+      selectedTransactionCurrencies: new Set(),
+      selectedReportingCurrencies: new Set(),
       dateFrom: "",
       dateTo: "",
     };
@@ -90,6 +100,30 @@ export function useExpenseFilters(): ExpenseFilters {
     [searchParams, setSearchParams],
   );
 
+  const toggleTransactionCurrency = useCallback((currency: string) => {
+    setCriteria((prev) => {
+      const next = new Set(prev.selectedTransactionCurrencies);
+      if (next.has(currency)) {
+        next.delete(currency);
+      } else {
+        next.add(currency);
+      }
+      return { ...prev, selectedTransactionCurrencies: next };
+    });
+  }, []);
+
+  const toggleReportingCurrency = useCallback((currency: string) => {
+    setCriteria((prev) => {
+      const next = new Set(prev.selectedReportingCurrencies);
+      if (next.has(currency)) {
+        next.delete(currency);
+      } else {
+        next.add(currency);
+      }
+      return { ...prev, selectedReportingCurrencies: next };
+    });
+  }, []);
+
   const toggleFilters = useCallback(() => {
     setShowFilters((prev) => !prev);
   }, []);
@@ -110,6 +144,8 @@ export function useExpenseFilters(): ExpenseFilters {
   const hasActiveFilters =
     criteria.selectedTypes.size > 0 ||
     criteria.selectedTags.size > 0 ||
+    criteria.selectedTransactionCurrencies.size > 0 ||
+    criteria.selectedReportingCurrencies.size > 0 ||
     criteria.dateFrom !== "" ||
     criteria.dateTo !== "";
 
@@ -119,6 +155,8 @@ export function useExpenseFilters(): ExpenseFilters {
     hasActiveFilters,
     toggleType,
     toggleTag,
+    toggleTransactionCurrency,
+    toggleReportingCurrency,
     toggleFilters,
     clearFilters,
     setDateFrom,

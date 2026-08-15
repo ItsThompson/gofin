@@ -1,25 +1,32 @@
 import type { Table } from "@tanstack/react-table";
-import { formatCurrency } from "@gofin/core";
+import { formatAmount } from "@gofin/core";
 import { Card, CardContent } from "@gofin/ui/components/card";
 import type { ExpenseRow } from "../../../lib/expense-table-columns";
 
 interface ExpenseListProps {
   table: Table<ExpenseRow>;
-  currency: string;
   onRowClick: (row: ExpenseRow) => void;
 }
 
 /**
  * Mobile list view for expenses. Renders a compact card with
- * name, date, and formatted amount. Visible on mobile only via CSS.
+ * name, date, and formatted amount. For foreign-currency rows,
+ * shows the transaction amount and a smaller secondary reporting amount.
+ * Visible on mobile only via CSS.
  */
-export function ExpenseList({ table, currency, onRowClick }: ExpenseListProps) {
+export function ExpenseList({ table, onRowClick }: ExpenseListProps) {
   return (
     <Card>
       <CardContent className="p-0">
         <div className="divide-y">
           {table.getRowModel().rows.map((row) => {
             const expense = row.original;
+            const transactionFormatted = formatAmount(
+              expense.transactionAmountEffective,
+              expense.transactionCurrencyEffective,
+            );
+            const className = expense.status === "corrected" ? "line-through" : "";
+
             return (
               <div
                 key={row.id}
@@ -36,22 +43,26 @@ export function ExpenseList({ table, currency, onRowClick }: ExpenseListProps) {
               >
                 <div className="flex flex-col gap-0.5">
                   <span
-                    className={`text-sm font-medium ${
-                      expense.status === "corrected" ? "line-through" : ""
-                    }`}
+                    className={`text-sm font-medium ${className}`}
                   >
                     {expense.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {expense.expenseDate}
                   </span>
+                  {expense.showReportingAmount && (
+                    <span className={`text-xs text-muted-foreground ${className}`}>
+                      {formatAmount(
+                        expense.reportingAmountEffective,
+                        expense.reportingCurrencyEffective,
+                      )}
+                    </span>
+                  )}
                 </div>
                 <span
-                  className={`text-sm font-semibold ${
-                    expense.status === "corrected" ? "line-through" : ""
-                  }`}
+                  className={`text-sm font-semibold ${className}`}
                 >
-                  {formatCurrency(expense.amount, currency)}
+                  {transactionFormatted}
                 </span>
               </div>
             );

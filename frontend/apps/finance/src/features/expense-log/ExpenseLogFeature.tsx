@@ -18,11 +18,12 @@ import { ExpenseDetailModal } from "../expense-detail";
  * Expense log feature orchestrator. Composes filter, data, and table hooks
  * and renders the appropriate view components.
  */
-export function ExpenseLogFeature({ user }: FinancePageProps) {
+export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
+  void _user;
   const now = new Date();
   const filters = useExpenseFilters();
   const data = useExpenseLogData(filters.criteria);
-  const { table } = useExpenseTable(data.expenses, user.currency);
+  const { table } = useExpenseTable(data.expenses);
 
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
@@ -98,6 +99,8 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
             <span className="ml-1 rounded-full bg-primary-foreground px-1.5 text-xs font-bold text-primary">
               {filters.criteria.selectedTypes.size +
                 filters.criteria.selectedTags.size +
+                filters.criteria.selectedTransactionCurrencies.size +
+                filters.criteria.selectedReportingCurrencies.size +
                 (filters.criteria.dateFrom ? 1 : 0) +
                 (filters.criteria.dateTo ? 1 : 0)}
             </span>
@@ -140,7 +143,6 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
           <div className="md:hidden">
             <ExpenseList
               table={table}
-              currency={user.currency}
               onRowClick={handleRowClick}
             />
           </div>
@@ -151,7 +153,7 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
 
       <ExpenseDetailModal
         expenseId={selectedExpenseId}
-        currency={user.currency}
+        currency={data.reportingCurrency}
         tags={data.tags}
         currentYear={now.getFullYear()}
         currentMonth={now.getMonth() + 1}

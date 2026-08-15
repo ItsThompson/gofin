@@ -223,11 +223,11 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog({ ...mockUser, currency: "EUR" });
 
       await waitFor(() => {
-        expect(screen.getAllByText("€50.00").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("$50.00").length).toBeGreaterThanOrEqual(1);
       });
 
-      expect(screen.getAllByText("€20.00").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("€4.50").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("$20.00").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("$4.50").length).toBeGreaterThanOrEqual(1);
     });
 
     it("shows total expense count", async () => {

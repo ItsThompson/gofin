@@ -35,6 +35,8 @@ const mockGetPeriods = vi.mocked(expenseLogApi.getPeriods);
 const emptyFilters: FilterCriteria = {
   selectedTypes: new Set(),
   selectedTags: new Set(),
+  selectedTransactionCurrencies: new Set(),
+  selectedReportingCurrencies: new Set(),
   dateFrom: "",
   dateTo: "",
 };

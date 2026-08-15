@@ -26,6 +26,8 @@ export interface ExpenseLogData {
   loading: boolean;
   selectedYear: number;
   selectedMonth: number;
+  /** Reporting currency of the currently selected period (falls back to a default). */
+  reportingCurrency: string;
   setSelectedYear: (year: number) => void;
   setSelectedMonth: (month: number) => void;
   refresh: () => void;
@@ -94,8 +96,16 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
     fetchData();
   }, [fetchData]);
 
+  // Derive the reporting currency for the currently selected period.
+  const reportingCurrency = useMemo(() => {
+    const selected = fetchResult.periods.find(
+      (p) => p.year === selectedYear && p.month === selectedMonth,
+    );
+    return selected?.reportingCurrency ?? "USD";
+  }, [fetchResult.periods, selectedYear, selectedMonth]);
+
   const expenses = useMemo(() => {
-    const rows = resolveTagNames(fetchResult.rawExpenses, fetchResult.tags);
+    const rows = resolveTagNames(fetchResult.rawExpenses, fetchResult.tags, reportingCurrency);
 
     return rows.filter((row) => {
       if (filters.selectedTypes.size > 0 && !filters.selectedTypes.has(row.expenseType)) {
@@ -110,9 +120,15 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       if (filters.dateTo && row.expenseDate > filters.dateTo) {
         return false;
       }
+      if (filters.selectedTransactionCurrencies.size > 0 && !filters.selectedTransactionCurrencies.has(row.transactionCurrencyEffective)) {
+        return false;
+      }
+      if (filters.selectedReportingCurrencies.size > 0 && !filters.selectedReportingCurrencies.has(row.reportingCurrencyEffective)) {
+        return false;
+      }
       return true;
     });
-  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo]);
+  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo, filters.selectedTransactionCurrencies, filters.selectedReportingCurrencies, reportingCurrency]);
 
   return {
     expenses,
@@ -121,6 +137,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
     loading,
     selectedYear,
     selectedMonth,
+    reportingCurrency,
     setSelectedYear,
     setSelectedMonth,
     refresh: fetchData,
