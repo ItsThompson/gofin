@@ -41,8 +41,18 @@ type ExpenseData struct {
 	ProRataTotal        int32                  `protobuf:"varint,16,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
 	CreatedAt           string                 `protobuf:"bytes,17,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	TransactionCurrency string                 `protobuf:"bytes,18,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Money snapshot fields. Populated for rows written after the multi-currency
+	// cutover; absent (zero/empty) for legacy rows, which are synthesized on read.
+	MoneySnapshotVersion  int32  `protobuf:"varint,19,opt,name=money_snapshot_version,json=moneySnapshotVersion,proto3" json:"money_snapshot_version,omitempty"`
+	TransactionAmount     int64  `protobuf:"varint,20,opt,name=transaction_amount,json=transactionAmount,proto3" json:"transaction_amount,omitempty"`
+	ReportingAmount       int64  `protobuf:"varint,21,opt,name=reporting_amount,json=reportingAmount,proto3" json:"reporting_amount,omitempty"`
+	ReportingCurrency     string `protobuf:"bytes,22,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
+	ExchangeRate          string `protobuf:"bytes,23,opt,name=exchange_rate,json=exchangeRate,proto3" json:"exchange_rate,omitempty"`
+	ExchangeRateSource    string `protobuf:"bytes,24,opt,name=exchange_rate_source,json=exchangeRateSource,proto3" json:"exchange_rate_source,omitempty"`
+	ExchangeRateTimestamp string `protobuf:"bytes,25,opt,name=exchange_rate_timestamp,json=exchangeRateTimestamp,proto3" json:"exchange_rate_timestamp,omitempty"`
+	ExchangeRateExpiresAt string `protobuf:"bytes,26,opt,name=exchange_rate_expires_at,json=exchangeRateExpiresAt,proto3" json:"exchange_rate_expires_at,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ExpenseData) Reset() {
@@ -197,6 +207,62 @@ func (x *ExpenseData) GetCreatedAt() string {
 func (x *ExpenseData) GetTransactionCurrency() string {
 	if x != nil {
 		return x.TransactionCurrency
+	}
+	return ""
+}
+
+func (x *ExpenseData) GetMoneySnapshotVersion() int32 {
+	if x != nil {
+		return x.MoneySnapshotVersion
+	}
+	return 0
+}
+
+func (x *ExpenseData) GetTransactionAmount() int64 {
+	if x != nil {
+		return x.TransactionAmount
+	}
+	return 0
+}
+
+func (x *ExpenseData) GetReportingAmount() int64 {
+	if x != nil {
+		return x.ReportingAmount
+	}
+	return 0
+}
+
+func (x *ExpenseData) GetReportingCurrency() string {
+	if x != nil {
+		return x.ReportingCurrency
+	}
+	return ""
+}
+
+func (x *ExpenseData) GetExchangeRate() string {
+	if x != nil {
+		return x.ExchangeRate
+	}
+	return ""
+}
+
+func (x *ExpenseData) GetExchangeRateSource() string {
+	if x != nil {
+		return x.ExchangeRateSource
+	}
+	return ""
+}
+
+func (x *ExpenseData) GetExchangeRateTimestamp() string {
+	if x != nil {
+		return x.ExchangeRateTimestamp
+	}
+	return ""
+}
+
+func (x *ExpenseData) GetExchangeRateExpiresAt() string {
+	if x != nil {
+		return x.ExchangeRateExpiresAt
 	}
 	return ""
 }
@@ -1053,7 +1119,7 @@ var File_proto_expense_proto protoreflect.FileDescriptor
 
 const file_proto_expense_proto_rawDesc = "" +
 	"\n" +
-	"\x13proto/expense.proto\x12\aexpense\"\xbc\x04\n" +
+	"\x13proto/expense.proto\x12\aexpense\"\xc3\a\n" +
 	"\vExpenseData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
@@ -1076,7 +1142,15 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_total\x18\x10 \x01(\x05R\fproRataTotal\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x11 \x01(\tR\tcreatedAt\x121\n" +
-	"\x14transaction_currency\x18\x12 \x01(\tR\x13transactionCurrency\"\xdd\x03\n" +
+	"\x14transaction_currency\x18\x12 \x01(\tR\x13transactionCurrency\x124\n" +
+	"\x16money_snapshot_version\x18\x13 \x01(\x05R\x14moneySnapshotVersion\x12-\n" +
+	"\x12transaction_amount\x18\x14 \x01(\x03R\x11transactionAmount\x12)\n" +
+	"\x10reporting_amount\x18\x15 \x01(\x03R\x0freportingAmount\x12-\n" +
+	"\x12reporting_currency\x18\x16 \x01(\tR\x11reportingCurrency\x12#\n" +
+	"\rexchange_rate\x18\x17 \x01(\tR\fexchangeRate\x120\n" +
+	"\x14exchange_rate_source\x18\x18 \x01(\tR\x12exchangeRateSource\x126\n" +
+	"\x17exchange_rate_timestamp\x18\x19 \x01(\tR\x15exchangeRateTimestamp\x127\n" +
+	"\x18exchange_rate_expires_at\x18\x1a \x01(\tR\x15exchangeRateExpiresAt\"\xdd\x03\n" +
 	"\x14CreateExpenseRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +

@@ -53,17 +53,33 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 
 func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	handler := newTestGRPCHandler(repo)
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "EUR",
+	}, nil)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
 	})).Return(&model.Expense{
-		ID:                  "exp-1",
-		UserID:              "user-1",
-		Amount:              1200,
-		TransactionCurrency: "EUR",
-		Currency:            "EUR",
-		Status:              "active",
+		ID:                   "exp-1",
+		UserID:               "user-1",
+		Amount:               1200,
+		TransactionCurrency:  "EUR",
+		Currency:             "EUR",
+		Status:               "active",
+		MoneySnapshotVersion: 1,
+		TransactionAmount:    1200,
+		ReportingAmount:      1200,
+		ReportingCurrency:    "EUR",
+		ExchangeRate:         "1",
+		ExchangeRateSource:   model.ExchangeSourceIdentity,
 	}, nil)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
@@ -81,6 +97,13 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.GetExpense())
 	assert.Equal(t, "EUR", resp.GetExpense().GetTransactionCurrency())
+	// Canonical transaction and reporting money fields are present in the response.
+	assert.Equal(t, int64(1200), resp.GetExpense().GetTransactionAmount())
+	assert.Equal(t, int64(1200), resp.GetExpense().GetReportingAmount())
+	assert.Equal(t, "EUR", resp.GetExpense().GetReportingCurrency())
+	assert.Equal(t, int32(1), resp.GetExpense().GetMoneySnapshotVersion())
+	assert.Equal(t, "1", resp.GetExpense().GetExchangeRate())
+	assert.Equal(t, model.ExchangeSourceIdentity, resp.GetExpense().GetExchangeRateSource())
 	repo.AssertExpectations(t)
 }
 

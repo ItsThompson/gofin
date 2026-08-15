@@ -40,8 +40,10 @@ func (c *inMemoryImmudbClient) SQLExec(_ context.Context, sql string, params map
 
 	sqlLower := strings.ToLower(strings.TrimSpace(sql))
 
-	if strings.HasPrefix(sqlLower, "create table") || strings.HasPrefix(sqlLower, "create index") {
-		// Schema operations: no-op in memory
+	if strings.HasPrefix(sqlLower, "create table") || strings.HasPrefix(sqlLower, "create index") || strings.HasPrefix(sqlLower, "alter table") {
+		// Schema operations: no-op in memory. ALTER TABLE ADD COLUMN reconciles
+		// money-snapshot columns; the in-memory store is a map keyed by column name,
+		// so new columns appear automatically when rows are inserted.
 		return &repository.SQLResult{}, nil
 	}
 
@@ -190,6 +192,9 @@ func rowToSQLRow(row map[string]interface{}) repository.SQLRow {
 		"id", "user_id", "name", "amount", "currency", "expense_type", "tag_id",
 		"expense_date", "period_year", "period_month", "status", "corrects_id",
 		"is_pro_rata", "pro_rata_group", "pro_rata_index", "pro_rata_total", "created_at",
+		"money_snapshot_version", "transaction_amount", "transaction_currency",
+		"reporting_amount", "reporting_currency", "exchange_rate", "exchange_rate_source",
+		"exchange_rate_timestamp", "exchange_rate_expires_at",
 	}
 
 	values := make([]repository.SQLValue, len(columns))

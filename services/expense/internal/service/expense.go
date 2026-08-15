@@ -64,25 +64,52 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	}
 
 	now := s.clock().UTC().Format(time.RFC3339)
+
+	// Resolve the money snapshot. Same-currency expenses bypass the FX provider
+	// and write an identity snapshot (rate "1", source "identity"). Foreign-currency
+	// conversion requires the FX provider, which is not wired until the
+	// foreign-currency ticket; until then a foreign-currency request cannot be
+	// converted and must not write a partial ledger row, so it returns
+	// CONVERSION_UNAVAILABLE (spec error matrix: FX unavailable → no write).
+	var snapshot model.Expense
+	if transactionCurrency == period.ReportingCurrency {
+		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, period.ReportingCurrency, now)
+	} else {
+		s.logger.Info("foreign currency conversion unavailable",
+			slog.String("event", "foreign_currency_conversion_unavailable"),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", period.ReportingCurrency),
+		)
+		return nil, conversionUnavailableError()
+	}
+
 	expense := &model.Expense{
-		ID:                  uuid.New().String(),
-		UserID:              userID,
-		Name:                req.Name,
-		Amount:              req.Amount,
-		TransactionCurrency: transactionCurrency,
-		Currency:            transactionCurrency,
-		ExpenseType:         req.ExpenseType,
-		TagID:               req.TagID,
-		ExpenseDate:         req.ExpenseDate,
-		PeriodYear:          req.PeriodYear,
-		PeriodMonth:         req.PeriodMonth,
-		Status:              "active",
-		CorrectsID:          "",
-		IsProRata:           req.IsProRata,
-		ProRataGroup:        req.ProRataGroup,
-		ProRataIndex:        req.ProRataIndex,
-		ProRataTotal:        req.ProRataTotal,
-		CreatedAt:           now,
+		ID:                    uuid.New().String(),
+		UserID:                userID,
+		Name:                  req.Name,
+		Amount:                req.Amount,
+		TransactionCurrency:   transactionCurrency,
+		Currency:              transactionCurrency,
+		ExpenseType:           req.ExpenseType,
+		TagID:                 req.TagID,
+		ExpenseDate:           req.ExpenseDate,
+		PeriodYear:            req.PeriodYear,
+		PeriodMonth:           req.PeriodMonth,
+		Status:                "active",
+		CorrectsID:            "",
+		IsProRata:             req.IsProRata,
+		ProRataGroup:          req.ProRataGroup,
+		ProRataIndex:          req.ProRataIndex,
+		ProRataTotal:          req.ProRataTotal,
+		CreatedAt:             now,
+		MoneySnapshotVersion:  snapshot.MoneySnapshotVersion,
+		TransactionAmount:     snapshot.TransactionAmount,
+		ReportingAmount:       snapshot.ReportingAmount,
+		ReportingCurrency:     snapshot.ReportingCurrency,
+		ExchangeRate:          snapshot.ExchangeRate,
+		ExchangeRateSource:    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
+		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)
@@ -411,6 +438,33 @@ func currencyConflictError() *apierr.Error {
 			"transactionCurrency": "must match currency",
 			"currency":            "must match transactionCurrency",
 		},
+	}
+}
+
+// conversionUnavailableError is returned when a foreign-currency expense cannot
+// be converted because the FX provider is unavailable. No ledger row is written.
+func conversionUnavailableError() *apierr.Error {
+	return &apierr.Error{
+		Code:    model.ErrConversionUnavailable,
+		Message: "currency conversion is unavailable, please try again later",
+		Status:  http.StatusServiceUnavailable,
+	}
+}
+
+// buildIdentitySnapshot builds the money snapshot for a same-currency expense:
+// transaction and reporting amounts are equal, the rate is "1", and the
+// source is "identity". The exchange-rate timestamp is the ledger write time.
+// Identity snapshots have no cache expiry.
+func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency, timestamp string) model.Expense {
+	return model.Expense{
+		MoneySnapshotVersion:  1,
+		TransactionAmount:     amount,
+		TransactionCurrency:   transactionCurrency,
+		ReportingAmount:       amount,
+		ReportingCurrency:     reportingCurrency,
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: timestamp,
 	}
 }
 

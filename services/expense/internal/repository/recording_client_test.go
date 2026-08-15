@@ -162,6 +162,15 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 			fakeSQLValue{intValue: int64(e.ProRataIndex)},
 			fakeSQLValue{intValue: int64(e.ProRataTotal)},
 			fakeSQLValue{stringValue: e.CreatedAt},
+			fakeSQLValue{intValue: int64(e.MoneySnapshotVersion)},
+			fakeSQLValue{intValue: e.TransactionAmount},
+			fakeSQLValue{stringValue: e.TransactionCurrency},
+			fakeSQLValue{intValue: e.ReportingAmount},
+			fakeSQLValue{stringValue: e.ReportingCurrency},
+			fakeSQLValue{stringValue: e.ExchangeRate},
+			fakeSQLValue{stringValue: e.ExchangeRateSource},
+			fakeSQLValue{stringValue: e.ExchangeRateTimestamp},
+			fakeSQLValue{stringValue: e.ExchangeRateExpiresAt},
 		}})
 	}
 	return &SQLResult{Rows: rows}

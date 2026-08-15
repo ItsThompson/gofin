@@ -9,4 +9,8 @@ const (
 	ErrPeriodNotFound      = "PERIOD_NOT_FOUND"
 	ErrUnsupportedCurrency = "UNSUPPORTED_CURRENCY"
 	ErrCurrencyConflict    = "CURRENCY_FIELD_CONFLICT"
+	// ErrConversionUnavailable is returned when a foreign-currency expense cannot
+	// be converted because the FX provider is unavailable (not yet wired or down).
+	// No ledger row is written. Mapped to HTTP 503 / gRPC codes.Unavailable.
+	ErrConversionUnavailable = "CONVERSION_UNAVAILABLE"
 )

@@ -103,9 +103,15 @@ func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, user
 }
 
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
+	return setupTestRouterWithPeriod(repo, newTestPeriodClient())
+}
+
+// setupTestRouterWithPeriod builds a router wired to a custom period context
+// client, so handler tests can exercise non-default reporting currencies.
+func setupTestRouterWithPeriod(repo *mockExpenseRepository, periodClient *mockPeriodContextClient) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -176,25 +182,40 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "EUR",
+	}, nil)
+
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
 	})).Return(&model.Expense{
-		ID:                  "exp-123",
-		UserID:              "user-1",
-		Name:                "Coffee",
-		Amount:              450,
-		TransactionCurrency: "EUR",
-		Currency:            "EUR",
-		ExpenseType:         "desires",
-		TagID:               "tag-food",
-		ExpenseDate:         "2026-05-03",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
-		Status:              "active",
-		CreatedAt:           "2026-05-03T10:00:00Z",
+		ID:                   "exp-123",
+		UserID:               "user-1",
+		Name:                 "Coffee",
+		Amount:               450,
+		TransactionCurrency:  "EUR",
+		Currency:             "EUR",
+		ExpenseType:          "desires",
+		TagID:                "tag-food",
+		ExpenseDate:          "2026-05-03",
+		PeriodYear:           2026,
+		PeriodMonth:          5,
+		Status:               "active",
+		CreatedAt:            "2026-05-03T10:00:00Z",
+		MoneySnapshotVersion: 1,
+		TransactionAmount:    450,
+		ReportingAmount:      450,
+		ReportingCurrency:    "EUR",
+		ExchangeRate:         "1",
+		ExchangeRateSource:   model.ExchangeSourceIdentity,
 	}, nil)
 
-	r := setupTestRouter(repo)
+	r := setupTestRouterWithPeriod(repo, periodClient)
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":                "Coffee",
@@ -213,6 +234,13 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
 	assert.Equal(t, "EUR", resp.Expense.Currency)
+	// Canonical transaction and reporting money fields are present in the response.
+	assert.Equal(t, int32(1), resp.Expense.MoneySnapshotVersion)
+	assert.Equal(t, int64(450), resp.Expense.TransactionAmount)
+	assert.Equal(t, int64(450), resp.Expense.ReportingAmount)
+	assert.Equal(t, "EUR", resp.Expense.ReportingCurrency)
+	assert.Equal(t, "1", resp.Expense.ExchangeRate)
+	assert.Equal(t, model.ExchangeSourceIdentity, resp.Expense.ExchangeRateSource)
 	repo.AssertExpectations(t)
 }
 
