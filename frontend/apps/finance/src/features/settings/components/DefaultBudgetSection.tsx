@@ -98,9 +98,6 @@ export function DefaultBudgetSection({ user }: { user: User }) {
           Default currency applies only when you create a new budget period. It does not
           change current or past periods.
         </FormDescription>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Default currency applies only when you create a new budget period. It does not change current or past periods.
-        </p>
       </FormField>
 
       <FormMessage>{state.validationError || saveError}</FormMessage>

@@ -115,8 +115,8 @@ describe("SettingsFeature", () => {
       expect((savingsInputs[0] as HTMLInputElement).value).toBe("20");
 
       expect(
-        screen.getAllByText(/default currency applies only when you create a new budget period/i)[0],
-      ).toBeInTheDocument();
+        screen.getAllByText(/default currency applies only when you create a new budget period/i).length,
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("updates budget input precision when default currency changes", async () => {
