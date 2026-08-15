@@ -86,10 +86,11 @@ func run() error {
 
 	periodClient := service.NewGRPCPeriodContextClient(financepb.NewFinanceServiceClient(financeConn))
 
-	fxClient, err := service.NewGRPCFxClientFromAddr(cfg.FxServiceAddr)
+	fxClient, fxConn, err := service.NewGRPCFxClientFromAddr(cfg.FxServiceAddr)
 	if err != nil {
-		return fmt.Errorf("connecting to fx service at %s: %w", cfg.FxServiceAddr, err)
+		return fmt.Errorf("creating fx service client for %s: %w", cfg.FxServiceAddr, err)
 	}
+	defer func() { _ = fxConn.Close() }()
 	logger.Info("fx service gRPC client created",
 		slog.String("addr", cfg.FxServiceAddr),
 	)

@@ -109,15 +109,21 @@ func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 // setupTestRouterWithPeriod builds a router wired to a custom period context
 // client, so handler tests can exercise non-default reporting currencies.
 func setupTestRouterWithPeriod(repo *mockExpenseRepository, periodClient *mockPeriodContextClient) *gin.Engine {
-	return setupTestRouterWithFx(repo, periodClient, nil)
+	return setupTestRouterWithFx(repo, periodClient, &stubFxClient{})
 }
 
 // setupTestRouterWithFx builds a router wired to a custom period context client
 // and FX client, so handler tests can exercise foreign-currency conversion.
 func setupTestRouterWithFx(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, fxClient service.FxClient) *gin.Engine {
+	return setupTestRouterWithFxClock(repo, periodClient, fxClient, time.Now)
+}
+
+// setupTestRouterWithFxClock builds a router with a fixed clock so FX tests can
+// assert the exact request (including RequestedAt).
+func setupTestRouterWithFxClock(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, fxClient service.FxClient, clock func() time.Time) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, clock, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -247,38 +253,6 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
-// TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable asserts a
-// transaction currency that differs from the period reporting currency maps
-// to HTTP 503 CONVERSION_UNAVAILABLE and does not write a ledger row.
-func TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable(t *testing.T) {
-	repo := new(mockExpenseRepository)
-	periodClient := new(mockPeriodContextClient)
-	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		ReportingCurrency: "USD",
-	}, nil)
-
-	r := setupTestRouterWithPeriod(repo, periodClient)
-
-	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
-		"name":                "Coffee",
-		"amount":              450,
-		"transactionCurrency": "EUR",
-		"expenseType":         "desires",
-		"tagId":               "tag-food",
-		"expenseDate":         "2026-05-03",
-		"periodYear":          2026,
-		"periodMonth":         5,
-	})
-
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
-	assert.Contains(t, w.Body.String(), model.ErrConversionUnavailable)
-	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
-}
-
 // TestCreateExpenseHandler_ForeignCurrencyFxSuccess asserts a foreign-currency
 // expense with a wired FX client returns 201 with both transaction and reporting
 // money fields plus snapshot metadata.
@@ -286,6 +260,8 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	requestedAt := now.UTC().Format(time.RFC3339)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
 		PeriodID:          "period-1",
@@ -296,15 +272,15 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
-		return req.Amount == 1250 && req.SourceCurrency == "EUR" && req.TargetCurrency == "USD"
+		return req.Amount == 1250 &&
+			req.SourceCurrency == "EUR" &&
+			req.TargetCurrency == "USD" &&
+			req.RequestedAt == requestedAt
 	})).Return(&service.FxConvertResponse{
 		ConvertedAmount: 1364,
-		SourceCurrency:  "EUR",
-		TargetCurrency:  "USD",
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          "open_exchange_rates",
-		CacheStatus:     "hit",
+		Source:          model.ExchangeSourceOpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}, nil)
 
@@ -326,12 +302,12 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    "open_exchange_rates",
+		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
 
-	r := setupTestRouterWithFx(repo, periodClient, fxClient)
+	r := setupTestRouterWithFxClock(repo, periodClient, fxClient, func() time.Time { return now })
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":                "Cafe",
@@ -647,7 +623,7 @@ func TestGetExpenseHandler_NotFound(t *testing.T) {
 func setupTestRouterWithClock(repo *mockExpenseRepository, now time.Time) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), nil, func() time.Time { return now }, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, func() time.Time { return now }, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)

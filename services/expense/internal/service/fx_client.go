@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	fxpb "github.com/ItsThompson/gofin/services/fx/proto/fxpb"
@@ -24,15 +22,14 @@ type FxConvertRequest struct {
 }
 
 // FxConvertResponse mirrors the FX ConvertAmountResponse fields that the
-// Expense ledger snapshot needs.
+// Expense ledger snapshot needs. Echoed pair/cache fields are deliberately
+// omitted: the snapshot only records the converted amount, rate, source,
+// timestamp, and expiry.
 type FxConvertResponse struct {
 	ConvertedAmount int64
-	SourceCurrency  string
-	TargetCurrency  string
 	ExchangeRate    string
 	RateTimestamp   string
 	Source          string
-	CacheStatus     string
 	ExpiresAt       string
 }
 
@@ -53,14 +50,16 @@ func NewGRPCFxClient(client fxpb.FxServiceClient) *GRPCFxClient {
 	return &GRPCFxClient{client: client}
 }
 
-// NewGRPCFxClientFromAddr dials the FX Service at addr and returns a client.
-// The connection uses insecure transport because FX is compute-network only.
-func NewGRPCFxClientFromAddr(addr string) (*GRPCFxClient, error) {
+// NewGRPCFxClientFromAddr builds an FX gRPC client and returns the underlying
+// connection so the caller owns its lifetime and closes it. The connection uses
+// insecure transport because FX is compute-network only. grpc.NewClient is
+// lazy, so this only fails for a malformed target.
+func NewGRPCFxClientFromAddr(addr string) (*GRPCFxClient, *grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return nil, fmt.Errorf("connecting to fx service at %s: %w", addr, err)
+		return nil, nil, fmt.Errorf("creating fx service client for %s: %w", addr, err)
 	}
-	return NewGRPCFxClient(fxpb.NewFxServiceClient(conn)), nil
+	return NewGRPCFxClient(fxpb.NewFxServiceClient(conn)), conn, nil
 }
 
 // ConvertAmount calls the FX Service ConvertAmount RPC and maps gRPC status
@@ -80,45 +79,23 @@ func (c *GRPCFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 	}
 	return &FxConvertResponse{
 		ConvertedAmount: resp.GetConvertedAmount(),
-		SourceCurrency:  resp.GetSourceCurrency(),
-		TargetCurrency:  resp.GetTargetCurrency(),
 		ExchangeRate:    resp.GetExchangeRate(),
 		RateTimestamp:   resp.GetRateTimestamp(),
 		Source:          resp.GetSource(),
-		CacheStatus:     resp.GetCacheStatus(),
 		ExpiresAt:       resp.GetExpiresAt(),
 	}, nil
 }
 
-// mapFxError maps an FX gRPC error to the Expense service's safe
-// CONVERSION_UNAVAILABLE api error. The Expense service validates supported
-// currencies before calling FX, so InvalidArgument (UNSUPPORTED_CURRENCY /
-// INVALID_AMOUNT) is unexpected from FX; it is still mapped to
-// CONVERSION_UNAVAILABLE so no partial ledger row is written. All FX failure
-// paths produce the same safe user-facing REST error (503
-// CONVERSION_UNAVAILABLE) per the spec error-handling matrix.
-func mapFxError(err error) *apierr.Error {
-	st, ok := status.FromError(err)
-	if !ok {
-		return conversionUnavailableError()
-	}
-	switch st.Code() {
-	case codes.Unavailable, codes.FailedPrecondition, codes.InvalidArgument:
-		return conversionUnavailableError()
-	default:
-		return conversionUnavailableError()
-	}
+// mapFxError maps every FX gRPC failure to the Expense service's safe
+// CONVERSION_UNAVAILABLE error. Expense validates the amount and both
+// currencies before calling FX, so the only reachable FX errors are Unavailable
+// (CONVERSION_UNAVAILABLE, PROVIDER_AUTH_FAILED, PROVIDER_RESPONSE_INVALID) and
+// FailedPrecondition (RATE_MISSING for live conversion). Spec 05 maps all four
+// to 503 CONVERSION_UNAVAILABLE with no ledger write. The gRPC status code is
+// intentionally not inspected because every FX failure is safe-failed
+// identically.
+func mapFxError(_ error) *apierr.Error {
+	return conversionUnavailableError()
 }
 
 var _ FxClient = (*GRPCFxClient)(nil)
-
-// ensureFxClient returns the fx client or a conversion-unavailable error when
-// no client is wired. This lets same-currency-only tests pass nil without
-// special-casing every call site; a foreign-currency request with no client is
-// a safe failure (no ledger write).
-func ensureFxClient(fx FxClient) (FxClient, *apierr.Error) {
-	if fx == nil {
-		return nil, conversionUnavailableError()
-	}
-	return fx, nil
-}

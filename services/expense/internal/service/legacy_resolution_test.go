@@ -47,13 +47,13 @@ func legacyExpense(id, currency string, year int32, month int32) *model.Expense 
 }
 
 func newLegacyTestService(repo *mockExpenseRepository, periodClient *mockPeriodContextClient) *ExpenseService {
-	return NewExpenseService(repo, periodClient, nil, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	return NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 }
 
 // newLegacyTestServiceWithBuffer returns a service whose slog output is
 // captured in buf so tests can assert telemetry events were emitted.
 func newLegacyTestServiceWithBuffer(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, buf *bytes.Buffer) *ExpenseService {
-	return NewExpenseService(repo, periodClient, nil, time.Now, slog.New(slog.NewJSONHandler(buf, nil)))
+	return NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(buf, nil)))
 }
 
 func periodClientReturning(currency string) *mockPeriodContextClient {
@@ -291,7 +291,7 @@ func TestStreamAllUserExpenses_ResolvesLegacyRowsWithPeriodCache(t *testing.T) {
 		Return(&PeriodContext{PeriodID: "p2", UserID: "user-1", Year: 2026, Month: 6, ReportingCurrency: "JPY"}, nil)
 
 	var buf bytes.Buffer
-	svc := NewExpenseService(repo, pc, nil, time.Now, slog.New(slog.NewJSONHandler(&buf, nil)))
+	svc := NewExpenseService(repo, pc, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(&buf, nil)))
 
 	// Two legacy rows in the same period (2026/5) and one in 2026/6. All carry
 	// a legacy USD currency that must normalize to each period's reporting

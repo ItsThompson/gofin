@@ -23,7 +23,7 @@ import (
 
 func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), nil, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, time.Now, logger)
 	return NewGRPCHandler(expenseSvc)
 }
 
@@ -38,6 +38,14 @@ func (m *mockFxClient) ConvertAmount(ctx context.Context, req service.FxConvertR
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*service.FxConvertResponse), args.Error(1)
+}
+
+// stubFxClient is a non-nil FxClient for handler tests that never exercise FX.
+// A call to it means a test accidentally routed a foreign-currency request.
+type stubFxClient struct{}
+
+func (stubFxClient) ConvertAmount(ctx context.Context, req service.FxConvertRequest) (*service.FxConvertResponse, error) {
+	return nil, fmt.Errorf("stubFxClient: unexpected ConvertAmount call")
 }
 
 // TestGRPC_RemovedReadRPCsAreNotRegistered asserts GetCorrectionHistory and
@@ -76,7 +84,7 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 		ReportingCurrency: "EUR",
 	}, nil)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, nil, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
@@ -123,7 +131,7 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, nil, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(6)).
@@ -155,43 +163,6 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
-// TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable asserts a
-// transaction currency that differs from the period reporting currency maps
-// to codes.Unavailable (FX not yet wired) and does not write a ledger row.
-func TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable(t *testing.T) {
-	repo := new(mockExpenseRepository)
-	periodClient := new(mockPeriodContextClient)
-	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		ReportingCurrency: "USD",
-	}, nil)
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, nil, time.Now, logger)
-	handler := NewGRPCHandler(expenseSvc)
-
-	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:              "user-1",
-		Name:                "Coffee",
-		Amount:              450,
-		TransactionCurrency: "EUR",
-		ExpenseType:         "desires",
-		TagId:               "tag-food",
-		ExpenseDate:         "2026-05-03",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
-	})
-
-	assert.Nil(t, resp)
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unavailable, st.Code())
-	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
-}
-
 // TestGRPC_CreateExpense_ForeignCurrencyFxSuccess asserts a foreign-currency
 // expense with a wired FX client calls FX, writes the provider snapshot, and
 // returns both transaction and reporting money fields in the gRPC response.
@@ -199,6 +170,9 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	fxClient := new(mockFxClient)
+
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	requestedAt := now.UTC().Format(time.RFC3339)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
 		PeriodID:          "period-1",
@@ -209,15 +183,15 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
-		return req.Amount == 1250 && req.SourceCurrency == "EUR" && req.TargetCurrency == "USD"
+		return req.Amount == 1250 &&
+			req.SourceCurrency == "EUR" &&
+			req.TargetCurrency == "USD" &&
+			req.RequestedAt == requestedAt
 	})).Return(&service.FxConvertResponse{
 		ConvertedAmount: 1364,
-		SourceCurrency:  "EUR",
-		TargetCurrency:  "USD",
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          "open_exchange_rates",
-		CacheStatus:     "hit",
+		Source:          model.ExchangeSourceOpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}, nil)
 
@@ -239,13 +213,13 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    "open_exchange_rates",
+		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, func() time.Time { return now }, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{

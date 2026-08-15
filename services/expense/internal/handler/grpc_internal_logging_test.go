@@ -41,7 +41,7 @@ func newGRPCHandlerWithLog(t *testing.T, repo *mockExpenseRepository) (*GRPCHand
 	slog.SetDefault(logger)
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), nil, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, time.Now, logger)
 	return NewGRPCHandler(expenseSvc), buf
 }
 

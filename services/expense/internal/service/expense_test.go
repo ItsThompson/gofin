@@ -126,7 +126,7 @@ func newTestPeriodClient() *mockPeriodContextClient {
 
 func newTestService(repo *mockExpenseRepository) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewExpenseService(repo, newTestPeriodClient(), nil, time.Now, logger)
+	return NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, time.Now, logger)
 }
 
 // requireAPIError asserts that err carries an *apierr.Error (via errors.As, so a
@@ -195,34 +195,15 @@ func TestCreateExpense_Success(t *testing.T) {
 	assert.Equal(t, "active", expense.Status)
 }
 
-// TestCreateExpense_ForeignCurrencyNoFxClientReturnsConversionUnavailable
-// asserts a transaction currency that differs from the period reporting currency
-// returns CONVERSION_UNAVAILABLE (503) when no FX client is wired, and does not
-// call the repository, preserving the invariant that every new row carries a
-// complete money snapshot.
-func TestCreateExpense_ForeignCurrencyNoFxClientReturnsConversionUnavailable(t *testing.T) {
+// TestNewExpenseService_NilFxClientPanics asserts that a forgotten FX wire-up
+// fails loudly at construction rather than on the first foreign-currency user.
+func TestNewExpenseService_NilFxClientPanics(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	periodClient := new(mockPeriodContextClient)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewExpenseService(repo, periodClient, nil, time.Now, logger)
 
-	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		ReportingCurrency: "USD",
-	}, nil)
-
-	req := validCreateRequest()
-	req.TransactionCurrency = "EUR"
-
-	_, err := svc.CreateExpense(context.Background(), "user-1", req)
-
-	svcErr := requireAPIError(t, err)
-	assert.Equal(t, model.ErrConversionUnavailable, svcErr.Code)
-	assert.Equal(t, http.StatusServiceUnavailable, svcErr.Status)
-	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+	require.Panics(t, func() {
+		NewExpenseService(repo, newTestPeriodClient(), nil, time.Now, logger)
+	})
 }
 
 // mockFxClient implements FxClient for tests.
@@ -238,6 +219,15 @@ func (m *mockFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 	return args.Get(0).(*FxConvertResponse), args.Error(1)
 }
 
+// stubFxClient is a non-nil FxClient for tests that never exercise FX. A call
+// to it means a same-currency test accidentally routed a foreign-currency
+// request, so it fails loudly instead of returning zero values.
+type stubFxClient struct{}
+
+func (stubFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) (*FxConvertResponse, error) {
+	return nil, fmt.Errorf("stubFxClient: unexpected ConvertAmount call")
+}
+
 // TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot
 // asserts that when transactionCurrency != reportingCurrency, the service calls
 // FX ConvertAmount with the exact request, builds a provider snapshot from the
@@ -246,8 +236,8 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	fxClient := new(mockFxClient)
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, now)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
 		PeriodID:          "period-1",
@@ -257,21 +247,20 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		ReportingCurrency: "USD",
 	}, nil)
 
+	requestedAt := now.UTC().Format(time.RFC3339)
 	fxResp := &FxConvertResponse{
 		ConvertedAmount: 1364,
-		SourceCurrency:  "EUR",
-		TargetCurrency:  "USD",
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          "open_exchange_rates",
-		CacheStatus:     "hit",
+		Source:          model.ExchangeSourceOpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req FxConvertRequest) bool {
 		return req.Amount == 1250 &&
 			req.SourceCurrency == "EUR" &&
-			req.TargetCurrency == "USD"
+			req.TargetCurrency == "USD" &&
+			req.RequestedAt == requestedAt
 	})).Return(fxResp, nil)
 
 	var captured *model.Expense
@@ -297,7 +286,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    "open_exchange_rates",
+		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
@@ -323,7 +312,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 
 	// The ledger row stores the FX snapshot metadata.
 	assert.Equal(t, "1.0912", captured.ExchangeRate)
-	assert.Equal(t, "open_exchange_rates", captured.ExchangeRateSource)
+	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", captured.ExchangeRateTimestamp)
 	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateExpiresAt)
 
@@ -334,7 +323,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	assert.Equal(t, int64(1364), resp.ReportingAmount)
 	assert.Equal(t, "USD", resp.ReportingCurrency)
 	assert.Equal(t, "1.0912", resp.ExchangeRate)
-	assert.Equal(t, "open_exchange_rates", resp.ExchangeRateSource)
+	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, resp.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", resp.ExchangeRateTimestamp)
 	assert.Equal(t, "2026-08-14T11:00:00Z", resp.ExchangeRateExpiresAt)
 
@@ -523,7 +512,7 @@ func TestCreateExpense_MissingPeriodDoesNotWrite(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	svc := NewExpenseService(repo, periodClient, nil, time.Now, logger)
+	svc := NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, periodNotFoundError(2026, 5))
 
@@ -571,7 +560,7 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 			repo := new(mockExpenseRepository)
 			periodClient := new(mockPeriodContextClient)
 			logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-			svc := NewExpenseService(repo, periodClient, nil, time.Now, logger)
+			svc := NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 
 			reportingCurrency := tt.reportingCurrency
 			if reportingCurrency == "" {
@@ -906,7 +895,15 @@ func validCorrectRequest() *model.CorrectExpenseRequest {
 
 func newTestServiceWithClock(repo *mockExpenseRepository, now time.Time) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	return NewExpenseService(repo, newTestPeriodClient(), nil, func() time.Time { return now }, logger)
+	return NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, func() time.Time { return now }, logger)
+}
+
+// newTestServiceWithFxClock builds a service with a custom period client, FX
+// client, and fixed clock so FX tests can assert the exact request (including
+// RequestedAt) and snapshot timestamps.
+func newTestServiceWithFxClock(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, fxClient FxClient, now time.Time) *ExpenseService {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return NewExpenseService(repo, periodClient, fxClient, func() time.Time { return now }, logger)
 }
 
 func TestCorrectExpense_Success(t *testing.T) {

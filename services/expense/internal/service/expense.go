@@ -33,9 +33,9 @@ type ExpenseService struct {
 
 // NewExpenseService creates a new ExpenseService. The clock seam supplies the
 // current time for CreatedAt stamping and the period-lock check; production
-// passes time.Now and tests inject a fixed clock. fxClient may be nil for
-// same-currency-only tests; a foreign-currency request with nil fxClient returns
-// CONVERSION_UNAVAILABLE (no ledger write).
+// passes time.Now and tests inject a fixed clock. fxClient is required: a nil
+// client is a programming error and panics immediately, so a forgotten wire-up
+// fails at construction rather than on the first foreign-currency user.
 func NewExpenseService(
 	repo repository.ExpenseRepository,
 	periodClient PeriodContextClient,
@@ -43,6 +43,9 @@ func NewExpenseService(
 	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
+	if fxClient == nil {
+		panic("NewExpenseService: fxClient must not be nil")
+	}
 	return &ExpenseService{
 		repo:         repo,
 		periodClient: periodClient,
@@ -70,14 +73,20 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 
 	now := s.clock().UTC().Format(time.RFC3339)
 
+	// Normalize the period reporting currency once and use it for validation,
+	// the identity-vs-FX decision, the snapshot, and the FX target. Finance owns
+	// the stored value, but normalizing here keeps casing/whitespace drift from
+	// routing a same-currency write to FX or persisting mismatched casing.
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+
 	// Validate the period reporting currency before any FX call. The period
 	// context is the source of truth for the reporting currency; an unsupported
 	// reporting currency is an internal invariant violation, not a user input
 	// error, so it is reported and mapped to a safe internal error.
-	if err := validateReportingCurrency(period.ReportingCurrency); err != nil {
+	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		s.logger.Error("unsupported reporting currency from period context",
 			slog.String("event", "unsupported_reporting_currency"),
-			slog.String("reporting_currency", period.ReportingCurrency),
+			slog.String("reporting_currency", reportingCurrency),
 		)
 		return nil, err
 	}
@@ -86,33 +95,24 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	// and write an identity snapshot (rate "1", source "identity"). Foreign-currency
 	// conversion calls the FX Service ConvertAmount RPC before writing the row.
 	var snapshot model.Expense
-	if transactionCurrency == period.ReportingCurrency {
-		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, period.ReportingCurrency, now)
+	if transactionCurrency == reportingCurrency {
+		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, reportingCurrency, now)
 	} else {
-		fx, fxErr := ensureFxClient(s.fxClient)
-		if fxErr != nil {
-			s.logger.Info("foreign currency conversion unavailable: no fx client",
-				slog.String("event", "foreign_currency_conversion_unavailable"),
-				slog.String("transaction_currency", transactionCurrency),
-				slog.String("reporting_currency", period.ReportingCurrency),
-			)
-			return nil, fxErr
-		}
-		fxResp, convErr := fx.ConvertAmount(ctx, FxConvertRequest{
+		fxResp, convErr := s.fxClient.ConvertAmount(ctx, FxConvertRequest{
 			Amount:         req.Amount,
 			SourceCurrency: transactionCurrency,
-			TargetCurrency: period.ReportingCurrency,
+			TargetCurrency: reportingCurrency,
 			RequestedAt:    now,
 		})
 		if convErr != nil {
 			s.logger.Info("foreign currency conversion unavailable",
 				slog.String("event", "foreign_currency_conversion_unavailable"),
 				slog.String("transaction_currency", transactionCurrency),
-				slog.String("reporting_currency", period.ReportingCurrency),
+				slog.String("reporting_currency", reportingCurrency),
 			)
 			return nil, convErr
 		}
-		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, period.ReportingCurrency, fxResp)
+		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
 	}
 
 	expense := &model.Expense{
