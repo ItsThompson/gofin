@@ -48,6 +48,11 @@ type CreateProRataInstallmentRequest struct {
 	ProRataIndex         int32
 	ProRataTotal         int32
 	CapturedRateSnapshot *CapturedRateSnapshot
+	// LegacyMigration marks a legacy pending pro-rata schedule that has no
+	// captured snapshot. When true, the transaction currency must equal the
+	// period reporting currency and Expense writes a migration snapshot
+	// (exchangeRate = "1", exchangeRateSource = "migration") without calling FX.
+	LegacyMigration bool
 }
 
 func validateProRataInstallmentRequest(req *CreateProRataInstallmentRequest) *apierr.Error {

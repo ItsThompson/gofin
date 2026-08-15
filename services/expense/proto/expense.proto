@@ -123,6 +123,11 @@ message CreateProRataInstallmentRequest {
   int32 pro_rata_index = 10;
   int32 pro_rata_total = 11;
   CapturedRateSnapshot captured_rate_snapshot = 12;
+  // legacy_migration marks a legacy pending pro-rata schedule that has no
+  // captured snapshot. When true, Expense requires transaction_currency to
+  // equal the period reporting currency and writes a migration snapshot
+  // (exchangeRate = "1", exchangeRateSource = "migration") without calling FX.
+  bool legacy_migration = 13;
 }
 
 // ---------------------------------------------------------------------------

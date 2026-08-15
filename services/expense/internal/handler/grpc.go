@@ -91,6 +91,7 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 		ProRataGroup:        req.GetProRataGroup(),
 		ProRataIndex:        req.GetProRataIndex(),
 		ProRataTotal:        req.GetProRataTotal(),
+		LegacyMigration:     req.GetLegacyMigration(),
 	}
 	if pc := req.GetPeriodContext(); pc != nil {
 		reqModel.PeriodContext = service.TrustedPeriodContext{

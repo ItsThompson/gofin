@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
 
@@ -34,28 +35,42 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		return nil, err
 	}
 
-	if err := validateSnapshotCoverage(req.CapturedRateSnapshot, transactionCurrency, reportingCurrency); err != nil {
-		return nil, err
-	}
-
 	now := s.clock().UTC().Format(time.RFC3339)
 
-	// Pro-rata installments always derive their reporting amount from the
-	// captured snapshot (spec 06), so same-currency first installments also go
-	// through ConvertWithSnapshot. FX returns source/timestamp from the snapshot,
-	// which keeps the first installment on the same snapshot facts as future rows.
-	fxResp, convErr := s.fxClient.ConvertWithSnapshot(ctx, FxConvertWithSnapshotRequest{
-		Amount:         req.Amount,
-		SourceCurrency: transactionCurrency,
-		TargetCurrency: reportingCurrency,
-		RequestedAt:    now,
-		Snapshot:       toFxCapturedRateSnapshot(req.CapturedRateSnapshot),
-	})
-	if convErr != nil {
-		return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
-	}
+	var snapshot model.Expense
+	if req.LegacyMigration {
+		// Legacy pending schedules have no captured snapshot. Finance validates
+		// that the target period reporting currency equals the stored schedule
+		// currency before requesting a migration write. Expense re-validates the
+		// currency match here so a caller error never invents a conversion.
+		if transactionCurrency != reportingCurrency {
+			return nil, apierr.Validation(
+				"legacy migration pro-rata requires the transaction currency to equal the period reporting currency",
+				map[string]string{"transactionCurrency": "must match period reporting currency"},
+			)
+		}
+		snapshot = buildMigrationSnapshot(req.Amount, transactionCurrency, reportingCurrency, now)
+	} else {
+		if err := validateSnapshotCoverage(req.CapturedRateSnapshot, transactionCurrency, reportingCurrency); err != nil {
+			return nil, err
+		}
 
-	snapshot := buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+		// Pro-rata installments always derive their reporting amount from the
+		// captured snapshot (spec 06), so same-currency first installments also go
+		// through ConvertWithSnapshot. FX returns source/timestamp from the snapshot,
+		// which keeps the first installment on the same snapshot facts as future rows.
+		fxResp, convErr := s.fxClient.ConvertWithSnapshot(ctx, FxConvertWithSnapshotRequest{
+			Amount:         req.Amount,
+			SourceCurrency: transactionCurrency,
+			TargetCurrency: reportingCurrency,
+			RequestedAt:    now,
+			Snapshot:       toFxCapturedRateSnapshot(req.CapturedRateSnapshot),
+		})
+		if convErr != nil {
+			return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
+		}
+		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+	}
 
 	expense := &model.Expense{
 		ID:                    uuid.New().String(),
@@ -97,6 +112,23 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 	)
 
 	return created, nil
+}
+
+// buildMigrationSnapshot builds the money snapshot for a legacy same-currency
+// pro-rata application: transaction and reporting amounts are equal, the rate
+// is "1", and the source is "migration" so the row is auditable as a migration
+// conversion rather than an identity conversion or a provider conversion.
+func buildMigrationSnapshot(amount int64, transactionCurrency, reportingCurrency, timestamp string) model.Expense {
+	return model.Expense{
+		MoneySnapshotVersion:  1,
+		TransactionAmount:     amount,
+		TransactionCurrency:   transactionCurrency,
+		ReportingAmount:       amount,
+		ReportingCurrency:     reportingCurrency,
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceMigration,
+		ExchangeRateTimestamp: timestamp,
+	}
 }
 
 func toFxCapturedRateSnapshot(s *CapturedRateSnapshot) *FxCapturedRateSnapshot {

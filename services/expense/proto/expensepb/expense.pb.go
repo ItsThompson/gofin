@@ -624,8 +624,13 @@ type CreateProRataInstallmentRequest struct {
 	ProRataIndex         int32                  `protobuf:"varint,10,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
 	ProRataTotal         int32                  `protobuf:"varint,11,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
 	CapturedRateSnapshot *CapturedRateSnapshot  `protobuf:"bytes,12,opt,name=captured_rate_snapshot,json=capturedRateSnapshot,proto3" json:"captured_rate_snapshot,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// legacy_migration marks a legacy pending pro-rata schedule that has no
+	// captured snapshot. When true, Expense requires transaction_currency to
+	// equal the period reporting currency and writes a migration snapshot
+	// (exchangeRate = "1", exchangeRateSource = "migration") without calling FX.
+	LegacyMigration bool `protobuf:"varint,13,opt,name=legacy_migration,json=legacyMigration,proto3" json:"legacy_migration,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *CreateProRataInstallmentRequest) Reset() {
@@ -740,6 +745,13 @@ func (x *CreateProRataInstallmentRequest) GetCapturedRateSnapshot() *CapturedRat
 		return x.CapturedRateSnapshot
 	}
 	return nil
+}
+
+func (x *CreateProRataInstallmentRequest) GetLegacyMigration() bool {
+	if x != nil {
+		return x.LegacyMigration
+	}
+	return false
 }
 
 type GetExpensesForPeriodRequest struct {
@@ -1484,7 +1496,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x11rates_by_currency\x18\a \x03(\v22.expense.CapturedRateSnapshot.RatesByCurrencyEntryR\x0fratesByCurrency\x1aB\n" +
 	"\x14RatesByCurrencyEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xae\x04\n" +
 	"\x1fCreateProRataInstallmentRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12D\n" +
 	"\x0eperiod_context\x18\x02 \x01(\v2\x1d.expense.TrustedPeriodContextR\rperiodContext\x12\x12\n" +
@@ -1498,7 +1510,8 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_index\x18\n" +
 	" \x01(\x05R\fproRataIndex\x12$\n" +
 	"\x0epro_rata_total\x18\v \x01(\x05R\fproRataTotal\x12S\n" +
-	"\x16captured_rate_snapshot\x18\f \x01(\v2\x1d.expense.CapturedRateSnapshotR\x14capturedRateSnapshot\"\x91\x01\n" +
+	"\x16captured_rate_snapshot\x18\f \x01(\v2\x1d.expense.CapturedRateSnapshotR\x14capturedRateSnapshot\x12)\n" +
+	"\x10legacy_migration\x18\r \x01(\bR\x0flegacyMigration\"\x91\x01\n" +
 	"\x1bGetExpensesForPeriodRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
