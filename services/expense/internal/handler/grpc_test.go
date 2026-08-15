@@ -84,6 +84,42 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(6)).
+		Return(nil, &apierr.Error{
+			Code:    model.ErrPeriodNotFound,
+			Message: "No budget period found for 2026-06",
+			Status:  404,
+			Fields:  map[string]string{"periodYear": "2026", "periodMonth": "6"},
+		})
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:      "user-1",
+		Name:        "Coffee",
+		Amount:      450,
+		Currency:    "USD",
+		ExpenseType: "desires",
+		TagId:       "tag-food",
+		ExpenseDate: "2026-06-03",
+		PeriodYear:  2026,
+		PeriodMonth: 6,
+	})
+
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
+	assert.Contains(t, st.Message(), "2026-06")
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
 // TestGRPC_GetExpense_WrappedTypedErrorClassifies asserts a typed *apierr.Error
 // that the service %w-wraps before it reaches the gRPC handler must still
 // classify via errors.As (not collapse to codes.Internal).
