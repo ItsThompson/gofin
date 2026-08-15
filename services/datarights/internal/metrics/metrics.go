@@ -39,6 +39,17 @@ var (
 			Help: "Total number of requests rejected due to 30-day cooldown",
 		},
 	)
+
+	// ExportCurrencyFormattingFallbackTotal counts export rows rendered with the
+	// two-decimal fallback because the stored currency was unsupported. Only the
+	// default-settings provider falls back; budget periods and expenses fail the
+	// export instead of rendering with the wrong precision.
+	ExportCurrencyFormattingFallbackTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "export_currency_formatting_fallback_total",
+			Help: "Total number of export rows rendered with the two-decimal fallback for an unsupported currency",
+		},
+	)
 )
 
 // ---------------------------------------------------------------------------
