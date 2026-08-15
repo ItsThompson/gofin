@@ -3,11 +3,15 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	fxpb "github.com/ItsThompson/gofin/services/fx/proto/fxpb"
 )
 
@@ -86,16 +90,48 @@ func (c *GRPCFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 	}, nil
 }
 
-// mapFxError maps every FX gRPC failure to the Expense service's safe
-// CONVERSION_UNAVAILABLE error. Expense validates the amount and both
-// currencies before calling FX, so the only reachable FX errors are Unavailable
-// (CONVERSION_UNAVAILABLE, PROVIDER_AUTH_FAILED, PROVIDER_RESPONSE_INVALID) and
-// FailedPrecondition (RATE_MISSING for live conversion). Spec 05 maps all four
-// to 503 CONVERSION_UNAVAILABLE with no ledger write. The gRPC status code is
-// intentionally not inspected because every FX failure is safe-failed
-// identically.
-func mapFxError(_ error) *apierr.Error {
-	return conversionUnavailableError()
+// mapFxError maps an FX gRPC failure to the Expense service's REST error while
+// preserving the FX error category (spec 05). Expense validates the amount and
+// both currencies before calling FX, so InvalidArgument is normally unreachable,
+// but the two services deploy independently: catalog or validation skew across a
+// rolling deploy must surface as a client error, not a retryable outage.
+//
+//   - Unavailable / FailedPrecondition: CONVERSION_UNAVAILABLE (503), no write.
+//   - InvalidArgument: 400 UNSUPPORTED_CURRENCY or 400 VALIDATION_ERROR.
+//   - Internal / unclassified: 500 internal server error, reported as server failure.
+//   - Non-gRPC transport failure: CONVERSION_UNAVAILABLE (503).
+func mapFxError(err error) *apierr.Error {
+	st, ok := status.FromError(err)
+	if !ok {
+		// A non-gRPC transport failure (connection refused, deadline) is a
+		// conversion outage, not an internal Expense failure.
+		return conversionUnavailableError()
+	}
+
+	switch st.Code() {
+	case codes.Unavailable, codes.FailedPrecondition:
+		// CONVERSION_UNAVAILABLE, PROVIDER_AUTH_FAILED,
+		// PROVIDER_RESPONSE_INVALID, and RATE_MISSING for live conversion all
+		// map to the safe retryable 503.
+		return conversionUnavailableError()
+	case codes.InvalidArgument:
+		// UNSUPPORTED_CURRENCY or INVALID_AMOUNT. Preserve the category so the
+		// client sees a 400, not a retryable 503.
+		if st.Message() == "UNSUPPORTED_CURRENCY" {
+			return &apierr.Error{
+				Code:    model.ErrUnsupportedCurrency,
+				Message: "The FX service rejected the currency pair",
+				Status:  http.StatusBadRequest,
+				Fields:  map[string]string{"transactionCurrency": "unsupported currency"},
+			}
+		}
+		return apierr.Validation("The FX service rejected the conversion amount", nil)
+	default:
+		// Internal and anything unclassified is an FX server failure, not a
+		// retryable conversion outage. The 5xx status makes the handler report
+		// it as a server error.
+		return apierr.Internal("currency conversion failed internally")
+	}
 }
 
 var _ FxClient = (*GRPCFxClient)(nil)

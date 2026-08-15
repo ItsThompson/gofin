@@ -264,11 +264,10 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	})).Return(fxResp, nil)
 
 	var captured *model.Expense
-	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(e *model.Expense) bool {
-		return true
-	})).Run(func(args mock.Arguments) {
-		captured = args.Get(1).(*model.Expense)
-	}).Return(&model.Expense{
+	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
+		Run(func(args mock.Arguments) {
+			captured = args.Get(1).(*model.Expense)
+		}).Return(&model.Expense{
 		ID:                    "exp-fx-1",
 		UserID:                "user-1",
 		Name:                  "Grocery shopping",
@@ -366,12 +365,11 @@ func TestCreateExpense_ForeignCurrencyFxUnavailableDoesNotWrite(t *testing.T) {
 	fxClient.AssertExpectations(t)
 }
 
-// TestCreateExpense_ForeignCurrencyFxGrpcUnavailableDoesNotWrite asserts that
-// when the FX gRPC client returns a gRPC Unavailable error (which covers
-// CONVERSION_UNAVAILABLE, PROVIDER_AUTH_FAILED, PROVIDER_RESPONSE_INVALID), the
-// service maps it to the safe CONVERSION_UNAVAILABLE REST error and does not
-// write a ledger row.
-func TestCreateExpense_ForeignCurrencyFxGrpcUnavailableDoesNotWrite(t *testing.T) {
+// TestCreateExpense_ForeignCurrencyFxClientReturnsConversionUnavailableDoesNotWrite
+// asserts that when the injected FxClient returns a conversion-unavailable
+// error, the service maps it to the safe CONVERSION_UNAVAILABLE REST error and
+// does not write a ledger row.
+func TestCreateExpense_ForeignCurrencyFxClientReturnsConversionUnavailableDoesNotWrite(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	fxClient := new(mockFxClient)
@@ -431,27 +429,31 @@ func TestCreateExpense_UnsupportedTransactionCurrencyDoesNotCallFx(t *testing.T)
 	fxClient.AssertNotCalled(t, "ConvertAmount", mock.Anything, mock.Anything)
 }
 
-// TestMapFxError asserts that all FX gRPC error codes map to the safe
-// CONVERSION_UNAVAILABLE api error.
+// TestMapFxError asserts FX gRPC status codes preserve their category (spec 05):
+// Unavailable/FailedPrecondition → 503, InvalidArgument → 400, Internal → 500,
+// and a non-gRPC transport failure → 503.
 func TestMapFxError(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
+		name           string
+		err            error
+		expectedCode   string
+		expectedStatus int
 	}{
-		{"unavailable", status.Error(codes.Unavailable, "CONVERSION_UNAVAILABLE")},
-		{"provider auth failed", status.Error(codes.Unavailable, "PROVIDER_AUTH_FAILED")},
-		{"provider response invalid", status.Error(codes.Unavailable, "PROVIDER_RESPONSE_INVALID")},
-		{"rate missing", status.Error(codes.FailedPrecondition, "RATE_MISSING")},
-		{"invalid argument", status.Error(codes.InvalidArgument, "UNSUPPORTED_CURRENCY")},
-		{"internal", status.Error(codes.Internal, "INTERNAL")},
-		{"non-grpc error", fmt.Errorf("connection refused")},
+		{"conversion unavailable", status.Error(codes.Unavailable, "CONVERSION_UNAVAILABLE"), model.ErrConversionUnavailable, http.StatusServiceUnavailable},
+		{"provider auth failed", status.Error(codes.Unavailable, "PROVIDER_AUTH_FAILED"), model.ErrConversionUnavailable, http.StatusServiceUnavailable},
+		{"provider response invalid", status.Error(codes.Unavailable, "PROVIDER_RESPONSE_INVALID"), model.ErrConversionUnavailable, http.StatusServiceUnavailable},
+		{"rate missing live conversion", status.Error(codes.FailedPrecondition, "RATE_MISSING"), model.ErrConversionUnavailable, http.StatusServiceUnavailable},
+		{"unsupported currency", status.Error(codes.InvalidArgument, "UNSUPPORTED_CURRENCY"), model.ErrUnsupportedCurrency, http.StatusBadRequest},
+		{"invalid amount", status.Error(codes.InvalidArgument, "INVALID_AMOUNT"), apierr.CodeValidation, http.StatusBadRequest},
+		{"internal", status.Error(codes.Internal, "INTERNAL"), apierr.CodeInternal, http.StatusInternalServerError},
+		{"non-grpc error", fmt.Errorf("connection refused"), model.ErrConversionUnavailable, http.StatusServiceUnavailable},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			apiErr := mapFxError(tt.err)
-			assert.Equal(t, model.ErrConversionUnavailable, apiErr.Code)
-			assert.Equal(t, http.StatusServiceUnavailable, apiErr.Status)
+			assert.Equal(t, tt.expectedCode, apiErr.Code)
+			assert.Equal(t, tt.expectedStatus, apiErr.Status)
 		})
 	}
 }
@@ -482,11 +484,10 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 		ExchangeRate:        "1",
 		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}
-	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(e *model.Expense) bool {
-		return true
-	})).Run(func(args mock.Arguments) {
-		captured = args.Get(1).(*model.Expense)
-	}).Return(returned, nil)
+	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
+		Run(func(args mock.Arguments) {
+			captured = args.Get(1).(*model.Expense)
+		}).Return(returned, nil)
 
 	resp, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
 

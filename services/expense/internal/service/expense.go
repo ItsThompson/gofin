@@ -705,16 +705,12 @@ func (s *ExpenseService) resolveExpensesWithCachedPeriodContext(ctx context.Cont
 
 // validateReportingCurrency checks that the period reporting currency is in the
 // shared static catalog. The period context is trusted (Finance owns it), so an
-// unsupported reporting currency is an internal invariant violation, not a
-// user input error.
+// unsupported reporting currency is an internal invariant violation, not a user
+// input error or a conversion outage. It surfaces as a 500 internal error.
 func validateReportingCurrency(reportingCurrency string) *apierr.Error {
 	code := normalizeCurrencyCode(reportingCurrency)
 	if !currencycatalog.IsSupported(code) {
-		return &apierr.Error{
-			Code:    model.ErrConversionUnavailable,
-			Message: "reporting currency is not supported",
-			Status:  http.StatusServiceUnavailable,
-		}
+		return apierr.Internal("reporting currency is not supported")
 	}
 	return nil
 }
