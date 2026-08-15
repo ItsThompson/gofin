@@ -37,9 +37,6 @@ func ResolveRESTPort() string {
 
 func Load() (*Config, error) {
 	appID := os.Getenv("OPEN_EXCHANGE_RATES_APP_ID")
-	if appID == "" {
-		return nil, fmt.Errorf("OPEN_EXCHANGE_RATES_APP_ID is required")
-	}
 
 	providerTimeout, err := durationFromEnv("FX_PROVIDER_TIMEOUT", defaultProviderTimeout)
 	if err != nil {

@@ -48,15 +48,21 @@ func run() error {
 	}
 
 	httpClient := &http.Client{Timeout: cfg.ProviderTimeout}
-	openRatesProvider := provider.NewOpenRatesProvider(
-		httpClient,
-		cfg.ProviderBaseURL,
-		cfg.OpenExchangeRatesAppID,
-		cfg.ProviderRetryCount,
-		time.Now,
-		logger,
-	)
-	converter := service.NewConverter(openRatesProvider, cache.NewRateCache(cfg.CacheMaxAge), cfg.CacheMaxAge, time.Now, logger)
+	var rateProvider service.RateProvider
+	if cfg.OpenExchangeRatesAppID == "" {
+		logger.Warn("OPEN_EXCHANGE_RATES_APP_ID is empty; using static dev rates")
+		rateProvider = provider.NewStaticProvider(time.Now)
+	} else {
+		rateProvider = provider.NewOpenRatesProvider(
+			httpClient,
+			cfg.ProviderBaseURL,
+			cfg.OpenExchangeRatesAppID,
+			cfg.ProviderRetryCount,
+			time.Now,
+			logger,
+		)
+	}
+	converter := service.NewConverter(rateProvider, cache.NewRateCache(cfg.CacheMaxAge), cfg.CacheMaxAge, time.Now, logger)
 
 	grpcServer := serverkit.NewGRPCServer()
 	pb.RegisterFxServiceServer(grpcServer, handler.NewGRPCHandler(converter))

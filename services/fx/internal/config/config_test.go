@@ -32,11 +32,11 @@ func TestLoad_ReadsFxEnvironment(t *testing.T) {
 	assert.True(t, cfg.IsProduction())
 }
 
-func TestLoad_RequiresProviderAppID(t *testing.T) {
-	_, err := Load()
+func TestLoad_AllowsEmptyProviderAppID(t *testing.T) {
+	cfg, err := Load()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "OPEN_EXCHANGE_RATES_APP_ID")
+	require.NoError(t, err)
+	assert.Empty(t, cfg.OpenExchangeRatesAppID)
 }
 
 func TestLoad_RejectsInvalidDuration(t *testing.T) {
