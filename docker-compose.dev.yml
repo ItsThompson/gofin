@@ -44,6 +44,8 @@ services:
     environment:
       - ENVIRONMENT=development
 
+  # Overlay for the internal-only FX Service. The internal-only/no-browser-route
+  # rule lives in docker-compose.yml; this block only adds dev volumes and ports.
   fx-service:
     volumes:
       - ./services/fx:/app

@@ -122,8 +122,10 @@ Suggestion record fields:
 | Field | Description |
 |-------|-------------|
 | `name` | Exact active expense name used as the aggregation key |
-| `amount` | Latest active amount for the name in minor units |
-| `currency` | Currency from the latest active expense row |
+| `transactionAmount` | Canonical latest active amount for the name in minor units |
+| `transactionCurrency` | Canonical currency from the latest active expense row |
+| `amount` | Deprecated mirror of `transactionAmount` |
+| `currency` | Deprecated mirror of `transactionCurrency` |
 | `expenseType` | Latest active expense type: `essentials`, `desires`, or `savings` |
 | `tagId` | Latest active tag ID |
 | `frequency` | Usage count after pro-rata group de-duplication |
@@ -175,7 +177,7 @@ During rollout the REST and gRPC `currency` field remains accepted as a deprecat
 
 Responses use `transactionCurrency` as the primary field and may include a deprecated `currency` mirror during the compatibility window.
 
-**Removal rule**: the legacy `currency` alias may be removed only after zero alias, duplicate, conflict, and default telemetry events for 30 consecutive days after the frontend cutover release.
+**Removal rule**: the legacy `currency` alias may be removed only after zero alias/default/conflict telemetry events for 30 consecutive days after the frontend cutover release.
 
 ### Period Context Behavior
 
@@ -202,7 +204,7 @@ FX is an internal gRPC service. Expense and Finance map its failures to safe RES
 | Missing target period | 404 | `PERIOD_NOT_FOUND` |
 | Immutable reporting currency update attempt | 400 | `REPORTING_CURRENCY_IMMUTABLE` |
 | Captured snapshot missing a needed currency | 409 | `SNAPSHOT_CURRENCY_MISSING` |
-| Legacy pro-rata missing snapshot for a different target currency | 409 | `MISSING_CAPTURED_RATE_SNAPSHOT` |
+| Legacy pro-rata missing snapshot for a different target currency | stored schedule `failure_reason` | `MISSING_CAPTURED_RATE_SNAPSHOT` (not returned over REST; the spec lists it as a 409 REST code) |
 
 FX failures never write partial ledger rows.
 
