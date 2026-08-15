@@ -184,6 +184,8 @@ func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.Ge
 		return nil, fmt.Errorf("getting expenses for period: %w", err)
 	}
 
+	s.resolveExpensesWithPeriodContext(ctx, req.UserID, req.Year, req.Month, expenses)
+
 	hasMore := int64(page)*int64(pageSize) < total
 
 	return &model.ExpenseListResponse{
@@ -208,6 +210,8 @@ func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id strin
 	if expense == nil {
 		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", id))
 	}
+
+	s.resolveExpenseWithPeriodContext(ctx, expense)
 
 	return expense, nil
 }
@@ -328,6 +332,12 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
 	}
 
+	// All entries in a correction chain share the same period (period is
+	// immutable across corrections), so resolve against the first entry's period.
+	for _, exp := range chain {
+		s.resolveExpenseWithPeriodContext(ctx, exp)
+	}
+
 	return chain, nil
 }
 
@@ -341,6 +351,10 @@ func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, gro
 	if err != nil {
 		return nil, fmt.Errorf("getting pro-rata group: %w", err)
 	}
+
+	// Pro-rata installments may target different periods, so resolve per unique
+	// period using a local cache to avoid redundant Finance calls.
+	s.resolveExpensesWithCachedPeriodContext(ctx, userID, expenses, make(map[string]string))
 
 	return expenses, nil
 }
@@ -376,10 +390,15 @@ func (s *ExpenseService) StreamAllUserExpenses(ctx context.Context, userID strin
 
 	go s.produceExpensePages(ctx, userID, pageSize, rows, errc)
 
+	// Local cache for period reporting currency by "year:month" key, so the
+	// stream resolves legacy snapshots without a Finance call per row.
+	periodCurrencyCache := make(map[string]string)
+
 	for expense := range rows {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		s.resolveExpensesWithCachedPeriodContext(ctx, userID, []*model.Expense{expense}, periodCurrencyCache)
 		if err := send(expense); err != nil {
 			return err
 		}
@@ -516,6 +535,157 @@ func buildProviderSnapshot(transactionAmount int64, transactionCurrency, reporti
 		ExchangeRateSource:    fx.Source,
 		ExchangeRateTimestamp: fx.RateTimestamp,
 		ExchangeRateExpiresAt: fx.ExpiresAt,
+	}
+}
+
+// resolveLegacySnapshot normalizes a legacy-synthesized expense to the period
+// reporting currency and emits telemetry. It is called by every read path after
+// the repository returns expenses, ensuring expense detail, expense log,
+// dashboard, correction history, pro-rata group, and export streams all use the
+// same snapshot resolution behavior (spec AC10).
+//
+// The repository's rowToExpense synthesizes a migration snapshot for legacy
+// rows (null money_snapshot_version) but leaves the synthesized currencies as
+// the legacy currency. This method normalizes both TransactionCurrency and
+// ReportingCurrency to the period reporting currency and emits the appropriate
+// telemetry event:
+//
+//   - legacy_snapshot_synthesized: legacy currency matches period currency
+//   - legacy_currency_mismatch_normalized: legacy currency is supported but differs
+//   - legacy_currency_unsupported_normalized: legacy currency is not in the catalog
+//   - partial_snapshot_fields_ignored: legacy row had partial nullable columns
+//
+// Non-legacy rows (version-1 with complete fields) pass through unchanged.
+func (s *ExpenseService) resolveLegacySnapshot(expense *model.Expense, periodReportingCurrency string) {
+	if !expense.LegacySynthesized {
+		return
+	}
+
+	periodCurrency := normalizeCurrencyCode(periodReportingCurrency)
+	legacyCurrency := normalizeCurrencyCode(expense.Currency)
+
+	if expense.PartialSnapshotFields {
+		s.logger.Info("partial snapshot fields ignored on legacy row",
+			slog.String("event", "partial_snapshot_fields_ignored"),
+			slog.String("expense_id", expense.ID),
+		)
+	}
+
+	// Normalize both synthesized currencies to the period reporting currency.
+	// The legacy amount is treated as already denominated in the period reporting
+	// currency (spec historical data policy), so TransactionAmount and
+	// ReportingAmount are unchanged.
+	expense.TransactionCurrency = periodCurrency
+	expense.ReportingCurrency = periodCurrency
+
+	switch {
+	case legacyCurrency == "":
+		// No legacy currency field to compare; nothing more to emit.
+	case legacyCurrency == periodCurrency:
+		s.logger.Info("legacy snapshot synthesized",
+			slog.String("event", "legacy_snapshot_synthesized"),
+			slog.String("expense_id", expense.ID),
+			slog.String("reporting_currency", periodCurrency),
+		)
+	case currencycatalog.IsSupported(legacyCurrency):
+		s.logger.Info("legacy currency mismatch normalized to period reporting currency",
+			slog.String("event", "legacy_currency_mismatch_normalized"),
+			slog.String("expense_id", expense.ID),
+			slog.String("legacy_currency", legacyCurrency),
+			slog.String("period_reporting_currency", periodCurrency),
+		)
+	default:
+		s.logger.Info("unsupported legacy currency normalized to period reporting currency",
+			slog.String("event", "legacy_currency_unsupported_normalized"),
+			slog.String("expense_id", expense.ID),
+			slog.String("legacy_currency", legacyCurrency),
+			slog.String("period_reporting_currency", periodCurrency),
+		)
+	}
+}
+
+// resolveExpensesWithPeriodContext fetches the period reporting currency for the
+// given user/year/month and resolves legacy snapshots in the expense list. If
+// the period context fetch fails, legacy rows keep the repository's basic
+// synthesis (legacy currency as both currencies) and a warning is logged so the
+// read does not fail solely because the period context is unavailable.
+func (s *ExpenseService) resolveExpensesWithPeriodContext(ctx context.Context, userID string, year, month int32, expenses []*model.Expense) {
+	if !hasLegacyRows(expenses) {
+		return
+	}
+	period, err := s.periodClient.GetPeriodContext(ctx, userID, year, month)
+	if err != nil {
+		s.logger.Warn("failed to fetch period context for legacy resolution",
+			slog.String("event", "period_context_fetch_failed"),
+			slog.String("user_id", userID),
+			slog.Int("year", int(year)),
+			slog.Int("month", int(month)),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	for _, exp := range expenses {
+		s.resolveLegacySnapshot(exp, period.ReportingCurrency)
+	}
+}
+
+// resolveExpenseWithPeriodContext resolves a single expense's legacy snapshot
+// using its own period year/month. Used by GetExpense and GetCorrectionHistory.
+func (s *ExpenseService) resolveExpenseWithPeriodContext(ctx context.Context, expense *model.Expense) {
+	if expense == nil || !expense.LegacySynthesized {
+		return
+	}
+	period, err := s.periodClient.GetPeriodContext(ctx, expense.UserID, expense.PeriodYear, expense.PeriodMonth)
+	if err != nil {
+		s.logger.Warn("failed to fetch period context for legacy resolution",
+			slog.String("event", "period_context_fetch_failed"),
+			slog.String("user_id", expense.UserID),
+			slog.Int("year", int(expense.PeriodYear)),
+			slog.Int("month", int(expense.PeriodMonth)),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	s.resolveLegacySnapshot(expense, period.ReportingCurrency)
+}
+
+// hasLegacyRows returns true if any expense in the list was legacy-synthesized.
+func hasLegacyRows(expenses []*model.Expense) bool {
+	for _, exp := range expenses {
+		if exp.LegacySynthesized {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveExpensesWithCachedPeriodContext resolves legacy snapshots for a list
+// of expenses that may span multiple periods. It caches period context per
+// unique (year, month) pair to avoid redundant Finance calls. Used by pro-rata
+// group reads and the export stream.
+func (s *ExpenseService) resolveExpensesWithCachedPeriodContext(ctx context.Context, userID string, expenses []*model.Expense, cache map[string]string) {
+	for _, exp := range expenses {
+		if !exp.LegacySynthesized {
+			continue
+		}
+		key := fmt.Sprintf("%d:%d", exp.PeriodYear, exp.PeriodMonth)
+		periodCurrency, ok := cache[key]
+		if !ok {
+			period, err := s.periodClient.GetPeriodContext(ctx, userID, exp.PeriodYear, exp.PeriodMonth)
+			if err != nil {
+				s.logger.Warn("failed to fetch period context for legacy resolution",
+					slog.String("event", "period_context_fetch_failed"),
+					slog.String("user_id", userID),
+					slog.Int("year", int(exp.PeriodYear)),
+					slog.Int("month", int(exp.PeriodMonth)),
+					slog.String("error", err.Error()),
+				)
+				continue
+			}
+			periodCurrency = period.ReportingCurrency
+			cache[key] = periodCurrency
+		}
+		s.resolveLegacySnapshot(exp, periodCurrency)
 	}
 }
 
