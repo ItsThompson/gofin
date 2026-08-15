@@ -26,6 +26,7 @@ type Config struct {
 	ImmudbUsername     string
 	ImmudbPassword     string
 	FinanceServiceAddr string
+	FxServiceAddr      string
 	LogLevel           string
 	Environment        string
 	RESTPort           string
@@ -55,6 +56,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("FINANCE_SERVICE_ADDR is required")
 	}
 
+	fxServiceAddr := os.Getenv("FX_SERVICE_ADDR")
+	if fxServiceAddr == "" {
+		return nil, fmt.Errorf("FX_SERVICE_ADDR is required")
+	}
+
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
@@ -77,6 +83,7 @@ func Load() (*Config, error) {
 		ImmudbUsername:     immudbUsername,
 		ImmudbPassword:     immudbPassword,
 		FinanceServiceAddr: financeServiceAddr,
+		FxServiceAddr:      fxServiceAddr,
 		LogLevel:           logLevel,
 		Environment:        environment,
 		RESTPort:           restPort,

@@ -162,6 +162,7 @@ services:
       - IMMUDB_USERNAME=${IMMUDB_USERNAME:-immudb}
       - IMMUDB_PASSWORD=${IMMUDB_PASSWORD:-immudb}
       - FINANCE_SERVICE_ADDR=finance-service:9083
+      - FX_SERVICE_ADDR=fx-service:9085
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - SENTRY_DSN_BACKEND=${SENTRY_DSN_BACKEND:-}

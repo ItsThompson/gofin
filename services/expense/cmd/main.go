@@ -85,7 +85,16 @@ func run() error {
 	)
 
 	periodClient := service.NewGRPCPeriodContextClient(financepb.NewFinanceServiceClient(financeConn))
-	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+
+	fxClient, err := service.NewGRPCFxClientFromAddr(cfg.FxServiceAddr)
+	if err != nil {
+		return fmt.Errorf("connecting to fx service at %s: %w", cfg.FxServiceAddr, err)
+	}
+	logger.Info("fx service gRPC client created",
+		slog.String("addr", cfg.FxServiceAddr),
+	)
+
+	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()
