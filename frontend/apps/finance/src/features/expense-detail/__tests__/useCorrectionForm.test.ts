@@ -227,6 +227,7 @@ describe("useCorrectionForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Groceries",
         amount: 5000,
+        transactionCurrency: "USD",
         expenseType: "essentials",
         tagId: "tag-food",
         expenseDate: "2026-05-02",
@@ -388,6 +389,7 @@ describe("useCorrectionForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Updated Name",
         amount: 7550,
+        transactionCurrency: "USD",
         expenseType: "desires",
         tagId: "tag-transport",
         expenseDate: "2026-05-10",

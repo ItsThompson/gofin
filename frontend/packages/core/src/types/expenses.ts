@@ -65,6 +65,8 @@ export interface CorrectExpenseRequest {
   name: string;
   /** Amount in transaction currency minor units. */
   amount: number;
+  /** Canonical transaction currency for the correction. */
+  transactionCurrency?: string;
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
