@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
@@ -1144,4 +1146,100 @@ func TestApplyProRata_DashboardExcludesPendingAndFailed(t *testing.T) {
 	summary, err := svc.GetPeriodSummary(context.Background(), "user-1", 2026, 12)
 	require.NoError(t, err)
 	assert.NotNil(t, summary)
+}
+
+// TestApplyProRata_ExpenseSnapshotCurrencyMissingMarksFailed asserts that when
+// Expense surfaces a snapshot_currency_missing failure (e.g. the transaction
+// currency is missing from the captured snapshot, which Finance's target-only
+// pre-check does not cover), Finance classifies it as deterministic and moves the
+// row to failed rather than stranding it in pending for a retry that would fail
+// identically.
+func TestApplyProRata_ExpenseSnapshotCurrencyMissingMarksFailed(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// Snapshot covers the target reporting currency (USD) so Finance's pre-check
+	// passes, but Expense's defense-in-depth coverage check fails for the
+	// transaction currency (EUR is missing).
+	snap := &model.CapturedRateSnapshot{
+		SnapshotVersion: 1, Source: "open_exchange_rates", BaseCurrency: "USD",
+		RateTimestamp: "2026-05-15T10:00:00Z", CapturedAt: "2026-05-15T12:00:00Z",
+		ExpiresAt: "2026-05-15T13:00:00Z",
+		RatesByCurrency: map[string]string{"USD": "1", "GBP": "0.79"},
+	}
+	pending := []*model.ProRataSchedule{{
+		ID: "s-snap", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "EUR", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 12,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "EUR",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 12, "USD")
+
+	// Finance's target-currency pre-check passes (USD is in the snapshot), so it
+	// calls Expense, which surfaces the snapshot_currency_missing failure.
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
+		Return(nil, &apierr.Error{Code: model.ErrSnapshotCurrencyMissing, Message: "snapshot currency missing", Status: 409})
+	repo.On("MarkProRataFailed", mock.Anything, "s-snap", model.ErrSnapshotCurrencyMissing).Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 12, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	repo.AssertCalled(t, "MarkProRataFailed", mock.Anything, "s-snap", model.ErrSnapshotCurrencyMissing)
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+}
+
+// TestClassifyProRataExpenseError_TableTest asserts the deterministic-vs-transient
+// classification of Expense-returned errors, covering both the in-process
+// *apierr.Error path (mocks) and the wrapped gRPC status path (production).
+func TestClassifyProRataExpenseError_TableTest(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "in-process snapshot currency missing",
+			err:  &apierr.Error{Code: model.ErrSnapshotCurrencyMissing, Message: "missing", Status: 409},
+			want: model.ErrSnapshotCurrencyMissing,
+		},
+		{
+			name: "in-process conversion unavailable is transient",
+			err:  &apierr.Error{Code: model.ErrConversionUnavailable, Message: "unavailable", Status: 503},
+			want: "",
+		},
+		{
+			name: "gRPC FailedPrecondition maps to snapshot currency missing",
+			err:  status.Error(codes.FailedPrecondition, "The captured rate snapshot does not contain a required currency"),
+			want: model.ErrSnapshotCurrencyMissing,
+		},
+		{
+			name: "gRPC Unavailable is transient",
+			err:  status.Error(codes.Unavailable, "conversion unavailable"),
+			want: "",
+		},
+		{
+			name: "gRPC Internal is transient",
+			err:  status.Error(codes.Internal, "internal"),
+			want: "",
+		},
+		{
+			name: "wrapped gRPC FailedPrecondition is still classified",
+			err:  fmt.Errorf("gRPC CreateProRataInstallment: %w", status.Error(codes.FailedPrecondition, "snapshot currency missing")),
+			want: model.ErrSnapshotCurrencyMissing,
+		},
+		{
+			name: "plain non-gRPC error is transient",
+			err:  fmt.Errorf("some transport failure"),
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classifyProRataExpenseError(tt.err))
+		})
+	}
 }

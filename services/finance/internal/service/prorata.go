@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
@@ -274,9 +277,13 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 	}
 
 	applied := make([]*model.ProRataSchedule, 0, len(pending))
+	failed := 0
 	for _, schedule := range pending {
-		if appliedRow := s.applyOneProRataSchedule(ctx, userID, schedule, targetReportingCurrency, trustedCtx); appliedRow != nil {
+		switch appliedRow := s.applyOneProRataSchedule(ctx, userID, schedule, targetReportingCurrency, trustedCtx); {
+		case appliedRow != nil:
 			applied = append(applied, appliedRow)
+		case schedule.Status == "failed":
+			failed++
 		}
 	}
 
@@ -287,6 +294,7 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 		slog.Int("month", int(period.Month)),
 		slog.Int("pending", len(pending)),
 		slog.Int("applied", len(applied)),
+		slog.Int("failed", failed),
 	)
 
 	return applied, nil
@@ -332,16 +340,22 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 		CapturedRateSnapshot: schedule.CapturedRateSnapshot,
 	})
 	if err != nil {
-		// Transient Expense write or snapshot-conversion failure: leave the row
-		// pending so it can be retried. No partial expense row is visible because
-		// Expense only persists after a successful conversion.
-		s.logger.Error("pro-rata installment write failed; schedule remains pending",
-			slog.String("method", "applyOneProRataSchedule"),
-			slog.String("schedule_id", schedule.ID),
-			slog.String("pro_rata_group", schedule.ProRataGroup),
-			slog.String("failure_reason", "transient_write_failure"),
-			slog.String("error", err.Error()),
-		)
+		// A deterministic typed failure (snapshot cannot derive a needed currency)
+		// would recur identically on retry, so move the row to failed. Any other
+		// error (conversion unavailable, internal, transport) is transient: leave
+		// the row pending so it can be retried. No partial expense row is visible
+		// because Expense only persists after a successful conversion.
+		if reason := classifyProRataExpenseError(err); reason != "" {
+			s.markProRataFailed(ctx, schedule, reason)
+		} else {
+			s.logger.Error("pro-rata installment write failed; schedule remains pending",
+				slog.String("method", "applyOneProRataSchedule"),
+				slog.String("schedule_id", schedule.ID),
+				slog.String("pro_rata_group", schedule.ProRataGroup),
+				slog.String("failure_reason", "transient_write_failure"),
+				slog.String("error", err.Error()),
+			)
+		}
 		return nil
 	}
 
@@ -384,13 +398,21 @@ func (s *FinanceService) applyLegacyProRataSchedule(ctx context.Context, userID 
 		LegacyMigration: true,
 	})
 	if err != nil {
-		s.logger.Error("legacy pro-rata installment write failed; schedule remains pending",
-			slog.String("method", "applyLegacyProRataSchedule"),
-			slog.String("schedule_id", schedule.ID),
-			slog.String("pro_rata_group", schedule.ProRataGroup),
-			slog.String("failure_reason", "transient_write_failure"),
-			slog.String("error", err.Error()),
-		)
+		// Legacy schedules have no captured snapshot, so the only deterministic
+		// Expense-side failure is a snapshot-coverage error surfaced by
+		// defense-in-depth. A currency mismatch is pre-checked by Finance, so any
+		// other error here is transient and the row stays pending for retry.
+		if reason := classifyProRataExpenseError(err); reason != "" {
+			s.markProRataFailed(ctx, schedule, reason)
+		} else {
+			s.logger.Error("legacy pro-rata installment write failed; schedule remains pending",
+				slog.String("method", "applyLegacyProRataSchedule"),
+				slog.String("schedule_id", schedule.ID),
+				slog.String("pro_rata_group", schedule.ProRataGroup),
+				slog.String("failure_reason", "transient_write_failure"),
+				slog.String("error", err.Error()),
+			)
+		}
 		return nil
 	}
 
@@ -405,6 +427,38 @@ func (s *FinanceService) applyLegacyProRataSchedule(ctx context.Context, userID 
 
 	schedule.Status = "applied"
 	return schedule
+}
+
+// classifyProRataExpenseError inspects an error returned by the Expense
+// CreateProRataInstallment call and returns the deterministic pro-rata failure
+// reason when the error is a typed failure that would recur identically on retry
+// (snapshot_currency_missing). A transient or unclassified error returns an empty
+// string so the caller leaves the schedule pending for retry.
+//
+// Finance pre-checks snapshot coverage for the target reporting currency before
+// calling Expense, but Expense also validates the transaction currency and
+// snapshot coverage as defense-in-depth. If that check surfaces a
+// snapshot_currency_missing failure, the captured intent cannot service this
+// period and the row must move to failed rather than strand in pending.
+//
+// Two transports are handled: an in-process *apierr.Error (mocks / same-process
+// clients) and a wrapped gRPC status error (the production gRPC client, which
+// maps ErrSnapshotCurrencyMissing to codes.FailedPrecondition).
+func classifyProRataExpenseError(err error) string {
+	var apiErr *apierr.Error
+	if errors.As(err, &apiErr) {
+		if apiErr.Code == model.ErrSnapshotCurrencyMissing {
+			return model.ErrSnapshotCurrencyMissing
+		}
+		return ""
+	}
+	var statusErr interface{ GRPCStatus() *status.Status }
+	if errors.As(err, &statusErr) {
+		if statusErr.GRPCStatus().Code() == codes.FailedPrecondition {
+			return model.ErrSnapshotCurrencyMissing
+		}
+	}
+	return ""
 }
 
 // markProRataFailed moves a schedule to failed with the typed failure reason and
