@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 )
 
 // legacyExpense builds an expense that simulates what the repository returns
@@ -48,6 +50,12 @@ func newLegacyTestService(repo *mockExpenseRepository, periodClient *mockPeriodC
 	return NewExpenseService(repo, periodClient, nil, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 }
 
+// newLegacyTestServiceWithBuffer returns a service whose slog output is
+// captured in buf so tests can assert telemetry events were emitted.
+func newLegacyTestServiceWithBuffer(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, buf *bytes.Buffer) *ExpenseService {
+	return NewExpenseService(repo, periodClient, nil, time.Now, slog.New(slog.NewJSONHandler(buf, nil)))
+}
+
 func periodClientReturning(currency string) *mockPeriodContextClient {
 	c := new(mockPeriodContextClient)
 	c.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -61,7 +69,8 @@ func periodClientReturning(currency string) *mockPeriodContextClient {
 func TestResolveLegacySnapshot_MatchingCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	pc := periodClientReturning("USD")
-	svc := newLegacyTestService(repo, pc)
+	var buf bytes.Buffer
+	svc := newLegacyTestServiceWithBuffer(repo, pc, &buf)
 
 	exp := legacyExpense("exp-1", "USD", 2026, 5)
 	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").Return(exp, nil)
@@ -73,6 +82,7 @@ func TestResolveLegacySnapshot_MatchingCurrency(t *testing.T) {
 	assert.Equal(t, int64(2500), result.TransactionAmount)
 	assert.Equal(t, int64(2500), result.ReportingAmount)
 	assert.Equal(t, model.ExchangeSourceMigration, result.ExchangeRateSource)
+	assert.Contains(t, buf.String(), "legacy_snapshot_synthesized")
 	pc.AssertExpectations(t)
 }
 
@@ -82,7 +92,8 @@ func TestResolveLegacySnapshot_MatchingCurrency(t *testing.T) {
 func TestResolveLegacySnapshot_DifferingCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	pc := periodClientReturning("USD")
-	svc := newLegacyTestService(repo, pc)
+	var buf bytes.Buffer
+	svc := newLegacyTestServiceWithBuffer(repo, pc, &buf)
 
 	exp := legacyExpense("exp-1", "EUR", 2026, 5)
 	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").Return(exp, nil)
@@ -94,6 +105,7 @@ func TestResolveLegacySnapshot_DifferingCurrency(t *testing.T) {
 	assert.Equal(t, int64(2500), result.TransactionAmount)
 	assert.Equal(t, int64(2500), result.ReportingAmount)
 	assert.Equal(t, "EUR", result.Currency, "legacy Currency field is preserved as obsolete metadata")
+	assert.Contains(t, buf.String(), "legacy_currency_mismatch_normalized")
 	pc.AssertExpectations(t)
 }
 
@@ -102,7 +114,8 @@ func TestResolveLegacySnapshot_DifferingCurrency(t *testing.T) {
 func TestResolveLegacySnapshot_UnsupportedCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	pc := periodClientReturning("USD")
-	svc := newLegacyTestService(repo, pc)
+	var buf bytes.Buffer
+	svc := newLegacyTestServiceWithBuffer(repo, pc, &buf)
 
 	exp := legacyExpense("exp-1", "XYZ", 2026, 5) // unsupported currency
 	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").Return(exp, nil)
@@ -112,6 +125,7 @@ func TestResolveLegacySnapshot_UnsupportedCurrency(t *testing.T) {
 	assert.Equal(t, "USD", result.TransactionCurrency)
 	assert.Equal(t, "USD", result.ReportingCurrency)
 	assert.Equal(t, "XYZ", result.Currency, "legacy Currency field preserved")
+	assert.Contains(t, buf.String(), "legacy_currency_unsupported_normalized")
 	pc.AssertExpectations(t)
 }
 
@@ -121,7 +135,8 @@ func TestResolveLegacySnapshot_UnsupportedCurrency(t *testing.T) {
 func TestResolveLegacySnapshot_PartialSnapshotFields(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	pc := periodClientReturning("USD")
-	svc := newLegacyTestService(repo, pc)
+	var buf bytes.Buffer
+	svc := newLegacyTestServiceWithBuffer(repo, pc, &buf)
 
 	exp := legacyExpense("exp-1", "USD", 2026, 5)
 	exp.PartialSnapshotFields = true
@@ -131,6 +146,7 @@ func TestResolveLegacySnapshot_PartialSnapshotFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "USD", result.TransactionCurrency)
 	assert.Equal(t, "USD", result.ReportingCurrency)
+	assert.Contains(t, buf.String(), "partial_snapshot_fields_ignored")
 	pc.AssertExpectations(t)
 }
 
@@ -261,4 +277,49 @@ func TestGetExpense_PeriodContextFailureDoesNotFailRead(t *testing.T) {
 	assert.Equal(t, "EUR", result.TransactionCurrency)
 	assert.Equal(t, "EUR", result.ReportingCurrency)
 	pc.AssertExpectations(t)
+}
+
+// TestStreamAllUserExpenses_ResolvesLegacyRowsWithPeriodCache asserts the
+// export stream normalizes legacy rows to each row's period reporting currency
+// and fetches period context once per unique period (not once per row).
+func TestStreamAllUserExpenses_ResolvesLegacyRowsWithPeriodCache(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	pc := new(mockPeriodContextClient)
+	pc.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return(&PeriodContext{PeriodID: "p1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrency: "EUR"}, nil)
+	pc.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(6)).
+		Return(&PeriodContext{PeriodID: "p2", UserID: "user-1", Year: 2026, Month: 6, ReportingCurrency: "JPY"}, nil)
+
+	var buf bytes.Buffer
+	svc := NewExpenseService(repo, pc, nil, time.Now, slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	// Two legacy rows in the same period (2026/5) and one in 2026/6. All carry
+	// a legacy USD currency that must normalize to each period's reporting
+	// currency.
+	page := []*model.Expense{
+		legacyExpense("exp-1", "USD", 2026, 5),
+		legacyExpense("exp-2", "USD", 2026, 5),
+		legacyExpense("exp-3", "USD", 2026, 6),
+	}
+	repo.On("GetExpensesByUserAfter", mock.Anything, "user-1", repository.ExpenseCursor{}, int32(10)).
+		Return(page, repository.ExpenseCursor{}, false, nil)
+
+	var got []*model.Expense
+	err := collectStream(t, svc, "user-1", 10, func(e *model.Expense) error {
+		got = append(got, e)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+
+	assert.Equal(t, "EUR", got[0].TransactionCurrency)
+	assert.Equal(t, "EUR", got[0].ReportingCurrency)
+	assert.Equal(t, "EUR", got[1].TransactionCurrency)
+	assert.Equal(t, "EUR", got[1].ReportingCurrency)
+	assert.Equal(t, "JPY", got[2].TransactionCurrency)
+	assert.Equal(t, "JPY", got[2].ReportingCurrency)
+
+	// One Finance call per unique period, not one per row.
+	pc.AssertNumberOfCalls(t, "GetPeriodContext", 2)
+	assert.Contains(t, buf.String(), "legacy_currency_mismatch_normalized")
 }

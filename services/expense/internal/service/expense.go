@@ -333,9 +333,10 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 	}
 
 	// All entries in a correction chain share the same period (period is
-	// immutable across corrections), so resolve against the first entry's period.
-	for _, exp := range chain {
-		s.resolveExpenseWithPeriodContext(ctx, exp)
+	// immutable across corrections), so resolve period context once and apply it
+	// to every entry instead of issuing one Finance call per row.
+	if len(chain) > 0 {
+		s.resolveExpensesWithPeriodContext(ctx, userID, chain[0].PeriodYear, chain[0].PeriodMonth, chain)
 	}
 
 	return chain, nil
@@ -563,6 +564,19 @@ func (s *ExpenseService) resolveLegacySnapshot(expense *model.Expense, periodRep
 
 	periodCurrency := normalizeCurrencyCode(periodReportingCurrency)
 	legacyCurrency := normalizeCurrencyCode(expense.Currency)
+
+	// Defensive guard: normalize only when the period reporting currency is
+	// supported by the shared catalog. The Finance migration guarantees every
+	// stored period has a supported currency, but this makes the conditional
+	// explicit rather than relying on that invariant (review N3).
+	if !currencycatalog.IsSupported(periodCurrency) {
+		s.logger.Warn("period reporting currency unsupported for legacy normalization",
+			slog.String("event", "period_reporting_currency_unsupported"),
+			slog.String("expense_id", expense.ID),
+			slog.String("reporting_currency", periodCurrency),
+		)
+		return
+	}
 
 	if expense.PartialSnapshotFields {
 		s.logger.Info("partial snapshot fields ignored on legacy row",

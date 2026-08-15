@@ -1,6 +1,11 @@
 package migrations
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -85,4 +90,72 @@ func TestMigrationReportingCurrencyDownDocumentsHistoryLoss(t *testing.T) {
 		"down migration must drop the reporting_currency column")
 	assert.Contains(t, sql, "DROP TABLE IF EXISTS finance.period_reporting_currency_migration_report",
 		"down migration must drop the migration report table")
+}
+
+// TestMigrationReportingCurrencyCodesMatchSharedCatalog asserts the supported-
+// currency codes hardcoded in the migration (temp table and CHECK constraint)
+// are exactly the codes in shared/currency/catalog.json. The catalog is the
+// single source of truth (spec 04); this test flags drift so a future catalog
+// change does not silently diverge the migration's validation/CHECK from the
+// shared catalog (review S5).
+func TestMigrationReportingCurrencyCodesMatchSharedCatalog(t *testing.T) {
+	upSQL, err := FS.ReadFile("000006_add_period_reporting_currency.up.sql")
+	require.NoError(t, err)
+	sql := string(upSQL)
+
+	// All catalog codes are exactly three uppercase letters. Other quoted SQL
+	// literals ('finance_default', 'auth_user', 'fallback', etc.) are longer and
+	// do not match this pattern, so the regex isolates the currency code list.
+	codePattern := regexp.MustCompile(`'([A-Z]{3})'`)
+	sqlCodes := map[string]bool{}
+	for _, match := range codePattern.FindAllStringSubmatch(sql, -1) {
+		sqlCodes[match[1]] = true
+	}
+
+	catalogCodes := loadCatalogCodes(t)
+
+	require.Len(t, sqlCodes, len(catalogCodes),
+		"SQL currency codes must match the shared catalog size")
+	for code := range catalogCodes {
+		assert.True(t, sqlCodes[code], "migration SQL missing catalog code %s", code)
+	}
+	for code := range sqlCodes {
+		assert.True(t, catalogCodes[code], "migration SQL contains non-catalog code %s", code)
+	}
+}
+
+// catalogSourceEntry is the subset of shared/currency/catalog.json the drift
+// guard needs.
+type catalogSourceEntry struct {
+	Code string `json:"code"`
+}
+
+// loadCatalogCodes reads the shared currency catalog JSON via the test file's
+// absolute path, mirroring the shared/currency contract-test pattern.
+func loadCatalogCodes(t *testing.T) map[string]bool {
+	t.Helper()
+
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locating migrations test file")
+	}
+
+	// migrations_test.go lives at services/finance/db/migrations/; walk up to the
+	// repo root then into shared/currency/catalog.json.
+	catalogPath := filepath.Join(filepath.Dir(filename), "..", "..", "..", "..", "shared", "currency", "catalog.json")
+	data, err := os.ReadFile(catalogPath)
+	if err != nil {
+		t.Fatalf("reading shared currency catalog: %v", err)
+	}
+
+	var entries []catalogSourceEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		t.Fatalf("parsing shared currency catalog: %v", err)
+	}
+
+	codes := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		codes[entry.Code] = true
+	}
+	return codes
 }
