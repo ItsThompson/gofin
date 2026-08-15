@@ -32,11 +32,13 @@ func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 	expenses := make([]ExpenseData, len(resp.GetData()))
 	for i, exp := range resp.GetData() {
 		expenses[i] = ExpenseData{
-			ID:          exp.GetId(),
-			Amount:      exp.GetAmount(),
-			ExpenseType: exp.GetExpenseType(),
-			TagID:       exp.GetTagId(),
-			ExpenseDate: exp.GetExpenseDate(),
+			ID:                exp.GetId(),
+			Amount:            exp.GetAmount(),
+			ReportingAmount:   exp.GetReportingAmount(),
+			ReportingCurrency: exp.GetReportingCurrency(),
+			ExpenseType:       exp.GetExpenseType(),
+			TagID:             exp.GetTagId(),
+			ExpenseDate:       exp.GetExpenseDate(),
 		}
 	}
 

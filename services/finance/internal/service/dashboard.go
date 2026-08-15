@@ -12,6 +12,17 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
+// reportingAmount returns the period-reporting amount to aggregate for an
+// expense. New rows (and synthesized legacy rows) populate ReportingAmount; the
+// Amount fallback keeps existing test fixtures and any caller that only sets
+// Amount working during the rollout.
+func reportingAmount(exp ExpenseData) int64 {
+	if exp.ReportingAmount != 0 {
+		return exp.ReportingAmount
+	}
+	return exp.Amount
+}
+
 // GetPeriodSummary computes the full dashboard summary for a budget period.
 // It fetches the period from the repository and expenses from the expense service,
 // then computes totals, pacing, and category breakdowns.
@@ -164,14 +175,14 @@ func ComputeSpendingTrends(periods []*model.BudgetPeriod, expensesByMonth [][]Ex
 
 		expenses := expensesByMonth[i]
 		for _, exp := range expenses {
-			point.TotalSpent += exp.Amount
+			point.TotalSpent += reportingAmount(exp)
 			switch exp.ExpenseType {
 			case "essentials":
-				point.EssentialsSpent += exp.Amount
+				point.EssentialsSpent += reportingAmount(exp)
 			case "desires":
-				point.DesiresSpent += exp.Amount
+				point.DesiresSpent += reportingAmount(exp)
 			case "savings":
-				point.SavingsSpent += exp.Amount
+				point.SavingsSpent += reportingAmount(exp)
 			}
 		}
 
@@ -293,7 +304,7 @@ func (s *FinanceService) getTotalSpentForPeriod(ctx context.Context, userID stri
 	}
 	var total int64
 	for _, exp := range expenses {
-		total += exp.Amount
+		total += reportingAmount(exp)
 	}
 	return total, nil
 }
@@ -308,14 +319,14 @@ func ComputePeriodSummary(period *model.BudgetPeriod, expenses []ExpenseData, ye
 
 	var totalSpent, essentialsSpent, desiresSpent, savingsSpent int64
 	for _, exp := range expenses {
-		totalSpent += exp.Amount
+		totalSpent += reportingAmount(exp)
 		switch exp.ExpenseType {
 		case "essentials":
-			essentialsSpent += exp.Amount
+			essentialsSpent += reportingAmount(exp)
 		case "desires":
-			desiresSpent += exp.Amount
+			desiresSpent += reportingAmount(exp)
 		case "savings":
-			savingsSpent += exp.Amount
+			savingsSpent += reportingAmount(exp)
 		}
 	}
 
@@ -376,8 +387,8 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 	tagAmounts := make(map[string]int64)
 	var totalSpent int64
 	for _, exp := range expenses {
-		tagAmounts[exp.TagID] += exp.Amount
-		totalSpent += exp.Amount
+		tagAmounts[exp.TagID] += reportingAmount(exp)
+		totalSpent += reportingAmount(exp)
 	}
 
 	result := make([]model.TagSpending, 0, len(tagAmounts))
@@ -414,7 +425,7 @@ func ComputeCumulativeSpend(expenses []ExpenseData, totalBudget int64, year, mon
 	for _, exp := range expenses {
 		day := parseDayForPeriod(exp.ExpenseDate, year, month)
 		if day > 0 && day <= daysInPeriod {
-			daySpend[day] += exp.Amount
+			daySpend[day] += reportingAmount(exp)
 		}
 	}
 

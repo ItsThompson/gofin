@@ -147,7 +147,7 @@ func sumDesires(expenses []ExpenseData) int64 {
 	var total int64
 	for _, expense := range expenses {
 		if expense.ExpenseType == "desires" {
-			total += expense.Amount
+			total += reportingAmount(expense)
 		}
 	}
 	return total

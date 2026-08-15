@@ -278,8 +278,8 @@ func TestComputeCumulativeSpend_IdealLine(t *testing.T) {
 	points := ComputeCumulativeSpend([]ExpenseData{}, 310000, 2025, 1, 31)
 
 	assert.Equal(t, int64(10000), points[0].Ideal)   // day 1: 310000/31*1 = 10000
-	assert.Equal(t, int64(150000), points[14].Ideal)  // day 15: 310000/31*15 = 150000
-	assert.Equal(t, int64(310000), points[30].Ideal)  // day 31: full budget
+	assert.Equal(t, int64(150000), points[14].Ideal) // day 15: 310000/31*15 = 150000
+	assert.Equal(t, int64(310000), points[30].Ideal) // day 31: full budget
 }
 
 func TestComputeCumulativeSpend_NoExpenses(t *testing.T) {
@@ -393,4 +393,55 @@ func TestComputePeriodSummary_CurrentMonthPacing(t *testing.T) {
 	assert.Equal(t, int64(10000), summary.BudgetPace)
 	// daysRemaining = 31 - 10 = 21
 	assert.Equal(t, int32(21), summary.DaysInPeriod-summary.DaysElapsed)
+}
+
+// TestComputePeriodSummary_SumsReportingAmountNotLegacyAmount asserts the
+// dashboard aggregates each expense's ReportingAmount (the period-reporting
+// money) rather than the legacy Amount, so mixed-currency periods total in one
+// currency. When ReportingAmount is set it must win even if it differs from Amount.
+func TestComputePeriodSummary_SumsReportingAmountNotLegacyAmount(t *testing.T) {
+	period := &model.BudgetPeriod{
+		ID:                "period-1",
+		BudgetAmount:      300000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+	}
+
+	// Two expenses whose legacy Amount differs from their ReportingAmount (a
+	// foreign-currency row converted into the period reporting currency). The
+	// dashboard must sum ReportingAmount (200000), not Amount (50000).
+	expenses := []ExpenseData{
+		{ID: "e1", Amount: 25000, ReportingAmount: 90000, ReportingCurrency: "USD", ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+		{ID: "e2", Amount: 25000, ReportingAmount: 110000, ReportingCurrency: "USD", ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-06"},
+	}
+
+	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)
+
+	assert.Equal(t, int64(200000), summary.TotalSpent) // 90000 + 110000
+	assert.Equal(t, int64(90000), summary.Essentials.Spent)
+	assert.Equal(t, int64(110000), summary.Desires.Spent)
+	assert.Equal(t, int64(300000-200000), summary.Remaining)
+}
+
+// TestComputePeriodSummary_FallsBackToAmountWhenReportingAbsent asserts expenses
+// that only set the legacy Amount (existing fixtures / pre-snapshot rows) still
+// contribute to the total via the Amount fallback, so the rollout does not break
+// callers that have not yet populated ReportingAmount.
+func TestComputePeriodSummary_FallsBackToAmountWhenReportingAbsent(t *testing.T) {
+	period := &model.BudgetPeriod{
+		ID:                "period-1",
+		BudgetAmount:      300000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+	}
+	expenses := []ExpenseData{
+		{ID: "e1", Amount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+		{ID: "e2", Amount: 30000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-06"},
+	}
+
+	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)
+
+	assert.Equal(t, int64(80000), summary.TotalSpent) // Amount fallback
 }
