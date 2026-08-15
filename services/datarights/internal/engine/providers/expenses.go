@@ -20,24 +20,36 @@ var _ engine.DataProvider = (*ExpensesProvider)(nil)
 // O(expensesPageSize) instead of O(total rows).
 const expensesPageSize = 100
 
+const (
+	exchangeSourceIdentity          = "identity"
+	exchangeSourceOpenExchangeRates = "open_exchange_rates"
+	exchangeSourceMigration         = "migration"
+)
+
 // ExpensesProvider streams all user expenses with pagination and resolves tag
 // names from a tag map derived once from the shared per-job finance response.
+// It also normalizes legacy migration rows to each period's reporting currency
+// using the period currency map derived from the same response.
 type ExpensesProvider struct {
-	expenseClient expensepb.ExpenseServiceClient
-	tagMap        map[string]string
+	expenseClient    expensepb.ExpenseServiceClient
+	tagMap           map[string]string
+	periodCurrencies map[string]string
 }
 
 // NewExpensesProvider creates an ExpensesProvider backed by the expense gRPC
-// client. The tag map (tag id -> name) is derived once upfront from the shared
-// finance response, so the expenses provider self-fetches only its expense
-// stream and never calls finance itself.
+// client. The tag map (tag id -> name) and period currency map ("year:month" ->
+// reporting currency) are derived once upfront from the shared finance
+// response, so the expenses provider self-fetches only its expense stream and
+// never calls finance itself.
 func NewExpensesProvider(
 	expenseClient expensepb.ExpenseServiceClient,
 	tagMap map[string]string,
+	periodCurrencies map[string]string,
 ) *ExpensesProvider {
 	return &ExpensesProvider{
-		expenseClient: expenseClient,
-		tagMap:        tagMap,
+		expenseClient:    expenseClient,
+		tagMap:           tagMap,
+		periodCurrencies: periodCurrencies,
 	}
 }
 
@@ -49,8 +61,10 @@ func (p *ExpensesProvider) Name() string {
 // Headers returns the CSV column headers for expense data.
 func (p *ExpensesProvider) Headers() []string {
 	return []string{
-		"id", "name", "transaction_amount", "transaction_currency", "expense_type", "tag_name",
-		"expense_date", "period_year", "period_month", "status",
+		"id", "name", "transaction_amount", "transaction_currency",
+		"reporting_amount", "reporting_currency", "exchange_rate",
+		"exchange_rate_source", "exchange_rate_timestamp", "expense_type",
+		"tag_name", "expense_date", "period_year", "period_month", "status",
 		"corrects_id", "is_pro_rata", "pro_rata_group", "pro_rata_index",
 		"pro_rata_total", "created_at",
 	}
@@ -66,7 +80,7 @@ func (p *ExpensesProvider) Headers() []string {
 // consumer itself at O(pageSize) (see the bounded-memory benchmark).
 func (p *ExpensesProvider) Collect(ctx context.Context, userID string) ([][]string, error) {
 	var rows [][]string
-	if err := p.streamExpenses(ctx, userID, p.tagMap, func(row []string) error {
+	if err := p.streamExpenses(ctx, userID, func(row []string) error {
 		rows = append(rows, row)
 		return nil
 	}); err != nil {
@@ -88,7 +102,6 @@ func (p *ExpensesProvider) Collect(ctx context.Context, userID string) ([][]stri
 func (p *ExpensesProvider) streamExpenses(
 	ctx context.Context,
 	userID string,
-	tagMap map[string]string,
 	emit func(row []string) error,
 ) error {
 	// Derive a cancellable context and cancel on every return path so the gRPC
@@ -119,19 +132,34 @@ func (p *ExpensesProvider) streamExpenses(
 			return err
 		}
 
-		if err := emit(p.formatRow(exp, tagMap)); err != nil {
+		row, err := p.formatRow(exp)
+		if err != nil {
+			return err
+		}
+		if err := emit(row); err != nil {
 			return err
 		}
 	}
 }
 
 // formatRow converts a single expense into a CSV row with all transformations applied.
-func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData, tagMap map[string]string) []string {
-	tagName := resolveTagName(exp.GetTagId(), tagMap)
-	amount := formatCentsToDollars(exp.GetTransactionAmount())
-	isProRata := formatBool(exp.GetIsProRata())
+func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData) ([]string, error) {
+	snapshot, err := p.resolveSnapshot(exp)
+	if err != nil {
+		return nil, err
+	}
 
-	// Pro-rata fields: render empty string for non-pro-rata expenses
+	transactionAmount, err := formatMinorUnits(snapshot.transactionAmount, snapshot.transactionCurrency)
+	if err != nil {
+		return nil, fmt.Errorf("expense %s transaction amount: %w", exp.GetId(), err)
+	}
+	reportingAmount, err := formatMinorUnits(snapshot.reportingAmount, snapshot.reportingCurrency)
+	if err != nil {
+		return nil, fmt.Errorf("expense %s reporting amount: %w", exp.GetId(), err)
+	}
+
+	tagName := resolveTagName(exp.GetTagId(), p.tagMap)
+	isProRata := formatBool(exp.GetIsProRata())
 	proRataGroup := exp.GetProRataGroup()
 	proRataIndex := formatOptionalInt(exp.GetProRataIndex(), exp.GetIsProRata())
 	proRataTotal := formatOptionalInt(exp.GetProRataTotal(), exp.GetIsProRata())
@@ -139,8 +167,13 @@ func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData, tagMap map[stri
 	return []string{
 		exp.GetId(),
 		exp.GetName(),
-		amount,
-		exp.GetTransactionCurrency(),
+		transactionAmount,
+		snapshot.transactionCurrency,
+		reportingAmount,
+		snapshot.reportingCurrency,
+		snapshot.exchangeRate,
+		snapshot.exchangeRateSource,
+		snapshot.exchangeRateTimestamp,
 		exp.GetExpenseType(),
 		tagName,
 		exp.GetExpenseDate(),
@@ -153,5 +186,72 @@ func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData, tagMap map[stri
 		proRataIndex,
 		proRataTotal,
 		exp.GetCreatedAt(),
+	}, nil
+}
+
+// expenseSnapshot carries the resolved money fields for one export row.
+type expenseSnapshot struct {
+	transactionAmount     int64
+	transactionCurrency   string
+	reportingAmount       int64
+	reportingCurrency     string
+	exchangeRate          string
+	exchangeRateSource    string
+	exchangeRateTimestamp string
+}
+
+// resolveSnapshot selects the money facts to export for one expense row.
+//
+// Version-1 rows (identity or open_exchange_rates) must carry a complete
+// snapshot; a missing required field fails the export rather than emitting
+// incorrect money facts. Legacy migration rows are normalized to the period's
+// reporting currency using the per-job period currency map.
+func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseSnapshot, error) {
+	source := exp.GetExchangeRateSource()
+
+	switch source {
+	case exchangeSourceIdentity, exchangeSourceOpenExchangeRates:
+		if exp.GetTransactionAmount() == 0 || exp.GetTransactionCurrency() == "" ||
+			exp.GetReportingAmount() == 0 || exp.GetReportingCurrency() == "" ||
+			exp.GetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
+			return expenseSnapshot{}, fmt.Errorf("expense %s has an incomplete version 1 money snapshot", exp.GetId())
+		}
+		return expenseSnapshot{
+			transactionAmount:     exp.GetTransactionAmount(),
+			transactionCurrency:   exp.GetTransactionCurrency(),
+			reportingAmount:       exp.GetReportingAmount(),
+			reportingCurrency:     exp.GetReportingCurrency(),
+			exchangeRate:          exp.GetExchangeRate(),
+			exchangeRateSource:    source,
+			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
+		}, nil
+
+	case exchangeSourceMigration:
+		currency := p.resolvePeriodCurrency(exp)
+		if currency == "" {
+			return expenseSnapshot{}, fmt.Errorf("expense %s legacy row has no resolvable period reporting currency", exp.GetId())
+		}
+		return expenseSnapshot{
+			transactionAmount:     exp.GetTransactionAmount(),
+			transactionCurrency:   currency,
+			reportingAmount:       exp.GetReportingAmount(),
+			reportingCurrency:     currency,
+			exchangeRate:          "1",
+			exchangeRateSource:    exchangeSourceMigration,
+			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
+		}, nil
+
+	default:
+		return expenseSnapshot{}, fmt.Errorf("expense %s has invalid exchange_rate_source %q", exp.GetId(), source)
 	}
+}
+
+// resolvePeriodCurrency returns the immutable reporting currency for the row's
+// period, falling back to the reporting currency the expense stream already
+// resolved when the period is absent from the finance response.
+func (p *ExpensesProvider) resolvePeriodCurrency(exp *expensepb.ExpenseData) string {
+	if currency, ok := p.periodCurrencies[periodCurrencyKey(exp.GetPeriodYear(), exp.GetPeriodMonth())]; ok {
+		return currency
+	}
+	return exp.GetReportingCurrency()
 }

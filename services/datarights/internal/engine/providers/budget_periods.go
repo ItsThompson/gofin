@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
@@ -31,7 +32,7 @@ func (p *BudgetPeriodsProvider) Name() string {
 // Headers returns the CSV column headers for budget period data.
 func (p *BudgetPeriodsProvider) Headers() []string {
 	return []string{
-		"id", "year", "month", "budget_amount",
+		"id", "year", "month", "budget_amount", "reporting_currency",
 		"essentials_percent", "desires_percent", "savings_percent", "created_at",
 	}
 }
@@ -42,11 +43,16 @@ func (p *BudgetPeriodsProvider) Collect(_ context.Context, _ string) ([][]string
 	periods := p.data.GetPeriods()
 	rows := make([][]string, 0, len(periods))
 	for _, period := range periods {
+		budgetAmount, err := formatMinorUnits(period.GetBudgetAmount(), period.GetReportingCurrency())
+		if err != nil {
+			return nil, fmt.Errorf("period %s budget amount: %w", period.GetId(), err)
+		}
 		rows = append(rows, []string{
 			period.GetId(),
 			strconv.FormatInt(int64(period.GetYear()), 10),
 			strconv.FormatInt(int64(period.GetMonth()), 10),
-			formatCentsToDollars(period.GetBudgetAmount()),
+			budgetAmount,
+			period.GetReportingCurrency(),
 			strconv.FormatInt(int64(period.GetEssentialsPercent()), 10),
 			strconv.FormatInt(int64(period.GetDesiresPercent()), 10),
 			strconv.FormatInt(int64(period.GetSavingsPercent()), 10),

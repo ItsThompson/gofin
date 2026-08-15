@@ -124,7 +124,7 @@ func run() error {
 	newExportProviders := func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
 		return []engine.DataProvider{
 			providers.NewProfileProvider(authClient),
-			providers.NewExpensesProvider(expenseClient, providers.BuildTagMap(financeData)),
+			providers.NewExpensesProvider(expenseClient, providers.BuildTagMap(financeData), providers.BuildPeriodCurrencyMap(financeData)),
 			providers.NewTagsProvider(financeData),
 			providers.NewBudgetPeriodsProvider(financeData),
 			providers.NewDefaultSettingsProvider(financeData),

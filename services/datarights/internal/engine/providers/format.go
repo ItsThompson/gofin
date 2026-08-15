@@ -3,11 +3,52 @@ package providers
 import (
 	"fmt"
 	"strconv"
+
+	sharedcurrency "github.com/ItsThompson/gofin/services/shared/currency"
 )
 
-// formatCentsToDollars converts an amount in cents to a decimal string with 2 decimal places.
-func formatCentsToDollars(cents int64) string {
-	return fmt.Sprintf("%.2f", float64(cents)/100.0)
+// formatMinorUnits converts an integer minor-unit amount to a decimal string
+// using the currency's minor-unit digit count. Zero-digit currencies such as
+// JPY render as a plain integer with no forced decimal places.
+func formatMinorUnits(amount int64, code string) (string, error) {
+	definition, ok := sharedcurrency.Get(code)
+	if !ok {
+		return "", fmt.Errorf("unsupported currency %q", code)
+	}
+	return formatMinorUnitsWithDigits(amount, definition.MinorUnitDigits), nil
+}
+
+// formatMinorUnitsWithDigits scales an integer minor-unit amount into a decimal
+// string with exactly the given number of fraction digits. Callers that already
+// resolved a digit count (for example, the two-digit fallback for legacy
+// default settings) use this directly.
+func formatMinorUnitsWithDigits(amount int64, digits int) string {
+	if digits == 0 {
+		return strconv.FormatInt(amount, 10)
+	}
+
+	factor := int64(1)
+	for range digits {
+		factor *= 10
+	}
+
+	negative := amount < 0
+	if negative {
+		amount = -amount
+	}
+
+	whole := amount / factor
+	fraction := amount % factor
+	fractionStr := strconv.FormatInt(fraction, 10)
+	for len(fractionStr) < digits {
+		fractionStr = "0" + fractionStr
+	}
+
+	result := strconv.FormatInt(whole, 10) + "." + fractionStr
+	if negative {
+		return "-" + result
+	}
+	return result
 }
 
 // formatBool converts a boolean to "true" or "false" string.
