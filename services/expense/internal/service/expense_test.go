@@ -490,7 +490,7 @@ func TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent(t *testing.T
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
-	requireAPIError(t, err)
+	_ = requireAPIError(t, err)
 	assert.Contains(t, buf.String(), "foreign_currency_conversion_failed")
 	assert.NotContains(t, buf.String(), "foreign_currency_conversion_unavailable")
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
