@@ -152,8 +152,9 @@ Key variable groups:
 
 - **Shared**: `JWT_SECRET`, `LOG_LEVEL`, `ENVIRONMENT`
 - **Auth Service**: PostgreSQL connection, bcrypt cost, admin seed credentials
-- **Finance Service**: PostgreSQL connection, expense service gRPC address
-- **Expense Service**: immudb connection credentials
+- **Finance Service**: PostgreSQL connection, expense service gRPC address, FX service gRPC address
+- **Expense Service**: immudb connection credentials, finance and FX service gRPC addresses
+- **FX Service**: Open Exchange Rates app ID, provider timeout, retry count, cache max age
 - **Datarights Service**: PostgreSQL connection, Resend API key, email sender config
 - **API Gateway**: service addresses (gRPC and REST) for auth, expense, finance, and datarights
 - **MFE (Shell)**: API gateway URL, cookie security flag
