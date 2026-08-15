@@ -20,6 +20,7 @@ graph LR
         AS[Auth Service]
         ES[Expense Service]
         FS[Finance Service]
+        FX[FX Service]
         DR[Datarights Service]
     end
 
@@ -38,6 +39,8 @@ graph LR
         CF2[cloudflared-grafana]
     end
 
+    OER[Open Exchange Rates]
+
     CF1 <--> MFE
     MFE -->|edge-net| GW
 
@@ -46,9 +49,12 @@ graph LR
     GW <-->|compute-net| FS
     GW <-->|compute-net| DR
     FS -->|gRPC| ES
+    ES -->|gRPC| FX
+    FS -->|gRPC| FX
     DR -->|gRPC| AS
     DR -->|gRPC| ES
     DR -->|gRPC| FS
+    FX -->|HTTPS| OER
 
     AS -->|data-net| PG
     FS -->|data-net| PG
@@ -59,6 +65,7 @@ graph LR
     PR -->|monitoring-net| AS
     PR -->|monitoring-net| ES
     PR -->|monitoring-net| FS
+    PR -->|monitoring-net| FX
     PR -->|monitoring-net| DR
     PR --> AL
     GR --> PR
@@ -94,6 +101,8 @@ Because the personal finance routes are `Personal`, a direct admin is refused th
 
 The set of proxied prefixes and their downstream services is itself a single source of truth (`services/access.ProxyPrefixes`), from which the gateway derives its proxy wiring; a cross-check test pins it to the registry so every classified route sits under a proxied prefix and every proxied prefix has at least one classified route.
 
+FX Service is deliberately absent from both `ProxyPrefixes` and the route registry. The gateway has no `/api/fx` prefix and never proxies conversion traffic: FX is reachable only over gRPC from Expense and Finance on the compute network.
+
 ### Auth Service (Node 2)
 
 Owns user identity, credentials, and token lifecycle:
@@ -113,15 +122,29 @@ Owns the immutable expense ledger backed by immudb:
 - Correction mechanics: new entries supersede originals, forming a correction chain
 - Materialized view: filters to `status=active` so downstream consumers see only current truth
 - Pro-rata installment tracking (group ID, index, total)
+- Money snapshots: every post-cutover row stores transaction money, reporting money, and the conversion facts (rate, source, timestamp) that connect them
+- Period context: public writes resolve the target period's reporting currency from Finance over gRPC before any ledger write
+- FX consumption: foreign-currency writes call FX Service over gRPC; same-currency writes use an identity snapshot and bypass FX
 
 ### Finance Service (Node 2)
 
 The business logic hub, orchestrating budgets, tags, and dashboard data:
 
-- Budget period lifecycle (creation, missed-month backfill, E/D/S allocation)
-- Pro-rata scheduling: stores future installment schedules in PostgreSQL, creates ledger entries via Expense Service gRPC when periods are created
+- Budget period lifecycle (creation, missed-month backfill, E/D/S allocation) with an immutable `reportingCurrency` per period
+- Default settings that seed only future period creation; changing defaults never mutates existing periods
+- Read-only period context API for Expense: period ID, reporting currency, lock state, and tag ownership
+- Pro-rata scheduling: stores future installment schedules with captured FX snapshots, creates ledger entries via Expense Service gRPC when periods are created
 - Tag CRUD with lazy-seeded defaults
-- Dashboard aggregation: period summary, pacing, category breakdowns, cumulative spend, historical comparison, monthly financial health score (persisted per closed month), and its multi-month health-score trend
+- Dashboard aggregation: period summary, pacing, category breakdowns, cumulative spend, historical comparison, monthly financial health score (persisted per closed month), and its multi-month health-score trend, all computed in the period's reporting currency
+
+### FX Service (Node 2)
+
+An internal-only conversion service. It owns no user ledger data and exposes no browser-facing REST route. Expense and Finance call it over gRPC on the compute network:
+
+- `ConvertAmount`: live source-to-target conversion using a one-hour Open Exchange Rates snapshot cache
+- `ConvertWithSnapshot`: derives a source-to-target rate from a previously captured snapshot without calling the provider
+- `CaptureRateSnapshot`: returns a full USD-based provider rate map that Finance stores on pro-rata schedules
+- Decimal conversion with half-away-from-zero rounding to the target currency's minor units
 
 ### Datarights Service (Node 2)
 
@@ -135,6 +158,7 @@ Owns GDPR data export and user data portability (Article 20 compliance):
 - In-progress job deduplication (idempotent POST)
 - Startup recovery: re-submits non-terminal jobs found in the database
 - Bounded concurrency pool with configurable max concurrent exports
+- Currency-aware CSV rows: expense and period rows carry transaction and reporting currency columns formatted with the shared catalog's per-currency precision
 
 The service coordinates data collection from all other compute services but owns no user data itself: it only stores job metadata (status, timestamps, file size) in its own PostgreSQL schema.
 
@@ -142,6 +166,8 @@ The service coordinates data collection from all other compute services but owns
 
 - **PostgreSQL**: single instance with three schemas (`auth`, `finance`, `datarights`), each accessed by its owning service via separate credentials. Logical isolation with the option to split later.
 - **immudb**: append-only storage for expense ledger entries. SQL interface for queries, native Go client for writes.
+
+FX Service owns no database. Its one-hour provider snapshot lives in process memory; conversion facts are persisted on ledger rows and pro-rata schedules, not in FX.
 
 ### Observability Stack (Node 4)
 
@@ -157,11 +183,13 @@ Four Docker bridge networks enforce traffic boundaries:
 | Network | Connects | Traffic |
 |---------|----------|---------|
 | `edge-net` | MFE, cloudflared-app, API Gateway | Public-facing traffic only |
-| `compute-net` | API Gateway, all microservices (Auth, Expense, Finance, Datarights) | Internal service communication |
-| `data-net` | Microservices, PostgreSQL, immudb | Database access only |
-| `monitoring-net` | Prometheus, Grafana, Alertmanager, auth proxy, all microservices (for /metrics) | Observability plane |
+| `compute-net` | API Gateway, Auth, Expense, Finance, FX, Datarights | Internal service communication |
+| `data-net` | Auth, Finance, Datarights, Expense, PostgreSQL, immudb | Database access only; FX is absent because it owns no user ledger data |
+| `monitoring-net` | Prometheus, Grafana, Alertmanager, auth proxy, all Go services (for /metrics) | Observability plane |
 
 Databases are never reachable from `edge-net`. The browser only communicates with the shell app, which proxies everything else.
+
+FX Service joins only `compute-net` and `monitoring-net`. It has no `edge-net` membership and no REST route, so the browser can never reach it, and the gateway has no proxy prefix for it.
 
 ## Key Design Decisions
 
@@ -175,6 +203,10 @@ Databases are never reachable from `edge-net`. The browser only communicates wit
 | JWT in httpOnly cookies | XSS-proof token storage; automatic inclusion by the browser; works naturally with the reverse proxy |
 | Zustand for shared client state | Lightweight state management with no provider tree; a single instance because every feature package is bundled together |
 | Finance service orchestrates pro-rata | Simpler than a saga for a 5-user system; finance calls expense directly, rolls back on failure |
+| Reporting currency belongs to the budget period | Budgets and dashboard totals are period-scoped; user currency and default settings can change over time |
+| Reporting currency is immutable after period creation | Prevents existing expenses, pro-rata schedules, and dashboard totals from changing meaning |
+| Internal FX Service over gRPC only | Conversion is a backend responsibility that needs provider credentials; a browser route would expose them |
+| Pro-rata captures a full provider snapshot at creation | Future installments preserve the user's schedule intent and never re-rate against live provider rates |
 | Just command runner | Polyglot support (Go, Node, Docker) with readable syntax; better than Makefiles for this use case |
 
 ## Data Flow: Logging an Expense
@@ -186,6 +218,8 @@ sequenceDiagram
     participant G as API Gateway
     participant A as Auth Service
     participant E as Expense Service
+    participant F as Finance Service
+    participant FX as FX Service
     participant I as immudb
 
     B->>S: POST /api/expenses
@@ -193,7 +227,13 @@ sequenceDiagram
     G->>A: gRPC: ValidateToken
     A-->>G: user_id, role
     G->>E: REST: POST /expenses<br/>(+ X-User-ID header)
-    E->>I: SQL INSERT
+    E->>F: gRPC: GetPeriodContext
+    F-->>E: reportingCurrency
+    alt foreign currency
+        E->>FX: gRPC: ConvertAmount
+        FX-->>E: converted amount + rate
+    end
+    E->>I: SQL INSERT (money snapshot)
     I-->>E: tx_id
     E-->>G: 201 Created
     G-->>S: 201 Created
@@ -207,17 +247,20 @@ sequenceDiagram
     participant B as Browser
     participant G as API Gateway
     participant F as Finance Service
+    participant FX as FX Service
     participant E as Expense Service
     participant I as immudb
     participant P as PostgreSQL
 
     B->>G: POST /api/finance/prorata
     G->>F: route to Finance
-    F->>E: gRPC: CreateExpense<br/>(current month installment)
-    E->>I: INSERT
+    F->>FX: gRPC: CaptureRateSnapshot
+    FX-->>F: captured snapshot
+    F->>E: gRPC: CreateProRataInstallment<br/>(trusted context + snapshot)
+    E->>I: INSERT first installment
     I-->>E: entry_id
     E-->>F: expense
-    F->>P: INSERT pro_rata_schedules<br/>(future months)
+    F->>P: INSERT pro_rata_schedules<br/>(future months + snapshot)
     F-->>G: 201 + expense + schedules
     G-->>B: response
 ```
@@ -237,7 +280,7 @@ sequenceDiagram
     F->>P: SELECT pending pro_rata_schedules
     P-->>F: [schedule_1, schedule_2]
     loop Each pending schedule
-        F->>E: gRPC: CreateExpense
+        F->>E: gRPC: CreateProRataInstallment<br/>(trusted context + stored snapshot)
         E->>I: INSERT
         I-->>E: entry_id
         E-->>F: expense
