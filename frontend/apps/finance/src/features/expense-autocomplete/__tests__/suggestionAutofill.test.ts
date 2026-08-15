@@ -15,6 +15,8 @@ const tags: Tag[] = [
 
 const suggestion: ExpenseSuggestion = {
   name: "Groceries",
+  transactionAmount: 1299,
+  transactionCurrency: "USD",
   amount: 1299,
   currency: "USD",
   expenseType: "essentials",
@@ -53,11 +55,28 @@ describe("createExpenseSuggestionPatch", () => {
 
   it("formats zero-decimal suggestion amounts with their currency precision", () => {
     expect(
-      createExpenseSuggestionPatch({ ...suggestion, amount: 1299, currency: "JPY" }, tags),
+      createExpenseSuggestionPatch({ ...suggestion, transactionAmount: 1299, transactionCurrency: "JPY", amount: 1299, currency: "JPY" }, tags),
     ).toEqual({
       name: "Groceries",
       amountDollars: "1299",
       currency: "JPY",
+      expenseType: "essentials",
+      tagId: "tag-food",
+    });
+  });
+
+  it("uses transaction fields when deprecated fields differ", () => {
+    // Simulates a response where the new transaction fields are canonical.
+    // The patch should use the transaction currency and amount, not the deprecated ones.
+    expect(
+      createExpenseSuggestionPatch(
+        { ...suggestion, transactionAmount: 15000, transactionCurrency: "EUR", amount: 1299, currency: "USD" },
+        tags,
+      ),
+    ).toEqual({
+      name: "Groceries",
+      amountDollars: "150.00",
+      currency: "EUR",
       expenseType: "essentials",
       tagId: "tag-food",
     });

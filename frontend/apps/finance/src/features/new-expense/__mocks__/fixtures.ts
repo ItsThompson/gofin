@@ -32,6 +32,8 @@ export const mockSuggestions: ExpenseSuggestionsResponse = {
   data: [
     {
       name: "Coffee Shop",
+      transactionAmount: 450,
+      transactionCurrency: "USD",
       amount: 450,
       currency: "USD",
       expenseType: "desires",
@@ -43,6 +45,8 @@ export const mockSuggestions: ExpenseSuggestionsResponse = {
     },
     {
       name: "Coffee Beans",
+      transactionAmount: 1200,
+      transactionCurrency: "USD",
       amount: 1200,
       currency: "USD",
       expenseType: "essentials",

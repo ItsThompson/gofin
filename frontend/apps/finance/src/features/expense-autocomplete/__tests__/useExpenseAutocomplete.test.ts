@@ -9,6 +9,8 @@ global.fetch = mockFetch;
 function buildSuggestion(overrides: Partial<ExpenseSuggestion> = {}): ExpenseSuggestion {
   return {
     name: "Groceries",
+    transactionAmount: 7423,
+    transactionCurrency: "USD",
     amount: 7423,
     currency: "USD",
     expenseType: "essentials",

@@ -114,9 +114,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Name"), "Coffee");
 
     expect(await screen.findByText("Coffee Shop")).toBeInTheDocument();
-    expect(screen.getByText("Frecency score: 42")).toBeInTheDocument();
+    expect(screen.getByText("$4.50 · USD · Frecency: 42")).toBeInTheDocument();
     expect(screen.getByText("Coffee Beans")).toBeInTheDocument();
-    expect(screen.getByText("Frecency score: 31")).toBeInTheDocument();
+    expect(screen.getByText("$12.00 · USD · Frecency: 31")).toBeInTheDocument();
   });
 
   it("places load more after visible suggestions when the latest page has more results", async () => {
@@ -130,8 +130,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const listbox = await screen.findByRole("listbox");
     const options = within(listbox).getAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
-      "Coffee ShopFrecency score: 42",
-      "Coffee BeansFrecency score: 31",
+      "Coffee Shop$4.50 · USD · Frecency: 42",
+      "Coffee Beans$12.00 · USD · Frecency: 31",
       "Load more suggestions",
     ]);
   });

@@ -10,7 +10,13 @@ export interface ExpenseSuggestionPatch {
 
 export interface ExpenseSuggestion {
   name: string;
+  /** Original transaction amount in minor units from the latest active matching expense. */
+  transactionAmount: number;
+  /** Original transaction currency from the latest active matching expense. */
+  transactionCurrency: string;
+  /** Deprecated: mirrors transactionAmount for rollout compatibility. */
   amount: number;
+  /** Deprecated: mirrors transactionCurrency for rollout compatibility. */
   currency: string;
   expenseType: ExpenseType;
   tagId: string;
