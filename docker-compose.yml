@@ -217,6 +217,10 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  # Internal-only compute service. No browser-facing REST route and no gateway
+  # proxy prefix: expense-service and finance-service call it over gRPC on
+  # compute-net, and Prometheus scrapes it on monitoring-net. It is absent from
+  # edge-net and data-net because it owns no user ledger data.
   fx-service:
     image: ghcr.io/itsthompson/gofin/fx-service:latest
     build:
