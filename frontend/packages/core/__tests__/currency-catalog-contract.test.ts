@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import sourceCatalog from "../../../../shared/currency/catalog.json";
+import sourceCatalog from "../src/currency-catalog.json";
 import { SUPPORTED_CURRENCIES } from "../src/constants";
 
 describe("generated currency catalog", () => {

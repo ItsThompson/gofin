@@ -9,6 +9,7 @@ const catalogPath = join(repoRoot, "shared/currency/catalog.json");
 const frontendConstantsPath = join(repoRoot, "frontend/packages/core/src/constants.ts");
 const goPackageDir = join(repoRoot, "services/shared/currency");
 const goCatalogPath = join(goPackageDir, "catalog_gen.go");
+const frontendCatalogPath = join(repoRoot, "frontend/packages/core/src/currency-catalog.json");
 
 const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
 
@@ -113,6 +114,7 @@ func IsSupported(code string) bool {
 `;
 
 writeFileSync(frontendConstantsPath, constantsTs);
+writeFileSync(frontendCatalogPath, JSON.stringify(catalog, null, 2) + "\n");
 mkdirSync(goPackageDir, { recursive: true });
 writeFileSync(goCatalogPath, goCatalogGen);
 execFileSync("gofmt", ["-w", goCatalogPath], { stdio: "inherit" });
