@@ -1850,17 +1850,18 @@ func (x *TagListResponse) GetTags() []*TagData {
 }
 
 type CreateProRataExpenseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	TotalAmount   int64                  `protobuf:"varint,3,opt,name=total_amount,json=totalAmount,proto3" json:"total_amount,omitempty"`
-	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
-	ExpenseType   string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId         string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate   string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	Months        int32                  `protobuf:"varint,8,opt,name=months,proto3" json:"months,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	UserId              string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	TotalAmount         int64                  `protobuf:"varint,3,opt,name=total_amount,json=totalAmount,proto3" json:"total_amount,omitempty"`
+	Currency            string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
+	ExpenseType         string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId               string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDate         string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
+	Months              int32                  `protobuf:"varint,8,opt,name=months,proto3" json:"months,omitempty"`
+	TransactionCurrency string                 `protobuf:"bytes,9,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CreateProRataExpenseRequest) Reset() {
@@ -1947,6 +1948,13 @@ func (x *CreateProRataExpenseRequest) GetMonths() int32 {
 		return x.Months
 	}
 	return 0
+}
+
+func (x *CreateProRataExpenseRequest) GetTransactionCurrency() string {
+	if x != nil {
+		return x.TransactionCurrency
+	}
+	return ""
 }
 
 type ProRataResponse struct {
@@ -2628,7 +2636,7 @@ const file_proto_finance_proto_rawDesc = "" +
 	"\vTagResponse\x12\"\n" +
 	"\x03tag\x18\x01 \x01(\v2\x10.finance.TagDataR\x03tag\"7\n" +
 	"\x0fTagListResponse\x12$\n" +
-	"\x04tags\x18\x01 \x03(\v2\x10.finance.TagDataR\x04tags\"\xfe\x01\n" +
+	"\x04tags\x18\x01 \x03(\v2\x10.finance.TagDataR\x04tags\"\xb1\x02\n" +
 	"\x1bCreateProRataExpenseRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -2637,7 +2645,8 @@ const file_proto_finance_proto_rawDesc = "" +
 	"\fexpense_type\x18\x05 \x01(\tR\vexpenseType\x12\x15\n" +
 	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12!\n" +
 	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\x12\x16\n" +
-	"\x06months\x18\b \x01(\x05R\x06months\"+\n" +
+	"\x06months\x18\b \x01(\x05R\x06months\x121\n" +
+	"\x14transaction_currency\x18\t \x01(\tR\x13transactionCurrency\"+\n" +
 	"\x0fProRataResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"4\n" +
 	"\x19GetUpcomingProRataRequest\x12\x17\n" +

@@ -260,6 +260,7 @@ message CreateProRataExpenseRequest {
   string tag_id = 6;
   string expense_date = 7;
   int32 months = 8;
+  string transaction_currency = 9;
 }
 
 message ProRataResponse {

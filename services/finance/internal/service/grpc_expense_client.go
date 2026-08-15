@@ -60,7 +60,6 @@ func (c *GRPCExpenseClient) CreateExpense(ctx context.Context, req CreateExpense
 		Name:                req.Name,
 		Amount:              req.Amount,
 		TransactionCurrency: req.Currency,
-		Currency:            req.Currency,
 		ExpenseType:         req.ExpenseType,
 		TagId:               req.TagID,
 		ExpenseDate:         req.ExpenseDate,
