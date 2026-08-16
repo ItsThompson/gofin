@@ -2,13 +2,13 @@ import { useState, useCallback, type FormEvent } from "react";
 import { useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
 import { settingsApi, type AuthResponse } from "../api";
+import type { SaveStatus } from "../types";
 
 export interface ProfileFormState {
   username: string;
   email: string;
-  error: string | null;
-  success: boolean;
-  loading: boolean;
+  /** Single status for the save operation; failure message travels with `failed`. */
+  saveStatus: SaveStatus;
 }
 
 export interface ProfileFormActions {
@@ -23,20 +23,23 @@ export function useProfileForm(
 ): { state: ProfileFormState; actions: ProfileFormActions } {
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
-  const [success, setSuccess] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
 
-  const { submit, error: mutationError, submitting } = useFormMutation<AuthResponse>({
+  const { submit } = useFormMutation<AuthResponse>({
     onSuccess: () => {
       onUserUpdated?.();
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setSaveStatus({ kind: "saved" });
+      setTimeout(() => setSaveStatus({ kind: "idle" }), 3000);
+    },
+    onError: (message) => {
+      setSaveStatus({ kind: "failed", message });
     },
   });
 
   const handleSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
-      setSuccess(false);
+      setSaveStatus({ kind: "saving" });
 
       submit(() =>
         settingsApi.updateProfile({
@@ -50,7 +53,7 @@ export function useProfileForm(
   );
 
   return {
-    state: { username, email, error: mutationError, success, loading: submitting },
+    state: { username, email, saveStatus },
     actions: { setUsername, setEmail, handleSubmit },
   };
 }

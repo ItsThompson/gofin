@@ -172,6 +172,32 @@ describe("SettingsFeature", () => {
       });
     });
 
+    it("shows error when saving defaults fails", async () => {
+      mockDefaultsFound();
+      const user = userEvent.setup();
+      renderSettings();
+
+      await waitFor(() => {
+        expect(
+          (screen.getAllByLabelText("Monthly Budget")[0] as HTMLInputElement)
+            .value,
+        ).toBe("3000");
+      });
+
+      mockApiError(500, "INTERNAL_SERVER_ERROR", "Failed to save defaults");
+
+      const submitButton = screen.getAllByRole("button", {
+        name: /save defaults/i,
+      })[0];
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/failed to save defaults/i),
+        ).toBeInTheDocument();
+      });
+    });
+
     it("uses fallback defaults when fetch fails", async () => {
       mockDefaultsNotFound();
       renderSettings();

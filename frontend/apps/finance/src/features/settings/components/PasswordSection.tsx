@@ -12,6 +12,9 @@ import { usePasswordForm } from "../hooks/usePasswordForm";
 export function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void }) {
   const { state, actions } = usePasswordForm(onUserUpdated);
 
+  const saveError =
+    state.saveStatus.kind === "failed" ? state.saveStatus.message : null;
+
   return (
     <Form onSubmit={actions.handleSubmit}>
       <FormField>
@@ -39,17 +42,19 @@ export function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void 
         </p>
       </FormField>
 
-      <FormMessage>{state.error}</FormMessage>
+      <FormMessage>{state.validationError || saveError}</FormMessage>
 
-      {state.success && (
+      {state.saveStatus.kind === "saved" && (
         <p className="flex items-center gap-1.5 text-sm text-green-600">
           <Check className="size-4" />
           Password changed successfully. Other sessions have been signed out.
         </p>
       )}
 
-      <Button type="submit" disabled={state.loading}>
-        {state.loading && <Loader2 className="size-4 animate-spin" />}
+      <Button type="submit" disabled={state.saveStatus.kind === "saving"}>
+        {state.saveStatus.kind === "saving" && (
+          <Loader2 className="size-4 animate-spin" />
+        )}
         Change Password
       </Button>
     </Form>

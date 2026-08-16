@@ -30,6 +30,9 @@ export function DefaultBudgetSection({ user }: { user: User }) {
     );
   }
 
+  const saveError =
+    state.saveStatus.kind === "failed" ? state.saveStatus.message : null;
+
   return (
     <Form onSubmit={actions.handleSubmit}>
       <FormField>
@@ -96,17 +99,22 @@ export function DefaultBudgetSection({ user }: { user: User }) {
         </select>
       </FormField>
 
-      <FormMessage>{state.error}</FormMessage>
+      <FormMessage>{state.validationError || saveError}</FormMessage>
 
-      {state.success && (
+      {state.saveStatus.kind === "saved" && (
         <p className="flex items-center gap-1.5 text-sm text-green-600">
           <Check className="size-4" />
           Default settings updated successfully.
         </p>
       )}
 
-      <Button type="submit" disabled={state.loading}>
-        {state.loading && <Loader2 className="size-4 animate-spin" />}
+      <Button
+        type="submit"
+        disabled={state.saveStatus.kind === "saving"}
+      >
+        {state.saveStatus.kind === "saving" && (
+          <Loader2 className="size-4 animate-spin" />
+        )}
         Save Defaults
       </Button>
     </Form>
