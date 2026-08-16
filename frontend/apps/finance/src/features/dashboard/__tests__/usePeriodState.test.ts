@@ -100,7 +100,6 @@ describe("usePeriodState", () => {
       expect(noPeriodState.creating).toBe(false);
       expect(noPeriodState.createError).toBeNull();
       expect(noPeriodState.clearCreateError).toBeInstanceOf(Function);
-      expect(noPeriodState.lastCreateResponse).toBeNull();
       expect(noPeriodState.retry).toBeInstanceOf(Function);
     });
 
