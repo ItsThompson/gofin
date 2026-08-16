@@ -541,3 +541,25 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2
 	}))
 }
+
+func TestCreatePeriodWithProRata_NilDefaultsReturnsError(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// No defaults row - user has not completed onboarding.
+	repo.On("GetDefaults", mock.Anything, "user-1").Return(nil, nil)
+
+	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
+		Year: 2026, Month: 5, BudgetAmount: 300000,
+		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		// No reportingCurrency so the service falls back to GetDefaults.
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "defaults row missing")
+
+	// CreatePeriod must never have been called.
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
+}

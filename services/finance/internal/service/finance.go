@@ -142,23 +142,13 @@ func validateSupportedCurrency(fieldName string, currencyCode string) *apierr.Er
 	return unsupportedCurrencyError(fieldName, currencyCode)
 }
 
-func fallbackDefaultSettings() *model.DefaultSettings {
-	return &model.DefaultSettings{
-		BudgetAmount:      0,
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		Currency:          "USD",
-	}
-}
-
 func (s *FinanceService) getPeriodCreationDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error) {
 	defaults, err := s.repo.GetDefaults(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting defaults for period creation: %w", err)
 	}
 	if defaults == nil {
-		return fallbackDefaultSettings(), nil
+		return nil, fmt.Errorf("defaults row missing for user %s during period creation", userID)
 	}
 
 	defaults.Currency = normalizeCurrencyCode(defaults.Currency)
