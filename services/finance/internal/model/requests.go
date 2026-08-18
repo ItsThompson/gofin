@@ -21,11 +21,13 @@ type DefaultsResponse struct {
 // Note: percentage fields intentionally omit binding:"required" because Gin's
 // validator treats the int32 zero value as "missing", which would reject valid
 // splits like 100/0/0. The sum-to-100 constraint is enforced by ValidateEDSSplit.
+// BudgetAmount is a pointer so binding:"required" rejects an absent field
+// without rejecting a legitimate $0 budget (the int64 zero value).
 type CreatePeriodRequest struct {
 	Year              int32  `json:"year" binding:"required"`
 	Month             int32  `json:"month" binding:"required"`
-	BudgetAmount      int64  `json:"budgetAmount"`
-	ReportingCurrency string `json:"reportingCurrency"`
+	BudgetAmount      *int64 `json:"budgetAmount" binding:"required"`
+	ReportingCurrency string `json:"reportingCurrency" binding:"required"`
 	EssentialsPercent int32  `json:"essentialsPercent"`
 	DesiresPercent    int32  `json:"desiresPercent"`
 	SavingsPercent    int32  `json:"savingsPercent"`

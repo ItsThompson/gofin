@@ -31,6 +31,30 @@ func setupGRPCHandler(repo *mockFinanceRepository) *GRPCHandler {
 // via errors.As (not collapse to codes.Internal). The service wraps every repo
 // error with %w ("getting defaults: %w"), so a typed NOT_FOUND returned by the
 // repo reaches the handler wrapped; the handler must still map it to NotFound.
+// TestListSupportedCurrencies_ReturnsCatalog verifies the gRPC surface of the
+// currency catalog endpoint returns the full backend-owned catalog.
+func TestListSupportedCurrencies_ReturnsCatalog(t *testing.T) {
+	handler := setupGRPCHandler(new(mockFinanceRepository))
+
+	resp, err := handler.ListSupportedCurrencies(context.Background(), &pb.ListSupportedCurrenciesRequest{})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Currencies)
+
+	byCode := make(map[string]*pb.CurrencyData, len(resp.Currencies))
+	for _, currency := range resp.Currencies {
+		byCode[currency.Code] = currency
+	}
+
+	usd, ok := byCode["USD"]
+	require.True(t, ok, "USD missing from response")
+	assert.Equal(t, "$", usd.Symbol)
+	assert.Equal(t, int32(2), usd.MinorUnitDigits)
+
+	jpy, ok := byCode["JPY"]
+	require.True(t, ok, "JPY missing from response")
+	assert.Equal(t, int32(0), jpy.MinorUnitDigits)
+}
+
 func TestGetDefaults_WrappedTypedErrorClassifies(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	handler := setupGRPCHandler(repo)
@@ -135,50 +159,6 @@ func TestCreatePeriodGrpc_UsesReportingCurrency(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Period)
 	assert.Equal(t, "CHF", resp.Period.ReportingCurrency)
-}
-
-func TestCreatePeriodGrpc_DefaultsReportingCurrency(t *testing.T) {
-	repo := new(mockFinanceRepository)
-	handler := setupGRPCHandler(repo)
-
-	repo.On("GetDefaults", mock.Anything, "user-1").Return(&model.DefaultSettings{
-		UserID:            "user-1",
-		BudgetAmount:      500000,
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		Currency:          "jpy",
-	}, nil)
-	repo.On("GetLatestPeriod", mock.Anything, "user-1").Return(nil, nil)
-	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(period *model.BudgetPeriod) bool {
-		return period.ReportingCurrency == "JPY"
-	})).Return(&model.BudgetPeriod{
-		ID:                "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      500000,
-		ReportingCurrency: "JPY",
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		CreatedAt:         time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
-	}, nil)
-	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).Return([]*model.ProRataSchedule{}, nil)
-
-	resp, err := handler.CreatePeriod(context.Background(), &pb.CreatePeriodRequest{
-		UserId:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      500000,
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, resp.Period)
-	assert.Equal(t, "JPY", resp.Period.ReportingCurrency)
 }
 
 func TestCreatePeriodGrpc_UnsupportedReportingCurrency(t *testing.T) {

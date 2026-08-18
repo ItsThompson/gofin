@@ -249,83 +249,37 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	if req.Month < 1 || req.Month > 12 {
 		return nil, apierr.Validation("Month must be between 1 and 12", map[string]string{"month": "must be between 1 and 12"})
 	}
-	if req.BudgetAmount < 0 {
+
+	// REST binding guarantees a non-nil BudgetAmount, but gRPC can only express
+	// the int64 zero value, so treat nil as 0 rather than dereferencing blindly.
+	budgetAmount := int64(0)
+	if req.BudgetAmount != nil {
+		budgetAmount = *req.BudgetAmount
+	}
+	if budgetAmount < 0 {
 		return nil, budgetAmountError()
 	}
 
 	reportingCurrency := normalizeCurrencyCode(req.ReportingCurrency)
-	var defaults *model.DefaultSettings
-	if reportingCurrency == "" {
-		periodDefaults, err := s.getPeriodCreationDefaults(ctx, userID)
-		if err != nil {
-			return nil, err
-		}
-		defaults = periodDefaults
-		reportingCurrency = periodDefaults.Currency
-	} else if verr := validateSupportedCurrency("reportingCurrency", reportingCurrency); verr != nil {
+	if verr := validateSupportedCurrency("reportingCurrency", reportingCurrency); verr != nil {
 		return nil, verr
 	}
-
-	var autoCreatedMonths []string
-	var allAppliedProRata []*model.ProRataSchedule
 
 	latestPeriod, err := s.repo.GetLatestPeriod(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting latest period: %w", err)
 	}
 
-	if latestPeriod != nil {
-		missedMonths := computeMissedMonths(latestPeriod.Year, latestPeriod.Month, req.Year, req.Month)
-		if len(missedMonths) > 0 {
-			if defaults == nil {
-				periodDefaults, err := s.getPeriodCreationDefaults(ctx, userID)
-				if err != nil {
-					return nil, err
-				}
-				defaults = periodDefaults
-			}
-
-			for _, missed := range missedMonths {
-				_, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
-					UserID:            userID,
-					Year:              missed.year,
-					Month:             missed.month,
-					BudgetAmount:      defaults.BudgetAmount,
-					ReportingCurrency: defaults.Currency,
-					EssentialsPercent: defaults.EssentialsPercent,
-					DesiresPercent:    defaults.DesiresPercent,
-					SavingsPercent:    defaults.SavingsPercent,
-				})
-				if err != nil {
-					return nil, fmt.Errorf("auto-creating period for %d-%02d: %w", missed.year, missed.month, err)
-				}
-
-				// Apply pro-rata for the missed month
-				applied, err := s.applyPendingProRata(ctx, userID, missed.year, missed.month)
-				if err != nil {
-					s.logger.Error("failed to apply pro-rata for auto-created period",
-						slog.Int("year", int(missed.year)),
-						slog.Int("month", int(missed.month)),
-						slog.String("error", err.Error()),
-					)
-				}
-				allAppliedProRata = append(allAppliedProRata, applied...)
-				autoCreatedMonths = append(autoCreatedMonths, monthLabel(missed.year, missed.month))
-			}
-
-			s.logger.Info("auto-created periods for missed months",
-				slog.String("method", "CreatePeriodWithProRata"),
-				slog.String("user_id", userID),
-				slog.Int("missed_count", len(missedMonths)),
-			)
-		}
+	autoCreatedMonths, allAppliedProRata, err := s.createMissedPeriods(ctx, userID, latestPeriod, req.Year, req.Month)
+	if err != nil {
+		return nil, err
 	}
 
 	period, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
 		UserID:            userID,
 		Year:              req.Year,
 		Month:             req.Month,
-		BudgetAmount:      req.BudgetAmount,
+		BudgetAmount:      budgetAmount,
 		ReportingCurrency: reportingCurrency,
 		EssentialsPercent: req.EssentialsPercent,
 		DesiresPercent:    req.DesiresPercent,
@@ -360,6 +314,70 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		AutoCreatedPeriods: len(autoCreatedMonths),
 		AutoCreatedMonths:  autoCreatedMonths,
 	}, nil
+}
+
+// createMissedPeriods auto-creates periods for the months skipped between the
+// latest period and the requested one, then applies their pending pro-rata
+// installments. It returns the labels of the auto-created months and the
+// applied schedules. Nothing is created when there is no latest period or no
+// missed month.
+func (s *FinanceService) createMissedPeriods(
+	ctx context.Context,
+	userID string,
+	latestPeriod *model.BudgetPeriod,
+	targetYear, targetMonth int32,
+) ([]string, []*model.ProRataSchedule, error) {
+	if latestPeriod == nil {
+		return nil, nil, nil
+	}
+
+	missedMonths := computeMissedMonths(latestPeriod.Year, latestPeriod.Month, targetYear, targetMonth)
+	if len(missedMonths) == 0 {
+		return nil, nil, nil
+	}
+
+	defaults, err := s.getPeriodCreationDefaults(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var autoCreatedMonths []string
+	var allApplied []*model.ProRataSchedule
+	for _, missed := range missedMonths {
+		_, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
+			UserID:            userID,
+			Year:              missed.year,
+			Month:             missed.month,
+			BudgetAmount:      defaults.BudgetAmount,
+			ReportingCurrency: defaults.Currency,
+			EssentialsPercent: defaults.EssentialsPercent,
+			DesiresPercent:    defaults.DesiresPercent,
+			SavingsPercent:    defaults.SavingsPercent,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("auto-creating period for %d-%02d: %w", missed.year, missed.month, err)
+		}
+
+		// Apply pro-rata for the missed month
+		applied, err := s.applyPendingProRata(ctx, userID, missed.year, missed.month)
+		if err != nil {
+			s.logger.Error("failed to apply pro-rata for auto-created period",
+				slog.Int("year", int(missed.year)),
+				slog.Int("month", int(missed.month)),
+				slog.String("error", err.Error()),
+			)
+		}
+		allApplied = append(allApplied, applied...)
+		autoCreatedMonths = append(autoCreatedMonths, monthLabel(missed.year, missed.month))
+	}
+
+	s.logger.Info("auto-created periods for missed months",
+		slog.String("method", "CreatePeriodWithProRata"),
+		slog.String("user_id", userID),
+		slog.Int("missed_count", len(missedMonths)),
+	)
+
+	return autoCreatedMonths, allApplied, nil
 }
 
 // yearMonth is a simple helper for month iteration.

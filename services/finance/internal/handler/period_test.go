@@ -203,6 +203,7 @@ func TestCreatePeriodHandler_InvalidSplit(t *testing.T) {
 		"year":              2026,
 		"month":             5,
 		"budgetAmount":      300000,
+		"reportingCurrency": "USD",
 		"essentialsPercent": 50,
 		"desiresPercent":    30,
 		"savingsPercent":    19,
@@ -225,6 +226,7 @@ func TestCreatePeriodHandler_InvalidMonth(t *testing.T) {
 		"year":              2026,
 		"month":             13,
 		"budgetAmount":      300000,
+		"reportingCurrency": "USD",
 		"essentialsPercent": 50,
 		"desiresPercent":    30,
 		"savingsPercent":    20,
@@ -254,6 +256,73 @@ func TestCreatePeriodHandler_UnsupportedReportingCurrency(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrUnsupportedCurrency, errResp.Code)
 	assert.Equal(t, "unsupported currency", errResp.Fields["reportingCurrency"])
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
+}
+
+func TestCreatePeriodHandler_MissingReportingCurrency(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
+		"year":              2026,
+		"month":             5,
+		"budgetAmount":      300000,
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, "required", errResp.Fields["ReportingCurrency"])
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
+}
+
+func TestCreatePeriodHandler_EmptyReportingCurrency(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
+		"year":              2026,
+		"month":             5,
+		"budgetAmount":      300000,
+		"reportingCurrency": "",
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, "required", errResp.Fields["ReportingCurrency"])
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
+}
+
+func TestCreatePeriodHandler_MissingBudgetAmount(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	r := setupTestRouter(repo, txBeginner)
+
+	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
+		"year":              2026,
+		"month":             5,
+		"reportingCurrency": "USD",
+		"essentialsPercent": 50,
+		"desiresPercent":    30,
+		"savingsPercent":    20,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, "required", errResp.Fields["BudgetAmount"])
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
