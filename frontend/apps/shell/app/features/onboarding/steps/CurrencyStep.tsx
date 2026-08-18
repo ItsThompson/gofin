@@ -1,4 +1,4 @@
-import { SUPPORTED_CURRENCIES } from "@gofin/core";
+import { useSupportedCurrencies } from "@gofin/api";
 import { Button } from "@gofin/ui/components/button";
 import {
   CardContent,
@@ -7,12 +7,6 @@ import {
   CardTitle,
 } from "@gofin/ui/components/card";
 import { FormField, FormLabel } from "@gofin/ui/components/form";
-
-/** Currency options derived from SUPPORTED_CURRENCIES with display name format. */
-const CURRENCIES = SUPPORTED_CURRENCIES.map((currency) => ({
-  code: currency.code,
-  label: `${currency.name} (${currency.code})`,
-}));
 
 export interface CurrencyStepProps {
   currency: string;
@@ -29,6 +23,8 @@ export function CurrencyStep({
   onBack,
   onSkip,
 }: CurrencyStepProps) {
+  const supportedCurrencies = useSupportedCurrencies();
+
   return (
     <>
       <CardHeader>
@@ -47,9 +43,9 @@ export function CurrencyStep({
               onChange={(event) => onCurrencyChange(event.target.value)}
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              {CURRENCIES.map((cur) => (
+              {supportedCurrencies.map((cur) => (
                 <option key={cur.code} value={cur.code}>
-                  {cur.label}
+                  {cur.name} ({cur.code})
                 </option>
               ))}
             </select>

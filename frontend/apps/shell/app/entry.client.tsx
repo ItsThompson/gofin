@@ -1,8 +1,10 @@
 import { isNetworkError } from "@gofin/api";
+import { loadSupportedCurrencies } from "@gofin/core";
 import * as Sentry from "@sentry/react-router";
 import { startTransition } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { HydratedRouter } from "react-router/dom";
+import { useAuthStore } from "@/stores/auth-store";
 import { clientOptions } from "../sentry.options.mjs";
 
 async function boot() {
@@ -19,6 +21,15 @@ async function boot() {
       }),
     );
   }
+
+  // The currency catalog endpoint requires a session and login happens inside
+  // the SPA without a page reload, so load it on auth transitions instead of
+  // firing once at module load (which would 401 for logged-out visitors).
+  useAuthStore.subscribe((state, previousState) => {
+    if (!previousState.isAuthenticated && state.isAuthenticated) {
+      void loadSupportedCurrencies();
+    }
+  });
 
   if (import.meta.env.VITE_MOCK_API === "true") {
     const { worker } = await import("../mocks/browser");
