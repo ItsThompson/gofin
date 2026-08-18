@@ -7,7 +7,7 @@ Reporting currency is period-scoped, not user-scoped. Each budget period stores 
 - **Period reporting currency**: chosen at period creation, immutable after creation.
 - **Default settings currency**: seeds future periods only. Changing it never mutates existing periods.
 - **Expense money snapshots**: each post-cutover ledger row stores transaction money, reporting money, and the conversion facts that connect them.
-- **Legacy migration snapshots**: pre-epic rows without a snapshot are synthesized on read as denominated in the migrated period reporting currency with rate `1` and source `migration`.
+- **Legacy migration snapshots**: pre-epic rows missing a transaction amount are backfilled at startup with an identity migration snapshot in the legacy currency, with rate `1` and source `migration`.
 - **Pro-rata captured snapshots**: schedules created after this epic store a full USD-based provider rate map so future installments never re-rate against live rates.
 
 The shared currency catalog (`shared/currency/catalog.json`) is the source of truth for supported codes and minor-unit digits. See [Architecture](architecture.md) for service boundaries.
@@ -135,8 +135,8 @@ The immutable expense ledger. Key design points:
 - **Amounts in minor units** (integer): avoids floating-point precision issues. $12.50 is stored as `1250`; ¥1250 is stored as `1250`.
 - **String dates**: immudb's SQL dialect has limited date type support, so dates are stored as ISO strings and parsed at the application layer.
 - **Tag by ID**: tags live in PostgreSQL (finance schema). The ledger stores the tag UUID, not the tag name, so tag renames do not affect historical data.
-- **Money snapshots**: rows written after the multi-currency cutover carry `money_snapshot_version = 1` plus `transaction_amount`, `transaction_currency`, `reporting_amount`, `reporting_currency`, `exchange_rate`, `exchange_rate_source`, `exchange_rate_timestamp`, and optional `exchange_rate_expires_at`.
-- **Legacy migration synthesis**: rows with a null `money_snapshot_version` are legacy. Reads synthesize a migration snapshot from the legacy `amount` and the period's reporting currency, with `exchangeRate = "1"` and `exchangeRateSource = "migration"`. The legacy `currency` column is obsolete metadata used only for mismatch telemetry.
+- **Money snapshots**: every row carries `transaction_amount`, `transaction_currency`, `reporting_amount`, `reporting_currency`, `exchange_rate`, `exchange_rate_source`, `exchange_rate_timestamp`, and optional `exchange_rate_expires_at`.
+- **Legacy migration backfill**: rows missing a transaction amount are backfilled at startup with an identity migration snapshot from the legacy `amount` and `currency`, with `exchangeRate = "1"` and `exchangeRateSource = "migration"`. The legacy `currency` column is obsolete metadata.
 
 Snapshot sources:
 
@@ -144,7 +144,7 @@ Snapshot sources:
 |--------|---------|
 | `identity` | Same-currency write or correction; rate `1`, no provider call |
 | `open_exchange_rates` | Foreign-currency write or correction through FX Service |
-| `migration` | Legacy row synthesized on read; rate `1` in the period reporting currency |
+| `migration` | Legacy row backfilled at startup; rate `1` in the legacy currency |
 
 ### Correction Chain
 

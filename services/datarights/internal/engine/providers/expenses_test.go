@@ -11,9 +11,9 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
-// buildVersion1Expense returns a complete version-1 identity expense snapshot,
+// buildExpenseSnapshot returns a complete identity expense snapshot,
 // the shape the expense stream sends for post-cutover same-currency rows.
-func buildVersion1Expense(id string, amount int64, currency string, overrides ...func(*expensepb.ExpenseData)) *expensepb.ExpenseData {
+func buildExpenseSnapshot(id string, amount int64, currency string, overrides ...func(*expensepb.ExpenseData)) *expensepb.ExpenseData {
 	exp := &expensepb.ExpenseData{
 		Id:                    id,
 		Name:                  "Groceries",
@@ -62,7 +62,7 @@ func TestExpensesProvider_Collect_Success(t *testing.T) {
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-1", 4599, "USD"),
+			buildExpenseSnapshot("exp-1", 4599, "USD"),
 		},
 	}
 
@@ -85,7 +85,7 @@ func TestExpensesProvider_Collect_ProRataExpense(t *testing.T) {
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-pr-1", 50000, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-pr-1", 50000, "USD", func(exp *expensepb.ExpenseData) {
 				exp.Name = "Rent (1/3)"
 				exp.TagId = "tag-1"
 				exp.IsProRata = true
@@ -116,7 +116,7 @@ func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-1", 1000, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-1", 1000, "USD", func(exp *expensepb.ExpenseData) {
 				exp.Name = "Mystery"
 				exp.ExpenseType = "desires"
 				exp.TagId = "deleted-tag-id"
@@ -142,17 +142,17 @@ func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
 	// created_at ASC, id ASC); the consumer does not page.
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-1", 100, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-1", 100, "USD", func(exp *expensepb.ExpenseData) {
 				exp.Name = "First"
 				exp.PeriodMonth = 1
 				exp.CreatedAt = "2026-01-01T00:00:00Z"
 			}),
-			buildVersion1Expense("exp-2", 200, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-2", 200, "USD", func(exp *expensepb.ExpenseData) {
 				exp.Name = "Second"
 				exp.PeriodMonth = 1
 				exp.CreatedAt = "2026-01-02T00:00:00Z"
 			}),
-			buildVersion1Expense("exp-3", 300, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-3", 300, "USD", func(exp *expensepb.ExpenseData) {
 				exp.Name = "Third"
 				exp.PeriodMonth = 2
 				exp.CreatedAt = "2026-02-01T00:00:00Z"
@@ -218,7 +218,7 @@ func TestExpensesProvider_Collect_JPYHasNoForcedDecimals(t *testing.T) {
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-jpy", 4599, "JPY"),
+			buildExpenseSnapshot("exp-jpy", 4599, "JPY"),
 		},
 	}
 
@@ -311,7 +311,7 @@ func TestExpensesProvider_Collect_LegacyRowFallsBackToStreamCurrency(t *testing.
 	assert.Equal(t, "USD", rows[0][5])
 }
 
-func TestExpensesProvider_Collect_Version1IncompleteSnapshotFails(t *testing.T) {
+func TestExpensesProvider_Collect_IncompleteSnapshotFails(t *testing.T) {
 	tagMap := map[string]string{"tag-1": "Food"}
 
 	expenseClient := &mockExpenseServiceClient{
@@ -340,7 +340,7 @@ func TestExpensesProvider_Collect_Version1IncompleteSnapshotFails(t *testing.T) 
 	assert.Nil(t, rows)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fetching expenses")
-	assert.Contains(t, err.Error(), "incomplete version 1")
+	assert.Contains(t, err.Error(), "incomplete money snapshot")
 }
 
 func TestExpensesProvider_Collect_UnknownSourceFails(t *testing.T) {
@@ -348,7 +348,7 @@ func TestExpensesProvider_Collect_UnknownSourceFails(t *testing.T) {
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-bad", 100, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-bad", 100, "USD", func(exp *expensepb.ExpenseData) {
 				exp.ExchangeRateSource = ""
 			}),
 		},
@@ -392,11 +392,11 @@ func TestExpensesProvider_Collect_MidStreamRecvError(t *testing.T) {
 	// (not be swallowed as a clean EOF).
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-1", 100, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-1", 100, "USD", func(exp *expensepb.ExpenseData) {
 				exp.PeriodMonth = 1
 				exp.CreatedAt = "2026-01-01T00:00:00Z"
 			}),
-			buildVersion1Expense("exp-2", 200, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-2", 200, "USD", func(exp *expensepb.ExpenseData) {
 				exp.PeriodMonth = 1
 				exp.CreatedAt = "2026-01-02T00:00:00Z"
 			}),
@@ -419,7 +419,7 @@ func TestExpensesProvider_Collect_CorrectedExpense(t *testing.T) {
 
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			buildVersion1Expense("exp-correction", 5099, "USD", func(exp *expensepb.ExpenseData) {
+			buildExpenseSnapshot("exp-correction", 5099, "USD", func(exp *expensepb.ExpenseData) {
 				exp.Name = "Groceries (corrected)"
 				exp.Status = "corrected"
 				exp.CorrectsId = "exp-original"
