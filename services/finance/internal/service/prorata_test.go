@@ -33,6 +33,7 @@ func (m *mockFxClient) CaptureRateSnapshot(ctx context.Context, req FxCaptureReq
 	}
 	return args.Get(0).(*model.CapturedRateSnapshot), args.Error(1)
 }
+
 // --- CalculateInstallments Tests ---
 
 func TestCalculateInstallments_EvenSplit(t *testing.T) {
@@ -852,7 +853,7 @@ func setupPeriodCreationMocks(repo *mockRepo, pending []*model.ProRataSchedule, 
 
 func createPeriodRequest(year, month int32, reportingCurrency string) *model.CreatePeriodRequest {
 	return &model.CreatePeriodRequest{
-		Year: year, Month: month, BudgetAmount: 300000,
+		Year: year, Month: month, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 		ReportingCurrency: reportingCurrency,
 	}
@@ -943,7 +944,7 @@ func TestApplyProRata_CapturedSnapshotMissingTargetCurrencyMarksFailed(t *testin
 	snap := &model.CapturedRateSnapshot{
 		SnapshotVersion: 1, Source: "open_exchange_rates", BaseCurrency: "USD",
 		RateTimestamp: "2026-05-15T10:00:00Z", CapturedAt: "2026-05-15T12:00:00Z",
-		ExpiresAt: "2026-05-15T13:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
 		RatesByCurrency: map[string]string{"USD": "1", "EUR": "0.92"},
 	}
 	pending := []*model.ProRataSchedule{{
@@ -1166,7 +1167,7 @@ func TestApplyProRata_ExpenseSnapshotCurrencyMissingMarksFailed(t *testing.T) {
 	snap := &model.CapturedRateSnapshot{
 		SnapshotVersion: 1, Source: "open_exchange_rates", BaseCurrency: "USD",
 		RateTimestamp: "2026-05-15T10:00:00Z", CapturedAt: "2026-05-15T12:00:00Z",
-		ExpiresAt: "2026-05-15T13:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
 		RatesByCurrency: map[string]string{"USD": "1", "GBP": "0.79"},
 	}
 	pending := []*model.ProRataSchedule{{

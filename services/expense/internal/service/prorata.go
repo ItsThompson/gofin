@@ -120,7 +120,6 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 // conversion rather than an identity conversion or a provider conversion.
 func buildMigrationSnapshot(amount int64, transactionCurrency, reportingCurrency, timestamp string) model.Expense {
 	return model.Expense{
-		MoneySnapshotVersion:  1,
 		TransactionAmount:     amount,
 		TransactionCurrency:   transactionCurrency,
 		ReportingAmount:       amount,

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ItsThompson/gofin/services/shared/currency"
+	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 )
 
 // TestMigrationReportingCurrencyBackfillPrecedence verifies the up migration
@@ -92,10 +92,10 @@ func TestMigrationReportingCurrencyDownDocumentsHistoryLoss(t *testing.T) {
 
 // TestMigrationReportingCurrencyCodesMatchSharedCatalog asserts the supported-
 // currency codes hardcoded in the migration (temp table and CHECK constraint)
-// are exactly the codes in the shared currency catalog. The catalog is the
-// single source of truth (spec 04); this test flags drift so a future catalog
-// change does not silently diverge the migration's validation/CHECK from the
-// shared catalog (review S5).
+// are exactly the codes in the shared currency catalog package. The catalog is
+// the single source of truth; this test flags drift so a future catalog change
+// does not silently diverge the migration's validation/CHECK from the shared
+// catalog.
 func TestMigrationReportingCurrencyCodesMatchSharedCatalog(t *testing.T) {
 	upSQL, err := FS.ReadFile("000006_add_period_reporting_currency.up.sql")
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestMigrationReportingCurrencyCodesMatchSharedCatalog(t *testing.T) {
 		sqlCodes[match[1]] = true
 	}
 
-	catalogCodes := loadCatalogCodes()
+	catalogCodes := loadCatalogCodes(t)
 
 	require.Len(t, sqlCodes, len(catalogCodes),
 		"SQL currency codes must match the shared catalog size")
@@ -122,10 +122,14 @@ func TestMigrationReportingCurrencyCodesMatchSharedCatalog(t *testing.T) {
 	}
 }
 
-// loadCatalogCodes reads the shared currency catalog codes.
-func loadCatalogCodes() map[string]bool {
-	codes := make(map[string]bool)
-	for _, definition := range currency.All() {
+// loadCatalogCodes reads the supported-currency codes from the shared currency
+// catalog package, which is the single source of truth.
+func loadCatalogCodes(t *testing.T) map[string]bool {
+	t.Helper()
+
+	definitions := currencycatalog.All()
+	codes := make(map[string]bool, len(definitions))
+	for _, definition := range definitions {
 		codes[definition.Code] = true
 	}
 	return codes
