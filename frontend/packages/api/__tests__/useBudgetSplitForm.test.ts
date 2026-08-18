@@ -1,6 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { loadSupportedCurrencies } from "@gofin/core";
 import { useBudgetSplitForm } from "../src/hooks/useBudgetSplitForm";
+
+const testCurrencies = [
+  { code: "USD", symbol: "$", name: "US Dollar", minorUnitDigits: 2 },
+  { code: "JPY", symbol: "¥", name: "Japanese Yen", minorUnitDigits: 0 },
+];
+
+beforeAll(async () => {
+  await loadSupportedCurrencies(async () => testCurrencies, []);
+});
 
 describe("useBudgetSplitForm", () => {
   describe("initial state", () => {
