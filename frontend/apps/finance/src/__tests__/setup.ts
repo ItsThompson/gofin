@@ -1,4 +1,13 @@
 import "@testing-library/jest-dom/vitest";
+import { beforeAll } from "vitest";
+import { loadSupportedCurrencies } from "@gofin/core";
+import { mockCurrencyCatalog } from "@gofin/test-utils";
+
+// The currency catalog is populated by the app shell at runtime; seed it here
+// so tests exercise formatting and selection against the real catalog data.
+beforeAll(async () => {
+  await loadSupportedCurrencies(async () => mockCurrencyCatalog, []);
+});
 
 // Radix UI Select uses pointer capture and scroll APIs not available in JSDOM.
 // Provide stubs to prevent runtime errors during tests.

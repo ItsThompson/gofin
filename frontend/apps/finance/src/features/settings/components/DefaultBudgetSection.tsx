@@ -1,5 +1,5 @@
 import type { User } from "@gofin/core";
-import { SUPPORTED_CURRENCIES } from "@gofin/core";
+import { useSupportedCurrencyOptions } from "@gofin/api";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -11,15 +11,9 @@ import {
 import { Check, Loader2 } from "lucide-react";
 import { useDefaultBudget } from "../hooks/useDefaultBudget";
 
-const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES.map((currency) => ({
-  code: currency.code,
-  label: currency.symbol === currency.code
-    ? currency.code
-    : `${currency.code} (${currency.symbol})`,
-}));
-
 export function DefaultBudgetSection({ user }: { user: User }) {
   const { state, actions } = useDefaultBudget(user);
+  const currencyOptions = useSupportedCurrencyOptions();
 
   if (state.fetching) {
     return (
@@ -91,7 +85,7 @@ export function DefaultBudgetSection({ user }: { user: User }) {
           onChange={(event) => actions.setCurrency(event.target.value)}
           className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          {CURRENCY_OPTIONS.map((opt) => (
+          {currencyOptions.map((opt) => (
             <option key={opt.code} value={opt.code}>
               {opt.label}
             </option>
