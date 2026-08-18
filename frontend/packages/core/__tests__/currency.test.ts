@@ -1,14 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import {
   formatCurrency,
   getCurrencyInputStep,
-  getCurrencySymbol,
-  getMinorUnitDigits,
   hasValidMinorUnitPrecision,
   toCents,
   toMajorUnits,
   toMinorUnits,
 } from "../src/currency";
+import {
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  loadSupportedCurrencies,
+} from "../src/currencyCatalog";
+import { currencyCatalogFixture } from "./currency-fixtures";
+
+beforeAll(async () => {
+  await loadSupportedCurrencies(async () => currencyCatalogFixture, []);
+});
 
 describe("getCurrencySymbol", () => {
   it("returns $ for USD", () => {
@@ -91,7 +99,7 @@ describe("formatCurrency", () => {
 });
 
 describe("minor unit helpers", () => {
-  it("reads currency precision from the generated catalog", () => {
+  it("reads currency precision from the currency catalog", () => {
     expect(getMinorUnitDigits("USD")).toBe(2);
     expect(getMinorUnitDigits("JPY")).toBe(0);
     expect(getMinorUnitDigits("XYZ")).toBe(2);

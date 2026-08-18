@@ -1,24 +1,4 @@
-import { SUPPORTED_CURRENCIES } from "./constants";
-
-const DEFAULT_MINOR_UNIT_DIGITS = 2;
-
-const CURRENCY_BY_CODE: ReadonlyMap<
-  string,
-  (typeof SUPPORTED_CURRENCIES)[number]
-> = new Map(
-  SUPPORTED_CURRENCIES.map((currency) => [currency.code, currency]),
-);
-
-export function getCurrencySymbol(currencyCode: string): string {
-  return CURRENCY_BY_CODE.get(currencyCode)?.symbol ?? currencyCode;
-}
-
-export function getMinorUnitDigits(currencyCode: string): number {
-  return (
-    CURRENCY_BY_CODE.get(currencyCode)?.minorUnitDigits ??
-    DEFAULT_MINOR_UNIT_DIGITS
-  );
-}
+import { getCurrencySymbol, getMinorUnitDigits } from "./currencyCatalog";
 
 export function getCurrencyInputStep(currencyCode: string): string {
   const minorUnitDigits = getMinorUnitDigits(currencyCode);
