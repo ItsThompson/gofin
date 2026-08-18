@@ -12,6 +12,7 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	"github.com/ItsThompson/gofin/services/httpx"
+	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 )
 
 // RESTHandler handles HTTP requests for the finance service.
@@ -44,6 +45,7 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 		"finance.onboarding":          h.CompleteOnboarding,
 		"finance.defaults.get":        h.GetDefaults,
 		"finance.defaults.update":     h.UpdateDefaults,
+		"finance.currencies.list":     h.ListCurrencies,
 		"finance.periods.current":     h.GetCurrentPeriod,
 		"finance.periods.list":        h.ListPeriods,
 		"finance.periods.create":      h.CreatePeriod,
@@ -127,6 +129,31 @@ func (h *RESTHandler) UpdateDefaults(c *gin.Context) {
 
 	c.JSON(http.StatusOK, model.DefaultsResponse{
 		Defaults: defaults,
+	})
+}
+
+// ListCurrencies handles GET /api/finance/currencies.
+// The catalog is static reference data owned by the shared currency package,
+// so the handler reads it directly instead of routing through the service layer.
+func (h *RESTHandler) ListCurrencies(c *gin.Context) {
+	_, ok := httpx.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	definitions := currencycatalog.All()
+	currencies := make([]model.CurrencyData, len(definitions))
+	for i, definition := range definitions {
+		currencies[i] = model.CurrencyData{
+			Code:            definition.Code,
+			Symbol:          definition.Symbol,
+			Name:            definition.Name,
+			MinorUnitDigits: definition.MinorUnitDigits,
+		}
+	}
+
+	c.JSON(http.StatusOK, model.CurrencyListResponse{
+		Currencies: currencies,
 	})
 }
 

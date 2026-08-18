@@ -50,6 +50,7 @@ var registry = []Route{
 	// --- finance service ---
 	{ID: "finance.onboarding", Service: "finance", Method: http.MethodPost, Path: "/api/finance/onboarding", Access: Personal},
 	{ID: "finance.defaults.get", Service: "finance", Method: http.MethodGet, Path: "/api/finance/defaults", Access: Personal},
+	{ID: "finance.currencies.list", Service: "finance", Method: http.MethodGet, Path: "/api/finance/currencies", Access: Personal},
 	{ID: "finance.defaults.update", Service: "finance", Method: http.MethodPut, Path: "/api/finance/defaults", Access: Personal},
 	{ID: "finance.periods.current", Service: "finance", Method: http.MethodGet, Path: "/api/finance/periods/current", Access: Personal},
 	{ID: "finance.periods.list", Service: "finance", Method: http.MethodGet, Path: "/api/finance/periods", Access: Personal},
