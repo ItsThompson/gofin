@@ -7,3 +7,4 @@ export * from "./dashboard";
 export * from "./health";
 export * from "./prorata";
 export * from "./trends";
+export * from "./currencies";

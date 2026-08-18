@@ -1,42 +1,54 @@
-import { SUPPORTED_CURRENCIES } from "./constants";
+import { getCurrencySymbol, getMinorUnitDigits } from "./currencyCatalog";
 
-/** Map of currency codes to their symbols (derived from SUPPORTED_CURRENCIES). */
-const CURRENCY_SYMBOL_MAP = Object.fromEntries(
-  SUPPORTED_CURRENCIES.map((currency) => [currency.code, currency.symbol]),
-) as Record<string, string>;
-
-/**
- * Get the display symbol for a currency code.
- * Falls back to the code itself if no symbol is mapped.
- */
-export function getCurrencySymbol(currencyCode: string): string {
-  return CURRENCY_SYMBOL_MAP[currencyCode] ?? currencyCode;
+export function getCurrencyInputStep(currencyCode: string): string {
+  const minorUnitDigits = getMinorUnitDigits(currencyCode);
+  if (minorUnitDigits === 0) return "1";
+  return `0.${"0".repeat(minorUnitDigits - 1)}1`;
 }
 
-/**
- * Format a minor-unit amount (cents) for display.
- * Divides by 100 and prepends the currency symbol.
- */
+export function hasValidMinorUnitPrecision(
+  amountString: string,
+  currencyCode: string,
+): boolean {
+  const trimmed = amountString.trim();
+  if (trimmed === "") return true;
+  if (!Number.isFinite(Number(trimmed))) return true;
+
+  const [, fraction = ""] = trimmed.split(".");
+  return fraction.length <= getMinorUnitDigits(currencyCode);
+}
+
+export function toMajorUnits(
+  amountMinorUnits: number,
+  currencyCode: string,
+): number {
+  return amountMinorUnits / 10 ** getMinorUnitDigits(currencyCode);
+}
+
 export function formatCurrency(
-  amountCents: number,
+  amountMinorUnits: number,
   currencyCode: string,
 ): string {
   const symbol = getCurrencySymbol(currencyCode);
-  const majorUnits = Math.abs(amountCents) / 100;
+  const minorUnitDigits = getMinorUnitDigits(currencyCode);
+  const majorUnits = Math.abs(toMajorUnits(amountMinorUnits, currencyCode));
   const formatted = majorUnits.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: minorUnitDigits,
+    maximumFractionDigits: minorUnitDigits,
   });
-  const prefix = amountCents < 0 ? "-" : "";
+  const prefix = amountMinorUnits < 0 ? "-" : "";
   return `${prefix}${symbol}${formatted}`;
 }
 
-/**
- * Convert a dollar string to cents (minor units).
- * Returns 0 for invalid input.
- */
+export function toMinorUnits(
+  amountString: string,
+  currencyCode: string,
+): number {
+  const parsed = parseFloat(amountString);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.round(parsed * 10 ** getMinorUnitDigits(currencyCode));
+}
+
 export function toCents(dollarString: string): number {
-  const parsed = parseFloat(dollarString);
-  if (isNaN(parsed)) return 0;
-  return Math.round(parsed * 100);
+  return toMinorUnits(dollarString, "USD");
 }

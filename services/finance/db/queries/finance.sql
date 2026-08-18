@@ -55,8 +55,8 @@ ORDER BY year DESC, month DESC;
 
 -- name: CreatePeriod :one
 INSERT INTO finance.budget_periods
-    (user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+    (user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: UpdatePeriod :one

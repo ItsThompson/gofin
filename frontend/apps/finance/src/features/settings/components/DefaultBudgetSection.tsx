@@ -1,5 +1,5 @@
 import type { User } from "@gofin/core";
-import { SUPPORTED_CURRENCIES } from "@gofin/core";
+import { useSupportedCurrencyOptions } from "@gofin/api";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -11,15 +11,9 @@ import {
 import { Check, Loader2 } from "lucide-react";
 import { useDefaultBudget } from "../hooks/useDefaultBudget";
 
-const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES.map((currency) => ({
-  code: currency.code,
-  label: currency.symbol === currency.code
-    ? currency.code
-    : `${currency.code} (${currency.symbol})`,
-}));
-
 export function DefaultBudgetSection({ user }: { user: User }) {
   const { state, actions } = useDefaultBudget(user);
+  const currencyOptions = useSupportedCurrencyOptions();
 
   if (state.fetching) {
     return (
@@ -29,6 +23,9 @@ export function DefaultBudgetSection({ user }: { user: User }) {
       </div>
     );
   }
+
+  const saveError =
+    state.saveStatus.kind === "failed" ? state.saveStatus.message : null;
 
   return (
     <Form onSubmit={actions.handleSubmit}>
@@ -88,7 +85,7 @@ export function DefaultBudgetSection({ user }: { user: User }) {
           onChange={(event) => actions.setCurrency(event.target.value)}
           className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          {CURRENCY_OPTIONS.map((opt) => (
+          {currencyOptions.map((opt) => (
             <option key={opt.code} value={opt.code}>
               {opt.label}
             </option>
@@ -96,17 +93,22 @@ export function DefaultBudgetSection({ user }: { user: User }) {
         </select>
       </FormField>
 
-      <FormMessage>{state.error}</FormMessage>
+      <FormMessage>{state.validationError || saveError}</FormMessage>
 
-      {state.success && (
+      {state.saveStatus.kind === "saved" && (
         <p className="flex items-center gap-1.5 text-sm text-green-600">
           <Check className="size-4" />
           Default settings updated successfully.
         </p>
       )}
 
-      <Button type="submit" disabled={state.loading}>
-        {state.loading && <Loader2 className="size-4 animate-spin" />}
+      <Button
+        type="submit"
+        disabled={state.saveStatus.kind === "saving"}
+      >
+        {state.saveStatus.kind === "saving" && (
+          <Loader2 className="size-4 animate-spin" />
+        )}
         Save Defaults
       </Button>
     </Form>

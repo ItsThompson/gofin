@@ -1,4 +1,4 @@
-import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse } from "@gofin/core";
+import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest } from "@gofin/core";
 
 /** Base properties available in all period states. */
 interface PeriodStateBase {
@@ -24,8 +24,6 @@ export interface PeriodNotFound extends PeriodStateBase {
   createError: string | null;
   /** Clear the create error. */
   clearCreateError: () => void;
-  /** Response from last successful creation (for pro-rata info display). */
-  lastCreateResponse: CreatePeriodResponse | null;
 }
 
 /** Period exists and is active. */

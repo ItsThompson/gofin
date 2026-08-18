@@ -13,6 +13,7 @@ interface CreatePeriodParams {
   year: number;
   month: number;
   budgetAmount: number;
+  reportingCurrency?: string;
   essentialsPercent?: number;
   desiresPercent?: number;
   savingsPercent?: number;
@@ -42,6 +43,7 @@ export async function apiCreatePeriod(
       year: params.year,
       month: params.month,
       budgetAmount: params.budgetAmount,
+      reportingCurrency: params.reportingCurrency ?? "USD",
       essentialsPercent: params.essentialsPercent ?? 50,
       desiresPercent: params.desiresPercent ?? 30,
       savingsPercent: params.savingsPercent ?? 20,

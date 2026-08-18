@@ -1,18 +1,32 @@
 export type * from "./types";
+export { EXPENSE_TYPES, DEFAULT_BUDGET_SPLIT, type ExpenseType } from "./constants";
 export {
-  EXPENSE_TYPES,
-  DEFAULT_BUDGET_SPLIT,
   SUPPORTED_CURRENCIES,
-  type ExpenseType,
+  SUPPORTED_CURRENCY_OPTIONS,
+  isSupportedCurrency,
+  getCurrencySymbol,
+  getMinorUnitDigits,
+  loadSupportedCurrencies,
+  subscribeSupportedCurrencies,
   type SupportedCurrency,
-} from "./constants";
+  type SupportedCurrencyCode,
+  type SupportedCurrencyOption,
+  type CurrencyCatalogFetcher,
+} from "./currencyCatalog";
 export {
   validateEDSSplit,
   validatePassword,
   validateEmail,
   validateUsername,
 } from "./validation";
-export { formatCurrency, getCurrencySymbol, toCents } from "./currency";
+export {
+  formatCurrency,
+  getCurrencyInputStep,
+  hasValidMinorUnitPrecision,
+  toCents,
+  toMajorUnits,
+  toMinorUnits,
+} from "./currency";
 export {
   canUseFinanceFeatures,
   canUseAdminFeatures,

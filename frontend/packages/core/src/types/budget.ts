@@ -6,8 +6,9 @@ export interface BudgetPeriod {
   userId: string;
   year: number;
   month: number;
-  /** Budget total in minor units (cents). */
+  /** Budget total in the reporting currency's minor units. */
   budgetAmount: number;
+  reportingCurrency: string;
   essentialsPercent: number;
   desiresPercent: number;
   savingsPercent: number;
@@ -18,7 +19,7 @@ export interface BudgetPeriod {
 /** User's default budget settings. */
 export interface DefaultSettings {
   userId: string;
-  /** Budget amount in minor units (cents). 0 = not yet configured. */
+  /** Budget amount in the default currency's minor units. 0 = not yet configured. */
   budgetAmount: number;
   essentialsPercent: number;
   desiresPercent: number;
@@ -47,8 +48,9 @@ export interface PeriodListResponse {
 export interface CreatePeriodRequest {
   year: number;
   month: number;
-  /** Budget amount in minor units (cents). */
+  /** Budget amount in the reporting currency's minor units. */
   budgetAmount: number;
+  reportingCurrency: string;
   essentialsPercent: number;
   desiresPercent: number;
   savingsPercent: number;
@@ -64,7 +66,7 @@ export interface CreatePeriodResponse {
 
 /** Request body for PUT /api/finance/periods/:id. */
 export interface UpdatePeriodRequest {
-  /** Budget amount in minor units (cents). */
+  /** Budget amount in the period reporting currency's minor units. */
   budgetAmount: number;
   essentialsPercent: number;
   desiresPercent: number;

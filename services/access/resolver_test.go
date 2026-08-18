@@ -22,6 +22,7 @@ func TestResolve_WorkedExamples(t *testing.T) {
 		{"onboarding-complete is personal", "POST", "/api/auth/onboarding-complete", Personal},
 		{"assume is admin", "POST", "/api/auth/assume", Admin},
 		{"admin users is admin", "GET", "/api/admin/users", Admin},
+		{"finance currencies is authenticated", "GET", "/api/finance/currencies", Authenticated},
 		{"finance periods is personal", "GET", "/api/finance/periods", Personal},
 		{"finance period update is personal (param)", "PUT", "/api/finance/periods/abc-123", Personal},
 		{"finance tag delete is personal (param)", "DELETE", "/api/finance/tags/tag-9", Personal},

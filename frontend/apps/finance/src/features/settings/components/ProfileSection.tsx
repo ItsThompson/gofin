@@ -13,6 +13,9 @@ import { useProfileForm } from "../hooks/useProfileForm";
 export function ProfileSection({ user, onUserUpdated }: { user: User; onUserUpdated?: () => void }) {
   const { state, actions } = useProfileForm(user, onUserUpdated);
 
+  const saveError =
+    state.saveStatus.kind === "failed" ? state.saveStatus.message : null;
+
   return (
     <Form onSubmit={actions.handleSubmit}>
       <FormField>
@@ -37,17 +40,19 @@ export function ProfileSection({ user, onUserUpdated }: { user: User; onUserUpda
         />
       </FormField>
 
-      <FormMessage>{state.error}</FormMessage>
+      <FormMessage>{saveError}</FormMessage>
 
-      {state.success && (
+      {state.saveStatus.kind === "saved" && (
         <p className="flex items-center gap-1.5 text-sm text-green-600">
           <Check className="size-4" />
           Profile updated successfully.
         </p>
       )}
 
-      <Button type="submit" disabled={state.loading}>
-        {state.loading && <Loader2 className="size-4 animate-spin" />}
+      <Button type="submit" disabled={state.saveStatus.kind === "saving"}>
+        {state.saveStatus.kind === "saving" && (
+          <Loader2 className="size-4 animate-spin" />
+        )}
         Update Profile
       </Button>
     </Form>

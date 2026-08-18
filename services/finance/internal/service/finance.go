@@ -13,6 +13,7 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/pgutil"
+	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 )
 
 // DefaultTags are seeded when a user completes onboarding.
@@ -119,11 +120,54 @@ func budgetAmountError() *apierr.Error {
 	})
 }
 
+func normalizeCurrencyCode(currencyCode string) string {
+	return strings.ToUpper(strings.TrimSpace(currencyCode))
+}
+
+func unsupportedCurrencyError(fieldName string, currencyCode string) *apierr.Error {
+	return &apierr.Error{
+		Code:    model.ErrUnsupportedCurrency,
+		Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
+		Status:  http.StatusBadRequest,
+		Fields: map[string]string{
+			fieldName: "unsupported currency",
+		},
+	}
+}
+
+func validateSupportedCurrency(fieldName string, currencyCode string) *apierr.Error {
+	if currencycatalog.IsSupported(currencyCode) {
+		return nil
+	}
+	return unsupportedCurrencyError(fieldName, currencyCode)
+}
+
+func (s *FinanceService) getPeriodCreationDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error) {
+	defaults, err := s.repo.GetDefaults(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting defaults for period creation: %w", err)
+	}
+	if defaults == nil {
+		return nil, fmt.Errorf("defaults row missing for user %s during period creation", userID)
+	}
+
+	defaults.Currency = normalizeCurrencyCode(defaults.Currency)
+	if verr := validateSupportedCurrency("reportingCurrency", defaults.Currency); verr != nil {
+		return nil, verr
+	}
+	return defaults, nil
+}
+
 // CompleteOnboarding saves the user's default settings and seeds default tags.
 // Both operations run in a transaction: if tag seeding fails, the defaults
 // upsert is rolled back.
 func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, req *model.OnboardingRequest) (*model.DefaultSettings, error) {
 	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
+		return nil, verr
+	}
+
+	currencyCode := normalizeCurrencyCode(req.Currency)
+	if verr := validateSupportedCurrency("currency", currencyCode); verr != nil {
 		return nil, verr
 	}
 
@@ -141,7 +185,7 @@ func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, 
 		EssentialsPercent: req.EssentialsPercent,
 		DesiresPercent:    req.DesiresPercent,
 		SavingsPercent:    req.SavingsPercent,
-		Currency:          req.Currency,
+		Currency:          currencyCode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("upserting defaults: %w", err)
@@ -189,13 +233,18 @@ func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req 
 		return nil, budgetAmountError()
 	}
 
+	currencyCode := normalizeCurrencyCode(req.Currency)
+	if verr := validateSupportedCurrency("currency", currencyCode); verr != nil {
+		return nil, verr
+	}
+
 	defaults, err := s.repo.UpsertDefaults(ctx, &model.DefaultSettings{
 		UserID:            userID,
 		BudgetAmount:      req.BudgetAmount,
 		EssentialsPercent: req.EssentialsPercent,
 		DesiresPercent:    req.DesiresPercent,
 		SavingsPercent:    req.SavingsPercent,
-		Currency:          req.Currency,
+		Currency:          currencyCode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("updating defaults: %w", err)

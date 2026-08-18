@@ -1,5 +1,5 @@
 import { type FormEvent } from "react";
-import { getCurrencySymbol } from "@gofin/core";
+import { getCurrencyInputStep, getCurrencySymbol } from "@gofin/core";
 import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
 import type { BudgetPeriod, PeriodResponse, UpdatePeriodRequest } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
@@ -22,21 +22,20 @@ import { dashboardApi } from "../api";
 
 interface BudgetSettingsEditorProps {
   period: BudgetPeriod;
-  currency: string;
   onSaved: (period: BudgetPeriod) => void;
   onCancel: () => void;
 }
 
 export function BudgetSettingsEditor({
   period,
-  currency,
   onSaved,
   onCancel,
 }: BudgetSettingsEditorProps) {
-  const currencySymbol = getCurrencySymbol(currency);
+  const currencySymbol = getCurrencySymbol(period.reportingCurrency);
 
   const form = useBudgetSplitForm({
     initialBudgetCents: period.budgetAmount,
+    currency: period.reportingCurrency,
     initialSplit: {
       essentials: period.essentialsPercent,
       desires: period.desiresPercent,
@@ -92,7 +91,7 @@ export function BudgetSettingsEditor({
                   id="edit-budget"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step={getCurrencyInputStep(period.reportingCurrency)}
                   value={form.fields.budgetDollars}
                   onChange={(event) => form.setField("budgetDollars", event.target.value)}
                   className="pl-6"

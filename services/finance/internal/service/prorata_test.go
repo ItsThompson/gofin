@@ -13,6 +13,9 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
+// int64Ptr returns a pointer to v for building *int64 request fields.
+func int64Ptr(v int64) *int64 { return &v }
+
 // --- CalculateInstallments Tests ---
 
 func TestCalculateInstallments_EvenSplit(t *testing.T) {
@@ -276,14 +279,35 @@ func TestCreatePeriodWithProRata_NoPriorPeriod(t *testing.T) {
 		Return([]*model.ProRataSchedule{}, nil)
 
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
-		Year: 2026, Month: 5, BudgetAmount: 300000,
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, "p-1", result.Period.ID)
 	assert.Empty(t, result.AppliedProRata)
 	assert.Equal(t, 0, result.AutoCreatedPeriods)
+}
+
+func TestCreatePeriodWithProRata_RejectsUnsupportedReportingCurrency(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
+		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "XYZ",
+	})
+
+	require.Error(t, err)
+	var svcErr *apierr.Error
+	require.ErrorAs(t, err, &svcErr)
+	assert.Equal(t, model.ErrUnsupportedCurrency, svcErr.Code)
+	assert.Equal(t, "unsupported currency", svcErr.Fields["reportingCurrency"])
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
 func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
@@ -314,8 +338,9 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 	repo.On("MarkProRataApplied", mock.Anything, "sched-1").Return(nil)
 
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
-		Year: 2026, Month: 5, BudgetAmount: 300000,
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	})
 
 	require.NoError(t, err)
@@ -359,8 +384,9 @@ func TestCreatePeriodWithProRata_MissedMonths(t *testing.T) {
 		Return([]*model.ProRataSchedule{}, nil)
 
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
-		Year: 2026, Month: 5, BudgetAmount: 300000,
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	})
 
 	require.NoError(t, err)
@@ -415,8 +441,9 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 	repo.On("MarkProRataApplied", mock.Anything, "s-apr").Return(nil)
 
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
-		Year: 2026, Month: 5, BudgetAmount: 300000,
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	})
 
 	require.NoError(t, err)
@@ -473,8 +500,9 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 	repo.On("MarkProRataApplied", mock.Anything, "s-1").Return(nil)
 
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
-		Year: 2026, Month: 5, BudgetAmount: 300000,
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	})
 
 	require.NoError(t, err)
@@ -487,4 +515,31 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 	expClient.AssertCalled(t, "CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
 		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2
 	}))
+}
+
+func TestCreatePeriodWithProRata_NilDefaultsReturnsError(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// No defaults row - user has not completed onboarding.
+	repo.On("GetDefaults", mock.Anything, "user-1").Return(nil, nil)
+
+	// A prior period exists, so the missed month (April) needs auto-creation,
+	// which requires the defaults row.
+	repo.On("GetLatestPeriod", mock.Anything, "user-1").
+		Return(makePeriod("p-mar", 2026, 3), nil)
+
+	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
+		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
+		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "defaults row missing")
+
+	// CreatePeriod must never have been called.
+	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }

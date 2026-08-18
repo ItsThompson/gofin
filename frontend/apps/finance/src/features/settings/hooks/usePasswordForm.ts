@@ -2,13 +2,15 @@ import { useState, useCallback, type FormEvent } from "react";
 import { useFormMutation } from "@gofin/api";
 import { validatePassword } from "@gofin/core";
 import { settingsApi, type AuthResponse } from "../api";
+import type { SaveStatus } from "../types";
 
 export interface PasswordFormState {
   currentPassword: string;
   newPassword: string;
-  error: string | null;
-  success: boolean;
-  loading: boolean;
+  /** Client-side password strength error, or null when the password is valid. */
+  validationError: string | null;
+  /** Single status for the save operation; failure message travels with `failed`. */
+  saveStatus: SaveStatus;
 }
 
 export interface PasswordFormActions {
@@ -23,15 +25,18 @@ export function usePasswordForm(
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
 
-  const { submit, error: mutationError, submitting } = useFormMutation<AuthResponse>({
+  const { submit } = useFormMutation<AuthResponse>({
     onSuccess: () => {
       setCurrentPassword("");
       setNewPassword("");
       onUserUpdated?.();
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setSaveStatus({ kind: "saved" });
+      setTimeout(() => setSaveStatus({ kind: "idle" }), 3000);
+    },
+    onError: (message) => {
+      setSaveStatus({ kind: "failed", message });
     },
   });
 
@@ -39,7 +44,7 @@ export function usePasswordForm(
     (event: FormEvent) => {
       event.preventDefault();
       setValidationError(null);
-      setSuccess(false);
+      setSaveStatus({ kind: "idle" });
 
       // Client-side validation
       const strengthError = validatePassword(newPassword);
@@ -47,6 +52,8 @@ export function usePasswordForm(
         setValidationError(strengthError);
         return;
       }
+
+      setSaveStatus({ kind: "saving" });
 
       submit(() =>
         settingsApi.changePassword({
@@ -62,9 +69,8 @@ export function usePasswordForm(
     state: {
       currentPassword,
       newPassword,
-      error: validationError || mutationError,
-      success,
-      loading: submitting,
+      validationError,
+      saveStatus,
     },
     actions: { setCurrentPassword, setNewPassword, handleSubmit },
   };

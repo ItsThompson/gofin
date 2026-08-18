@@ -3,6 +3,7 @@ import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
 import type { UpdateDefaultsRequest } from "@gofin/core";
 import { settingsApi } from "../api";
+import type { SaveStatus } from "../types";
 
 export interface DefaultBudgetState {
   budgetDollars: string;
@@ -10,9 +11,10 @@ export interface DefaultBudgetState {
   desires: string;
   savings: string;
   currency: string;
-  error: string | null;
-  success: boolean;
-  loading: boolean;
+  /** Live validation error from the split fields, or null when valid. */
+  validationError: string | null;
+  /** Single status for the save operation; failure message travels with `failed`. */
+  saveStatus: SaveStatus;
   fetching: boolean;
 }
 
@@ -26,17 +28,22 @@ export interface DefaultBudgetActions {
 }
 
 export function useDefaultBudget(user: User): { state: DefaultBudgetState; actions: DefaultBudgetActions } {
-  const form = useBudgetSplitForm();
   const [currency, setCurrency] = useState(user.currency);
-  const [success, setSuccess] = useState(false);
+  const form = useBudgetSplitForm({ currency });
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
   const [fetching, setFetching] = useState(true);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const mutation = useFormMutation<void>({
+  const { submit } = useFormMutation<void>({
     onSuccess: () => {
-      setSuccess(true);
-      const timeout = setTimeout(() => setSuccess(false), 3000);
-      timeoutRef.current = timeout;
+      setSaveStatus({ kind: "saved" });
+      timeoutRef.current = setTimeout(
+        () => setSaveStatus({ kind: "idle" }),
+        3000,
+      );
+    },
+    onError: (message) => {
+      setSaveStatus({ kind: "failed", message });
     },
   });
 
@@ -55,6 +62,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         const defaults = response.defaults;
         form.reset({
           initialBudgetCents: defaults.budgetAmount,
+          currency: defaults.currency,
           initialSplit: {
             essentials: defaults.essentialsPercent,
             desires: defaults.desiresPercent,
@@ -64,7 +72,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         setCurrency(defaults.currency);
       } catch {
         // Use fallback defaults (hook already uses DEFAULT_BUDGET_SPLIT)
-        form.reset({ initialBudgetCents: 0 });
+        form.reset({ initialBudgetCents: 0, currency });
       } finally {
         setFetching(false);
       }
@@ -76,15 +84,13 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
   const handleSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
-      setSuccess(false);
+      setSaveStatus({ kind: "idle" });
 
-      const validationError = form.validate();
-      if (validationError) {
-        mutation.clearError();
-        // Validation errors are displayed via the form's split error;
-        // surface them through mutation.error for consistency.
+      if (form.validate()) {
         return;
       }
+
+      setSaveStatus({ kind: "saving" });
 
       const payload = form.toPayload();
 
@@ -96,7 +102,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         currency,
       };
 
-      mutation.submit(async () => {
+      submit(async () => {
         await settingsApi.updateDefaults(body);
 
         // Sync currency to auth service. Fetch the current profile
@@ -110,7 +116,7 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
         });
       });
     },
-    [form, currency, mutation],
+    [form, currency, submit],
   );
 
   return {
@@ -120,9 +126,8 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
       desires: form.fields.desires,
       savings: form.fields.savings,
       currency,
-      error: form.splitError || mutation.error,
-      success,
-      loading: mutation.submitting,
+      validationError: form.splitError,
+      saveStatus,
       fetching,
     },
     actions: {

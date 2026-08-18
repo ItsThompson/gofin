@@ -100,7 +100,6 @@ describe("usePeriodState", () => {
       expect(noPeriodState.creating).toBe(false);
       expect(noPeriodState.createError).toBeNull();
       expect(noPeriodState.clearCreateError).toBeInstanceOf(Function);
-      expect(noPeriodState.lastCreateResponse).toBeNull();
       expect(noPeriodState.retry).toBeInstanceOf(Function);
     });
 
@@ -218,6 +217,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
+          reportingCurrency: "USD",
         });
       });
 
@@ -272,6 +272,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
+          reportingCurrency: "USD",
         });
       });
 
@@ -320,6 +321,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
+          reportingCurrency: "USD",
         });
       });
 
@@ -360,6 +362,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
+          reportingCurrency: "USD",
         });
       });
 

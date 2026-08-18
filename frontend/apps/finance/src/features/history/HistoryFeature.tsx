@@ -30,7 +30,7 @@ export function HistoryFeature({ user }: FinancePageProps) {
           <ArrowLeft className="size-4" />
           Back to History
         </Button>
-        <ActiveDashboard period={selectedPeriod} user={user} readOnly />
+        <ActiveDashboard period={selectedPeriod} readOnly />
       </div>
     );
   }

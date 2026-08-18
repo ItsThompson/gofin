@@ -7,7 +7,8 @@ export const mockPeriod: BudgetPeriod = {
   userId: adminUser.id,
   year: currentYear,
   month: currentMonth,
-  budgetAmount: 300000, // $3,000
+  budgetAmount: 300000,
+  reportingCurrency: "USD",
   essentialsPercent: 50,
   desiresPercent: 30,
   savingsPercent: 20,

@@ -59,6 +59,6 @@ export function DashboardFeature({ user }: DashboardFeatureProps) {
       );
 
     case "active":
-      return <ActiveDashboard period={periodState.period} user={user} />;
+      return <ActiveDashboard period={periodState.period} />;
   }
 }

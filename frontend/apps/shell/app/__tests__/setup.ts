@@ -1,5 +1,13 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { beforeAll, vi } from "vitest";
+import { loadSupportedCurrencies } from "@gofin/core";
+import { mockCurrencyCatalog } from "@gofin/test-utils";
+
+// The currency catalog is populated by the app shell at runtime; seed it here
+// so onboarding and finance tests render options against the real catalog data.
+beforeAll(async () => {
+  await loadSupportedCurrencies(async () => mockCurrencyCatalog, []);
+});
 
 /**
  * jsdom does not implement several DOM APIs that framer-motion and radix-ui

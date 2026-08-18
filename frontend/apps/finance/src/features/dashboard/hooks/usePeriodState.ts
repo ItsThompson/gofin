@@ -4,13 +4,14 @@ import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodRe
 import type { PeriodStateResult } from "../types";
 import { dashboardApi } from "../api";
 
-type InternalStatus = "loading" | "no-period" | "active" | "error";
+type PeriodState =
+  | { status: "loading" }
+  | { status: "no-period"; defaults: DefaultSettings | null }
+  | { status: "active"; period: BudgetPeriod }
+  | { status: "error" };
 
 export function usePeriodState(): PeriodStateResult {
-  const [status, setStatus] = useState<InternalStatus>("loading");
-  const [period, setPeriod] = useState<BudgetPeriod | null>(null);
-  const [defaults, setDefaults] = useState<DefaultSettings | null>(null);
-  const [lastCreateResponse, setLastCreateResponse] = useState<CreatePeriodResponse | null>(null);
+  const [state, setState] = useState<PeriodState>({ status: "loading" });
   const { call: toastCall } = useApiToast();
   // The prompt works without saved defaults, but a failed load used to look
   // identical to having none. useApiToast owns the report and the message;
@@ -23,9 +24,7 @@ export function usePeriodState(): PeriodStateResult {
 
   const createMutation = useFormMutation<CreatePeriodResponse>({
     onSuccess: (response) => {
-      setLastCreateResponse(response);
-      setPeriod(response.period);
-      setStatus("active");
+      setState({ status: "active", period: response.period });
     },
   });
 
@@ -42,14 +41,15 @@ export function usePeriodState(): PeriodStateResult {
   const currentMonth = now.getMonth() + 1;
 
   const fetchPeriod = useCallback(async () => {
-    setStatus("loading");
+    // A fresh fetch owns no prior data: resetting to loading atomically drops
+    // any stale period or defaults instead of letting them survive a retry.
+    setState({ status: "loading" });
     try {
       const response = await dashboardApi.getCurrentPeriod(
         currentYear,
         currentMonth,
       );
-      setPeriod(response.period);
-      setStatus("active");
+      setState({ status: "active", period: response.period });
     } catch (error) {
       if (
         error instanceof ApiRequestError &&
@@ -58,12 +58,14 @@ export function usePeriodState(): PeriodStateResult {
         const defaultsResponse = await defaultsCall(() =>
           dashboardApi.getDefaults(),
         );
-        setDefaults(defaultsResponse?.defaults ?? null);
-        setStatus("no-period");
+        setState({
+          status: "no-period",
+          defaults: defaultsResponse?.defaults ?? null,
+        });
         return;
       }
       await toastCall(() => Promise.reject(error));
-      setStatus("error");
+      setState({ status: "error" });
     }
   }, [currentYear, currentMonth, toastCall, defaultsCall]);
 
@@ -71,26 +73,25 @@ export function usePeriodState(): PeriodStateResult {
     fetchPeriod();
   }, [fetchPeriod]);
 
-  switch (status) {
+  switch (state.status) {
     case "loading":
       return { status: "loading", retry: fetchPeriod };
 
     case "no-period":
       return {
         status: "no-period",
-        defaults,
+        defaults: state.defaults,
         createPeriod,
         creating: createMutation.submitting,
         createError: createMutation.error,
         clearCreateError: createMutation.clearError,
-        lastCreateResponse,
         retry: fetchPeriod,
       };
 
     case "active":
       return {
         status: "active",
-        period: period!,
+        period: state.period,
         retry: fetchPeriod,
       };
 

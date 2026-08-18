@@ -41,9 +41,9 @@ func (q *Queries) CountUserTags(ctx context.Context, userID pgtype.UUID) (int64,
 
 const createPeriod = `-- name: CreatePeriod :one
 INSERT INTO finance.budget_periods
-    (user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at
+    (user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at
 `
 
 type CreatePeriodParams struct {
@@ -51,6 +51,7 @@ type CreatePeriodParams struct {
 	Year              int32       `json:"year"`
 	Month             int32       `json:"month"`
 	BudgetAmount      int64       `json:"budget_amount"`
+	ReportingCurrency string      `json:"reporting_currency"`
 	EssentialsPercent int32       `json:"essentials_percent"`
 	DesiresPercent    int32       `json:"desires_percent"`
 	SavingsPercent    int32       `json:"savings_percent"`
@@ -62,6 +63,7 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Fin
 		arg.Year,
 		arg.Month,
 		arg.BudgetAmount,
+		arg.ReportingCurrency,
 		arg.EssentialsPercent,
 		arg.DesiresPercent,
 		arg.SavingsPercent,
@@ -73,6 +75,7 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Fin
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
+		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
@@ -225,7 +228,7 @@ func (q *Queries) DeleteTag(ctx context.Context, arg DeleteTagParams) error {
 }
 
 const getCurrentPeriod = `-- name: GetCurrentPeriod :one
-SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE user_id = $1 AND year = $2 AND month = $3
 `
 
@@ -244,6 +247,7 @@ func (q *Queries) GetCurrentPeriod(ctx context.Context, arg GetCurrentPeriodPara
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
+		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
@@ -301,7 +305,7 @@ func (q *Queries) GetHealthScore(ctx context.Context, arg GetHealthScoreParams) 
 }
 
 const getLatestPeriod = `-- name: GetLatestPeriod :one
-SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE user_id = $1
 ORDER BY year DESC, month DESC
 LIMIT 1
@@ -316,6 +320,7 @@ func (q *Queries) GetLatestPeriod(ctx context.Context, userID pgtype.UUID) (Fina
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
+		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
@@ -374,7 +379,7 @@ func (q *Queries) GetPendingProRata(ctx context.Context, arg GetPendingProRataPa
 }
 
 const getPeriodByID = `-- name: GetPeriodByID :one
-SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE id = $1 AND user_id = $2
 `
 
@@ -392,6 +397,7 @@ func (q *Queries) GetPeriodByID(ctx context.Context, arg GetPeriodByIDParams) (F
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
+		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,
@@ -511,7 +517,7 @@ func (q *Queries) ListHealthScoreScalars(ctx context.Context, userID pgtype.UUID
 }
 
 const listPeriods = `-- name: ListPeriods :many
-SELECT id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
+SELECT id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at FROM finance.budget_periods
 WHERE user_id = $1
 ORDER BY year DESC, month DESC
 `
@@ -531,6 +537,7 @@ func (q *Queries) ListPeriods(ctx context.Context, userID pgtype.UUID) ([]Financ
 			&i.Year,
 			&i.Month,
 			&i.BudgetAmount,
+			&i.ReportingCurrency,
 			&i.EssentialsPercent,
 			&i.DesiresPercent,
 			&i.SavingsPercent,
@@ -596,7 +603,7 @@ UPDATE finance.budget_periods
 SET budget_amount = $1, essentials_percent = $2, desires_percent = $3,
     savings_percent = $4, updated_at = now()
 WHERE id = $5 AND user_id = $6
-RETURNING id, user_id, year, month, budget_amount, essentials_percent, desires_percent, savings_percent, created_at, updated_at
+RETURNING id, user_id, year, month, budget_amount, reporting_currency, essentials_percent, desires_percent, savings_percent, created_at, updated_at
 `
 
 type UpdatePeriodParams struct {
@@ -624,6 +631,7 @@ func (q *Queries) UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (Fin
 		&i.Year,
 		&i.Month,
 		&i.BudgetAmount,
+		&i.ReportingCurrency,
 		&i.EssentialsPercent,
 		&i.DesiresPercent,
 		&i.SavingsPercent,

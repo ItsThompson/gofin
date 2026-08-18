@@ -10,6 +10,9 @@ service FinanceService {
   rpc UpdateDefaults(UpdateDefaultsRequest) returns (DefaultsResponse);
   rpc CompleteOnboarding(CompleteOnboardingRequest) returns (DefaultsResponse);
 
+  // Currency catalog
+  rpc ListSupportedCurrencies(ListSupportedCurrenciesRequest) returns (ListSupportedCurrenciesResponse);
+
   // Data export (datarights support)
   rpc GetAllUserData(GetAllUserDataRequest) returns (AllUserDataResponse);
 
@@ -80,6 +83,23 @@ message DefaultsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Currency catalog
+// ---------------------------------------------------------------------------
+
+message CurrencyData {
+  string code = 1;
+  string symbol = 2;
+  string name = 3;
+  int32 minor_unit_digits = 4;
+}
+
+message ListSupportedCurrenciesRequest {}
+
+message ListSupportedCurrenciesResponse {
+  repeated CurrencyData currencies = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Data export (datarights support)
 // ---------------------------------------------------------------------------
 
@@ -117,6 +137,7 @@ message PeriodData {
   int32 desires_percent = 7;
   int32 savings_percent = 8;
   string created_at = 9;
+  string reporting_currency = 10;
 }
 
 message GetCurrentPeriodRequest {
@@ -133,6 +154,7 @@ message CreatePeriodRequest {
   int32 essentials_percent = 5;
   int32 desires_percent = 6;
   int32 savings_percent = 7;
+  string reporting_currency = 8;
 }
 
 message UpdatePeriodRequest {
