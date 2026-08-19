@@ -8,10 +8,12 @@ export interface Expense {
   id: string;
   userId: string;
   name: string;
-  /** Amount in minor units (cents). */
+  /** Amount in transaction currency minor units. */
   amount: number;
-  /** ISO 4217 currency code. */
-  currency: string;
+  /** Canonical transaction ISO 4217 currency code. */
+  transactionCurrency: string;
+  /** Deprecated alias for transactionCurrency during rollout. */
+  currency?: string;
   /** One of: "essentials", "desires", "savings". */
   expenseType: ExpenseType;
   tagId: string;
@@ -36,9 +38,11 @@ export interface ExpenseResponse {
 /** Request body for POST /api/expenses. */
 export interface CreateExpenseRequest {
   name: string;
-  /** Amount in minor units (cents). */
+  /** Amount in transaction currency minor units. */
   amount: number;
-  currency: string;
+  transactionCurrency: string;
+  /** Deprecated alias accepted during rollout. */
+  currency?: string;
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
@@ -50,8 +54,9 @@ export interface CreateExpenseRequest {
 /** Request body for POST /api/expenses/:id/correct. */
 export interface CorrectExpenseRequest {
   name: string;
-  /** Amount in minor units (cents). */
+  /** Amount in transaction currency minor units. */
   amount: number;
+  currency?: string;
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */

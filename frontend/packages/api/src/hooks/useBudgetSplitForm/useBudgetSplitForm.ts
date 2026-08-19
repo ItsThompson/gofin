@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react";
 import {
   validateEDSSplit,
-  hasValidMinorUnitPrecision,
-  toMinorUnits,
+  parseInput,
+  validateInputPrecision,
 } from "@gofin/core";
 import type {
   BudgetSplitFields,
@@ -45,7 +45,7 @@ export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSpli
       return "Budget amount must be non-negative";
     }
 
-    if (!hasValidMinorUnitPrecision(fields.budgetDollars, currency)) {
+    if (!validateInputPrecision(fields.budgetDollars, currency).isValid) {
       return precisionError(currency);
     }
 
@@ -56,7 +56,7 @@ export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSpli
     const { essentials, desires, savings } = parseSplitPercentages(fields);
 
     return {
-      budgetAmountCents: toMinorUnits(fields.budgetDollars, currency),
+      budgetAmountCents: parseInput(fields.budgetDollars, currency),
       essentialsPercent: essentials,
       desiresPercent: desires,
       savingsPercent: savings,

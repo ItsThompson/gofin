@@ -6,10 +6,12 @@ require (
 	github.com/ItsThompson/gofin/services/access v0.0.0
 	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/errkit v0.0.0
+	github.com/ItsThompson/gofin/services/finance v0.0.0-00010101000000-000000000000
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
+	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
 	github.com/codenotary/immudb v1.11.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
@@ -117,5 +119,9 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ItsThompson/gofin/services/finance => ../finance
+
+replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
 
 replace github.com/ItsThompson/gofin/services/errkit => ../errkit

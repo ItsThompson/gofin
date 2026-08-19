@@ -47,6 +47,7 @@ message ExpenseData {
   int32 pro_rata_index = 15;
   int32 pro_rata_total = 16;
   string created_at = 17;
+  string transaction_currency = 18;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +68,7 @@ message CreateExpenseRequest {
   string pro_rata_group = 11;
   int32 pro_rata_index = 12;
   int32 pro_rata_total = 13;
+  string transaction_currency = 14;
 }
 
 message ExpenseResponse {

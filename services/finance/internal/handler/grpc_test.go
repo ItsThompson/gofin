@@ -71,6 +71,59 @@ func TestGetDefaults_WrappedTypedErrorClassifies(t *testing.T) {
 	assert.Equal(t, codes.NotFound, st.Code())
 }
 
+func TestGetPeriodContextGrpc_Success(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	financeSvc := service.NewFinanceService(repo, new(mockTxBeginner), nil, func() time.Time { return now }, logger)
+	handler := NewGRPCHandler(financeSvc)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return(&model.BudgetPeriod{
+		ID:                "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "JPY",
+	}, nil)
+
+	resp, err := handler.GetPeriodContext(context.Background(), &pb.GetPeriodContextRequest{
+		UserId: "user-1",
+		Year:   2026,
+		Month:  5,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "period-1", resp.PeriodId)
+	assert.Equal(t, "user-1", resp.UserId)
+	assert.Equal(t, int32(2026), resp.Year)
+	assert.Equal(t, int32(5), resp.Month)
+	assert.Equal(t, "JPY", resp.ReportingCurrency)
+	assert.False(t, resp.IsLocked)
+}
+
+func TestGetPeriodContextGrpc_NotFound(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	handler := setupGRPCHandler(repo)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(6)).Return(nil, &apierr.Error{
+		Code:    model.ErrPeriodNotFound,
+		Message: "No budget period found for 2026-06",
+		Status:  404,
+	})
+
+	resp, err := handler.GetPeriodContext(context.Background(), &pb.GetPeriodContextRequest{
+		UserId: "user-1",
+		Year:   2026,
+		Month:  6,
+	})
+
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
+}
+
 func TestGetAllUserData_Success(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	handler := setupGRPCHandler(repo)

@@ -211,6 +211,27 @@ describe("useExpenseFields", () => {
       });
       expect(isValid!).toBe(true);
     });
+
+    it("rejects precision that exceeds the selected currency", () => {
+      const { result } = renderHook(() =>
+        useExpenseFields(
+          {
+            name: "Ramen",
+            amountDollars: "1200.50",
+            tagId: "tag-1",
+            expenseDate: "2026-05-12",
+          },
+          "JPY",
+        ),
+      );
+
+      let isValid: boolean;
+      act(() => {
+        isValid = result.current.validate();
+      });
+      expect(isValid!).toBe(false);
+      expect(result.current.fieldErrors.amount).toBe("Amount must be a whole JPY amount");
+    });
   });
 
   describe("reset", () => {
@@ -283,11 +304,18 @@ describe("useExpenseFields", () => {
       expect(result.current.amountCents).toBe(450);
     });
 
-    it("rounds to nearest cent", () => {
+    it("returns 0 when input exceeds currency precision", () => {
       const { result } = renderHook(() =>
         useExpenseFields({ amountDollars: "10.999" }),
       );
-      expect(result.current.amountCents).toBe(1100);
+      expect(result.current.amountCents).toBe(0);
+    });
+
+    it("uses the selected currency precision", () => {
+      const { result } = renderHook(() =>
+        useExpenseFields({ amountDollars: "1234" }, "JPY"),
+      );
+      expect(result.current.amountCents).toBe(1234);
     });
 
     it("updates when amountDollars changes", () => {

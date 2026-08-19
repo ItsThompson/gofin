@@ -20,6 +20,7 @@ export const prorataHandlers = [
         name: body.name,
         amount: Math.round(body.totalAmount / body.months),
         currency: body.currency,
+        transactionCurrency: body.transactionCurrency,
         expenseType: body.expenseType,
         tagId: body.tagId,
         expenseDate: body.expenseDate,

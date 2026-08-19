@@ -19,6 +19,7 @@ const activeExpense: Expense = {
   name: "Groceries",
   amount: 5000,
   currency: "USD",
+  transactionCurrency: "USD",
   expenseType: "essentials",
   tagId: "tag-food",
   expenseDate: "2026-05-02",

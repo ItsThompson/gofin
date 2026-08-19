@@ -15,13 +15,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
 func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
 	return NewGRPCHandler(expenseSvc)
 }
 
@@ -48,6 +49,75 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	assert.Contains(t, registered, "CountExpensesByTag")
 	assert.Contains(t, registered, "AnonymizeAllUserExpenses")
 	assert.Contains(t, registered, "StreamAllUserExpenses")
+}
+
+func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler := newTestGRPCHandler(repo)
+
+	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
+		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+	})).Return(&model.Expense{
+		ID:                  "exp-1",
+		UserID:              "user-1",
+		Amount:              1200,
+		TransactionCurrency: "EUR",
+		Currency:            "EUR",
+		Status:              "active",
+	}, nil)
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:              "user-1",
+		Name:                "Coffee",
+		Amount:              1200,
+		TransactionCurrency: "EUR",
+		ExpenseType:         "desires",
+		TagId:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.GetExpense())
+	assert.Equal(t, "EUR", resp.GetExpense().GetTransactionCurrency())
+	repo.AssertExpectations(t)
+}
+
+func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(6)).
+		Return(nil, &apierr.Error{
+			Code:    model.ErrPeriodNotFound,
+			Message: "No budget period found for 2026-06",
+			Status:  404,
+			Fields:  map[string]string{"periodYear": "2026", "periodMonth": "6"},
+		})
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:      "user-1",
+		Name:        "Coffee",
+		Amount:      450,
+		Currency:    "USD",
+		ExpenseType: "desires",
+		TagId:       "tag-food",
+		ExpenseDate: "2026-06-03",
+		PeriodYear:  2026,
+		PeriodMonth: 6,
+	})
+
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.NotFound, st.Code())
+	assert.Contains(t, st.Message(), "2026-06")
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
 // TestGRPC_GetExpense_WrappedTypedErrorClassifies asserts a typed *apierr.Error

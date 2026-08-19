@@ -267,6 +267,34 @@ func (h *GRPCHandler) ListPeriods(ctx context.Context, req *pb.ListPeriodsReques
 	return &pb.PeriodListResponse{Periods: pbPeriods, Total: int32(len(pbPeriods))}, nil
 }
 
+func (h *GRPCHandler) GetPeriodContext(ctx context.Context, req *pb.GetPeriodContextRequest) (*pb.GetPeriodContextResponse, error) {
+	period, err := h.financeService.GetPeriodContext(ctx, req.GetUserId(), req.GetYear(), req.GetMonth())
+	if err != nil {
+		if statusErr := financeErrorStatus(err); statusErr != nil {
+			return nil, statusErr
+		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.get_period_context",
+			Domain: reportDomain,
+			Msg:    "failed to get period context",
+			Data: map[string]any{
+				"method":  "GetPeriodContext",
+				"user_id": req.GetUserId(),
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to get period context")
+	}
+
+	return &pb.GetPeriodContextResponse{
+		PeriodId:          period.PeriodID,
+		UserId:            period.UserID,
+		Year:              period.Year,
+		Month:             period.Month,
+		ReportingCurrency: period.ReportingCurrency,
+		IsLocked:          period.IsLocked,
+	}, nil
+}
+
 func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*pb.TagListResponse, error) {
 	tags, err := h.financeService.ListTags(ctx, req.GetUserId())
 	if err != nil {

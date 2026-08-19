@@ -1,5 +1,6 @@
-import { useCallback, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
+import { getMinorUnitDigits, toMajorUnits } from "@gofin/core";
 import type { Expense, CorrectExpenseRequest, Tag } from "@gofin/core";
 import {
   createExpenseSuggestionPatch,
@@ -9,8 +10,10 @@ import { useExpenseFields } from "../../new-expense/hooks/useExpenseFields";
 
 /** State returned by useCorrectionForm (field-level only). */
 export interface CorrectionFormState {
-  /** Expense field values (pre-filled from existing expense). */
+  /** Expense field values pre-filled from the active expense. */
   fields: ExpenseFields;
+  /** Selected transaction currency for the correction. */
+  transactionCurrency: string;
   /** Field-level validation errors. */
   fieldErrors: Record<string, string>;
 }
@@ -21,6 +24,8 @@ export interface CorrectionFormActions {
   setField: (key: keyof ExpenseFields, value: string) => void;
   /** Clear a field error. */
   clearFieldError: (field: string) => void;
+  /** Update the transaction currency and revalidate the amount. */
+  setTransactionCurrency: (value: string) => void;
   /** Apply fields from an explicitly selected historical suggestion. */
   applySuggestion: (suggestion: ExpenseSuggestion) => void;
   /** Submit the correction (validates then calls onSubmit). */
@@ -40,13 +45,19 @@ export function useCorrectionForm(
   onSubmit: (form: CorrectExpenseRequest) => void,
   tags: Tag[] = [],
 ): { state: CorrectionFormState; actions: CorrectionFormActions } {
-  const expenseFields = useExpenseFields({
-    name: expense.name,
-    amountDollars: (expense.amount / 100).toFixed(2),
-    expenseType: expense.expenseType,
-    tagId: expense.tagId,
-    expenseDate: expense.expenseDate,
-  });
+  const [transactionCurrency, setTransactionCurrencyState] = useState(expense.transactionCurrency);
+  const expenseFields = useExpenseFields(
+    {
+      name: expense.name,
+      amountDollars: toMajorUnits(expense.amount, expense.transactionCurrency).toFixed(
+        getMinorUnitDigits(expense.transactionCurrency),
+      ),
+      expenseType: expense.expenseType,
+      tagId: expense.tagId,
+      expenseDate: expense.expenseDate,
+    },
+    transactionCurrency,
+  );
 
   const applySuggestion = useCallback(
     (suggestion: ExpenseSuggestion) => {
@@ -55,12 +66,26 @@ export function useCorrectionForm(
       expenseFields.setField("name", patch.name);
       expenseFields.setField("amountDollars", patch.amountDollars);
       expenseFields.setField("expenseType", patch.expenseType);
+      setTransactionCurrencyState(patch.currency);
 
       if (patch.tagId) {
         expenseFields.setField("tagId", patch.tagId);
       }
     },
     [expenseFields, tags],
+  );
+
+  const setTransactionCurrency = useCallback(
+    (value: string) => {
+      setTransactionCurrencyState(value);
+      if (expenseFields.fields.amountDollars) {
+        const isValid = expenseFields.validate({ currency: value });
+        if (isValid) {
+          expenseFields.clearFieldError("amount");
+        }
+      }
+    },
+    [expenseFields],
   );
 
   const handleSubmit = useCallback(
@@ -79,22 +104,31 @@ export function useCorrectionForm(
         expenseType: fields.expenseType,
         tagId: fields.tagId,
         expenseDate: fields.expenseDate,
+        currency: transactionCurrency,
       };
 
       onSubmit(body);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [expenseFields.validate, expenseFields.fields, expenseFields.amountCents, onSubmit],
+    [
+      expenseFields.validate,
+      expenseFields.fields,
+      expenseFields.amountCents,
+      onSubmit,
+      transactionCurrency,
+    ],
   );
 
   return {
     state: {
       fields: expenseFields.fields,
+      transactionCurrency,
       fieldErrors: expenseFields.fieldErrors,
     },
     actions: {
       setField: expenseFields.setField,
       clearFieldError: expenseFields.clearFieldError,
+      setTransactionCurrency,
       applySuggestion,
       handleSubmit,
     },

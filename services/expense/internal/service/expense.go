@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,15 +17,17 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/serverkit"
+	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 )
 
 var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // ExpenseService contains the business logic for expense operations.
 type ExpenseService struct {
-	repo   repository.ExpenseRepository
-	logger *slog.Logger
-	clock  func() time.Time
+	repo         repository.ExpenseRepository
+	periodClient PeriodContextClient
+	logger       *slog.Logger
+	clock        func() time.Time
 }
 
 // NewExpenseService creates a new ExpenseService. The clock seam supplies the
@@ -32,13 +35,15 @@ type ExpenseService struct {
 // passes time.Now and tests inject a fixed clock.
 func NewExpenseService(
 	repo repository.ExpenseRepository,
+	periodClient PeriodContextClient,
 	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
 	return &ExpenseService{
-		repo:   repo,
-		logger: logger,
-		clock:  clock,
+		repo:         repo,
+		periodClient: periodClient,
+		logger:       logger,
+		clock:        clock,
 	}
 }
 
@@ -48,25 +53,36 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
+	period, err := s.periodClient.GetPeriodContext(ctx, userID, req.PeriodYear, req.PeriodMonth)
+	if err != nil {
+		return nil, err
+	}
+
+	transactionCurrency, err := s.resolveCreateTransactionCurrency(period, req)
+	if err != nil {
+		return nil, err
+	}
+
 	now := s.clock().UTC().Format(time.RFC3339)
 	expense := &model.Expense{
-		ID:           uuid.New().String(),
-		UserID:       userID,
-		Name:         req.Name,
-		Amount:       req.Amount,
-		Currency:     req.Currency,
-		ExpenseType:  req.ExpenseType,
-		TagID:        req.TagID,
-		ExpenseDate:  req.ExpenseDate,
-		PeriodYear:   req.PeriodYear,
-		PeriodMonth:  req.PeriodMonth,
-		Status:       "active",
-		CorrectsID:   "",
-		IsProRata:    req.IsProRata,
-		ProRataGroup: req.ProRataGroup,
-		ProRataIndex: req.ProRataIndex,
-		ProRataTotal: req.ProRataTotal,
-		CreatedAt:    now,
+		ID:                  uuid.New().String(),
+		UserID:              userID,
+		Name:                req.Name,
+		Amount:              req.Amount,
+		TransactionCurrency: transactionCurrency,
+		Currency:            transactionCurrency,
+		ExpenseType:         req.ExpenseType,
+		TagID:               req.TagID,
+		ExpenseDate:         req.ExpenseDate,
+		PeriodYear:          req.PeriodYear,
+		PeriodMonth:         req.PeriodMonth,
+		Status:              "active",
+		CorrectsID:          "",
+		IsProRata:           req.IsProRata,
+		ProRataGroup:        req.ProRataGroup,
+		ProRataIndex:        req.ProRataIndex,
+		ProRataTotal:        req.ProRataTotal,
+		CreatedAt:           now,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)
@@ -371,6 +387,80 @@ func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID st
 	return nil
 }
 
+func normalizeCurrencyCode(currencyCode string) string {
+	return strings.ToUpper(strings.TrimSpace(currencyCode))
+}
+
+func unsupportedCurrencyError(currencyCode string) *apierr.Error {
+	return &apierr.Error{
+		Code:    model.ErrUnsupportedCurrency,
+		Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
+		Status:  http.StatusBadRequest,
+		Fields: map[string]string{
+			"transactionCurrency": "unsupported currency",
+		},
+	}
+}
+
+func currencyConflictError() *apierr.Error {
+	return &apierr.Error{
+		Code:    model.ErrCurrencyConflict,
+		Message: "transactionCurrency and currency must match when both are provided",
+		Status:  http.StatusBadRequest,
+		Fields: map[string]string{
+			"transactionCurrency": "must match currency",
+			"currency":            "must match transactionCurrency",
+		},
+	}
+}
+
+func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext, req *model.CreateExpenseRequest) (string, error) {
+	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	legacyCurrency := normalizeCurrencyCode(req.Currency)
+
+	if transactionCurrency != "" && legacyCurrency != "" {
+		if transactionCurrency != legacyCurrency {
+			s.logger.Info("legacy currency conflict",
+				slog.String("event", "legacy_currency_conflict"),
+				slog.String("transaction_currency", transactionCurrency),
+				slog.String("currency", legacyCurrency),
+			)
+			return "", currencyConflictError()
+		}
+		s.logger.Info("legacy currency duplicate same value",
+			slog.String("event", "legacy_currency_duplicate_same_value"),
+			slog.String("transaction_currency", transactionCurrency),
+		)
+		return s.validateTransactionCurrency(transactionCurrency)
+	}
+
+	if transactionCurrency != "" {
+		return s.validateTransactionCurrency(transactionCurrency)
+	}
+
+	if legacyCurrency != "" {
+		s.logger.Info("legacy currency alias used",
+			slog.String("event", "legacy_currency_alias_used"),
+			slog.String("currency", legacyCurrency),
+		)
+		return s.validateTransactionCurrency(legacyCurrency)
+	}
+
+	defaultCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	s.logger.Info("transaction currency defaulted",
+		slog.String("event", "transaction_currency_defaulted"),
+		slog.String("reporting_currency", defaultCurrency),
+	)
+	return s.validateTransactionCurrency(defaultCurrency)
+}
+
+func (s *ExpenseService) validateTransactionCurrency(currencyCode string) (string, error) {
+	if currencycatalog.IsSupported(currencyCode) {
+		return currencyCode, nil
+	}
+	return "", unsupportedCurrencyError(currencyCode)
+}
+
 // validateCorrectExpenseRequest checks all required fields for a correction.
 func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *apierr.Error {
 	fields := make(map[string]string)
@@ -408,9 +498,6 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error
 	}
 	if req.Amount <= 0 {
 		fields["amount"] = "amount must be positive"
-	}
-	if req.Currency == "" {
-		fields["currency"] = "currency is required"
 	}
 	if !model.ValidExpenseTypes[req.ExpenseType] {
 		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"

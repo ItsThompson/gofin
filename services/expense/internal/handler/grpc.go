@@ -56,18 +56,19 @@ func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
 
 func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CreateExpense(ctx, req.GetUserId(), &model.CreateExpenseRequest{
-		Name:         req.GetName(),
-		Amount:       req.GetAmount(),
-		Currency:     req.GetCurrency(),
-		ExpenseType:  req.GetExpenseType(),
-		TagID:        req.GetTagId(),
-		ExpenseDate:  req.GetExpenseDate(),
-		PeriodYear:   req.GetPeriodYear(),
-		PeriodMonth:  req.GetPeriodMonth(),
-		IsProRata:    req.GetIsProRata(),
-		ProRataGroup: req.GetProRataGroup(),
-		ProRataIndex: req.GetProRataIndex(),
-		ProRataTotal: req.GetProRataTotal(),
+		Name:                req.GetName(),
+		Amount:              req.GetAmount(),
+		TransactionCurrency: req.GetTransactionCurrency(),
+		Currency:            req.GetCurrency(),
+		ExpenseType:         req.GetExpenseType(),
+		TagID:               req.GetTagId(),
+		ExpenseDate:         req.GetExpenseDate(),
+		PeriodYear:          req.GetPeriodYear(),
+		PeriodMonth:         req.GetPeriodMonth(),
+		IsProRata:           req.GetIsProRata(),
+		ProRataGroup:        req.GetProRataGroup(),
+		ProRataIndex:        req.GetProRataIndex(),
+		ProRataTotal:        req.GetProRataTotal(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCreate, req.GetUserId())
@@ -193,23 +194,24 @@ func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.Anon
 // expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{
-		Id:           e.ID,
-		UserId:       e.UserID,
-		Name:         e.Name,
-		Amount:       e.Amount,
-		Currency:     e.Currency,
-		ExpenseType:  e.ExpenseType,
-		TagId:        e.TagID,
-		ExpenseDate:  e.ExpenseDate,
-		PeriodYear:   e.PeriodYear,
-		PeriodMonth:  e.PeriodMonth,
-		Status:       e.Status,
-		CorrectsId:   e.CorrectsID,
-		IsProRata:    e.IsProRata,
-		ProRataGroup: e.ProRataGroup,
-		ProRataIndex: e.ProRataIndex,
-		ProRataTotal: e.ProRataTotal,
-		CreatedAt:    e.CreatedAt,
+		Id:                  e.ID,
+		UserId:              e.UserID,
+		Name:                e.Name,
+		Amount:              e.Amount,
+		Currency:            e.Currency,
+		TransactionCurrency: e.TransactionCurrency,
+		ExpenseType:         e.ExpenseType,
+		TagId:               e.TagID,
+		ExpenseDate:         e.ExpenseDate,
+		PeriodYear:          e.PeriodYear,
+		PeriodMonth:         e.PeriodMonth,
+		Status:              e.Status,
+		CorrectsId:          e.CorrectsID,
+		IsProRata:           e.IsProRata,
+		ProRataGroup:        e.ProRataGroup,
+		ProRataIndex:        e.ProRataIndex,
+		ProRataTotal:        e.ProRataTotal,
+		CreatedAt:           e.CreatedAt,
 	}
 }
 
@@ -243,9 +245,9 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 	var apiErr *apierr.Error
 	if errors.As(err, &apiErr) {
 		switch apiErr.Code {
-		case apierr.CodeValidation:
+		case apierr.CodeValidation, model.ErrUnsupportedCurrency, model.ErrCurrencyConflict:
 			return status.Error(codes.InvalidArgument, apiErr.Message)
-		case apierr.CodeNotFound:
+		case apierr.CodeNotFound, model.ErrPeriodNotFound:
 			return status.Error(codes.NotFound, apiErr.Message)
 		case model.ErrAlreadyCorrected:
 			return status.Error(codes.FailedPrecondition, apiErr.Message)

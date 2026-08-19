@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package fx;
+
+option go_package = "github.com/ItsThompson/gofin/services/fx/proto/fxpb";
+
+service FxService {
+  rpc CaptureRateSnapshot(CaptureRateSnapshotRequest) returns (CaptureRateSnapshotResponse);
+  rpc ConvertAmount(ConvertAmountRequest) returns (ConvertAmountResponse);
+  rpc ConvertWithSnapshot(ConvertWithSnapshotRequest) returns (ConvertAmountResponse);
+}
+
+message CaptureRateSnapshotRequest {
+  repeated string required_currencies = 1;
+  string requested_at = 2;
+}
+
+message CaptureRateSnapshotResponse {
+  CapturedRateSnapshot snapshot = 1;
+  string cache_status = 2;
+}
+
+message CapturedRateSnapshot {
+  int32 snapshot_version = 1;
+  string source = 2;
+  string base_currency = 3;
+  string rate_timestamp = 4;
+  string captured_at = 5;
+  string expires_at = 6;
+  map<string, string> rates_by_currency = 7;
+}
+
+message ConvertAmountRequest {
+  int64 amount = 1;
+  string source_currency = 2;
+  string target_currency = 3;
+  string requested_at = 4;
+}
+
+message ConvertWithSnapshotRequest {
+  int64 amount = 1;
+  string source_currency = 2;
+  string target_currency = 3;
+  string requested_at = 4;
+  CapturedRateSnapshot snapshot = 5;
+}
+
+message ConvertAmountResponse {
+  int64 converted_amount = 1;
+  string source_currency = 2;
+  string target_currency = 3;
+  string exchange_rate = 4;
+  string rate_timestamp = 5;
+  string source = 6;
+  string cache_status = 7;
+  string expires_at = 8;
+}

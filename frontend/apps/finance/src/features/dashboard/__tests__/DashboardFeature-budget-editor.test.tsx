@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildPeriod, createMockApi } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
@@ -105,7 +105,16 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     const user = userEvent.setup();
     await user.click(screen.getByLabelText("Budget Settings"));
 
-    expect(screen.getByLabelText("Monthly Budget")).toHaveAttribute("step", "1");
+    const editor = screen.getByTestId("budget-settings-editor");
+    const budgetInput = within(editor).getByLabelText("Monthly Budget") as HTMLInputElement;
+    expect(budgetInput).toHaveAttribute("step", "1");
+    expect(budgetInput.value).toBe("300000");
+    expect(within(editor).getByText("¥")).toBeInTheDocument();
+
+    const currencyInput = within(editor).getByLabelText("Reporting Currency") as HTMLInputElement;
+    expect(currencyInput.value).toBe("JPY");
+    expect(currencyInput).toHaveAttribute("readonly");
+    expect(within(editor).getByText(/cannot change after period creation/i)).toBeInTheDocument();
   });
 
   it("shows API error when budget save fails", async () => {

@@ -39,6 +39,7 @@ export interface NewExpenseFormState {
   proRataMonths: string;
   error: string | null;
   submitting: boolean;
+  transactionCurrency: string;
 }
 
 export interface NewExpenseFormActions {
@@ -46,6 +47,7 @@ export interface NewExpenseFormActions {
   clearFieldError: (field: string) => void;
   setIsProRata: (checked: boolean) => void;
   setProRataMonths: (value: string) => void;
+  setTransactionCurrency: (value: string) => void;
   applySuggestion: (suggestion: ExpenseSuggestion) => void;
   handleSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }
@@ -56,15 +58,20 @@ export interface NewExpenseFormActions {
  * useExpenseFields for field state and useFormMutation for the
  * submission lifecycle.
  */
-export function useNewExpenseForm(currency: string): {
+export function useNewExpenseForm(
+  currency: string,
+  periodYear: number,
+  periodMonth: number,
+): {
   state: NewExpenseFormState;
   actions: NewExpenseFormActions;
 } {
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+  const [transactionCurrency, setTransactionCurrency] = useState(currency);
+  const expenseFields = useExpenseFields(undefined, transactionCurrency);
 
-  const expenseFields = useExpenseFields();
+  useEffect(() => {
+    setTransactionCurrency(currency);
+  }, [currency]);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagsLoading, setTagsLoading] = useState(true);
@@ -121,6 +128,8 @@ export function useNewExpenseForm(currency: string): {
     expenseFields.setField("amountDollars", patch.amountDollars);
     expenseFields.setField("expenseType", patch.expenseType);
 
+    setTransactionCurrency(patch.currency);
+
     if (patch.tagId) {
       expenseFields.setField("tagId", patch.tagId);
     }
@@ -142,10 +151,12 @@ export function useNewExpenseForm(currency: string): {
         const body: CreateProRataRequest = {
           name: fields.name.trim(),
           totalAmount: amountCents,
-          currency,
+          transactionCurrency,
           expenseType: fields.expenseType,
           tagId: fields.tagId,
           expenseDate: fields.expenseDate,
+          periodYear,
+          periodMonth,
           months: parseInt(proRataMonths, 10),
         };
         await apiClient<ProRataResponse>("/api/finance/prorata", {
@@ -158,12 +169,12 @@ export function useNewExpenseForm(currency: string): {
       const body: CreateExpenseRequest = {
         name: fields.name.trim(),
         amount: amountCents,
-        currency,
+        transactionCurrency,
         expenseType: fields.expenseType,
         tagId: fields.tagId,
         expenseDate: fields.expenseDate,
-        periodYear: currentYear,
-        periodMonth: currentMonth,
+        periodYear,
+        periodMonth,
       };
       await apiClient<ExpenseResponse>("/api/expenses", {
         method: "POST",
@@ -183,12 +194,14 @@ export function useNewExpenseForm(currency: string): {
       proRataMonths,
       error: mutation.error,
       submitting: mutation.submitting,
+      transactionCurrency,
     },
     actions: {
       setField: expenseFields.setField,
       clearFieldError: expenseFields.clearFieldError,
       setIsProRata: handleSetIsProRata,
       setProRataMonths,
+      setTransactionCurrency,
       applySuggestion,
       handleSubmit,
     },

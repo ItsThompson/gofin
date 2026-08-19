@@ -380,6 +380,44 @@ func TestUpdatePeriodHandler_Success(t *testing.T) {
 	assert.Equal(t, int32(60), resp.Period.EssentialsPercent)
 }
 
+func TestUpdatePeriodHandler_RejectsReportingCurrencyUpdate(t *testing.T) {
+	tests := []struct {
+		name  string
+		field string
+	}{
+		{name: "camel case", field: "reportingCurrency"},
+		{name: "snake case", field: "reporting_currency"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := new(mockFinanceRepository)
+			txBeginner := new(mockTxBeginner)
+			expClient := new(mockExpenseClient)
+			nowFunc := func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
+			r := setupTestRouterWithNowFunc(repo, txBeginner, expClient, nowFunc)
+
+			body := map[string]interface{}{
+				"budgetAmount":      500000,
+				"essentialsPercent": 60,
+				"desiresPercent":    20,
+				"savingsPercent":    20,
+				tt.field:            "EUR",
+			}
+			w := doJSONWithUserID(r, "PUT", "/api/finance/periods/period-abc", "user-123", body)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+
+			var errResp apierr.APIError
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+			assert.Equal(t, model.ErrReportingCurrencyImmutable, errResp.Code)
+			assert.Equal(t, "immutable", errResp.Fields[tt.field])
+			repo.AssertNotCalled(t, "GetPeriodByID", mock.Anything, mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "UpdatePeriod", mock.Anything, mock.Anything)
+		})
+	}
+}
+
 func TestUpdatePeriodHandler_PastPeriodLocked(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	txBeginner := new(mockTxBeginner)

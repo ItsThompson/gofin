@@ -87,7 +87,6 @@ export function ExpenseDetailModal({
         {state.status === "correct" && (
           <CorrectionFormContainer
             expense={state.expense}
-            currency={currency}
             tags={tags}
             onCancel={state.cancelCorrection}
             onSubmit={state.correction.submitCorrection}
@@ -106,7 +105,6 @@ export function ExpenseDetailModal({
  */
 function CorrectionFormContainer({
   expense,
-  currency,
   tags,
   onCancel,
   onSubmit,
@@ -114,7 +112,6 @@ function CorrectionFormContainer({
   submitError,
 }: {
   expense: Parameters<typeof useCorrectionForm>[0];
-  currency: string;
   tags: Tag[];
   onCancel: () => void;
   onSubmit: Parameters<typeof useCorrectionForm>[1];
@@ -125,7 +122,7 @@ function CorrectionFormContainer({
 
   return (
     <CorrectionForm
-      currency={currency}
+      currency={state.transactionCurrency}
       tags={tags}
       fields={state.fields}
       fieldErrors={state.fieldErrors}
@@ -134,6 +131,7 @@ function CorrectionFormContainer({
       onCancel={onCancel}
       onSubmit={actions.handleSubmit}
       onFieldChange={actions.setField}
+      onCurrencyChange={actions.setTransactionCurrency}
       onSelectSuggestion={actions.applySuggestion}
     />
   );

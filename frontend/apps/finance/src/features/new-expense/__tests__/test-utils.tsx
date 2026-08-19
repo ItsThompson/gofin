@@ -7,6 +7,7 @@ import { NewExpenseFeature } from "../index";
 import {
   jsonResponse,
   mockFetch,
+  mockPeriod,
   mockUser,
   setNewExpenseFetchMock,
 } from "../__mocks__";
@@ -47,6 +48,7 @@ export function getSubmittedExpenseRequest() {
 export async function waitForFormBootstrap() {
   await waitFor(() => {
     expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills");
+    expect(countFetchCalls("/api/finance/periods/current")).toBe(1);
     expect(countFetchCalls("/api/expenses/suggestions")).toBe(1);
   });
 }
@@ -54,6 +56,8 @@ export async function waitForFormBootstrap() {
 /** Options for {@link renderNewExpense}. */
 export interface RenderNewExpenseOptions {
   user?: User;
+  period?: typeof mockPeriod;
+  periodResponse?: ResponderOrResult;
   tags?: Tag[];
   suggestions?: ExpenseSuggestionsResponse;
   expensePost?: ResponderOrResult;
@@ -68,13 +72,20 @@ export interface RenderNewExpenseOptions {
  * overrides for POST behavior, or a full `fetchHandler` for custom routing.
  */
 export function renderNewExpense(options: RenderNewExpenseOptions = {}) {
-  const { user = mockUser, tags, suggestions, expensePost, proRataPost, fetchHandler } =
+  const { user = mockUser, period, periodResponse, tags, suggestions, expensePost, proRataPost, fetchHandler } =
     options;
 
   if (fetchHandler) {
-    mockFetch.mockImplementation(fetchHandler);
+    const respondPeriod = periodResponse ?? (period ? jsonResponse({ period }) : jsonResponse({ period: mockPeriod }));
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/finance/periods/current")) {
+        return typeof respondPeriod === "function" ? respondPeriod(url, init) : respondPeriod;
+      }
+      return fetchHandler(url, init);
+    });
   } else {
     setNewExpenseFetchMock({
+      period: periodResponse ?? (period ? jsonResponse({ period }) : undefined),
       tags: tags ? jsonResponse({ tags }) : undefined,
       suggestions: suggestions ? jsonResponse(suggestions) : undefined,
       expensePost,

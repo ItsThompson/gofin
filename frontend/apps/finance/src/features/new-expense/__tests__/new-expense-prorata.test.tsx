@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
@@ -134,6 +134,10 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     expect(body.months).toBe(3);
     expect(body.name).toBe("Annual subscription");
     expect(body.expenseType).toBe("savings");
+    expect(body.transactionCurrency).toBe("USD");
+    expect(body.currency).toBeUndefined();
+    expect(body.periodYear).toBe(2026);
+    expect(body.periodMonth).toBe(5);
 
     await waitFor(() => {
       expect(screen.getByLabelText("Spread across months")).not.toBeChecked();
@@ -186,6 +190,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     expect(body).toMatchObject({
       name: "Annual subscription",
       totalAmount: 12000,
+      transactionCurrency: "USD",
+      periodYear: 2026,
+      periodMonth: 5,
       months: 3,
     });
 
@@ -285,5 +292,26 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
     expect(screen.getByText("Date is required")).toBeInTheDocument();
+  });
+
+  it("rejects decimal amounts when pro-rata currency is set to JPY", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitForFormBootstrap();
+
+    await user.type(screen.getByLabelText("Name"), "Annual subscription");
+    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "JPY");
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1200.50" } });
+
+    const checkbox = screen.getByLabelText("Spread across months");
+    await user.click(checkbox);
+    await user.type(screen.getByLabelText("Number of months"), "3");
+
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    expect(screen.getByText("Amount must be a whole JPY amount")).toBeInTheDocument();
+    expect(findProRataPostCall()).toBeUndefined();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 });

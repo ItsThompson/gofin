@@ -7,12 +7,14 @@ import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
 import {
   jsonResponse,
   mockFetch,
+  mockPeriod,
   mockSuggestions,
   mockTags,
 } from "../__mocks__";
 import {
   getSubmittedExpenseRequest,
   renderNewExpense as renderNewExpenseFeature,
+  waitForFormBootstrap,
 } from "./test-utils";
 
 vi.mock("sonner", () => ({
@@ -44,7 +46,14 @@ function renderNewExpense(
 function renderNewExpenseWithFetchHandler(
   handler: (url: string, init?: RequestInit) => Promise<unknown>,
 ) {
-  return renderNewExpenseFeature({ fetchHandler: handler });
+  return renderNewExpenseFeature({
+    fetchHandler: (url, init) => {
+      if (url.includes("/api/finance/periods/current")) {
+        return jsonResponse({ period: mockPeriod });
+      }
+      return handler(url, init);
+    },
+  });
 }
 
 describe("NewExpenseFeature autocomplete integration", () => {
@@ -58,6 +67,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("updates only the name field when typing in the combobox", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
 
@@ -84,6 +95,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const user = userEvent.setup();
     renderNewExpense();
 
+    await waitForFormBootstrap();
+
     const nameInput = screen.getByLabelText("Name");
     await user.click(nameInput);
 
@@ -96,6 +109,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const user = userEvent.setup();
     renderNewExpense();
 
+    await waitForFormBootstrap();
+
     await user.type(screen.getByLabelText("Name"), "Coffee");
 
     expect(await screen.findByText("Coffee Shop")).toBeInTheDocument();
@@ -107,6 +122,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("places load more after visible suggestions when the latest page has more results", async () => {
     const user = userEvent.setup();
     renderNewExpense({ ...mockSuggestions, hasMore: true });
+
+    await waitForFormBootstrap();
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
 
@@ -123,6 +140,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const user = userEvent.setup();
     renderNewExpense({ ...mockSuggestions, hasMore: true });
 
+    await waitForFormBootstrap();
+
     await user.type(screen.getByLabelText("Name"), "zzzz");
 
     expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
@@ -132,6 +151,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("hides load more when the latest page has no more results", async () => {
     const user = userEvent.setup();
     renderNewExpense({ ...mockSuggestions, hasMore: false });
+
+    await waitForFormBootstrap();
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await screen.findByText("Coffee Shop");
@@ -169,6 +190,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
       return jsonResponse({ message: "Unhandled request" }, 404);
     });
+
+    await waitForFormBootstrap();
 
     await user.type(screen.getByLabelText("Name"), "Custom");
     expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
@@ -228,6 +251,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("shows no-match state without blocking manual submission or clearing input", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
 
@@ -309,6 +334,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const user = userEvent.setup();
     renderNewExpense();
 
+    await waitForFormBootstrap();
+
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
     const dateBeforeSelection = (screen.getByLabelText("Date") as HTMLInputElement).value;
 
@@ -328,6 +355,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const user = userEvent.setup();
     renderNewExpense();
 
+    await waitForFormBootstrap();
+
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
@@ -343,6 +372,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("does not autofill on highlight movement, plain Enter, or blur", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
     await user.type(screen.getByLabelText("Amount"), "9.99");
@@ -387,6 +418,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const user = userEvent.setup();
     renderNewExpense(mockSuggestions, [mockTags[0]]);
 
+    await waitForFormBootstrap();
+
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
@@ -401,6 +434,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("submits visible edited values after autofill", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
 
@@ -431,6 +466,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
   it("keeps existing required-name validation for typed input", async () => {
     const user = userEvent.setup();
     renderNewExpense();
+
+    await waitForFormBootstrap();
 
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 

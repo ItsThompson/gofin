@@ -51,6 +51,7 @@ function generateExpenses(count: number): Expense[] {
     name: `Expense ${index + 1}`,
     amount: 1000 + index * 100,
     currency: "USD",
+    transactionCurrency: "USD",
     expenseType: "essentials" as const,
     tagId: "tag-food",
     expenseDate: "2026-05-01",

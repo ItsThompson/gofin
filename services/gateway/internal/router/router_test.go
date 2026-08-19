@@ -213,6 +213,16 @@ func TestRouter_DatarightsRoutes_RouteToDatarightsService(t *testing.T) {
 	}
 }
 
+func TestRouter_FXRoutes_AreNotBrowserReachable(t *testing.T) {
+	doRequest := setupGateway(t, userValidator())
+
+	resp, body := doRequest(http.MethodGet, "/api/fx", validCookie())
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assert.Contains(t, body, "FORBIDDEN")
+	assert.Empty(t, resp.Header.Get("X-Downstream"))
+}
+
 func TestRouter_AdminRoutes_AdminRolePasses(t *testing.T) {
 	doRequest := setupGateway(t, adminValidator())
 

@@ -67,14 +67,37 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	if !validTypes[req.ExpenseType] {
 		return nil, apierr.Validation("Expense type must be essentials, desires, or savings", map[string]string{"expenseType": "must be essentials, desires, or savings"})
 	}
-	if strings.TrimSpace(req.Currency) == "" {
-		return nil, apierr.Validation("Currency is required", map[string]string{"currency": "required"})
-	}
 	if strings.TrimSpace(req.TagID) == "" {
 		return nil, apierr.Validation("Tag ID is required", map[string]string{"tagId": "required"})
 	}
 	if strings.TrimSpace(req.ExpenseDate) == "" {
 		return nil, apierr.Validation("Expense date is required", map[string]string{"expenseDate": "required"})
+	}
+
+	resolvedCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	legacyCurrency := normalizeCurrencyCode(req.Currency)
+
+	if resolvedCurrency != "" && legacyCurrency != "" {
+		if resolvedCurrency != legacyCurrency {
+			return nil, &apierr.Error{
+				Code:    model.ErrCurrencyConflict,
+				Message: "transactionCurrency and currency must match when both are provided",
+				Status:  400,
+				Fields: map[string]string{
+					"transactionCurrency": "must match currency",
+					"currency":            "must match transactionCurrency",
+				},
+			}
+		}
+	}
+	if resolvedCurrency == "" {
+		resolvedCurrency = legacyCurrency
+	}
+	if resolvedCurrency == "" {
+		return nil, apierr.Validation("Currency is required", map[string]string{"transactionCurrency": "required"})
+	}
+	if verr := validateSupportedCurrency("transactionCurrency", resolvedCurrency); verr != nil {
+		return nil, verr
 	}
 
 	installments := CalculateInstallments(req.TotalAmount, req.Months)
@@ -88,7 +111,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		UserID:       userID,
 		Name:         req.Name,
 		Amount:       installments[0],
-		Currency:     req.Currency,
+		Currency:     resolvedCurrency,
 		ExpenseType:  req.ExpenseType,
 		TagID:        req.TagID,
 		ExpenseDate:  req.ExpenseDate,
@@ -113,7 +136,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 			ProRataGroup:     proRataGroup,
 			Name:             req.Name,
 			Amount:           installments[i-1],
-			Currency:         req.Currency,
+			Currency:         resolvedCurrency,
 			ExpenseType:      req.ExpenseType,
 			TagID:            req.TagID,
 			TargetYear:       targetYear,
@@ -148,7 +171,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 			ID:           created.ID,
 			Name:         req.Name,
 			Amount:       installments[0],
-			Currency:     req.Currency,
+			Currency:     resolvedCurrency,
 			ExpenseType:  req.ExpenseType,
 			TagID:        req.TagID,
 			ExpenseDate:  req.ExpenseDate,

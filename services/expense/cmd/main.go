@@ -11,11 +11,15 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/handler"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	financepb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
@@ -68,7 +72,20 @@ func run() error {
 		return fmt.Errorf("initializing schema: %w", err)
 	}
 
-	expenseSvc := service.NewExpenseService(repo, time.Now, logger)
+	financeConn, err := grpc.NewClient(
+		cfg.FinanceServiceAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("connecting to finance service at %s: %w", cfg.FinanceServiceAddr, err)
+	}
+	defer func() { _ = financeConn.Close() }()
+	logger.Info("finance service gRPC client created",
+		slog.String("addr", cfg.FinanceServiceAddr),
+	)
+
+	periodClient := service.NewGRPCPeriodContextClient(financepb.NewFinanceServiceClient(financeConn))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

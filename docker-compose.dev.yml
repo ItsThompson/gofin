@@ -43,3 +43,12 @@ services:
       - "40003:40003"
     environment:
       - ENVIRONMENT=development
+
+  fx-service:
+    volumes:
+      - ./services/fx:/app
+    ports:
+      - "40005:40005"
+    environment:
+      - ENVIRONMENT=development
+      - OPEN_EXCHANGE_RATES_APP_ID=${OPEN_EXCHANGE_RATES_APP_ID:-dev-open-exchange-rates-app-id}

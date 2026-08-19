@@ -113,6 +113,24 @@ describe("SettingsFeature", () => {
 
       const savingsInputs = screen.getAllByLabelText("Savings %");
       expect((savingsInputs[0] as HTMLInputElement).value).toBe("20");
+
+      expect(
+        screen.getAllByText(/default currency applies only when you create a new budget period/i).length,
+      ).toBeGreaterThanOrEqual(1);
+    });
+
+    it("updates budget input precision when default currency changes", async () => {
+      mockDefaultsFound();
+      const user = userEvent.setup();
+      renderSettings();
+
+      await waitFor(() => {
+        expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute("step", "0.01");
+      });
+
+      await user.selectOptions(screen.getAllByLabelText("Default Currency")[0], "JPY");
+
+      expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute("step", "1");
     });
 
     it("validates E/D/S split sums to 100%", async () => {

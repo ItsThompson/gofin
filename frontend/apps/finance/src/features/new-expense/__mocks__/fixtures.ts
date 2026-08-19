@@ -1,13 +1,27 @@
 import { buildUser, buildTag } from "@gofin/test-utils";
 
 import type { ExpenseSuggestionsResponse } from "../../expense-autocomplete";
-import type { Tag } from "@gofin/core";
+import type { BudgetPeriod, Tag } from "@gofin/core";
 
 export const mockUser = buildUser({
   id: "user-1",
   username: "alice",
   email: "alice@example.com",
 });
+
+export const mockPeriod: BudgetPeriod = {
+  id: "period-1",
+  userId: "user-1",
+  year: 2026,
+  month: 5,
+  budgetAmount: 500000,
+  reportingCurrency: "USD",
+  essentialsPercent: 50,
+  desiresPercent: 30,
+  savingsPercent: 20,
+  createdAt: "2026-05-01T00:00:00Z",
+  updatedAt: "2026-05-01T00:00:00Z",
+};
 
 export const mockTags: Tag[] = [
   buildTag({ id: "tag-bills", name: "Bills", isDefault: true }),
