@@ -160,7 +160,6 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "Grocery shopping",
 		"amount":      2500,
-		"currency":    "USD",
 		"expenseType": "essentials",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -283,7 +282,6 @@ func TestCreateExpenseHandler_MissingUserID(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "", map[string]interface{}{
 		"name":        "Grocery shopping",
 		"amount":      2500,
-		"currency":    "USD",
 		"expenseType": "essentials",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -319,7 +317,6 @@ func TestCreateExpenseHandler_ValidationError(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "Coffee",
 		"amount":      0,
-		"currency":    "USD",
 		"expenseType": "desires",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -344,7 +341,6 @@ func TestCreateExpenseHandler_InvalidExpenseType(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "Coffee",
 		"amount":      500,
-		"currency":    "USD",
 		"expenseType": "luxury",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -368,7 +364,6 @@ func TestCreateExpenseHandler_MultipleFieldErrors(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "",
 		"amount":      0,
-		"currency":    "USD",
 		"expenseType": "invalid",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",

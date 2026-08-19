@@ -141,7 +141,6 @@ func validCreateRequest() *model.CreateExpenseRequest {
 		Name:                "Grocery shopping",
 		Amount:              2500,
 		TransactionCurrency: "USD",
-		Currency:            "USD",
 		ExpenseType:         "essentials",
 		TagID:               "tag-food",
 		ExpenseDate:         "2026-05-03",
@@ -217,7 +216,6 @@ func TestCreateExpense_ForeignCurrencyReturnsConversionUnavailable(t *testing.T)
 
 	req := validCreateRequest()
 	req.TransactionCurrency = "EUR"
-	req.Currency = "" // transactionCurrency only, no legacy alias
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -302,7 +300,6 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 	tests := []struct {
 		name                 string
 		transactionCurrency  string
-		legacyCurrency       string
 		reportingCurrency    string
 		expectedCurrency     string
 		expectedErrorCode    string
@@ -310,41 +307,21 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 	}{
 		{
 			name:                 "transactionCurrency only",
-			transactionCurrency:  "EUR",
+			transactionCurrency:  "eur",
 			reportingCurrency:    "EUR",
 			expectedCurrency:     "EUR",
 			expectRepositoryCall: true,
 		},
 		{
-			name:                 "legacy currency only",
-			legacyCurrency:       "gbp",
-			reportingCurrency:    "GBP",
-			expectedCurrency:     "GBP",
-			expectRepositoryCall: true,
-		},
-		{
-			name:                 "both fields same",
-			transactionCurrency:  "JPY",
-			legacyCurrency:       "jpy",
-			reportingCurrency:    "JPY",
-			expectedCurrency:     "JPY",
-			expectRepositoryCall: true,
-		},
-		{
-			name:                "both fields different",
-			transactionCurrency: "USD",
-			legacyCurrency:      "EUR",
-			expectedErrorCode:   model.ErrCurrencyConflict,
-		},
-		{
-			name:                 "neither field defaults to period reporting currency",
+			name:                 "empty transactionCurrency defaults to period reporting currency",
 			reportingCurrency:    "CHF",
 			expectedCurrency:     "CHF",
 			expectRepositoryCall: true,
 		},
 		{
-			name:                "unsupported canonical transaction currency",
+			name:                "unsupported transaction currency",
 			transactionCurrency: "ZZZ",
+			reportingCurrency:   "USD",
 			expectedErrorCode:   model.ErrUnsupportedCurrency,
 		},
 	}
@@ -384,7 +361,6 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 
 			req := validCreateRequest()
 			req.TransactionCurrency = tt.transactionCurrency
-			req.Currency = tt.legacyCurrency
 
 			expense, err := svc.CreateExpense(context.Background(), "user-1", req)
 			if tt.expectedErrorCode != "" {

@@ -13,8 +13,6 @@ export interface ProRataSchedule {
   /** Installment amount in minor units (cents). */
   amount: number;
   transactionCurrency: string;
-  /** Deprecated alias for transactionCurrency during rollout. */
-  currency?: string;
   expenseType: ExpenseType;
   tagId: string;
   targetYear: number;
@@ -32,8 +30,6 @@ export interface CreateProRataRequest {
   /** Total amount in minor units (cents). */
   totalAmount: number;
   transactionCurrency: string;
-  /** Deprecated alias accepted during rollout. */
-  currency?: string;
   expenseType: ExpenseType;
   periodYear: number;
   periodMonth: number;

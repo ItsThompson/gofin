@@ -59,7 +59,6 @@ export function setNewExpenseFetchMock(
             id: "exp-123",
             name: "Coffee",
             amount: 450,
-            currency: "USD",
             expenseType: "desires",
             status: "active",
           },

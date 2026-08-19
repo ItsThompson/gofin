@@ -12,8 +12,6 @@ export interface Expense {
   amount: number;
   /** Canonical transaction ISO 4217 currency code. */
   transactionCurrency: string;
-  /** Deprecated alias for transactionCurrency during rollout. */
-  currency?: string;
   /** One of: "essentials", "desires", "savings". */
   expenseType: ExpenseType;
   tagId: string;
@@ -41,8 +39,6 @@ export interface CreateExpenseRequest {
   /** Amount in transaction currency minor units. */
   amount: number;
   transactionCurrency: string;
-  /** Deprecated alias accepted during rollout. */
-  currency?: string;
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
@@ -56,7 +52,6 @@ export interface CorrectExpenseRequest {
   name: string;
   /** Amount in transaction currency minor units. */
   amount: number;
-  currency?: string;
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */

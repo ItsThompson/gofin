@@ -8,7 +8,6 @@ type CreateExpenseRequest struct {
 	Name                string `json:"name"`
 	Amount              int64  `json:"amount"`
 	TransactionCurrency string `json:"transactionCurrency"`
-	Currency            string `json:"currency"`
 	ExpenseType         string `json:"expenseType"`
 	TagID               string `json:"tagId"`
 	ExpenseDate         string `json:"expenseDate"`

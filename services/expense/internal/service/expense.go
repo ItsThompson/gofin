@@ -429,18 +429,6 @@ func unsupportedCurrencyError(currencyCode string) *apierr.Error {
 	}
 }
 
-func currencyConflictError() *apierr.Error {
-	return &apierr.Error{
-		Code:    model.ErrCurrencyConflict,
-		Message: "transactionCurrency and currency must match when both are provided",
-		Status:  http.StatusBadRequest,
-		Fields: map[string]string{
-			"transactionCurrency": "must match currency",
-			"currency":            "must match transactionCurrency",
-		},
-	}
-}
-
 // conversionUnavailableError is returned when a foreign-currency expense cannot
 // be converted because the FX provider is unavailable. No ledger row is written.
 func conversionUnavailableError() *apierr.Error {
@@ -470,42 +458,14 @@ func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency,
 
 func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext, req *model.CreateExpenseRequest) (string, error) {
 	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
-	legacyCurrency := normalizeCurrencyCode(req.Currency)
-
-	if transactionCurrency != "" && legacyCurrency != "" {
-		if transactionCurrency != legacyCurrency {
-			s.logger.Info("legacy currency conflict",
-				slog.String("event", "legacy_currency_conflict"),
-				slog.String("transaction_currency", transactionCurrency),
-				slog.String("currency", legacyCurrency),
-			)
-			return "", currencyConflictError()
-		}
-		s.logger.Info("legacy currency duplicate same value",
-			slog.String("event", "legacy_currency_duplicate_same_value"),
-			slog.String("transaction_currency", transactionCurrency),
+	if transactionCurrency == "" {
+		transactionCurrency = normalizeCurrencyCode(period.ReportingCurrency)
+		s.logger.Info("transaction currency defaulted",
+			slog.String("event", "transaction_currency_defaulted"),
+			slog.String("reporting_currency", transactionCurrency),
 		)
-		return s.validateTransactionCurrency(transactionCurrency)
 	}
-
-	if transactionCurrency != "" {
-		return s.validateTransactionCurrency(transactionCurrency)
-	}
-
-	if legacyCurrency != "" {
-		s.logger.Info("legacy currency alias used",
-			slog.String("event", "legacy_currency_alias_used"),
-			slog.String("currency", legacyCurrency),
-		)
-		return s.validateTransactionCurrency(legacyCurrency)
-	}
-
-	defaultCurrency := normalizeCurrencyCode(period.ReportingCurrency)
-	s.logger.Info("transaction currency defaulted",
-		slog.String("event", "transaction_currency_defaulted"),
-		slog.String("reporting_currency", defaultCurrency),
-	)
-	return s.validateTransactionCurrency(defaultCurrency)
+	return s.validateTransactionCurrency(transactionCurrency)
 }
 
 func (s *ExpenseService) validateTransactionCurrency(currencyCode string) (string, error) {

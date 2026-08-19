@@ -23,19 +23,19 @@ type ExpenseClient interface {
 
 // CreateExpenseInput is the data needed to create an expense via the expense service.
 type CreateExpenseInput struct {
-	UserID       string
-	Name         string
-	Amount       int64
-	Currency     string
-	ExpenseType  string
-	TagID        string
-	ExpenseDate  string
-	PeriodYear   int32
-	PeriodMonth  int32
-	IsProRata    bool
-	ProRataGroup string
-	ProRataIndex int32
-	ProRataTotal int32
+	UserID              string
+	Name                string
+	Amount              int64
+	TransactionCurrency string
+	ExpenseType         string
+	TagID               string
+	ExpenseDate         string
+	PeriodYear          int32
+	PeriodMonth         int32
+	IsProRata           bool
+	ProRataGroup        string
+	ProRataIndex        int32
+	ProRataTotal        int32
 }
 
 // CreatedExpenseData is the data returned after creating an expense.

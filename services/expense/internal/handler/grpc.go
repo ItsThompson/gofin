@@ -59,7 +59,6 @@ func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRe
 		Name:                req.GetName(),
 		Amount:              req.GetAmount(),
 		TransactionCurrency: req.GetTransactionCurrency(),
-		Currency:            req.GetCurrency(),
 		ExpenseType:         req.GetExpenseType(),
 		TagID:               req.GetTagId(),
 		ExpenseDate:         req.GetExpenseDate(),
@@ -253,7 +252,7 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 	var apiErr *apierr.Error
 	if errors.As(err, &apiErr) {
 		switch apiErr.Code {
-		case apierr.CodeValidation, model.ErrUnsupportedCurrency, model.ErrCurrencyConflict:
+		case apierr.CodeValidation, model.ErrUnsupportedCurrency:
 			return status.Error(codes.InvalidArgument, apiErr.Message)
 		case apierr.CodeNotFound, model.ErrPeriodNotFound:
 			return status.Error(codes.NotFound, apiErr.Message)

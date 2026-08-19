@@ -61,7 +61,7 @@ func (c *GRPCExpenseClient) CreateExpense(ctx context.Context, req CreateExpense
 		UserId:              req.UserID,
 		Name:                req.Name,
 		Amount:              req.Amount,
-		TransactionCurrency: req.Currency,
+		TransactionCurrency: req.TransactionCurrency,
 		ExpenseType:         req.ExpenseType,
 		TagId:               req.TagID,
 		ExpenseDate:         req.ExpenseDate,

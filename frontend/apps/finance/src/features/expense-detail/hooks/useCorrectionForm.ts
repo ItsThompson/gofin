@@ -104,7 +104,6 @@ export function useCorrectionForm(
         expenseType: fields.expenseType,
         tagId: fields.tagId,
         expenseDate: fields.expenseDate,
-        currency: transactionCurrency,
       };
 
       onSubmit(body);

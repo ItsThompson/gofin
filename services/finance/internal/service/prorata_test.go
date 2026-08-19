@@ -165,13 +165,13 @@ func TestCreateProRataExpense_Success(t *testing.T) {
 	}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:        "Annual subscription",
-		TotalAmount: 10000,
-		Currency:    "USD",
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-15",
-		Months:      3,
+		Name:                "Annual subscription",
+		TotalAmount:         10000,
+		TransactionCurrency: "USD",
+		ExpenseType:         "essentials",
+		TagID:               "tag-1",
+		ExpenseDate:         "2026-05-15",
+		Months:              3,
 	})
 
 	require.NoError(t, err)
@@ -201,7 +201,7 @@ func TestCreateProRataExpense_YearRollover(t *testing.T) {
 	})).Return(&model.ProRataSchedule{ID: "s-2", TargetYear: 2027, TargetMonth: 1, Status: "pending"}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Insurance", TotalAmount: 6000, Currency: "USD", ExpenseType: "essentials",
+		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", ExpenseDate: "2026-11-01", Months: 3,
 	})
 
@@ -220,7 +220,7 @@ func TestCreateProRataExpense_TransactionCurrencyOnly(t *testing.T) {
 	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
 
 	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.Currency == "EUR"
+		return req.TransactionCurrency == "EUR"
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
@@ -243,85 +243,6 @@ func TestCreateProRataExpense_TransactionCurrencyOnly(t *testing.T) {
 	assert.Equal(t, "EUR", result.Expense.Currency)
 	expClient.AssertExpectations(t)
 	repo.AssertExpectations(t)
-}
-
-func TestCreateProRataExpense_LegacyCurrencyAlias(t *testing.T) {
-	repo := new(mockRepo)
-	txBeg := new(mockTxBeg)
-	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
-
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.Currency == "GBP"
-	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
-
-	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
-		Return(&model.ProRataSchedule{ID: "sched-1", Status: "pending"}, nil)
-
-	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:        "Insurance",
-		TotalAmount: 6000,
-		Currency:    "gbp",
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-15",
-		Months:      2,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "GBP", result.Expense.Currency)
-}
-
-func TestCreateProRataExpense_BothCurrenciesSame(t *testing.T) {
-	repo := new(mockRepo)
-	txBeg := new(mockTxBeg)
-	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
-
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.Currency == "JPY"
-	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
-
-	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
-		Return(&model.ProRataSchedule{ID: "sched-1", Status: "pending"}, nil)
-
-	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:                "Insurance",
-		TotalAmount:         6000,
-		TransactionCurrency: "JPY",
-		Currency:            "jpy",
-		ExpenseType:         "essentials",
-		TagID:               "tag-1",
-		ExpenseDate:         "2026-05-15",
-		Months:              2,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, "JPY", result.Expense.Currency)
-}
-
-func TestCreateProRataExpense_BothCurrenciesDifferent(t *testing.T) {
-	repo := new(mockRepo)
-	txBeg := new(mockTxBeg)
-	expClient := new(mockExpClient)
-	svc := newTagTestServiceNow(repo, txBeg, expClient, fixedNow(2026, 5, 15))
-
-	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:                "Insurance",
-		TotalAmount:         6000,
-		TransactionCurrency: "USD",
-		Currency:            "EUR",
-		ExpenseType:         "essentials",
-		TagID:               "tag-1",
-		ExpenseDate:         "2026-05-15",
-		Months:              2,
-	})
-
-	svcErr := requireAPIError(t, err)
-	assert.Equal(t, model.ErrCurrencyConflict, svcErr.Code)
-	assert.Equal(t, 400, svcErr.Status)
-	expClient.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
-	repo.AssertNotCalled(t, "CreateProRataSchedule", mock.Anything, mock.Anything)
 }
 
 func TestCreateProRataExpense_MissingCurrency(t *testing.T) {
@@ -353,10 +274,10 @@ func TestCreateProRataExpense_Validation(t *testing.T) {
 		req  *model.CreateProRataRequest
 		msg  string
 	}{
-		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, Currency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "Name is required"},
-		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, Currency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "positive"},
-		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, Currency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "at least 2"},
-		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, Currency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01"}, "essentials, desires, or savings"},
+		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "Name is required"},
+		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "positive"},
+		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01"}, "at least 2"},
+		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01"}, "essentials, desires, or savings"},
 	}
 
 	for _, tt := range tests {
@@ -383,7 +304,7 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 		Return(nil, fmt.Errorf("db error"))
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Test", TotalAmount: 6000, Currency: "USD", ExpenseType: "essentials",
+		Name: "Test", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2,
 	})
 

@@ -75,26 +75,8 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	}
 
 	resolvedCurrency := normalizeCurrencyCode(req.TransactionCurrency)
-	legacyCurrency := normalizeCurrencyCode(req.Currency)
-
-	if resolvedCurrency != "" && legacyCurrency != "" {
-		if resolvedCurrency != legacyCurrency {
-			return nil, &apierr.Error{
-				Code:    model.ErrCurrencyConflict,
-				Message: "transactionCurrency and currency must match when both are provided",
-				Status:  400,
-				Fields: map[string]string{
-					"transactionCurrency": "must match currency",
-					"currency":            "must match transactionCurrency",
-				},
-			}
-		}
-	}
 	if resolvedCurrency == "" {
-		resolvedCurrency = legacyCurrency
-	}
-	if resolvedCurrency == "" {
-		return nil, apierr.Validation("Currency is required", map[string]string{"transactionCurrency": "required"})
+		return nil, apierr.Validation("Transaction currency is required", map[string]string{"transactionCurrency": "required"})
 	}
 	if verr := validateSupportedCurrency("transactionCurrency", resolvedCurrency); verr != nil {
 		return nil, verr
@@ -108,19 +90,19 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	currentMonth := int32(now.Month())
 
 	created, err := s.expenseClient.CreateExpense(ctx, CreateExpenseInput{
-		UserID:       userID,
-		Name:         req.Name,
-		Amount:       installments[0],
-		Currency:     resolvedCurrency,
-		ExpenseType:  req.ExpenseType,
-		TagID:        req.TagID,
-		ExpenseDate:  req.ExpenseDate,
-		PeriodYear:   currentYear,
-		PeriodMonth:  currentMonth,
-		IsProRata:    true,
-		ProRataGroup: proRataGroup,
-		ProRataIndex: 1,
-		ProRataTotal: req.Months,
+		UserID:              userID,
+		Name:                req.Name,
+		Amount:              installments[0],
+		TransactionCurrency: resolvedCurrency,
+		ExpenseType:         req.ExpenseType,
+		TagID:               req.TagID,
+		ExpenseDate:         req.ExpenseDate,
+		PeriodYear:          currentYear,
+		PeriodMonth:         currentMonth,
+		IsProRata:           true,
+		ProRataGroup:        proRataGroup,
+		ProRataIndex:        1,
+		ProRataTotal:        req.Months,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating first installment via expense service: %w", err)
@@ -214,19 +196,19 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 		expenseDate := fmt.Sprintf("%04d-%02d-01", year, month)
 
 		_, err := s.expenseClient.CreateExpense(ctx, CreateExpenseInput{
-			UserID:       userID,
-			Name:         schedule.Name,
-			Amount:       schedule.Amount,
-			Currency:     schedule.Currency,
-			ExpenseType:  schedule.ExpenseType,
-			TagID:        schedule.TagID,
-			ExpenseDate:  expenseDate,
-			PeriodYear:   year,
-			PeriodMonth:  month,
-			IsProRata:    true,
-			ProRataGroup: schedule.ProRataGroup,
-			ProRataIndex: schedule.InstallmentIndex,
-			ProRataTotal: schedule.InstallmentTotal,
+			UserID:              userID,
+			Name:                schedule.Name,
+			Amount:              schedule.Amount,
+			TransactionCurrency: schedule.Currency,
+			ExpenseType:         schedule.ExpenseType,
+			TagID:               schedule.TagID,
+			ExpenseDate:         expenseDate,
+			PeriodYear:          year,
+			PeriodMonth:         month,
+			IsProRata:           true,
+			ProRataGroup:        schedule.ProRataGroup,
+			ProRataIndex:        schedule.InstallmentIndex,
+			ProRataTotal:        schedule.InstallmentTotal,
 		})
 		if err != nil {
 			s.logger.Error("failed to apply pro-rata installment",
