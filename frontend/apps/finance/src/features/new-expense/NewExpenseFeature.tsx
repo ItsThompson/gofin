@@ -1,12 +1,9 @@
-import { useEffect, useState } from "react";
-import { ApiRequestError, apiClient } from "@gofin/api";
 import {
   getCurrencyInputStep,
   getCurrencySymbol,
   getMinorUnitDigits,
   SUPPORTED_CURRENCY_OPTIONS,
 } from "@gofin/core";
-import type { BudgetPeriod, PeriodResponse } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -26,57 +23,24 @@ import { LayoutDashboard, PlusCircle } from "lucide-react";
 import type { FinancePageProps } from "../../types";
 import { ExpenseNameCombobox } from "../expense-autocomplete";
 import { useNewExpenseForm, EXPENSE_TYPES } from "./hooks/useNewExpenseForm";
+import { usePeriodContext } from "./hooks/usePeriodContext";
 
 export function NewExpenseFeature({ user }: FinancePageProps) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
-  const [period, setPeriod] = useState<BudgetPeriod | null>(null);
-  const [isLoadingPeriod, setIsLoadingPeriod] = useState(true);
-  const [isPeriodMissing, setIsPeriodMissing] = useState(false);
-  const [periodError, setPeriodError] = useState<string | null>(null);
+
+  const periodContext = usePeriodContext(currentYear, currentMonth);
+  const activePeriod =
+    periodContext.status === "active" ? periodContext.period : null;
   const { state, actions } = useNewExpenseForm(
-    period?.reportingCurrency ?? user.currency,
-    period?.year ?? currentYear,
-    period?.month ?? currentMonth,
+    activePeriod?.reportingCurrency ?? user.currency,
+    activePeriod?.year ?? currentYear,
+    activePeriod?.month ?? currentMonth,
   );
   const currencySymbol = getCurrencySymbol(state.transactionCurrency);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function fetchPeriodContext() {
-      try {
-        const response = await apiClient<PeriodResponse>(
-          `/api/finance/periods/current?year=${currentYear}&month=${currentMonth}`,
-        );
-        if (!isMounted) return;
-        setPeriod(response.period);
-        setIsPeriodMissing(false);
-        setPeriodError(null);
-      } catch (error) {
-        if (!isMounted) return;
-        if (error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
-          setIsPeriodMissing(true);
-          setPeriodError(null);
-          return;
-        }
-        setPeriodError("Failed to load budget period context.");
-      } finally {
-        if (isMounted) {
-          setIsLoadingPeriod(false);
-        }
-      }
-    }
-
-    fetchPeriodContext();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [currentMonth, currentYear]);
-
-  if (isLoadingPeriod) {
+  if (periodContext.status === "loading") {
     return (
       <div className="flex items-start justify-center pt-4 md:pt-8">
         <Card className="w-full max-w-lg">
@@ -89,7 +53,10 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
     );
   }
 
-  if (isPeriodMissing || !period) {
+  if (
+    periodContext.status === "missing" ||
+    periodContext.status === "error"
+  ) {
     return (
       <div className="flex items-start justify-center pt-4 md:pt-8">
         <Card className="w-full max-w-lg">
@@ -103,7 +70,9 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {periodError ? <FormMessage>{periodError}</FormMessage> : null}
+            {periodContext.status === "error" ? (
+              <FormMessage>{periodContext.message}</FormMessage>
+            ) : null}
             <Button asChild className="w-full">
               <a href="/dashboard">Go to dashboard setup</a>
             </Button>
