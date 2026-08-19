@@ -78,6 +78,18 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 	userID, _ := params["user_id"].(string)
 
 	if strings.Contains(strings.ToUpper(sql), "COUNT(*)") {
+		// The money-snapshot backfill count is global (no user_id): count legacy
+		// version-0 rows that are not redacted, mirroring the real predicate.
+		if strings.Contains(strings.ToUpper(sql), "MONEY_SNAPSHOT_VERSION") {
+			var count int64
+			for _, row := range c.rows {
+				if row.MoneySnapshotVersion == 0 && row.Status != "redacted" {
+					count++
+				}
+			}
+			return &SQLResult{Rows: []SQLRow{{Values: []SQLValue{fakeSQLValue{intValue: count}}}}}, nil
+		}
+
 		var count int64
 		for _, row := range c.rows {
 			if row.UserID == userID {
@@ -177,20 +189,30 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 }
 
 // buildTestExpense constructs an expense row for repository tests with the given
-// id, userID, and createdAt and default values for the remaining fields.
+// id, userID, and createdAt and default values for the remaining fields. The
+// returned row carries a complete version-1 identity snapshot so read paths can
+// materialize it without tripping the post-backfill version-0 guard.
 func buildTestExpense(id, userID, createdAt string) *model.Expense {
 	return &model.Expense{
-		ID:          id,
-		UserID:      userID,
-		Name:        "Expense " + id,
-		Amount:      1000,
-		Currency:    "USD",
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-01",
-		PeriodYear:  2026,
-		PeriodMonth: 5,
-		Status:      "active",
-		CreatedAt:   createdAt,
+		ID:                    id,
+		UserID:                userID,
+		Name:                  "Expense " + id,
+		Amount:                1000,
+		TransactionCurrency:   "USD",
+		Currency:              "USD",
+		ExpenseType:           "essentials",
+		TagID:                 "tag-1",
+		ExpenseDate:           "2026-05-01",
+		PeriodYear:            2026,
+		PeriodMonth:           5,
+		Status:                "active",
+		CreatedAt:             createdAt,
+		MoneySnapshotVersion:  1,
+		TransactionAmount:     1000,
+		ReportingAmount:       1000,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: createdAt,
 	}
 }

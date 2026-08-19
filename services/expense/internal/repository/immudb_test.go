@@ -130,22 +130,15 @@ func legacyRow() SQLRow {
 	}}
 }
 
-// TestRowToExpense_LegacyRowSynthesizesMigrationSnapshot asserts a row with no
-// money snapshot (version absent/null) reads without panics and is synthesized
-// into a migration snapshot: legacy amount is both transaction and reporting
-// money in the legacy currency, with rate "1" and source "migration".
-func TestRowToExpense_LegacyRowSynthesizesMigrationSnapshot(t *testing.T) {
+// TestRowToExpense_Version0Errors asserts a version-0 row (the pre-cutover
+// shape) is rejected as a data-integrity error after InitSchema backfills every
+// legacy row. Version 0 must never be synthesized on read.
+func TestRowToExpense_Version0Errors(t *testing.T) {
 	expense, err := rowToExpense(legacyRow())
-	require.NoError(t, err)
-	assert.Equal(t, int32(1), expense.MoneySnapshotVersion) // synthesized present
-	assert.Equal(t, int64(2500), expense.TransactionAmount)
-	assert.Equal(t, "USD", expense.TransactionCurrency)
-	assert.Equal(t, int64(2500), expense.ReportingAmount)
-	assert.Equal(t, "USD", expense.ReportingCurrency)
-	assert.Equal(t, "1", expense.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceMigration, expense.ExchangeRateSource)
-	assert.Equal(t, "2026-05-03T10:00:00Z", expense.ExchangeRateTimestamp)
-	assert.Empty(t, expense.ExchangeRateExpiresAt)
+	require.Error(t, err)
+	assert.Nil(t, expense)
+	assert.Contains(t, err.Error(), "money_snapshot_version=0 unexpected (not backfilled)")
+	assert.Contains(t, err.Error(), "exp-1")
 }
 
 // TestRowToExpense_IdentitySnapshotRowUsesExplicitFields asserts a row written
@@ -254,4 +247,53 @@ func TestInitSchema_SwallowsColumnExistsError(t *testing.T) {
 
 	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
 		"expected all 9 ALTER statements to be issued even when they fail")
+}
+
+// TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted seeds one version-0 active
+// row and one version-0 redacted row, then asserts InitSchema counts exactly the
+// active row and issues a backfill UPDATE whose WHERE clause excludes redacted
+// rows (the safety net that keeps anonymized rows untouched).
+func TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted(t *testing.T) {
+	legacy := buildTestExpense("exp-legacy", "user-1", "2026-05-03T10:00:00Z")
+	legacy.MoneySnapshotVersion = 0
+	redacted := buildTestExpense("exp-redacted", "user-1", "2026-05-04T10:00:00Z")
+	redacted.Status = "redacted"
+	redacted.MoneySnapshotVersion = 0
+
+	client := newRecordingImmudbClient(legacy, redacted)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	require.NoError(t, repo.InitSchema(context.Background()))
+
+	var updateSQL string
+	for _, query := range client.Queries() {
+		if strings.Contains(strings.ToUpper(query.SQL), "MONEY_SNAPSHOT_VERSION = 1") {
+			updateSQL = query.SQL
+		}
+	}
+	require.NotEmpty(t, updateSQL, "expected a backfill UPDATE for the seeded legacy row")
+	assert.Contains(t, updateSQL, "status <> 'redacted'")
+	assert.Contains(t, updateSQL, "exchange_rate_source = 'migration'")
+	assert.Contains(t, updateSQL, "transaction_amount = amount")
+	assert.Contains(t, updateSQL, "transaction_currency = currency")
+	assert.Contains(t, updateSQL, "reporting_amount = amount")
+	assert.Contains(t, updateSQL, "reporting_currency = currency")
+	assert.Contains(t, updateSQL, "exchange_rate_timestamp = created_at")
+}
+
+// TestInitSchema_SkipsBackfillWhenNoLegacyRows asserts an empty store issues the
+// backfill COUNT but no UPDATE, which is what keeps the local in-memory stub
+// (empty at startup and UPDATE-averse) from ever reaching the UPDATE.
+func TestInitSchema_SkipsBackfillWhenNoLegacyRows(t *testing.T) {
+	client := newRecordingImmudbClient()
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	require.NoError(t, repo.InitSchema(context.Background()))
+
+	assert.Equal(t, 1, client.countQueriesContaining("MONEY_SNAPSHOT_VERSION = 0 OR MONEY_SNAPSHOT_VERSION IS NULL"),
+		"expected the backfill COUNT to be issued")
+	assert.Equal(t, 0, client.countQueriesContaining("MONEY_SNAPSHOT_VERSION = 1"),
+		"no legacy rows means no backfill UPDATE")
 }

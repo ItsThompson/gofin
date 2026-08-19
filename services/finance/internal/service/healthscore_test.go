@@ -19,7 +19,7 @@ func healthPeriod(budget int64, essentials, desires, savings int32) *model.Budge
 }
 
 func healthExpense(expenseType string, amount int64) ExpenseData {
-	return ExpenseData{ExpenseType: expenseType, Amount: amount}
+	return ExpenseData{ExpenseType: expenseType, Amount: amount, ReportingAmount: amount}
 }
 
 // currentMonthNow is inside the compute period's month (May 2026) so provisional

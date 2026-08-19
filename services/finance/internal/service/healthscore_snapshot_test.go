@@ -41,9 +41,9 @@ func canonicalHealthScore() *model.HealthScore {
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 	}
 	expenses := []ExpenseData{
-		{ExpenseType: "essentials", Amount: 140000},
-		{ExpenseType: "desires", Amount: 95000},
-		{ExpenseType: "savings", Amount: 30000},
+		{ExpenseType: "essentials", Amount: 140000, ReportingAmount: 140000},
+		{ExpenseType: "desires", Amount: 95000, ReportingAmount: 95000},
+		{ExpenseType: "savings", Amount: 30000, ReportingAmount: 30000},
 	}
 	desiresWindow := []int64{60000, 90000, 120000, 80000}
 	closedNow := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC) // March 2026 is closed

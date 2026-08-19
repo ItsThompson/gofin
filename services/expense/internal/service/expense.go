@@ -231,24 +231,39 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		}
 	}
 
+	transactionCurrency := original.TransactionCurrency // correction currency is inherited, not changeable
+	createdAt := s.clock().UTC().Format(time.RFC3339)
+	// Same-currency identity is correct here: correction currency is inherited
+	// and foreign-currency corrections are not yet supported.
+	snapshot := buildIdentitySnapshot(req.Amount, transactionCurrency, original.ReportingCurrency, createdAt)
+
 	correction := &model.Expense{
-		ID:           uuid.New().String(),
-		UserID:       userID,
-		Name:         req.Name,
-		Amount:       req.Amount,
-		Currency:     original.Currency, // Currency is inherited, not changeable
-		ExpenseType:  req.ExpenseType,
-		TagID:        req.TagID,
-		ExpenseDate:  req.ExpenseDate,
-		PeriodYear:   original.PeriodYear,  // Period is immutable
-		PeriodMonth:  original.PeriodMonth, // Period is immutable
-		Status:       "active",
-		CorrectsID:   original.ID,
-		IsProRata:    original.IsProRata,
-		ProRataGroup: original.ProRataGroup,
-		ProRataIndex: original.ProRataIndex,
-		ProRataTotal: original.ProRataTotal,
-		CreatedAt:    s.clock().UTC().Format(time.RFC3339),
+		ID:                    uuid.New().String(),
+		UserID:                userID,
+		Name:                  req.Name,
+		Amount:                req.Amount,
+		TransactionCurrency:   transactionCurrency,
+		Currency:              transactionCurrency, // immudb currency column is NOT NULL; mirror the transaction currency
+		ExpenseType:           req.ExpenseType,
+		TagID:                 req.TagID,
+		ExpenseDate:           req.ExpenseDate,
+		PeriodYear:            original.PeriodYear,  // Period is immutable
+		PeriodMonth:           original.PeriodMonth, // Period is immutable
+		Status:                "active",
+		CorrectsID:            original.ID,
+		IsProRata:             original.IsProRata,
+		ProRataGroup:          original.ProRataGroup,
+		ProRataIndex:          original.ProRataIndex,
+		ProRataTotal:          original.ProRataTotal,
+		CreatedAt:             createdAt,
+		MoneySnapshotVersion:  snapshot.MoneySnapshotVersion,
+		TransactionAmount:     snapshot.TransactionAmount,
+		ReportingAmount:       snapshot.ReportingAmount,
+		ReportingCurrency:     snapshot.ReportingCurrency,
+		ExchangeRate:          snapshot.ExchangeRate,
+		ExchangeRateSource:    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
+		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
 	}
 
 	created, err := s.repo.CorrectExpense(ctx, original, correction)

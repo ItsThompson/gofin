@@ -69,7 +69,7 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	// Dashboard aggregation over the mapped rows uses reporting amounts.
 	var total int64
 	for _, exp := range expenses {
-		total += reportingAmount(exp)
+		total += exp.ReportingAmount
 	}
 	assert.Equal(t, int64(200000), total)
 }

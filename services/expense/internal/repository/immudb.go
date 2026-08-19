@@ -86,6 +86,11 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		}
 	}
 
+	// Run the one-time legacy money-snapshot migration after the columns exist.
+	if err := r.backfillMoneySnapshots(ctx); err != nil {
+		return err
+	}
+
 	indexes := []string{
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,
@@ -107,6 +112,50 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	}
 
 	r.logger.Info("immudb schema initialized")
+	return nil
+}
+
+// backfillMoneySnapshots migrates pre-cutover rows to a version-1 identity
+// snapshot in their legacy currency. It is idempotent: count first, then run
+// the UPDATE only when legacy rows exist, which also keeps the local in-memory
+// stub (empty at startup and UPDATE-averse) from ever reaching the UPDATE.
+//
+// TODO: delete this method once the mc/03 migration has shipped and prod has
+// booted with the new code. It is a one-time data migration, not startup logic.
+func (r *ImmudbExpenseRepository) backfillMoneySnapshots(ctx context.Context) error {
+	backfillCountQuery := `SELECT COUNT(*) FROM expenses
+		WHERE (money_snapshot_version = 0 OR money_snapshot_version IS NULL)
+		AND status <> 'redacted';`
+	countResult, err := r.client.SQLQuery(ctx, backfillCountQuery, nil)
+	if err != nil {
+		return fmt.Errorf("counting legacy money snapshot rows: %w", err)
+	}
+	var legacyRows int64
+	if len(countResult.Rows) > 0 && len(countResult.Rows[0].Values) > 0 {
+		legacyRows = countResult.Rows[0].Values[0].GetInt()
+	}
+	r.logger.Info("money_snapshot_backfill check",
+		slog.String("event", "money_snapshot_backfill"),
+		slog.Int64("legacy_rows", legacyRows),
+	)
+	if legacyRows == 0 {
+		return nil
+	}
+
+	backfillUpdate := fmt.Sprintf(`UPDATE expenses SET
+		money_snapshot_version = 1,
+		transaction_amount = amount,
+		transaction_currency = currency,
+		reporting_amount = amount,
+		reporting_currency = currency,
+		exchange_rate = '1',
+		exchange_rate_source = '%s',
+		exchange_rate_timestamp = created_at
+		WHERE (money_snapshot_version = 0 OR money_snapshot_version IS NULL)
+		AND status <> 'redacted';`, model.ExchangeSourceMigration)
+	if _, err := r.client.SQLExec(ctx, backfillUpdate, nil); err != nil {
+		return fmt.Errorf("backfilling legacy money snapshots: %w", err)
+	}
 	return nil
 }
 
@@ -309,12 +358,9 @@ const expenseColumnCount = 26
 // SELECT clause in queries. It returns an error on a short/malformed row rather
 // than panicking on an out-of-range index.
 //
-// Legacy rows (money_snapshot_version absent/null) are synthesized into a
-// migration snapshot: the legacy amount is treated as both transaction and
-// reporting money in the legacy currency, with rate "1" and source "migration".
-// Full period-context-aware legacy normalization and mismatch telemetry is the
-// responsibility of the migration compatibility ticket; here we only guarantee
-// legacy rows read without panics or data loss.
+// Version-0 rows are invalid post-backfill: InitSchema migrates every legacy
+// row to a version-1 identity snapshot, so a version-0 row still on disk is a
+// data-integrity error, not a synthesizable legacy row.
 func rowToExpense(row SQLRow) (*model.Expense, error) {
 	values := row.Values
 	if len(values) < expenseColumnCount {
@@ -351,26 +397,7 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 
 	switch exp.MoneySnapshotVersion {
 	case 0:
-		// Legacy row: money_snapshot_version is absent/null (read as 0). Synthesize
-		// a migration snapshot so every read expense resolves to exactly one
-		// reporting amount and currency (dashboard aggregation invariant). The
-		// legacy amount is treated as already denominated in the legacy currency
-		// (which for real pre-epic data equals the period reporting currency).
-		// Period-context-aware normalization and mismatch telemetry are deferred
-		// to the migration compatibility ticket.
-		exp.MoneySnapshotVersion = 1
-		exp.TransactionAmount = exp.Amount
-		if exp.TransactionCurrency == "" {
-			exp.TransactionCurrency = exp.Currency
-		}
-		exp.ReportingAmount = exp.Amount
-		exp.ReportingCurrency = exp.Currency
-		exp.ExchangeRate = "1"
-		exp.ExchangeRateSource = model.ExchangeSourceMigration
-		if exp.ExchangeRateTimestamp == "" {
-			exp.ExchangeRateTimestamp = exp.CreatedAt
-		}
-		exp.ExchangeRateExpiresAt = ""
+		return nil, fmt.Errorf("expense row %s: money_snapshot_version=0 unexpected (not backfilled)", exp.ID)
 	case 1:
 		// Version-1 rows must carry every required snapshot field. A version-1 row
 		// missing a required field is a data-integrity error (spec 06): report it

@@ -95,9 +95,9 @@ func TestComputePeriodSummary_BasicScenario(t *testing.T) {
 	}
 
 	expenses := []ExpenseData{
-		{ID: "e1", Amount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
-		{ID: "e2", Amount: 20000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-06"},
-		{ID: "e3", Amount: 10000, ExpenseType: "savings", TagID: "t3", ExpenseDate: "2025-01-07"},
+		{ID: "e1", Amount: 50000, ReportingAmount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+		{ID: "e2", Amount: 20000, ReportingAmount: 20000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-06"},
+		{ID: "e3", Amount: 10000, ReportingAmount: 10000, ExpenseType: "savings", TagID: "t3", ExpenseDate: "2025-01-07"},
 	}
 
 	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)
@@ -147,7 +147,7 @@ func TestComputePeriodSummary_OverBudget(t *testing.T) {
 	}
 
 	expenses := []ExpenseData{
-		{ID: "e1", Amount: 120000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-02-15"},
+		{ID: "e1", Amount: 120000, ReportingAmount: 120000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-02-15"},
 	}
 
 	summary := ComputePeriodSummary(period, expenses, 2025, 2, historicalNow)
@@ -188,7 +188,7 @@ func TestComputePeriodSummary_PacingCalculation(t *testing.T) {
 
 	// Spend $1500 in first 15 days → $100/day rate → exactly on track
 	expenses := []ExpenseData{
-		{ID: "e1", Amount: 150000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-15"},
+		{ID: "e1", Amount: 150000, ReportingAmount: 150000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-15"},
 	}
 
 	// Historical month: all 31 days elapsed
@@ -206,10 +206,10 @@ func TestComputePeriodSummary_PacingCalculation(t *testing.T) {
 
 func TestComputeTagSpending_MultipleTagsSorted(t *testing.T) {
 	expenses := []ExpenseData{
-		{TagID: "food", Amount: 30000},
-		{TagID: "food", Amount: 20000},
-		{TagID: "transport", Amount: 10000},
-		{TagID: "bills", Amount: 40000},
+		{TagID: "food", Amount: 30000, ReportingAmount: 30000},
+		{TagID: "food", Amount: 20000, ReportingAmount: 20000},
+		{TagID: "transport", Amount: 10000, ReportingAmount: 10000},
+		{TagID: "bills", Amount: 40000, ReportingAmount: 40000},
 	}
 
 	tagNames := map[string]string{
@@ -242,7 +242,7 @@ func TestComputeTagSpending_NoExpenses(t *testing.T) {
 
 func TestComputeTagSpending_UnknownTag(t *testing.T) {
 	expenses := []ExpenseData{
-		{TagID: "deleted-tag", Amount: 5000},
+		{TagID: "deleted-tag", Amount: 5000, ReportingAmount: 5000},
 	}
 
 	result := ComputeTagSpending(expenses, map[string]string{})
@@ -254,9 +254,9 @@ func TestComputeTagSpending_UnknownTag(t *testing.T) {
 
 func TestComputeCumulativeSpend_BasicAccumulation(t *testing.T) {
 	expenses := []ExpenseData{
-		{ExpenseDate: "2025-01-01", Amount: 10000},
-		{ExpenseDate: "2025-01-01", Amount: 5000},
-		{ExpenseDate: "2025-01-03", Amount: 20000},
+		{ExpenseDate: "2025-01-01", Amount: 10000, ReportingAmount: 10000},
+		{ExpenseDate: "2025-01-01", Amount: 5000, ReportingAmount: 5000},
+		{ExpenseDate: "2025-01-03", Amount: 20000, ReportingAmount: 20000},
 	}
 
 	points := ComputeCumulativeSpend(expenses, 310000, 2025, 1, 31)
@@ -294,7 +294,7 @@ func TestComputeCumulativeSpend_NoExpenses(t *testing.T) {
 
 func TestComputeCumulativeSpend_DayCarryForward(t *testing.T) {
 	expenses := []ExpenseData{
-		{ExpenseDate: "2025-03-10", Amount: 50000},
+		{ExpenseDate: "2025-03-10", Amount: 50000, ReportingAmount: 50000},
 	}
 
 	points := ComputeCumulativeSpend(expenses, 300000, 2025, 3, 31)
@@ -312,8 +312,8 @@ func TestComputeCumulativeSpend_DayCarryForward(t *testing.T) {
 func TestComputeCumulativeSpend_CrossMonthClamp(t *testing.T) {
 	// April 29 expense assigned to May period should be clamped to day 1
 	expenses := []ExpenseData{
-		{ExpenseDate: "2025-04-29", Amount: 15000},
-		{ExpenseDate: "2025-05-03", Amount: 20000},
+		{ExpenseDate: "2025-04-29", Amount: 15000, ReportingAmount: 15000},
+		{ExpenseDate: "2025-05-03", Amount: 20000, ReportingAmount: 20000},
 	}
 
 	points := ComputeCumulativeSpend(expenses, 300000, 2025, 5, 31)
@@ -377,7 +377,7 @@ func TestComputePeriodSummary_CurrentMonthPacing(t *testing.T) {
 	}
 
 	expenses := []ExpenseData{
-		{ID: "e1", Amount: 100000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+		{ID: "e1", Amount: 100000, ReportingAmount: 100000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
 	}
 
 	// Simulate being on Jan 10: 10 days elapsed, spent 100000
@@ -424,11 +424,11 @@ func TestComputePeriodSummary_SumsReportingAmountNotLegacyAmount(t *testing.T) {
 	assert.Equal(t, int64(300000-200000), summary.Remaining)
 }
 
-// TestComputePeriodSummary_FallsBackToAmountWhenReportingAbsent asserts expenses
-// that only set the legacy Amount (existing fixtures / pre-snapshot rows) still
-// contribute to the total via the Amount fallback, so the rollout does not break
-// callers that have not yet populated ReportingAmount.
-func TestComputePeriodSummary_FallsBackToAmountWhenReportingAbsent(t *testing.T) {
+// TestComputePeriodSummary_MissingReportingAmountAggregatesZero asserts that a
+// row carrying only the legacy Amount no longer contributes to the dashboard
+// total. ReportingAmount is the only aggregated money field, so a forgotten
+// field fails loud (zero) instead of silently aggregating transaction currency.
+func TestComputePeriodSummary_MissingReportingAmountAggregatesZero(t *testing.T) {
 	period := &model.BudgetPeriod{
 		ID:                "period-1",
 		BudgetAmount:      300000,
@@ -443,5 +443,7 @@ func TestComputePeriodSummary_FallsBackToAmountWhenReportingAbsent(t *testing.T)
 
 	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)
 
-	assert.Equal(t, int64(80000), summary.TotalSpent) // Amount fallback
+	assert.Equal(t, int64(0), summary.TotalSpent)
+	assert.Equal(t, int64(0), summary.Essentials.Spent)
+	assert.Equal(t, int64(0), summary.Desires.Spent)
 }

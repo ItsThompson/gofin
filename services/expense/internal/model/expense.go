@@ -29,7 +29,8 @@ type Expense struct {
 	CreatedAt           string `json:"createdAt"` // ISO 8601 timestamp
 
 	// Money snapshot fields. Populated for rows written after the multi-currency
-	// cutover. Legacy rows (MoneySnapshotVersion == 0) are synthesized on read.
+	// cutover. Legacy rows are migrated to a version-1 identity snapshot by
+	// InitSchema; a version-0 row on read is a data-integrity error.
 	MoneySnapshotVersion  int32  `json:"moneySnapshotVersion"`
 	TransactionAmount     int64  `json:"transactionAmount"`
 	ReportingAmount       int64  `json:"reportingAmount"`

@@ -27,11 +27,11 @@ func TestGetHistoricalComparison_FanOutByteIdentical(t *testing.T) {
 		makePeriod("p09", 2026, 9),
 		makePeriod("p08", 2026, 8),
 	}
-	exp.set(2026, 12, []ExpenseData{{Amount: 80000}})
-	exp.set(2026, 11, []ExpenseData{{Amount: 70000}})
-	exp.set(2026, 10, []ExpenseData{{Amount: 60000}})
-	exp.set(2026, 9, []ExpenseData{{Amount: 50000}})
-	exp.set(2026, 8, []ExpenseData{{Amount: 40000}})
+	exp.set(2026, 12, []ExpenseData{{Amount: 80000, ReportingAmount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{Amount: 70000, ReportingAmount: 70000}})
+	exp.set(2026, 10, []ExpenseData{{Amount: 60000, ReportingAmount: 60000}})
+	exp.set(2026, 9, []ExpenseData{{Amount: 50000, ReportingAmount: 50000}})
+	exp.set(2026, 8, []ExpenseData{{Amount: 40000, ReportingAmount: 40000}})
 	svc := newFanoutService(historicalRepo(periods), exp)
 
 	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
@@ -60,7 +60,7 @@ func TestGetHistoricalComparison_FanOutRunsConcurrently(t *testing.T) {
 		makePeriod("p10", 2026, 10), makePeriod("p09", 2026, 9),
 	}
 	for m := int32(9); m <= 12; m++ {
-		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000}})
+		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000, ReportingAmount: int64(m) * 1000}})
 	}
 	svc := newFanoutService(historicalRepo(periods), exp)
 
@@ -79,7 +79,7 @@ func TestGetHistoricalComparison_FanOutWrapsError(t *testing.T) {
 		makePeriod("p10", 2026, 10), makePeriod("p09", 2026, 9),
 	}
 	for m := int32(9); m <= 12; m++ {
-		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000}})
+		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000, ReportingAmount: int64(m) * 1000}})
 	}
 	exp.failOn(2026, 10, errors.New("upstream down"))
 	svc := newFanoutService(historicalRepo(periods), exp)
