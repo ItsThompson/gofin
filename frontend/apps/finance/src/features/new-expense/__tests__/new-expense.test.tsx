@@ -226,6 +226,21 @@ describe("NewExpenseFeature", () => {
     expect(screen.getByRole("link", { name: "Go to dashboard setup" })).toHaveAttribute("href", "/dashboard");
   });
 
+  it("shows the period load error when the period fetch fails unexpectedly", async () => {
+    renderNewExpense({
+      periodResponse: jsonResponse(
+        { code: "INTERNAL_ERROR", message: "boom" },
+        500,
+      ),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Create a budget period first")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Failed to load budget period context.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+  });
+
   it("resets standard success to fresh defaults without refetching bootstrap data", async () => {
     const user = userEvent.setup();
     renderNewExpense();
