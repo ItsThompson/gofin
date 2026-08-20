@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -274,6 +275,41 @@ func TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted(t *testing.T) {
 	assert.Contains(t, updateSQL, "reporting_amount = amount")
 	assert.Contains(t, updateSQL, "reporting_currency = currency")
 	assert.Contains(t, updateSQL, "exchange_rate_timestamp = created_at")
+	assert.Contains(t, strings.ToUpper(updateSQL), "LIMIT",
+		"backfill UPDATE must include a LIMIT clause to stay under the immudb tx-entry cap")
+}
+
+// TestInitSchema_BackfillBatchesWhenLegacyRowsExceedChunkSize seeds more legacy
+// rows than backfillBatchSize and asserts the backfill issues multiple bounded
+// UPDATEs (one per batch) and terminates once all rows are backfilled.
+func TestInitSchema_BackfillBatchesWhenLegacyRowsExceedChunkSize(t *testing.T) {
+	const legacyCount = backfillBatchSize + 50 // 150 rows: needs 2 batches of 100
+	rows := make([]*model.Expense, legacyCount)
+	for i := range rows {
+		e := buildTestExpense(
+			"exp-"+strconv.FormatInt(int64(i), 10),
+			"user-1",
+			"2026-05-03T10:00:00Z",
+		)
+		e.TransactionAmount = 0
+		rows[i] = e
+	}
+
+	client := newRecordingImmudbClient(rows...)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	require.NoError(t, repo.InitSchema(context.Background()))
+
+	updateCount := client.countQueriesContaining("TRANSACTION_AMOUNT = AMOUNT")
+	assert.Equal(t, 2, updateCount,
+		"expected 2 batched UPDATEs for %d legacy rows with batch size %d", legacyCount, backfillBatchSize)
+
+	// Every backfilled row should now have a non-zero transaction amount.
+	for i, row := range rows {
+		assert.NotEqual(t, int64(0), row.TransactionAmount,
+			"row %d was not backfilled", i)
+	}
 }
 
 // TestInitSchema_SkipsBackfillWhenNoLegacyRows asserts an empty store issues the

@@ -113,11 +113,19 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	return nil
 }
 
+// backfillBatchSize is the maximum number of rows updated per SQLExec during
+// the money-snapshot backfill. immudb's DefaultMaxTxEntries is 1024 key-value
+// entries per transaction; during backfill (before secondary indexes are
+// created) each row UPDATE generates approximately one entry, so 100 provides
+// a 10x safety margin. Batching prevents the "max number of entries per tx
+// exceeded" error that a single bulk UPDATE triggers on large tables.
+const backfillBatchSize = 100
+
 // backfillMoneySnapshots backfills rows missing a transaction amount with an
-// identity snapshot in their legacy currency. It is idempotent: count first,
-// then run the UPDATE only when such rows exist, which also keeps the local
-// in-memory stub (empty at startup and UPDATE-averse) from ever reaching the
-// UPDATE.
+// identity snapshot in their legacy currency. It is idempotent and resumable:
+// each batch UPDATEs at most backfillBatchSize rows matching the WHERE
+// predicate, so a crash mid-loop resumes cleanly on the next startup: rows
+// already backfilled have a non-NULL transaction_amount and are excluded.
 //
 // TODO: delete this method once the mc/03 migration has shipped and prod has
 // booted with the new code. It is a one-time data migration, not startup logic.
@@ -150,10 +158,39 @@ func (r *ImmudbExpenseRepository) backfillMoneySnapshots(ctx context.Context) er
 		exchange_rate_source = '%s',
 		exchange_rate_timestamp = created_at
 		WHERE transaction_amount IS NULL
-		AND status <> 'redacted';`, model.ExchangeSourceMigration)
-	if _, err := r.client.SQLExec(ctx, backfillUpdate, nil); err != nil {
-		return fmt.Errorf("backfilling legacy money snapshots: %w", err)
+		AND status <> 'redacted'
+		LIMIT %d;`, model.ExchangeSourceMigration, backfillBatchSize)
+
+	var totalBackfilled int64
+	for {
+		if _, err := r.client.SQLExec(ctx, backfillUpdate, nil); err != nil {
+			return fmt.Errorf("backfilling legacy money snapshots: %w", err)
+		}
+
+		remainingResult, err := r.client.SQLQuery(ctx, backfillCountQuery, nil)
+		if err != nil {
+			return fmt.Errorf("counting remaining legacy rows after backfill batch: %w", err)
+		}
+		var remaining int64
+		if len(remainingResult.Rows) > 0 && len(remainingResult.Rows[0].Values) > 0 {
+			remaining = remainingResult.Rows[0].Values[0].GetInt()
+		}
+		totalBackfilled += legacyRows - remaining
+		r.logger.Info("money_snapshot_backfill batch complete",
+			slog.String("event", "money_snapshot_backfill_batch"),
+			slog.Int64("remaining", remaining),
+			slog.Int64("backfilled_so_far", totalBackfilled),
+		)
+		legacyRows = remaining
+		if remaining == 0 {
+			break
+		}
 	}
+
+	r.logger.Info("money_snapshot_backfill done",
+		slog.String("event", "money_snapshot_backfill_done"),
+		slog.Int64("total_backfilled", totalBackfilled),
+	)
 	return nil
 }
 
