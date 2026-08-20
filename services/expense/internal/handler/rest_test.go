@@ -193,25 +193,24 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
 	})).Return(&model.Expense{
-		ID:                   "exp-123",
-		UserID:               "user-1",
-		Name:                 "Coffee",
-		Amount:               450,
-		TransactionCurrency:  "EUR",
-		Currency:             "EUR",
-		ExpenseType:          "desires",
-		TagID:                "tag-food",
-		ExpenseDate:          "2026-05-03",
-		PeriodYear:           2026,
-		PeriodMonth:          5,
-		Status:               "active",
-		CreatedAt:            "2026-05-03T10:00:00Z",
-		MoneySnapshotVersion: 1,
-		TransactionAmount:    450,
-		ReportingAmount:      450,
-		ReportingCurrency:    "EUR",
-		ExchangeRate:         "1",
-		ExchangeRateSource:   model.ExchangeSourceIdentity,
+		ID:                  "exp-123",
+		UserID:              "user-1",
+		Name:                "Coffee",
+		Amount:              450,
+		TransactionCurrency: "EUR",
+		Currency:            "EUR",
+		ExpenseType:         "desires",
+		TagID:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+		Status:              "active",
+		CreatedAt:           "2026-05-03T10:00:00Z",
+		TransactionAmount:   450,
+		ReportingAmount:     450,
+		ReportingCurrency:   "EUR",
+		ExchangeRate:        "1",
+		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}, nil)
 
 	r := setupTestRouterWithPeriod(repo, periodClient)
@@ -234,7 +233,6 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
 	assert.Equal(t, "EUR", resp.Expense.Currency)
 	// Canonical transaction and reporting money fields are present in the response.
-	assert.Equal(t, int32(1), resp.Expense.MoneySnapshotVersion)
 	assert.Equal(t, int64(450), resp.Expense.TransactionAmount)
 	assert.Equal(t, int64(450), resp.Expense.ReportingAmount)
 	assert.Equal(t, "EUR", resp.Expense.ReportingCurrency)

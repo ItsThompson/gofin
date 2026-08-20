@@ -28,10 +28,7 @@ type Expense struct {
 	ProRataTotal        int32  `json:"proRataTotal,omitempty"`
 	CreatedAt           string `json:"createdAt"` // ISO 8601 timestamp
 
-	// Money snapshot fields. Populated for rows written after the multi-currency
-	// cutover. Legacy rows are migrated to a version-1 identity snapshot by
-	// InitSchema; a version-0 row on read is a data-integrity error.
-	MoneySnapshotVersion  int32  `json:"moneySnapshotVersion"`
+	// Money snapshot fields.
 	TransactionAmount     int64  `json:"transactionAmount"`
 	ReportingAmount       int64  `json:"reportingAmount"`
 	ReportingCurrency     string `json:"reportingCurrency"`

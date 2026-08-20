@@ -211,7 +211,6 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 		ProRataIndex:          e.ProRataIndex,
 		ProRataTotal:          e.ProRataTotal,
 		CreatedAt:             e.CreatedAt,
-		MoneySnapshotVersion:  e.MoneySnapshotVersion,
 		TransactionAmount:     e.TransactionAmount,
 		ReportingAmount:       e.ReportingAmount,
 		ReportingCurrency:     e.ReportingCurrency,

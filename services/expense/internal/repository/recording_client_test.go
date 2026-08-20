@@ -78,12 +78,13 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 	userID, _ := params["user_id"].(string)
 
 	if strings.Contains(strings.ToUpper(sql), "COUNT(*)") {
-		// The money-snapshot backfill count is global (no user_id): count legacy
-		// version-0 rows that are not redacted, mirroring the real predicate.
-		if strings.Contains(strings.ToUpper(sql), "MONEY_SNAPSHOT_VERSION") {
+		// The money-snapshot backfill count is global (no user_id): count rows
+		// missing a transaction amount that are not redacted, mirroring the real
+		// predicate.
+		if strings.Contains(strings.ToUpper(sql), "TRANSACTION_AMOUNT IS NULL") {
 			var count int64
 			for _, row := range c.rows {
-				if row.MoneySnapshotVersion == 0 && row.Status != "redacted" {
+				if row.TransactionAmount == 0 && row.Status != "redacted" {
 					count++
 				}
 			}
@@ -174,7 +175,6 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 			fakeSQLValue{intValue: int64(e.ProRataIndex)},
 			fakeSQLValue{intValue: int64(e.ProRataTotal)},
 			fakeSQLValue{stringValue: e.CreatedAt},
-			fakeSQLValue{intValue: int64(e.MoneySnapshotVersion)},
 			fakeSQLValue{intValue: e.TransactionAmount},
 			fakeSQLValue{stringValue: e.TransactionCurrency},
 			fakeSQLValue{intValue: e.ReportingAmount},
@@ -190,8 +190,8 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 
 // buildTestExpense constructs an expense row for repository tests with the given
 // id, userID, and createdAt and default values for the remaining fields. The
-// returned row carries a complete version-1 identity snapshot so read paths can
-// materialize it without tripping the post-backfill version-0 guard.
+// returned row carries a complete identity snapshot so read paths can
+// materialize it without tripping the missing-snapshot-fields guard.
 func buildTestExpense(id, userID, createdAt string) *model.Expense {
 	return &model.Expense{
 		ID:                    id,
@@ -207,7 +207,6 @@ func buildTestExpense(id, userID, createdAt string) *model.Expense {
 		PeriodMonth:           5,
 		Status:                "active",
 		CreatedAt:             createdAt,
-		MoneySnapshotVersion:  1,
 		TransactionAmount:     1000,
 		ReportingAmount:       1000,
 		ReportingCurrency:     "USD",

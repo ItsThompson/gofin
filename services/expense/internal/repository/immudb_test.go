@@ -80,7 +80,7 @@ func TestGetActiveExpenseSuggestionInputs_ReadsActiveRowsForUserAndMapsFields(t 
 }
 
 func TestGetExpenseByID_ShortRowReturnsErrorNotPanic(t *testing.T) {
-	// A malformed/short row (fewer than the 17 selected columns) must produce a
+	// A malformed/short row (fewer than the 25 selected columns) must produce a
 	// wrapped error rather than an index-out-of-range panic.
 	client := &fakeImmudbClient{result: &SQLResult{Rows: []SQLRow{{Values: []SQLValue{
 		fakeSQLValue{stringValue: "exp-1"},
@@ -94,11 +94,11 @@ func TestGetExpenseByID_ShortRowReturnsErrorNotPanic(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, expense)
-	assert.Contains(t, err.Error(), "expense row has 3 values, want 26")
+	assert.Contains(t, err.Error(), "expense row has 3 values, want 25")
 }
 
-// legacyRow builds a 26-value row in expenseSelectColumns order with no
-// money snapshot (version 0/empty), simulating a pre-cutover legacy row.
+// legacyRow builds a 25-value row in expenseSelectColumns order with empty
+// snapshot fields, simulating a pre-cutover legacy row.
 func legacyRow() SQLRow {
 	return SQLRow{Values: []SQLValue{
 		fakeSQLValue{stringValue: "exp-1"},
@@ -118,7 +118,6 @@ func legacyRow() SQLRow {
 		fakeSQLValue{intValue: 0},
 		fakeSQLValue{intValue: 0},
 		fakeSQLValue{stringValue: "2026-05-03T10:00:00Z"},
-		fakeSQLValue{intValue: 0},     // money_snapshot_version
 		fakeSQLValue{intValue: 0},     // transaction_amount
 		fakeSQLValue{stringValue: ""}, // transaction_currency
 		fakeSQLValue{intValue: 0},     // reporting_amount
@@ -130,34 +129,33 @@ func legacyRow() SQLRow {
 	}}
 }
 
-// TestRowToExpense_Version0Errors asserts a version-0 row (the pre-cutover
-// shape) is rejected as a data-integrity error after InitSchema backfills every
-// legacy row. Version 0 must never be synthesized on read.
-func TestRowToExpense_Version0Errors(t *testing.T) {
+// TestRowToExpense_MissingRequiredSnapshotFieldsErrors asserts a row with empty
+// snapshot fields is rejected as a data-integrity error. InitSchema backfills
+// every legacy row at startup, so a row still missing a required field on read
+// must not be synthesized.
+func TestRowToExpense_MissingRequiredSnapshotFieldsErrors(t *testing.T) {
 	expense, err := rowToExpense(legacyRow())
 	require.Error(t, err)
 	assert.Nil(t, expense)
-	assert.Contains(t, err.Error(), "money_snapshot_version=0 unexpected (not backfilled)")
+	assert.Contains(t, err.Error(), "missing required snapshot fields")
 	assert.Contains(t, err.Error(), "exp-1")
 }
 
 // TestRowToExpense_IdentitySnapshotRowUsesExplicitFields asserts a row written
-// after the cutover (version 1) returns its explicit snapshot fields unchanged.
+// after the cutover returns its explicit snapshot fields unchanged.
 func TestRowToExpense_IdentitySnapshotRowUsesExplicitFields(t *testing.T) {
 	row := legacyRow()
 	// Overwrite the snapshot columns with explicit identity values.
-	row.Values[17] = fakeSQLValue{intValue: 1}                               // money_snapshot_version
-	row.Values[18] = fakeSQLValue{intValue: 1250}                            // transaction_amount
-	row.Values[19] = fakeSQLValue{stringValue: "EUR"}                        // transaction_currency
-	row.Values[20] = fakeSQLValue{intValue: 1364}                            // reporting_amount
-	row.Values[21] = fakeSQLValue{stringValue: "USD"}                        // reporting_currency
-	row.Values[22] = fakeSQLValue{stringValue: "1.0912"}                     // exchange_rate
-	row.Values[23] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity} // exchange_rate_source
-	row.Values[24] = fakeSQLValue{stringValue: "2026-08-14T10:00:00Z"}       // exchange_rate_timestamp
+	row.Values[17] = fakeSQLValue{intValue: 1250}                            // transaction_amount
+	row.Values[18] = fakeSQLValue{stringValue: "EUR"}                        // transaction_currency
+	row.Values[19] = fakeSQLValue{intValue: 1364}                            // reporting_amount
+	row.Values[20] = fakeSQLValue{stringValue: "USD"}                        // reporting_currency
+	row.Values[21] = fakeSQLValue{stringValue: "1.0912"}                     // exchange_rate
+	row.Values[22] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity} // exchange_rate_source
+	row.Values[23] = fakeSQLValue{stringValue: "2026-08-14T10:00:00Z"}       // exchange_rate_timestamp
 
 	expense, err := rowToExpense(row)
 	require.NoError(t, err)
-	assert.Equal(t, int32(1), expense.MoneySnapshotVersion)
 	assert.Equal(t, int64(1250), expense.TransactionAmount)
 	assert.Equal(t, "EUR", expense.TransactionCurrency)
 	assert.Equal(t, int64(1364), expense.ReportingAmount)
@@ -167,42 +165,38 @@ func TestRowToExpense_IdentitySnapshotRowUsesExplicitFields(t *testing.T) {
 	assert.Equal(t, "2026-08-14T10:00:00Z", expense.ExchangeRateTimestamp)
 }
 
-// TestRowToExpense_Version1WithMissingFieldsReturnsIntegrityError asserts a
-// version-1 row that is missing a required snapshot field is treated as a
-// data-integrity error (spec 06) rather than being silently synthesized or
-// blended with legacy fields. No such row can be written by this ticket; this
-// guards the invariant for future snapshot-writing tickets.
-func TestRowToExpense_Version1WithMissingFieldsReturnsIntegrityError(t *testing.T) {
+// TestRowToExpense_MissingReportingFieldsReturnsIntegrityError asserts a row
+// missing a required reporting snapshot field is treated as a data-integrity
+// error rather than being silently synthesized or blended with legacy fields.
+func TestRowToExpense_MissingReportingFieldsReturnsIntegrityError(t *testing.T) {
 	row := legacyRow()
-	row.Values[17] = fakeSQLValue{intValue: 1}        // money_snapshot_version
-	row.Values[18] = fakeSQLValue{intValue: 1250}     // transaction_amount
-	row.Values[19] = fakeSQLValue{stringValue: "EUR"} // transaction_currency
+	row.Values[17] = fakeSQLValue{intValue: 1250}     // transaction_amount
+	row.Values[18] = fakeSQLValue{stringValue: "EUR"} // transaction_currency
 	// reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
 	// and exchange_rate_timestamp are left empty (missing).
 
 	expense, err := rowToExpense(row)
 	require.Error(t, err)
 	assert.Nil(t, expense)
-	assert.Contains(t, err.Error(), "money_snapshot_version=1 missing required snapshot fields")
+	assert.Contains(t, err.Error(), "missing required snapshot fields")
 	assert.Contains(t, err.Error(), "exp-1")
 }
 
-// TestRowToExpense_Version1WithExchangeRateTimestampMissingReturnsIntegrityError
-// asserts the timestamp is a required snapshot field (it is not optional).
-func TestRowToExpense_Version1WithExchangeRateTimestampMissingReturnsIntegrityError(t *testing.T) {
+// TestRowToExpense_MissingExchangeRateTimestampReturnsIntegrityError asserts the
+// timestamp is a required snapshot field (it is not optional).
+func TestRowToExpense_MissingExchangeRateTimestampReturnsIntegrityError(t *testing.T) {
 	raw := legacyRow()
-	raw.Values[17] = fakeSQLValue{intValue: 1}
-	raw.Values[18] = fakeSQLValue{intValue: 2500}
-	raw.Values[19] = fakeSQLValue{stringValue: "USD"}
-	raw.Values[20] = fakeSQLValue{intValue: 2500}
-	raw.Values[21] = fakeSQLValue{stringValue: "USD"}
-	raw.Values[22] = fakeSQLValue{stringValue: "1"}
-	raw.Values[23] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity}
-	raw.Values[24] = fakeSQLValue{stringValue: ""} // exchange_rate_timestamp missing
+	raw.Values[17] = fakeSQLValue{intValue: 2500}
+	raw.Values[18] = fakeSQLValue{stringValue: "USD"}
+	raw.Values[19] = fakeSQLValue{intValue: 2500}
+	raw.Values[20] = fakeSQLValue{stringValue: "USD"}
+	raw.Values[21] = fakeSQLValue{stringValue: "1"}
+	raw.Values[22] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity}
+	raw.Values[23] = fakeSQLValue{stringValue: ""} // exchange_rate_timestamp missing
 
 	_, err := rowToExpense(raw)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "money_snapshot_version=1 missing required snapshot fields")
+	assert.Contains(t, err.Error(), "missing required snapshot fields")
 }
 
 // TestInitSchema_ReconcilesSnapshotColumns asserts InitSchema issues the ALTER
@@ -216,7 +210,7 @@ func TestInitSchema_ReconcilesSnapshotColumns(t *testing.T) {
 
 	require.NoError(t, repo.InitSchema(context.Background()))
 
-	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
+	assert.Equal(t, 8, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
 		"expected one ALTER per snapshot column")
 }
 
@@ -245,20 +239,20 @@ func TestInitSchema_SwallowsColumnExistsError(t *testing.T) {
 
 	require.NoError(t, repo.InitSchema(context.Background()))
 
-	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
-		"expected all 9 ALTER statements to be issued even when they fail")
+	assert.Equal(t, 8, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
+		"expected all 8 ALTER statements to be issued even when they fail")
 }
 
-// TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted seeds one version-0 active
-// row and one version-0 redacted row, then asserts InitSchema counts exactly the
-// active row and issues a backfill UPDATE whose WHERE clause excludes redacted
-// rows (the safety net that keeps anonymized rows untouched).
+// TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted seeds one legacy active
+// row (transaction_amount empty) and one redacted row, then asserts InitSchema
+// counts exactly the active row and issues a backfill UPDATE whose WHERE clause
+// excludes redacted rows (the safety net that keeps anonymized rows untouched).
 func TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted(t *testing.T) {
 	legacy := buildTestExpense("exp-legacy", "user-1", "2026-05-03T10:00:00Z")
-	legacy.MoneySnapshotVersion = 0
+	legacy.TransactionAmount = 0
 	redacted := buildTestExpense("exp-redacted", "user-1", "2026-05-04T10:00:00Z")
 	redacted.Status = "redacted"
-	redacted.MoneySnapshotVersion = 0
+	redacted.TransactionAmount = 0
 
 	client := newRecordingImmudbClient(legacy, redacted)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -268,7 +262,7 @@ func TestInitSchema_BackfillsLegacyRowsAndSkipsRedacted(t *testing.T) {
 
 	var updateSQL string
 	for _, query := range client.Queries() {
-		if strings.Contains(strings.ToUpper(query.SQL), "MONEY_SNAPSHOT_VERSION = 1") {
+		if strings.Contains(strings.ToUpper(query.SQL), "TRANSACTION_AMOUNT = AMOUNT") {
 			updateSQL = query.SQL
 		}
 	}
@@ -292,8 +286,8 @@ func TestInitSchema_SkipsBackfillWhenNoLegacyRows(t *testing.T) {
 
 	require.NoError(t, repo.InitSchema(context.Background()))
 
-	assert.Equal(t, 1, client.countQueriesContaining("MONEY_SNAPSHOT_VERSION = 0 OR MONEY_SNAPSHOT_VERSION IS NULL"),
+	assert.Equal(t, 1, client.countQueriesContaining("TRANSACTION_AMOUNT IS NULL"),
 		"expected the backfill COUNT to be issued")
-	assert.Equal(t, 0, client.countQueriesContaining("MONEY_SNAPSHOT_VERSION = 1"),
+	assert.Equal(t, 0, client.countQueriesContaining("TRANSACTION_AMOUNT = AMOUNT"),
 		"no legacy rows means no backfill UPDATE")
 }

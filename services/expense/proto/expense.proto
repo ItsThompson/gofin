@@ -48,9 +48,7 @@ message ExpenseData {
   int32 pro_rata_total = 16;
   string created_at = 17;
   string transaction_currency = 18;
-  // Money snapshot fields. Populated for rows written after the multi-currency
-  // cutover; absent (zero/empty) for legacy rows, which are synthesized on read.
-  int32 money_snapshot_version = 19;
+  // Money snapshot fields.
   int64 transaction_amount = 20;
   int64 reporting_amount = 21;
   string reporting_currency = 22;

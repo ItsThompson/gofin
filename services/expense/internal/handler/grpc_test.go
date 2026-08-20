@@ -68,18 +68,17 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
 	})).Return(&model.Expense{
-		ID:                   "exp-1",
-		UserID:               "user-1",
-		Amount:               1200,
-		TransactionCurrency:  "EUR",
-		Currency:             "EUR",
-		Status:               "active",
-		MoneySnapshotVersion: 1,
-		TransactionAmount:    1200,
-		ReportingAmount:      1200,
-		ReportingCurrency:    "EUR",
-		ExchangeRate:         "1",
-		ExchangeRateSource:   model.ExchangeSourceIdentity,
+		ID:                  "exp-1",
+		UserID:              "user-1",
+		Amount:              1200,
+		TransactionCurrency: "EUR",
+		Currency:            "EUR",
+		Status:              "active",
+		TransactionAmount:   1200,
+		ReportingAmount:     1200,
+		ReportingCurrency:   "EUR",
+		ExchangeRate:        "1",
+		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}, nil)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
@@ -101,7 +100,6 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	assert.Equal(t, int64(1200), resp.GetExpense().GetTransactionAmount())
 	assert.Equal(t, int64(1200), resp.GetExpense().GetReportingAmount())
 	assert.Equal(t, "EUR", resp.GetExpense().GetReportingCurrency())
-	assert.Equal(t, int32(1), resp.GetExpense().GetMoneySnapshotVersion())
 	assert.Equal(t, "1", resp.GetExpense().GetExchangeRate())
 	assert.Equal(t, model.ExchangeSourceIdentity, resp.GetExpense().GetExchangeRateSource())
 	repo.AssertExpectations(t)

@@ -159,30 +159,28 @@ func TestCreateExpense_Success(t *testing.T) {
 		// Same-currency (USD/USD) create writes an identity snapshot.
 		return expense.Amount == 2500 &&
 			expense.TransactionCurrency == "USD" &&
-			expense.MoneySnapshotVersion == 1 &&
 			expense.TransactionAmount == 2500 &&
 			expense.ReportingAmount == 2500 &&
 			expense.ReportingCurrency == "USD" &&
 			expense.ExchangeRate == "1" &&
 			expense.ExchangeRateSource == model.ExchangeSourceIdentity
 	})).Return(&model.Expense{
-		ID:                   "exp-123",
-		UserID:               "user-1",
-		Name:                 "Grocery shopping",
-		Amount:               2500,
-		Currency:             "USD",
-		ExpenseType:          "essentials",
-		TagID:                "tag-food",
-		ExpenseDate:          "2026-05-03",
-		PeriodYear:           2026,
-		PeriodMonth:          5,
-		Status:               "active",
-		MoneySnapshotVersion: 1,
-		TransactionAmount:    2500,
-		ReportingAmount:      2500,
-		ReportingCurrency:    "USD",
-		ExchangeRate:         "1",
-		ExchangeRateSource:   model.ExchangeSourceIdentity,
+		ID:                 "exp-123",
+		UserID:             "user-1",
+		Name:               "Grocery shopping",
+		Amount:             2500,
+		Currency:           "USD",
+		ExpenseType:        "essentials",
+		TagID:              "tag-food",
+		ExpenseDate:        "2026-05-03",
+		PeriodYear:         2026,
+		PeriodMonth:        5,
+		Status:             "active",
+		TransactionAmount:  2500,
+		ReportingAmount:    2500,
+		ReportingCurrency:  "USD",
+		ExchangeRate:       "1",
+		ExchangeRateSource: model.ExchangeSourceIdentity,
 	}, nil)
 
 	expense, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
@@ -233,24 +231,23 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 
 	var captured *model.Expense
 	returned := &model.Expense{
-		ID:                   "exp-xyz",
-		UserID:               "user-1",
-		Name:                 "Grocery shopping",
-		Amount:               2500,
-		TransactionCurrency:  "USD",
-		Currency:             "USD",
-		ExpenseType:          "essentials",
-		TagID:                "tag-food",
-		ExpenseDate:          "2026-05-03",
-		PeriodYear:           2026,
-		PeriodMonth:          5,
-		Status:               "active",
-		MoneySnapshotVersion: 1,
-		TransactionAmount:    2500,
-		ReportingAmount:      2500,
-		ReportingCurrency:    "USD",
-		ExchangeRate:         "1",
-		ExchangeRateSource:   model.ExchangeSourceIdentity,
+		ID:                  "exp-xyz",
+		UserID:              "user-1",
+		Name:                "Grocery shopping",
+		Amount:              2500,
+		TransactionCurrency: "USD",
+		Currency:            "USD",
+		ExpenseType:         "essentials",
+		TagID:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+		Status:              "active",
+		TransactionAmount:   2500,
+		ReportingAmount:     2500,
+		ReportingCurrency:   "USD",
+		ExchangeRate:        "1",
+		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(e *model.Expense) bool {
 		return true
@@ -263,7 +260,6 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	// The expense passed to the repository carries the full identity snapshot.
-	assert.Equal(t, int32(1), captured.MoneySnapshotVersion)
 	assert.Equal(t, int64(2500), captured.TransactionAmount)
 	assert.Equal(t, "USD", captured.TransactionCurrency)
 	assert.Equal(t, int64(2500), captured.ReportingAmount)
@@ -350,7 +346,6 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 					// Identity snapshot for same-currency writes.
 					return expense.TransactionCurrency == tt.expectedCurrency &&
 						expense.Currency == tt.expectedCurrency &&
-						expense.MoneySnapshotVersion == 1 &&
 						expense.TransactionAmount == int64(2500) &&
 						expense.ReportingAmount == int64(2500) &&
 						expense.ReportingCurrency == reportingCurrency &&
@@ -634,25 +629,24 @@ func TestGetExpense_EmptyID(t *testing.T) {
 
 func activeExpenseInCurrentPeriod(now time.Time) *model.Expense {
 	return &model.Expense{
-		ID:                   "exp-original",
-		UserID:               "user-1",
-		Name:                 "Coffee",
-		Amount:               500,
-		TransactionCurrency:  "USD",
-		Currency:             "USD",
-		ExpenseType:          "desires",
-		TagID:                "tag-food",
-		ExpenseDate:          now.Format("2006-01-02"),
-		PeriodYear:           int32(now.Year()),
-		PeriodMonth:          int32(now.Month()),
-		Status:               "active",
-		CreatedAt:            now.Format(time.RFC3339),
-		MoneySnapshotVersion: 1,
-		TransactionAmount:    500,
-		ReportingAmount:      500,
-		ReportingCurrency:    "USD",
-		ExchangeRate:         "1",
-		ExchangeRateSource:   model.ExchangeSourceIdentity,
+		ID:                  "exp-original",
+		UserID:              "user-1",
+		Name:                "Coffee",
+		Amount:              500,
+		TransactionCurrency: "USD",
+		Currency:            "USD",
+		ExpenseType:         "desires",
+		TagID:               "tag-food",
+		ExpenseDate:         now.Format("2006-01-02"),
+		PeriodYear:          int32(now.Year()),
+		PeriodMonth:         int32(now.Month()),
+		Status:              "active",
+		CreatedAt:           now.Format(time.RFC3339),
+		TransactionAmount:   500,
+		ReportingAmount:     500,
+		ReportingCurrency:   "USD",
+		ExchangeRate:        "1",
+		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}
 }
 
@@ -693,9 +687,8 @@ func TestCorrectExpense_Success(t *testing.T) {
 			assert.Equal(t, original.PeriodMonth, correction.PeriodMonth)
 			assert.NotEmpty(t, correction.ID)
 			assert.NotEqual(t, original.ID, correction.ID)
-			// The correction carries a version-1 identity snapshot in the inherited
+			// The correction carries an identity snapshot in the inherited
 			// transaction currency (foreign-currency corrections are not supported).
-			assert.Equal(t, int32(1), correction.MoneySnapshotVersion)
 			assert.Equal(t, int64(600), correction.TransactionAmount)
 			assert.Equal(t, int64(600), correction.ReportingAmount)
 			assert.Equal(t, "USD", correction.ReportingCurrency)
@@ -705,26 +698,25 @@ func TestCorrectExpense_Success(t *testing.T) {
 			assert.Empty(t, correction.ExchangeRateExpiresAt)
 		}).
 		Return(&model.Expense{
-			ID:                   "exp-correction",
-			UserID:               "user-1",
-			Name:                 "Updated Coffee",
-			Amount:               600,
-			TransactionCurrency:  "USD",
-			Currency:             "USD",
-			ExpenseType:          "desires",
-			TagID:                "tag-food",
-			ExpenseDate:          "2026-05-03",
-			PeriodYear:           2026,
-			PeriodMonth:          5,
-			Status:               "active",
-			CorrectsID:           "exp-original",
-			CreatedAt:            "2026-05-03T10:00:00Z",
-			MoneySnapshotVersion: 1,
-			TransactionAmount:    600,
-			ReportingAmount:      600,
-			ReportingCurrency:    "USD",
-			ExchangeRate:         "1",
-			ExchangeRateSource:   model.ExchangeSourceIdentity,
+			ID:                  "exp-correction",
+			UserID:              "user-1",
+			Name:                "Updated Coffee",
+			Amount:              600,
+			TransactionCurrency: "USD",
+			Currency:            "USD",
+			ExpenseType:         "desires",
+			TagID:               "tag-food",
+			ExpenseDate:         "2026-05-03",
+			PeriodYear:          2026,
+			PeriodMonth:         5,
+			Status:              "active",
+			CorrectsID:          "exp-original",
+			CreatedAt:           "2026-05-03T10:00:00Z",
+			TransactionAmount:   600,
+			ReportingAmount:     600,
+			ReportingCurrency:   "USD",
+			ExchangeRate:        "1",
+			ExchangeRateSource:  model.ExchangeSourceIdentity,
 		}, nil)
 
 	result, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", validCorrectRequest())
@@ -735,7 +727,6 @@ func TestCorrectExpense_Success(t *testing.T) {
 	assert.Equal(t, "exp-original", result.CorrectsID)
 	assert.Equal(t, int64(600), result.Amount)
 	assert.Equal(t, "USD", result.TransactionCurrency)
-	assert.Equal(t, int32(1), result.MoneySnapshotVersion)
 	assert.Equal(t, int64(600), result.ReportingAmount)
 	assert.Equal(t, "USD", result.ReportingCurrency)
 	repo.AssertExpectations(t)

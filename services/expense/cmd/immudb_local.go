@@ -192,7 +192,7 @@ func rowToSQLRow(row map[string]interface{}) repository.SQLRow {
 		"id", "user_id", "name", "amount", "currency", "expense_type", "tag_id",
 		"expense_date", "period_year", "period_month", "status", "corrects_id",
 		"is_pro_rata", "pro_rata_group", "pro_rata_index", "pro_rata_total", "created_at",
-		"money_snapshot_version", "transaction_amount", "transaction_currency",
+		"transaction_amount", "transaction_currency",
 		"reporting_amount", "reporting_currency", "exchange_rate", "exchange_rate_source",
 		"exchange_rate_timestamp", "exchange_rate_expires_at",
 	}

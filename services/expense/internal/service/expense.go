@@ -102,7 +102,6 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		ProRataIndex:          req.ProRataIndex,
 		ProRataTotal:          req.ProRataTotal,
 		CreatedAt:             now,
-		MoneySnapshotVersion:  snapshot.MoneySnapshotVersion,
 		TransactionAmount:     snapshot.TransactionAmount,
 		ReportingAmount:       snapshot.ReportingAmount,
 		ReportingCurrency:     snapshot.ReportingCurrency,
@@ -256,7 +255,6 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		ProRataIndex:          original.ProRataIndex,
 		ProRataTotal:          original.ProRataTotal,
 		CreatedAt:             createdAt,
-		MoneySnapshotVersion:  snapshot.MoneySnapshotVersion,
 		TransactionAmount:     snapshot.TransactionAmount,
 		ReportingAmount:       snapshot.ReportingAmount,
 		ReportingCurrency:     snapshot.ReportingCurrency,
@@ -460,7 +458,6 @@ func conversionUnavailableError() *apierr.Error {
 // Identity snapshots have no cache expiry.
 func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency, timestamp string) model.Expense {
 	return model.Expense{
-		MoneySnapshotVersion:  1,
 		TransactionAmount:     amount,
 		TransactionCurrency:   transactionCurrency,
 		ReportingAmount:       amount,
