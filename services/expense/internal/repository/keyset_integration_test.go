@@ -199,3 +199,75 @@ func TestGetExpensesByUserAfter_Integration_KeysetOrderingAndNoOffset(t *testing
 	}
 	assert.True(t, sawKeysetPredicate, "expected the expanded-OR keyset predicate to be issued")
 }
+
+// TestInitSchema_BackfillBatchesLargeLegacySet_Integration seeds more legacy
+// rows than immudb's DefaultMaxTxEntries (1024) and asserts the batched
+// backfill completes without the "max number of entries per tx exceeded" error.
+// This validates that UPDATE ... LIMIT n is accepted by the real immudb 1.11.0
+// SQL engine and that the loop drains all legacy rows.
+//
+// Run with a live immudb:
+//
+//	docker run -d --rm -p 3322:3322 codenotary/immudb:1.11.0
+//	go test -tags integration -run Integration_Backfill ./internal/repository/...
+func TestInitSchema_BackfillBatchesLargeLegacySet_Integration(t *testing.T) {
+	client := connectRealImmudb(t)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+	ctx := context.Background()
+
+	require.NoError(t, repo.InitSchema(ctx))
+
+	runID := strconv.FormatInt(time.Now().UnixNano(), 10)
+	userID := "itest-backfill-" + runID
+
+	// Seed 1200 legacy rows (more than DefaultMaxTxEntries=1024) by inserting
+	// them one at a time via raw SQL that omits the snapshot columns, leaving
+	// them NULL so the backfill picks them up. One row per tx stays under the
+	// entry limit.
+	const legacyCount = 1200
+	for i := 0; i < legacyCount; i++ {
+		id := runID + "-" + strconv.Itoa(i)
+		_, err := client.SQLExec(ctx,
+			`INSERT INTO expenses (id, user_id, name, amount, currency, expense_type, tag_id,
+				expense_date, period_year, period_month, status, corrects_id,
+				is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at)
+				VALUES (@id, @user_id, @name, @amount, @currency, @expense_type, @tag_id,
+				@expense_date, @period_year, @period_month, @status, @corrects_id,
+				@is_pro_rata, @pro_rata_group, @pro_rata_index, @pro_rata_total, @created_at)`,
+			map[string]interface{}{
+				"id":             id,
+				"user_id":        userID,
+				"name":           "Legacy " + id,
+				"amount":         int64(1000),
+				"currency":       "USD",
+				"expense_type":   "essentials",
+				"tag_id":         "tag-1",
+				"expense_date":   "2026-05-01",
+				"period_year":    int64(2026),
+				"period_month":   int64(5),
+				"status":         "active",
+				"corrects_id":    "",
+				"is_pro_rata":    false,
+				"pro_rata_group": "",
+				"pro_rata_index": int64(0),
+				"pro_rata_total": int64(0),
+				"created_at":     "2026-05-03T10:00:00Z",
+			})
+		require.NoError(t, err, "failed to seed legacy row %d", i)
+	}
+
+	// Re-run InitSchema to trigger the backfill. The batched UPDATE ... LIMIT
+	// must drain all 1200 rows without hitting the tx-entry cap.
+	require.NoError(t, repo.InitSchema(ctx),
+		"batched backfill should complete without max-entries-per-tx error")
+
+	// Verify no legacy rows remain for this user.
+	res, err := client.SQLQuery(ctx,
+		`SELECT COUNT(*) FROM expenses WHERE transaction_amount IS NULL AND user_id = @user_id`,
+		map[string]interface{}{"user_id": userID})
+	require.NoError(t, err)
+	require.NotEmpty(t, res.Rows)
+	assert.Equal(t, int64(0), res.Rows[0].Values[0].GetInt(),
+		"all legacy rows should be backfilled")
+}
