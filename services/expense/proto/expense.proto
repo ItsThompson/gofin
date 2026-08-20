@@ -48,6 +48,14 @@ message ExpenseData {
   int32 pro_rata_total = 16;
   string created_at = 17;
   string transaction_currency = 18;
+  // Money snapshot fields.
+  int64 transaction_amount = 20;
+  int64 reporting_amount = 21;
+  string reporting_currency = 22;
+  string exchange_rate = 23;
+  string exchange_rate_source = 24;
+  string exchange_rate_timestamp = 25;
+  string exchange_rate_expires_at = 26;
 }
 
 // ---------------------------------------------------------------------------

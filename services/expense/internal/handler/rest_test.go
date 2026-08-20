@@ -103,9 +103,15 @@ func (m *mockExpenseRepository) GetExpensesByUserAfter(ctx context.Context, user
 }
 
 func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
+	return setupTestRouterWithPeriod(repo, newTestPeriodClient())
+}
+
+// setupTestRouterWithPeriod builds a router wired to a custom period context
+// client, so handler tests can exercise non-default reporting currencies.
+func setupTestRouterWithPeriod(repo *mockExpenseRepository, periodClient *mockPeriodContextClient) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -154,7 +160,6 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "Grocery shopping",
 		"amount":      2500,
-		"currency":    "USD",
 		"expenseType": "essentials",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -176,6 +181,15 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "EUR",
+	}, nil)
+
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
 	})).Return(&model.Expense{
@@ -192,9 +206,14 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 		PeriodMonth:         5,
 		Status:              "active",
 		CreatedAt:           "2026-05-03T10:00:00Z",
+		TransactionAmount:   450,
+		ReportingAmount:     450,
+		ReportingCurrency:   "EUR",
+		ExchangeRate:        "1",
+		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}, nil)
 
-	r := setupTestRouter(repo)
+	r := setupTestRouterWithPeriod(repo, periodClient)
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":                "Coffee",
@@ -213,7 +232,45 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
 	assert.Equal(t, "EUR", resp.Expense.Currency)
+	// Canonical transaction and reporting money fields are present in the response.
+	assert.Equal(t, int64(450), resp.Expense.TransactionAmount)
+	assert.Equal(t, int64(450), resp.Expense.ReportingAmount)
+	assert.Equal(t, "EUR", resp.Expense.ReportingCurrency)
+	assert.Equal(t, "1", resp.Expense.ExchangeRate)
+	assert.Equal(t, model.ExchangeSourceIdentity, resp.Expense.ExchangeRateSource)
 	repo.AssertExpectations(t)
+}
+
+// TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable asserts a
+// transaction currency that differs from the period reporting currency maps
+// to HTTP 503 CONVERSION_UNAVAILABLE and does not write a ledger row.
+func TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	r := setupTestRouterWithPeriod(repo, periodClient)
+
+	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
+		"name":                "Coffee",
+		"amount":              450,
+		"transactionCurrency": "EUR",
+		"expenseType":         "desires",
+		"tagId":               "tag-food",
+		"expenseDate":         "2026-05-03",
+		"periodYear":          2026,
+		"periodMonth":         5,
+	})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Contains(t, w.Body.String(), model.ErrConversionUnavailable)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
 func TestCreateExpenseHandler_MissingUserID(t *testing.T) {
@@ -223,7 +280,6 @@ func TestCreateExpenseHandler_MissingUserID(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "", map[string]interface{}{
 		"name":        "Grocery shopping",
 		"amount":      2500,
-		"currency":    "USD",
 		"expenseType": "essentials",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -259,7 +315,6 @@ func TestCreateExpenseHandler_ValidationError(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "Coffee",
 		"amount":      0,
-		"currency":    "USD",
 		"expenseType": "desires",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -284,7 +339,6 @@ func TestCreateExpenseHandler_InvalidExpenseType(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "Coffee",
 		"amount":      500,
-		"currency":    "USD",
 		"expenseType": "luxury",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",
@@ -308,7 +362,6 @@ func TestCreateExpenseHandler_MultipleFieldErrors(t *testing.T) {
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
 		"name":        "",
 		"amount":      0,
-		"currency":    "USD",
 		"expenseType": "invalid",
 		"tagId":       "tag-food",
 		"expenseDate": "2026-05-03",

@@ -79,7 +79,7 @@ export function DetailView({
           label="Period"
           value={`${expense.periodYear}-${String(expense.periodMonth).padStart(2, "0")}`}
         />
-        <DetailField label="Currency" value={expense.currency} />
+        <DetailField label="Currency" value={expense.transactionCurrency} />
         <DetailField label="Created" value={expense.createdAt} />
         <DetailField
           label="Status"

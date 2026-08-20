@@ -22,7 +22,8 @@ func NewImmudbExpenseRepository(client ImmudbClient, logger *slog.Logger) *Immud
 	}
 }
 
-// InitSchema creates the expenses table and indexes if they don't exist.
+// InitSchema creates the expenses table and indexes if they don't exist, and
+// reconciles additive money-snapshot columns onto pre-existing tables.
 func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	createTable := `CREATE TABLE IF NOT EXISTS expenses (
 		id              VARCHAR(36)  NOT NULL,
@@ -42,12 +43,50 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		pro_rata_index  INTEGER,
 		pro_rata_total  INTEGER,
 		created_at      VARCHAR(30)  NOT NULL,
+		transaction_amount      INTEGER,
+		transaction_currency    VARCHAR(3),
+		reporting_amount        INTEGER,
+		reporting_currency      VARCHAR(3),
+		exchange_rate           VARCHAR(40),
+		exchange_rate_source    VARCHAR(40),
+		exchange_rate_timestamp VARCHAR(30),
+		exchange_rate_expires_at VARCHAR(30),
 		PRIMARY KEY (id)
 	);`
 
 	_, err := r.client.SQLExec(ctx, createTable, nil)
 	if err != nil {
 		return fmt.Errorf("creating expenses table: %w", err)
+	}
+
+	// Reconcile additive money-snapshot columns onto tables created before the
+	// multi-currency cutover. CREATE TABLE IF NOT EXISTS is a no-op for an existing
+	// table, so the new nullable columns would be missing on pre-cutover tables.
+	// ALTER TABLE ADD COLUMN adds them; a column that already exists returns an
+	// error, which we swallow so reconciliation is idempotent.
+	reconcileColumns := []string{
+		`ALTER TABLE expenses ADD COLUMN transaction_amount INTEGER;`,
+		`ALTER TABLE expenses ADD COLUMN transaction_currency VARCHAR(3);`,
+		`ALTER TABLE expenses ADD COLUMN reporting_amount INTEGER;`,
+		`ALTER TABLE expenses ADD COLUMN reporting_currency VARCHAR(3);`,
+		`ALTER TABLE expenses ADD COLUMN exchange_rate VARCHAR(40);`,
+		`ALTER TABLE expenses ADD COLUMN exchange_rate_source VARCHAR(40);`,
+		`ALTER TABLE expenses ADD COLUMN exchange_rate_timestamp VARCHAR(30);`,
+		`ALTER TABLE expenses ADD COLUMN exchange_rate_expires_at VARCHAR(30);`,
+	}
+	for _, stmt := range reconcileColumns {
+		if _, addErr := r.client.SQLExec(ctx, stmt, nil); addErr != nil {
+			// Expected when the column already exists (idempotent reconcile).
+			r.logger.Debug("snapshot column reconcile skipped (may already exist)",
+				slog.String("statement", stmt),
+				slog.String("error", addErr.Error()),
+			)
+		}
+	}
+
+	// Run the one-time legacy money-snapshot migration after the columns exist.
+	if err := r.backfillMoneySnapshots(ctx); err != nil {
+		return err
 	}
 
 	indexes := []string{
@@ -74,36 +113,94 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	return nil
 }
 
+// backfillMoneySnapshots backfills rows missing a transaction amount with an
+// identity snapshot in their legacy currency. It is idempotent: count first,
+// then run the UPDATE only when such rows exist, which also keeps the local
+// in-memory stub (empty at startup and UPDATE-averse) from ever reaching the
+// UPDATE.
+//
+// TODO: delete this method once the mc/03 migration has shipped and prod has
+// booted with the new code. It is a one-time data migration, not startup logic.
+func (r *ImmudbExpenseRepository) backfillMoneySnapshots(ctx context.Context) error {
+	backfillCountQuery := `SELECT COUNT(*) FROM expenses
+		WHERE transaction_amount IS NULL
+		AND status <> 'redacted';`
+	countResult, err := r.client.SQLQuery(ctx, backfillCountQuery, nil)
+	if err != nil {
+		return fmt.Errorf("counting legacy money snapshot rows: %w", err)
+	}
+	var legacyRows int64
+	if len(countResult.Rows) > 0 && len(countResult.Rows[0].Values) > 0 {
+		legacyRows = countResult.Rows[0].Values[0].GetInt()
+	}
+	r.logger.Info("money_snapshot_backfill check",
+		slog.String("event", "money_snapshot_backfill"),
+		slog.Int64("legacy_rows", legacyRows),
+	)
+	if legacyRows == 0 {
+		return nil
+	}
+
+	backfillUpdate := fmt.Sprintf(`UPDATE expenses SET
+		transaction_amount = amount,
+		transaction_currency = currency,
+		reporting_amount = amount,
+		reporting_currency = currency,
+		exchange_rate = '1',
+		exchange_rate_source = '%s',
+		exchange_rate_timestamp = created_at
+		WHERE transaction_amount IS NULL
+		AND status <> 'redacted';`, model.ExchangeSourceMigration)
+	if _, err := r.client.SQLExec(ctx, backfillUpdate, nil); err != nil {
+		return fmt.Errorf("backfilling legacy money snapshots: %w", err)
+	}
+	return nil
+}
+
 // CreateExpense inserts a new expense entry into the immudb ledger.
 func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *model.Expense) (*model.Expense, error) {
 	query := `INSERT INTO expenses (
 		id, user_id, name, amount, currency, expense_type, tag_id,
 		expense_date, period_year, period_month, status, corrects_id,
-		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
+		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at,
+		transaction_amount, transaction_currency,
+		reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
+		exchange_rate_timestamp, exchange_rate_expires_at
 	) VALUES (
 		@id, @user_id, @name, @amount, @currency, @expense_type, @tag_id,
 		@expense_date, @period_year, @period_month, @status, @corrects_id,
-		@is_pro_rata, @pro_rata_group, @pro_rata_index, @pro_rata_total, @created_at
+		@is_pro_rata, @pro_rata_group, @pro_rata_index, @pro_rata_total, @created_at,
+		@transaction_amount, @transaction_currency,
+		@reporting_amount, @reporting_currency, @exchange_rate, @exchange_rate_source,
+		@exchange_rate_timestamp, @exchange_rate_expires_at
 	);`
 
 	params := map[string]interface{}{
-		"id":             expense.ID,
-		"user_id":        expense.UserID,
-		"name":           expense.Name,
-		"amount":         expense.Amount,
-		"currency":       expense.Currency,
-		"expense_type":   expense.ExpenseType,
-		"tag_id":         expense.TagID,
-		"expense_date":   expense.ExpenseDate,
-		"period_year":    expense.PeriodYear,
-		"period_month":   expense.PeriodMonth,
-		"status":         expense.Status,
-		"corrects_id":    expense.CorrectsID,
-		"is_pro_rata":    expense.IsProRata,
-		"pro_rata_group": expense.ProRataGroup,
-		"pro_rata_index": expense.ProRataIndex,
-		"pro_rata_total": expense.ProRataTotal,
-		"created_at":     expense.CreatedAt,
+		"id":                       expense.ID,
+		"user_id":                  expense.UserID,
+		"name":                     expense.Name,
+		"amount":                   expense.Amount,
+		"currency":                 expense.Currency,
+		"expense_type":             expense.ExpenseType,
+		"tag_id":                   expense.TagID,
+		"expense_date":             expense.ExpenseDate,
+		"period_year":              expense.PeriodYear,
+		"period_month":             expense.PeriodMonth,
+		"status":                   expense.Status,
+		"corrects_id":              expense.CorrectsID,
+		"is_pro_rata":              expense.IsProRata,
+		"pro_rata_group":           expense.ProRataGroup,
+		"pro_rata_index":           expense.ProRataIndex,
+		"pro_rata_total":           expense.ProRataTotal,
+		"created_at":               expense.CreatedAt,
+		"transaction_amount":       expense.TransactionAmount,
+		"transaction_currency":     expense.TransactionCurrency,
+		"reporting_amount":         expense.ReportingAmount,
+		"reporting_currency":       expense.ReportingCurrency,
+		"exchange_rate":            expense.ExchangeRate,
+		"exchange_rate_source":     expense.ExchangeRateSource,
+		"exchange_rate_timestamp":  expense.ExchangeRateTimestamp,
+		"exchange_rate_expires_at": expense.ExchangeRateExpiresAt,
 	}
 
 	_, err := r.client.SQLExec(ctx, query, params)
@@ -142,16 +239,14 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 
 	// Data query with pagination, ordered by expense_date DESC, created_at DESC
 	offset := (page - 1) * pageSize
-	dataQuery := `SELECT id, user_id, name, amount, currency, expense_type, tag_id,
-		expense_date, period_year, period_month, status, corrects_id,
-		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
+	dataQuery := fmt.Sprintf(`SELECT %s
 		FROM expenses
 		WHERE user_id = @user_id
 		AND period_year = @year
 		AND period_month = @month
 		AND status = 'active'
 		ORDER BY expense_date DESC, created_at DESC
-		LIMIT @limit OFFSET @offset;`
+		LIMIT @limit OFFSET @offset;`, expenseSelectColumns)
 
 	dataParams := map[string]interface{}{
 		"user_id": userID,
@@ -181,11 +276,9 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 // GetExpenseByID returns a single expense by ID, scoped to the given user.
 // Returns nil if not found or if the expense belongs to a different user.
 func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
-	query := `SELECT id, user_id, name, amount, currency, expense_type, tag_id,
-		expense_date, period_year, period_month, status, corrects_id,
-		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at
+	query := fmt.Sprintf(`SELECT %s
 		FROM expenses
-		WHERE id = @id AND user_id = @user_id;`
+		WHERE id = @id AND user_id = @user_id;`, expenseSelectColumns)
 
 	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": id, "user_id": userID})
 	if err != nil {
@@ -256,35 +349,56 @@ func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.C
 
 // expenseColumnCount is the number of columns rowToExpense expects in a result
 // row. It must match the expenseSelectColumns list and the ExpenseData schema.
-const expenseColumnCount = 17
+const expenseColumnCount = 25
 
 // rowToExpense maps a result row to an Expense. The column order must match the
 // SELECT clause in queries. It returns an error on a short/malformed row rather
 // than panicking on an out-of-range index.
+//
+// Every row must carry the required snapshot fields. InitSchema backfills rows
+// missing them at startup, so a row still missing a required field on read is a
+// data-integrity error.
 func rowToExpense(row SQLRow) (*model.Expense, error) {
 	values := row.Values
 	if len(values) < expenseColumnCount {
 		return nil, fmt.Errorf("expense row has %d values, want %d", len(values), expenseColumnCount)
 	}
-	return &model.Expense{
-		ID:           values[0].GetString(),
-		UserID:       values[1].GetString(),
-		Name:         values[2].GetString(),
-		Amount:       values[3].GetInt(),
-		Currency:     values[4].GetString(),
-		ExpenseType:  values[5].GetString(),
-		TagID:        values[6].GetString(),
-		ExpenseDate:  values[7].GetString(),
-		PeriodYear:   int32(values[8].GetInt()),
-		PeriodMonth:  int32(values[9].GetInt()),
-		Status:       values[10].GetString(),
-		CorrectsID:   values[11].GetString(),
-		IsProRata:    values[12].GetBool(),
-		ProRataGroup: values[13].GetString(),
-		ProRataIndex: int32(values[14].GetInt()),
-		ProRataTotal: int32(values[15].GetInt()),
-		CreatedAt:    values[16].GetString(),
-	}, nil
+	exp := &model.Expense{
+		ID:                    values[0].GetString(),
+		UserID:                values[1].GetString(),
+		Name:                  values[2].GetString(),
+		Amount:                values[3].GetInt(),
+		Currency:              values[4].GetString(),
+		ExpenseType:           values[5].GetString(),
+		TagID:                 values[6].GetString(),
+		ExpenseDate:           values[7].GetString(),
+		PeriodYear:            int32(values[8].GetInt()),
+		PeriodMonth:           int32(values[9].GetInt()),
+		Status:                values[10].GetString(),
+		CorrectsID:            values[11].GetString(),
+		IsProRata:             values[12].GetBool(),
+		ProRataGroup:          values[13].GetString(),
+		ProRataIndex:          int32(values[14].GetInt()),
+		ProRataTotal:          int32(values[15].GetInt()),
+		CreatedAt:             values[16].GetString(),
+		TransactionAmount:     values[17].GetInt(),
+		TransactionCurrency:   values[18].GetString(),
+		ReportingAmount:       values[19].GetInt(),
+		ReportingCurrency:     values[20].GetString(),
+		ExchangeRate:          values[21].GetString(),
+		ExchangeRateSource:    values[22].GetString(),
+		ExchangeRateTimestamp: values[23].GetString(),
+		ExchangeRateExpiresAt: values[24].GetString(),
+	}
+
+	if exp.TransactionAmount == 0 || exp.TransactionCurrency == "" ||
+		exp.ReportingAmount == 0 || exp.ReportingCurrency == "" ||
+		exp.ExchangeRate == "" || exp.ExchangeRateSource == "" ||
+		exp.ExchangeRateTimestamp == "" {
+		return nil, fmt.Errorf("expense row %s: missing required snapshot fields", exp.ID)
+	}
+
+	return exp, nil
 }
 
 // Column order must match GetActiveExpenseSuggestionInputs SELECT clause.
@@ -333,7 +447,10 @@ func (r *ImmudbExpenseRepository) CorrectExpense(ctx context.Context, original *
 // expenseSelectColumns is the shared SELECT column list for expense queries.
 const expenseSelectColumns = `id, user_id, name, amount, currency, expense_type, tag_id,
 		expense_date, period_year, period_month, status, corrects_id,
-		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at`
+		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at,
+		transaction_amount, transaction_currency,
+		reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
+		exchange_rate_timestamp, exchange_rate_expires_at`
 
 // GetCorrectionHistory returns the full correction chain for an expense.
 // It finds the root of the chain (the original entry with no corrects_id),
@@ -508,7 +625,15 @@ func (r *ImmudbExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, 
 		expense_type = '',
 		tag_id = '',
 		expense_date = '',
-		status = 'redacted'
+		status = 'redacted',
+		transaction_amount = 0,
+		transaction_currency = '',
+		reporting_amount = 0,
+		reporting_currency = '',
+		exchange_rate = '',
+		exchange_rate_source = '',
+		exchange_rate_timestamp = '',
+		exchange_rate_expires_at = ''
 		WHERE user_id = @user_id;`
 
 	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{

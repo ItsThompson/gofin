@@ -64,25 +64,51 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	}
 
 	now := s.clock().UTC().Format(time.RFC3339)
+
+	// Resolve the money snapshot. Same-currency expenses bypass the FX provider
+	// and write an identity snapshot (rate "1", source "identity"). Foreign-currency
+	// conversion requires the FX provider, which is not wired until the
+	// foreign-currency ticket; until then a foreign-currency request cannot be
+	// converted and must not write a partial ledger row, so it returns
+	// CONVERSION_UNAVAILABLE (spec error matrix: FX unavailable → no write).
+	var snapshot model.Expense
+	if transactionCurrency == period.ReportingCurrency {
+		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, period.ReportingCurrency, now)
+	} else {
+		s.logger.Info("foreign currency conversion unavailable",
+			slog.String("event", "foreign_currency_conversion_unavailable"),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", period.ReportingCurrency),
+		)
+		return nil, conversionUnavailableError()
+	}
+
 	expense := &model.Expense{
-		ID:                  uuid.New().String(),
-		UserID:              userID,
-		Name:                req.Name,
-		Amount:              req.Amount,
-		TransactionCurrency: transactionCurrency,
-		Currency:            transactionCurrency,
-		ExpenseType:         req.ExpenseType,
-		TagID:               req.TagID,
-		ExpenseDate:         req.ExpenseDate,
-		PeriodYear:          req.PeriodYear,
-		PeriodMonth:         req.PeriodMonth,
-		Status:              "active",
-		CorrectsID:          "",
-		IsProRata:           req.IsProRata,
-		ProRataGroup:        req.ProRataGroup,
-		ProRataIndex:        req.ProRataIndex,
-		ProRataTotal:        req.ProRataTotal,
-		CreatedAt:           now,
+		ID:                    uuid.New().String(),
+		UserID:                userID,
+		Name:                  req.Name,
+		Amount:                req.Amount,
+		TransactionCurrency:   transactionCurrency,
+		Currency:              transactionCurrency,
+		ExpenseType:           req.ExpenseType,
+		TagID:                 req.TagID,
+		ExpenseDate:           req.ExpenseDate,
+		PeriodYear:            req.PeriodYear,
+		PeriodMonth:           req.PeriodMonth,
+		Status:                "active",
+		CorrectsID:            "",
+		IsProRata:             req.IsProRata,
+		ProRataGroup:          req.ProRataGroup,
+		ProRataIndex:          req.ProRataIndex,
+		ProRataTotal:          req.ProRataTotal,
+		CreatedAt:             now,
+		TransactionAmount:     snapshot.TransactionAmount,
+		ReportingAmount:       snapshot.ReportingAmount,
+		ReportingCurrency:     snapshot.ReportingCurrency,
+		ExchangeRate:          snapshot.ExchangeRate,
+		ExchangeRateSource:    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
+		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)
@@ -204,24 +230,38 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		}
 	}
 
+	transactionCurrency := original.TransactionCurrency // correction currency is inherited, not changeable
+	createdAt := s.clock().UTC().Format(time.RFC3339)
+	// Same-currency identity is correct here: correction currency is inherited
+	// and foreign-currency corrections are not yet supported.
+	snapshot := buildIdentitySnapshot(req.Amount, transactionCurrency, original.ReportingCurrency, createdAt)
+
 	correction := &model.Expense{
-		ID:           uuid.New().String(),
-		UserID:       userID,
-		Name:         req.Name,
-		Amount:       req.Amount,
-		Currency:     original.Currency, // Currency is inherited, not changeable
-		ExpenseType:  req.ExpenseType,
-		TagID:        req.TagID,
-		ExpenseDate:  req.ExpenseDate,
-		PeriodYear:   original.PeriodYear,  // Period is immutable
-		PeriodMonth:  original.PeriodMonth, // Period is immutable
-		Status:       "active",
-		CorrectsID:   original.ID,
-		IsProRata:    original.IsProRata,
-		ProRataGroup: original.ProRataGroup,
-		ProRataIndex: original.ProRataIndex,
-		ProRataTotal: original.ProRataTotal,
-		CreatedAt:    s.clock().UTC().Format(time.RFC3339),
+		ID:                    uuid.New().String(),
+		UserID:                userID,
+		Name:                  req.Name,
+		Amount:                req.Amount,
+		TransactionCurrency:   transactionCurrency,
+		Currency:              transactionCurrency, // immudb currency column is NOT NULL; mirror the transaction currency
+		ExpenseType:           req.ExpenseType,
+		TagID:                 req.TagID,
+		ExpenseDate:           req.ExpenseDate,
+		PeriodYear:            original.PeriodYear,  // Period is immutable
+		PeriodMonth:           original.PeriodMonth, // Period is immutable
+		Status:                "active",
+		CorrectsID:            original.ID,
+		IsProRata:             original.IsProRata,
+		ProRataGroup:          original.ProRataGroup,
+		ProRataIndex:          original.ProRataIndex,
+		ProRataTotal:          original.ProRataTotal,
+		CreatedAt:             createdAt,
+		TransactionAmount:     snapshot.TransactionAmount,
+		ReportingAmount:       snapshot.ReportingAmount,
+		ReportingCurrency:     snapshot.ReportingCurrency,
+		ExchangeRate:          snapshot.ExchangeRate,
+		ExchangeRateSource:    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
+		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
 	}
 
 	created, err := s.repo.CorrectExpense(ctx, original, correction)
@@ -402,56 +442,42 @@ func unsupportedCurrencyError(currencyCode string) *apierr.Error {
 	}
 }
 
-func currencyConflictError() *apierr.Error {
+// conversionUnavailableError is returned when a foreign-currency expense cannot
+// be converted because the FX provider is unavailable. No ledger row is written.
+func conversionUnavailableError() *apierr.Error {
 	return &apierr.Error{
-		Code:    model.ErrCurrencyConflict,
-		Message: "transactionCurrency and currency must match when both are provided",
-		Status:  http.StatusBadRequest,
-		Fields: map[string]string{
-			"transactionCurrency": "must match currency",
-			"currency":            "must match transactionCurrency",
-		},
+		Code:    model.ErrConversionUnavailable,
+		Message: "currency conversion is unavailable, please try again later",
+		Status:  http.StatusServiceUnavailable,
+	}
+}
+
+// buildIdentitySnapshot builds the money snapshot for a same-currency expense:
+// transaction and reporting amounts are equal, the rate is "1", and the
+// source is "identity". The exchange-rate timestamp is the ledger write time.
+// Identity snapshots have no cache expiry.
+func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency, timestamp string) model.Expense {
+	return model.Expense{
+		TransactionAmount:     amount,
+		TransactionCurrency:   transactionCurrency,
+		ReportingAmount:       amount,
+		ReportingCurrency:     reportingCurrency,
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: timestamp,
 	}
 }
 
 func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext, req *model.CreateExpenseRequest) (string, error) {
 	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
-	legacyCurrency := normalizeCurrencyCode(req.Currency)
-
-	if transactionCurrency != "" && legacyCurrency != "" {
-		if transactionCurrency != legacyCurrency {
-			s.logger.Info("legacy currency conflict",
-				slog.String("event", "legacy_currency_conflict"),
-				slog.String("transaction_currency", transactionCurrency),
-				slog.String("currency", legacyCurrency),
-			)
-			return "", currencyConflictError()
-		}
-		s.logger.Info("legacy currency duplicate same value",
-			slog.String("event", "legacy_currency_duplicate_same_value"),
-			slog.String("transaction_currency", transactionCurrency),
+	if transactionCurrency == "" {
+		transactionCurrency = normalizeCurrencyCode(period.ReportingCurrency)
+		s.logger.Info("transaction currency defaulted",
+			slog.String("event", "transaction_currency_defaulted"),
+			slog.String("reporting_currency", transactionCurrency),
 		)
-		return s.validateTransactionCurrency(transactionCurrency)
 	}
-
-	if transactionCurrency != "" {
-		return s.validateTransactionCurrency(transactionCurrency)
-	}
-
-	if legacyCurrency != "" {
-		s.logger.Info("legacy currency alias used",
-			slog.String("event", "legacy_currency_alias_used"),
-			slog.String("currency", legacyCurrency),
-		)
-		return s.validateTransactionCurrency(legacyCurrency)
-	}
-
-	defaultCurrency := normalizeCurrencyCode(period.ReportingCurrency)
-	s.logger.Info("transaction currency defaulted",
-		slog.String("event", "transaction_currency_defaulted"),
-		slog.String("reporting_currency", defaultCurrency),
-	)
-	return s.validateTransactionCurrency(defaultCurrency)
+	return s.validateTransactionCurrency(transactionCurrency)
 }
 
 func (s *ExpenseService) validateTransactionCurrency(currencyCode string) (string, error) {

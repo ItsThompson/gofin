@@ -125,11 +125,11 @@ func sumActualsByType(expenses []ExpenseData) (essentials, desires, savings int6
 	for _, expense := range expenses {
 		switch expense.ExpenseType {
 		case "essentials":
-			essentials += expense.Amount
+			essentials += expense.ReportingAmount
 		case "desires":
-			desires += expense.Amount
+			desires += expense.ReportingAmount
 		case "savings":
-			savings += expense.Amount
+			savings += expense.ReportingAmount
 		}
 	}
 	return essentials, desires, savings

@@ -83,7 +83,7 @@ describe("buildExpense", () => {
     expect(expense.userId).toBe("user-1");
     expect(expense.name).toBe("Test Expense");
     expect(expense.amount).toBe(5000);
-    expect(expense.currency).toBe("USD");
+    expect(expense.transactionCurrency).toBe("USD");
     expect(expense.expenseType).toBe("essentials");
     expect(expense.tagId).toBe("tag-1");
     expect(expense.expenseDate).toBe("2026-01-15");
@@ -220,7 +220,7 @@ describe("buildProRataSchedule", () => {
     expect(schedule.proRataGroup).toBe("group-1");
     expect(schedule.name).toBe("Test Pro-Rata");
     expect(schedule.amount).toBe(10000);
-    expect(schedule.currency).toBe("USD");
+    expect(schedule.transactionCurrency).toBe("USD");
     expect(schedule.expenseType).toBe("essentials");
     expect(schedule.tagId).toBe("tag-1");
     expect(schedule.targetYear).toBe(2026);

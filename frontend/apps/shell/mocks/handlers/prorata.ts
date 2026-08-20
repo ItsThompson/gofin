@@ -19,7 +19,6 @@ export const prorataHandlers = [
         userId: currentMockUser.id,
         name: body.name,
         amount: Math.round(body.totalAmount / body.months),
-        currency: body.currency,
         transactionCurrency: body.transactionCurrency,
         expenseType: body.expenseType,
         tagId: body.tagId,

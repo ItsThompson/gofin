@@ -72,7 +72,6 @@ export const expensesHandlers = [
         userId: currentMockUser.id,
         name: body.name,
         amount: body.amount,
-        currency: currentMockUser.currency,
         transactionCurrency: currentMockUser.currency,
         expenseType: body.expenseType,
         tagId: body.tagId,

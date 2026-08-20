@@ -129,9 +129,12 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 	tagMap := streamTagMap()
 
 	streamed := func(n int) func() any {
-		rows := streamRowFixtures(n)
-		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
 		return func() any {
+			// Build the fixtures inside the measured closure so the seed rows are
+			// not live during retainedHeapBytes' baseline (before) read; only what
+			// the consumer retains after the call should count.
+			rows := streamRowFixtures(n)
+			p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
 			emit, flush := discardCSVSink()
 			require.NoError(t, p.streamExpenses(context.Background(), "user-1", tagMap, emit))
 			require.NoError(t, flush())
@@ -140,9 +143,9 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 	}
 
 	buffered := func(n int) func() any {
-		rows := streamRowFixtures(n)
-		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
 		return func() any {
+			rows := streamRowFixtures(n)
+			p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
 			var out [][]string
 			require.NoError(t, p.streamExpenses(context.Background(), "user-1", tagMap, func(row []string) error {
 				out = append(out, row)

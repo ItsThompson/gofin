@@ -53,7 +53,17 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 
 func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
-	handler := newTestGRPCHandler(repo)
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "EUR",
+	}, nil)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
@@ -64,6 +74,11 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 		TransactionCurrency: "EUR",
 		Currency:            "EUR",
 		Status:              "active",
+		TransactionAmount:   1200,
+		ReportingAmount:     1200,
+		ReportingCurrency:   "EUR",
+		ExchangeRate:        "1",
+		ExchangeRateSource:  model.ExchangeSourceIdentity,
 	}, nil)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
@@ -81,6 +96,12 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.GetExpense())
 	assert.Equal(t, "EUR", resp.GetExpense().GetTransactionCurrency())
+	// Canonical transaction and reporting money fields are present in the response.
+	assert.Equal(t, int64(1200), resp.GetExpense().GetTransactionAmount())
+	assert.Equal(t, int64(1200), resp.GetExpense().GetReportingAmount())
+	assert.Equal(t, "EUR", resp.GetExpense().GetReportingCurrency())
+	assert.Equal(t, "1", resp.GetExpense().GetExchangeRate())
+	assert.Equal(t, model.ExchangeSourceIdentity, resp.GetExpense().GetExchangeRateSource())
 	repo.AssertExpectations(t)
 }
 
@@ -117,6 +138,43 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 	require.True(t, ok)
 	assert.Equal(t, codes.NotFound, st.Code())
 	assert.Contains(t, st.Message(), "2026-06")
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+// TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable asserts a
+// transaction currency that differs from the period reporting currency maps
+// to codes.Unavailable (FX not yet wired) and does not write a ledger row.
+func TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:              "user-1",
+		Name:                "Coffee",
+		Amount:              450,
+		TransactionCurrency: "EUR",
+		ExpenseType:         "desires",
+		TagId:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+	})
+
+	assert.Nil(t, resp)
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Unavailable, st.Code())
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 

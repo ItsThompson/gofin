@@ -12,7 +12,6 @@ const baseExpense: Expense = {
   userId: "user-1",
   name: "Groceries",
   amount: 5000,
-  currency: "USD",
   transactionCurrency: "USD",
   expenseType: "essentials",
   tagId: "tag-food",

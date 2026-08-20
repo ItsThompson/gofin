@@ -75,7 +75,7 @@ func (c *panickingExpenseClient) GetExpensesForPeriod(_ context.Context, _ strin
 	if (c.panicYear == 0 && c.panicMonth == 0) || (year == c.panicYear && month == c.panicMonth) {
 		explodeIn("expense read")
 	}
-	return []ExpenseData{{Amount: 1000, ExpenseType: "desires"}}, nil
+	return []ExpenseData{{Amount: 1000, ReportingAmount: 1000, ExpenseType: "desires"}}, nil
 }
 
 // requireOnePanicRecord asserts the sink holds exactly one error-level record

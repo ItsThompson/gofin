@@ -4,11 +4,13 @@ import "context"
 
 // ExpenseData holds the fields the finance service needs from an expense record.
 type ExpenseData struct {
-	ID          string
-	Amount      int64
-	ExpenseType string // "essentials", "desires", "savings"
-	TagID       string
-	ExpenseDate string // "YYYY-MM-DD"
+	ID                string
+	Amount            int64  // Legacy amount column; kept for backward compatibility.
+	ReportingAmount   int64  // Converted amount in the period reporting currency minor units.
+	ReportingCurrency string // Budget period reporting currency for this row.
+	ExpenseType       string // "essentials", "desires", "savings"
+	TagID             string
+	ExpenseDate       string // "YYYY-MM-DD"
 }
 
 // ExpenseClient abstracts the gRPC call to the expense service.
@@ -21,23 +23,23 @@ type ExpenseClient interface {
 
 // CreateExpenseInput is the data needed to create an expense via the expense service.
 type CreateExpenseInput struct {
-	UserID       string
-	Name         string
-	Amount       int64
-	Currency     string
-	ExpenseType  string
-	TagID        string
-	ExpenseDate  string
-	PeriodYear   int32
-	PeriodMonth  int32
-	IsProRata    bool
-	ProRataGroup string
-	ProRataIndex int32
-	ProRataTotal int32
+	UserID              string
+	Name                string
+	Amount              int64
+	TransactionCurrency string
+	ExpenseType         string
+	TagID               string
+	ExpenseDate         string
+	PeriodYear          int32
+	PeriodMonth         int32
+	IsProRata           bool
+	ProRataGroup        string
+	ProRataIndex        int32
+	ProRataTotal        int32
 }
 
 // CreatedExpenseData is the data returned after creating an expense.
 type CreatedExpenseData struct {
-	ID          string
-	CreatedAt   string
+	ID        string
+	CreatedAt string
 }

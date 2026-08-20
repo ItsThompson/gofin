@@ -12,5 +12,4 @@ const (
 	ErrPeriodLocked               = "PERIOD_LOCKED"
 	ErrUnsupportedCurrency        = "UNSUPPORTED_CURRENCY"
 	ErrReportingCurrencyImmutable = "REPORTING_CURRENCY_IMMUTABLE"
-	ErrCurrencyConflict           = "CURRENCY_FIELD_CONFLICT"
 )

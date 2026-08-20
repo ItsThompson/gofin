@@ -78,6 +78,19 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 	userID, _ := params["user_id"].(string)
 
 	if strings.Contains(strings.ToUpper(sql), "COUNT(*)") {
+		// The money-snapshot backfill count is global (no user_id): count rows
+		// missing a transaction amount that are not redacted, mirroring the real
+		// predicate.
+		if strings.Contains(strings.ToUpper(sql), "TRANSACTION_AMOUNT IS NULL") {
+			var count int64
+			for _, row := range c.rows {
+				if row.TransactionAmount == 0 && row.Status != "redacted" {
+					count++
+				}
+			}
+			return &SQLResult{Rows: []SQLRow{{Values: []SQLValue{fakeSQLValue{intValue: count}}}}}, nil
+		}
+
 		var count int64
 		for _, row := range c.rows {
 			if row.UserID == userID {
@@ -162,26 +175,43 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 			fakeSQLValue{intValue: int64(e.ProRataIndex)},
 			fakeSQLValue{intValue: int64(e.ProRataTotal)},
 			fakeSQLValue{stringValue: e.CreatedAt},
+			fakeSQLValue{intValue: e.TransactionAmount},
+			fakeSQLValue{stringValue: e.TransactionCurrency},
+			fakeSQLValue{intValue: e.ReportingAmount},
+			fakeSQLValue{stringValue: e.ReportingCurrency},
+			fakeSQLValue{stringValue: e.ExchangeRate},
+			fakeSQLValue{stringValue: e.ExchangeRateSource},
+			fakeSQLValue{stringValue: e.ExchangeRateTimestamp},
+			fakeSQLValue{stringValue: e.ExchangeRateExpiresAt},
 		}})
 	}
 	return &SQLResult{Rows: rows}
 }
 
 // buildTestExpense constructs an expense row for repository tests with the given
-// id, userID, and createdAt and default values for the remaining fields.
+// id, userID, and createdAt and default values for the remaining fields. The
+// returned row carries a complete identity snapshot so read paths can
+// materialize it without tripping the missing-snapshot-fields guard.
 func buildTestExpense(id, userID, createdAt string) *model.Expense {
 	return &model.Expense{
-		ID:          id,
-		UserID:      userID,
-		Name:        "Expense " + id,
-		Amount:      1000,
-		Currency:    "USD",
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-01",
-		PeriodYear:  2026,
-		PeriodMonth: 5,
-		Status:      "active",
-		CreatedAt:   createdAt,
+		ID:                    id,
+		UserID:                userID,
+		Name:                  "Expense " + id,
+		Amount:                1000,
+		TransactionCurrency:   "USD",
+		Currency:              "USD",
+		ExpenseType:           "essentials",
+		TagID:                 "tag-1",
+		ExpenseDate:           "2026-05-01",
+		PeriodYear:            2026,
+		PeriodMonth:           5,
+		Status:                "active",
+		CreatedAt:             createdAt,
+		TransactionAmount:     1000,
+		ReportingAmount:       1000,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: createdAt,
 	}
 }

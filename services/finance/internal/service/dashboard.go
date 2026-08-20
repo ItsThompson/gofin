@@ -164,14 +164,14 @@ func ComputeSpendingTrends(periods []*model.BudgetPeriod, expensesByMonth [][]Ex
 
 		expenses := expensesByMonth[i]
 		for _, exp := range expenses {
-			point.TotalSpent += exp.Amount
+			point.TotalSpent += exp.ReportingAmount
 			switch exp.ExpenseType {
 			case "essentials":
-				point.EssentialsSpent += exp.Amount
+				point.EssentialsSpent += exp.ReportingAmount
 			case "desires":
-				point.DesiresSpent += exp.Amount
+				point.DesiresSpent += exp.ReportingAmount
 			case "savings":
-				point.SavingsSpent += exp.Amount
+				point.SavingsSpent += exp.ReportingAmount
 			}
 		}
 
@@ -293,7 +293,7 @@ func (s *FinanceService) getTotalSpentForPeriod(ctx context.Context, userID stri
 	}
 	var total int64
 	for _, exp := range expenses {
-		total += exp.Amount
+		total += exp.ReportingAmount
 	}
 	return total, nil
 }
@@ -308,14 +308,14 @@ func ComputePeriodSummary(period *model.BudgetPeriod, expenses []ExpenseData, ye
 
 	var totalSpent, essentialsSpent, desiresSpent, savingsSpent int64
 	for _, exp := range expenses {
-		totalSpent += exp.Amount
+		totalSpent += exp.ReportingAmount
 		switch exp.ExpenseType {
 		case "essentials":
-			essentialsSpent += exp.Amount
+			essentialsSpent += exp.ReportingAmount
 		case "desires":
-			desiresSpent += exp.Amount
+			desiresSpent += exp.ReportingAmount
 		case "savings":
-			savingsSpent += exp.Amount
+			savingsSpent += exp.ReportingAmount
 		}
 	}
 
@@ -376,8 +376,8 @@ func ComputeTagSpending(expenses []ExpenseData, tagNames map[string]string) []mo
 	tagAmounts := make(map[string]int64)
 	var totalSpent int64
 	for _, exp := range expenses {
-		tagAmounts[exp.TagID] += exp.Amount
-		totalSpent += exp.Amount
+		tagAmounts[exp.TagID] += exp.ReportingAmount
+		totalSpent += exp.ReportingAmount
 	}
 
 	result := make([]model.TagSpending, 0, len(tagAmounts))
@@ -414,7 +414,7 @@ func ComputeCumulativeSpend(expenses []ExpenseData, totalBudget int64, year, mon
 	for _, exp := range expenses {
 		day := parseDayForPeriod(exp.ExpenseDate, year, month)
 		if day > 0 && day <= daysInPeriod {
-			daySpend[day] += exp.Amount
+			daySpend[day] += exp.ReportingAmount
 		}
 	}
 

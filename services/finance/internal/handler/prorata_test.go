@@ -32,7 +32,7 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 	h.RegisterRoutes(r)
 
 	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req service.CreateExpenseInput) bool {
-		return req.Currency == "EUR" && req.IsProRata
+		return req.TransactionCurrency == "EUR" && req.IsProRata
 	})).Return(&service.CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {

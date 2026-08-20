@@ -34,9 +34,9 @@ func TestGetSpendingByTagHandler_Success(t *testing.T) {
 
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{
-			{TagID: "tag-food", Amount: 30000},
-			{TagID: "tag-food", Amount: 20000},
-			{TagID: "tag-bills", Amount: 50000},
+			{TagID: "tag-food", Amount: 30000, ReportingAmount: 30000},
+			{TagID: "tag-food", Amount: 20000, ReportingAmount: 20000},
+			{TagID: "tag-bills", Amount: 50000, ReportingAmount: 50000},
 		}, nil)
 
 	repo.On("ListTags", mock.Anything, "user-123").
@@ -120,8 +120,8 @@ func TestGetCumulativeSpendHandler_Success(t *testing.T) {
 
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{
-			{ExpenseDate: "2025-01-01", Amount: 10000},
-			{ExpenseDate: "2025-01-03", Amount: 20000},
+			{ExpenseDate: "2025-01-01", Amount: 10000, ReportingAmount: 10000},
+			{ExpenseDate: "2025-01-03", Amount: 20000, ReportingAmount: 20000},
 		}, nil)
 
 	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
@@ -132,7 +132,7 @@ func TestGetCumulativeSpendHandler_Success(t *testing.T) {
 
 	var resp model.CumulativeSpendResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Len(t, resp.Points, 31) // January has 31 days
+	assert.Len(t, resp.Points, 31)                       // January has 31 days
 	assert.Equal(t, int64(10000), resp.Points[0].Actual) // day 1
 	assert.Equal(t, int64(10000), resp.Points[1].Actual) // day 2 (carry forward)
 	assert.Equal(t, int64(30000), resp.Points[2].Actual) // day 3

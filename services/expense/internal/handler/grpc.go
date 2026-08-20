@@ -59,7 +59,6 @@ func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRe
 		Name:                req.GetName(),
 		Amount:              req.GetAmount(),
 		TransactionCurrency: req.GetTransactionCurrency(),
-		Currency:            req.GetCurrency(),
 		ExpenseType:         req.GetExpenseType(),
 		TagID:               req.GetTagId(),
 		ExpenseDate:         req.GetExpenseDate(),
@@ -194,24 +193,31 @@ func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.Anon
 // expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{
-		Id:                  e.ID,
-		UserId:              e.UserID,
-		Name:                e.Name,
-		Amount:              e.Amount,
-		Currency:            e.Currency,
-		TransactionCurrency: e.TransactionCurrency,
-		ExpenseType:         e.ExpenseType,
-		TagId:               e.TagID,
-		ExpenseDate:         e.ExpenseDate,
-		PeriodYear:          e.PeriodYear,
-		PeriodMonth:         e.PeriodMonth,
-		Status:              e.Status,
-		CorrectsId:          e.CorrectsID,
-		IsProRata:           e.IsProRata,
-		ProRataGroup:        e.ProRataGroup,
-		ProRataIndex:        e.ProRataIndex,
-		ProRataTotal:        e.ProRataTotal,
-		CreatedAt:           e.CreatedAt,
+		Id:                    e.ID,
+		UserId:                e.UserID,
+		Name:                  e.Name,
+		Amount:                e.Amount,
+		Currency:              e.Currency,
+		TransactionCurrency:   e.TransactionCurrency,
+		ExpenseType:           e.ExpenseType,
+		TagId:                 e.TagID,
+		ExpenseDate:           e.ExpenseDate,
+		PeriodYear:            e.PeriodYear,
+		PeriodMonth:           e.PeriodMonth,
+		Status:                e.Status,
+		CorrectsId:            e.CorrectsID,
+		IsProRata:             e.IsProRata,
+		ProRataGroup:          e.ProRataGroup,
+		ProRataIndex:          e.ProRataIndex,
+		ProRataTotal:          e.ProRataTotal,
+		CreatedAt:             e.CreatedAt,
+		TransactionAmount:     e.TransactionAmount,
+		ReportingAmount:       e.ReportingAmount,
+		ReportingCurrency:     e.ReportingCurrency,
+		ExchangeRate:          e.ExchangeRate,
+		ExchangeRateSource:    e.ExchangeRateSource,
+		ExchangeRateTimestamp: e.ExchangeRateTimestamp,
+		ExchangeRateExpiresAt: e.ExchangeRateExpiresAt,
 	}
 }
 
@@ -245,7 +251,7 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 	var apiErr *apierr.Error
 	if errors.As(err, &apiErr) {
 		switch apiErr.Code {
-		case apierr.CodeValidation, model.ErrUnsupportedCurrency, model.ErrCurrencyConflict:
+		case apierr.CodeValidation, model.ErrUnsupportedCurrency:
 			return status.Error(codes.InvalidArgument, apiErr.Message)
 		case apierr.CodeNotFound, model.ErrPeriodNotFound:
 			return status.Error(codes.NotFound, apiErr.Message)
@@ -253,6 +259,10 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 			return status.Error(codes.FailedPrecondition, apiErr.Message)
 		case model.ErrPeriodLocked:
 			return status.Error(codes.PermissionDenied, apiErr.Message)
+		case model.ErrConversionUnavailable:
+			// FX provider unavailable: a client-retryable outcome, not an internal
+			// failure, so it is not reported.
+			return status.Error(codes.Unavailable, apiErr.Message)
 		default:
 			reportServerFailure(ctx, err, errkit.Meta{
 				Op:     op.name,

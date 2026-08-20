@@ -26,7 +26,6 @@ type CreateProRataRequest struct {
 	Name                string `json:"name" binding:"required"`
 	TotalAmount         int64  `json:"totalAmount" binding:"required"`
 	TransactionCurrency string `json:"transactionCurrency"`
-	Currency            string `json:"currency"` // Deprecated alias for transactionCurrency during rollout.
 	ExpenseType         string `json:"expenseType" binding:"required"`
 	TagID               string `json:"tagId" binding:"required"`
 	ExpenseDate         string `json:"expenseDate" binding:"required"`
