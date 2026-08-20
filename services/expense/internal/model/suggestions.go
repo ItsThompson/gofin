@@ -9,8 +9,7 @@ type ExpenseSuggestionRequest struct {
 
 // ExpenseSuggestionInput is the minimal active row data required to build suggestions.
 // TransactionAmount/TransactionCurrency come from the explicit money snapshot
-// columns. Legacy rows without snapshot columns fall back to Amount/Currency so
-// suggestions remain correct during the rollout window.
+// columns, which InitSchema backfills for every row.
 type ExpenseSuggestionInput struct {
 	ID                  string
 	Name                string

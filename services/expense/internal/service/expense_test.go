@@ -294,7 +294,6 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	req := validCreateRequest()
 	req.Amount = 1250
 	req.TransactionCurrency = "EUR"
-	req.Currency = ""
 
 	resp, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -355,7 +354,6 @@ func TestCreateExpense_ForeignCurrencyFxUnavailableDoesNotWrite(t *testing.T) {
 
 	req := validCreateRequest()
 	req.TransactionCurrency = "EUR"
-	req.Currency = ""
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -389,7 +387,6 @@ func TestCreateExpense_ForeignCurrencyFxClientReturnsConversionUnavailableDoesNo
 
 	req := validCreateRequest()
 	req.TransactionCurrency = "GBP"
-	req.Currency = ""
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -419,7 +416,6 @@ func TestCreateExpense_UnsupportedTransactionCurrencyDoesNotCallFx(t *testing.T)
 
 	req := validCreateRequest()
 	req.TransactionCurrency = "ZZZ"
-	req.Currency = ""
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -452,7 +448,6 @@ func TestCreateExpense_UnsupportedReportingCurrencyDefaultsToInternal(t *testing
 
 	req := validCreateRequest()
 	req.TransactionCurrency = ""
-	req.Currency = ""
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -486,7 +481,6 @@ func TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent(t *testing.T
 
 	req := validCreateRequest()
 	req.TransactionCurrency = "EUR"
-	req.Currency = ""
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 

@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -47,6 +48,8 @@ func TestGetActiveExpenseSuggestionInputs_ReadsActiveRowsForUserAndMapsFields(t 
 		fakeSQLValue{stringValue: "Groceries"},
 		fakeSQLValue{intValue: 2500},
 		fakeSQLValue{stringValue: "USD"},
+		fakeSQLValue{intValue: 2500},
+		fakeSQLValue{stringValue: "USD"},
 		fakeSQLValue{stringValue: "essentials"},
 		fakeSQLValue{stringValue: "tag-food"},
 		fakeSQLValue{stringValue: "2026-05-31T10:00:00Z"},
@@ -72,6 +75,8 @@ func TestGetActiveExpenseSuggestionInputs_ReadsActiveRowsForUserAndMapsFields(t 
 	assert.Equal(t, "Groceries", inputs[0].Name)
 	assert.Equal(t, int64(2500), inputs[0].Amount)
 	assert.Equal(t, "USD", inputs[0].Currency)
+	assert.Equal(t, int64(2500), inputs[0].TransactionAmount)
+	assert.Equal(t, "USD", inputs[0].TransactionCurrency)
 	assert.Equal(t, "essentials", inputs[0].ExpenseType)
 	assert.Equal(t, "tag-food", inputs[0].TagID)
 	assert.Equal(t, "2026-05-31T10:00:00Z", inputs[0].CreatedAt)
@@ -198,6 +203,51 @@ func TestRowToExpense_MissingExchangeRateTimestampReturnsIntegrityError(t *testi
 	_, err := rowToExpense(raw)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required snapshot fields")
+}
+
+// TestRowToExpense_IntegrityErrorIsTyped asserts the integrity error is
+// a *SnapshotIntegrityError so the repository's mapRow can detect it and emit
+// telemetry.
+func TestRowToExpense_IntegrityErrorIsTyped(t *testing.T) {
+	row := legacyRow()
+	row.Values[17] = fakeSQLValue{intValue: 1250}     // transaction_amount
+	row.Values[18] = fakeSQLValue{stringValue: "EUR"} // transaction_currency
+	// remaining required fields empty
+
+	expense, err := rowToExpense(row)
+	require.Error(t, err)
+	assert.Nil(t, expense)
+	var integrityErr *SnapshotIntegrityError
+	assert.True(t, errors.As(err, &integrityErr), "error must be *SnapshotIntegrityError")
+	assert.Equal(t, "exp-1", integrityErr.ExpenseID)
+}
+
+// TestMapRow_LogsIntegrityErrorTelemetry asserts mapRow logs the
+// expense_snapshot_integrity_error event when rowToExpense returns a
+// SnapshotIntegrityError.
+func TestMapRow_LogsIntegrityErrorTelemetry(t *testing.T) {
+	row := legacyRow()
+	row.Values[17] = fakeSQLValue{intValue: 1250}     // transaction_amount
+	row.Values[18] = fakeSQLValue{stringValue: "EUR"} // transaction_currency
+	// remaining required fields empty
+
+	client := &fakeImmudbClient{result: &SQLResult{Rows: []SQLRow{row}}}
+	var buf bytes.Buffer
+	repo := NewImmudbExpenseRepository(client, slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	expense, err := repo.GetExpenseByID(context.Background(), "exp-1", "user-1")
+	require.Error(t, err)
+	assert.Nil(t, expense)
+
+	// The error should be wrapped but still detectable via errors.As.
+	var integrityErr *SnapshotIntegrityError
+	assert.True(t, errors.As(err, &integrityErr), "wrapped error should contain *SnapshotIntegrityError")
+
+	// The integrity event must actually be emitted through mapRow.
+	assert.Contains(t, buf.String(), "expense_snapshot_integrity_error",
+		"mapRow must log the expense_snapshot_integrity_error event")
+	assert.Contains(t, buf.String(), "exp-1",
+		"integrity log must carry the expense id")
 }
 
 // TestInitSchema_ReconcilesSnapshotColumns asserts InitSchema issues the ALTER

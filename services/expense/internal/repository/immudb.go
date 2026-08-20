@@ -2,11 +2,25 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
+
+// SnapshotIntegrityError signals a row that is missing a required snapshot
+// field. The repository logs this as expense_snapshot_integrity_error
+// telemetry before returning the error to the caller.
+//
+// It is exported so errors.As can detect it across the %w wrap boundary.
+type SnapshotIntegrityError struct {
+	ExpenseID string
+}
+
+func (e *SnapshotIntegrityError) Error() string {
+	return fmt.Sprintf("expense row %s: missing required snapshot fields", e.ExpenseID)
+}
 
 // ImmudbExpenseRepository implements ExpenseRepository using immudb's SQL interface.
 type ImmudbExpenseRepository struct {
@@ -300,7 +314,7 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 
 	expenses := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense, convErr := rowToExpense(row)
+		expense, convErr := r.mapRow(row)
 		if convErr != nil {
 			return nil, 0, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -326,7 +340,7 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 		return nil, nil
 	}
 
-	expense, err := rowToExpense(result.Rows[0])
+	expense, err := r.mapRow(result.Rows[0])
 	if err != nil {
 		return nil, fmt.Errorf("mapping expense row: %w", err)
 	}
@@ -360,8 +374,8 @@ const expenseSuggestionInputLimit int32 = 1000
 
 // GetActiveExpenseSuggestionInputs returns recent active expense rows for suggestion ranking.
 func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error) {
-	query := `SELECT id, name, amount, currency, expense_type, tag_id, created_at,
-		expense_date, is_pro_rata, pro_rata_group
+	query := `SELECT id, name, amount, currency, transaction_amount, transaction_currency,
+		expense_type, tag_id, created_at, expense_date, is_pro_rata, pro_rata_group
 		FROM expenses
 		WHERE user_id = @user_id
 		AND status = 'active'
@@ -382,6 +396,25 @@ func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.C
 	}
 
 	return inputs, nil
+}
+
+// mapRow wraps rowToExpense with telemetry. When rowToExpense returns a
+// SnapshotIntegrityError (row missing required fields), it logs the
+// expense_snapshot_integrity_error event before returning the error, so the
+// data-integrity issue is recorded even though the read fails.
+func (r *ImmudbExpenseRepository) mapRow(row SQLRow) (*model.Expense, error) {
+	expense, err := rowToExpense(row)
+	if err != nil {
+		var integrityErr *SnapshotIntegrityError
+		if errors.As(err, &integrityErr) {
+			r.logger.Warn("expense snapshot integrity error",
+				slog.String("event", "expense_snapshot_integrity_error"),
+				slog.String("expense_id", integrityErr.ExpenseID),
+			)
+		}
+		return nil, err
+	}
+	return expense, nil
 }
 
 // expenseColumnCount is the number of columns rowToExpense expects in a result
@@ -432,7 +465,7 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		exp.ReportingAmount == 0 || exp.ReportingCurrency == "" ||
 		exp.ExchangeRate == "" || exp.ExchangeRateSource == "" ||
 		exp.ExchangeRateTimestamp == "" {
-		return nil, fmt.Errorf("expense row %s: missing required snapshot fields", exp.ID)
+		return nil, &SnapshotIntegrityError{ExpenseID: exp.ID}
 	}
 
 	return exp, nil
@@ -442,16 +475,18 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 func rowToExpenseSuggestionInput(row SQLRow) *model.ExpenseSuggestionInput {
 	values := row.Values
 	return &model.ExpenseSuggestionInput{
-		ID:           values[0].GetString(),
-		Name:         values[1].GetString(),
-		Amount:       values[2].GetInt(),
-		Currency:     values[3].GetString(),
-		ExpenseType:  values[4].GetString(),
-		TagID:        values[5].GetString(),
-		CreatedAt:    values[6].GetString(),
-		ExpenseDate:  values[7].GetString(),
-		IsProRata:    values[8].GetBool(),
-		ProRataGroup: values[9].GetString(),
+		ID:                  values[0].GetString(),
+		Name:                values[1].GetString(),
+		Amount:              values[2].GetInt(),
+		Currency:            values[3].GetString(),
+		TransactionAmount:   values[4].GetInt(),
+		TransactionCurrency: values[5].GetString(),
+		ExpenseType:         values[6].GetString(),
+		TagID:               values[7].GetString(),
+		CreatedAt:           values[8].GetString(),
+		ExpenseDate:         values[9].GetString(),
+		IsProRata:           values[10].GetBool(),
+		ProRataGroup:        values[11].GetString(),
 	}
 }
 
@@ -542,7 +577,7 @@ func (r *ImmudbExpenseRepository) GetCorrectionHistory(ctx context.Context, expe
 			break
 		}
 
-		next, convErr := rowToExpense(result.Rows[0])
+		next, convErr := r.mapRow(result.Rows[0])
 		if convErr != nil {
 			return nil, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -574,7 +609,7 @@ func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID s
 
 	expenses := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense, convErr := rowToExpense(row)
+		expense, convErr := r.mapRow(row)
 		if convErr != nil {
 			return nil, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -626,7 +661,7 @@ func (r *ImmudbExpenseRepository) GetExpensesByUserAfter(ctx context.Context, us
 
 	rows := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense, convErr := rowToExpense(row)
+		expense, convErr := r.mapRow(row)
 		if convErr != nil {
 			return nil, ExpenseCursor{}, false, fmt.Errorf("mapping expense row: %w", convErr)
 		}

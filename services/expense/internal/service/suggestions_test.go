@@ -64,15 +64,14 @@ func TestGetExpenseSuggestions_PreservesForeignTransactionCurrency(t *testing.T)
 	assert.Equal(t, "EUR", result.Data[0].Currency)
 }
 
-func TestGetExpenseSuggestions_UsesResolvedLegacyTransactionFields(t *testing.T) {
+func TestGetExpenseSuggestions_CopiesTransactionFieldsToDeprecatedAliases(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		// The repository resolves legacy rows before the service sees them, so
-		// TransactionAmount/TransactionCurrency are already populated from the
-		// legacy amount/currency columns. The service must copy those resolved
-		// values into both canonical and deprecated response fields.
+		// The repository reads transaction fields from the money snapshot
+		// columns. The service must copy those values into both canonical and
+		// deprecated response fields.
 		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "JPY", TransactionAmount: 1200, TransactionCurrency: "JPY", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-20T10:00:00Z"},
 	}, nil)
 

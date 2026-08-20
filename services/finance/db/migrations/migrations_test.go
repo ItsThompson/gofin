@@ -1,16 +1,14 @@
 package migrations
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ItsThompson/gofin/services/shared/currency"
 )
 
 // TestMigrationReportingCurrencyBackfillPrecedence verifies the up migration
@@ -94,7 +92,7 @@ func TestMigrationReportingCurrencyDownDocumentsHistoryLoss(t *testing.T) {
 
 // TestMigrationReportingCurrencyCodesMatchSharedCatalog asserts the supported-
 // currency codes hardcoded in the migration (temp table and CHECK constraint)
-// are exactly the codes in shared/currency/catalog.json. The catalog is the
+// are exactly the codes in the shared currency catalog. The catalog is the
 // single source of truth (spec 04); this test flags drift so a future catalog
 // change does not silently diverge the migration's validation/CHECK from the
 // shared catalog (review S5).
@@ -112,7 +110,7 @@ func TestMigrationReportingCurrencyCodesMatchSharedCatalog(t *testing.T) {
 		sqlCodes[match[1]] = true
 	}
 
-	catalogCodes := loadCatalogCodes(t)
+	catalogCodes := loadCatalogCodes()
 
 	require.Len(t, sqlCodes, len(catalogCodes),
 		"SQL currency codes must match the shared catalog size")
@@ -124,38 +122,11 @@ func TestMigrationReportingCurrencyCodesMatchSharedCatalog(t *testing.T) {
 	}
 }
 
-// catalogSourceEntry is the subset of shared/currency/catalog.json the drift
-// guard needs.
-type catalogSourceEntry struct {
-	Code string `json:"code"`
-}
-
-// loadCatalogCodes reads the shared currency catalog JSON via the test file's
-// absolute path, mirroring the shared/currency contract-test pattern.
-func loadCatalogCodes(t *testing.T) map[string]bool {
-	t.Helper()
-
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("locating migrations test file")
-	}
-
-	// migrations_test.go lives at services/finance/db/migrations/; walk up to the
-	// repo root then into shared/currency/catalog.json.
-	catalogPath := filepath.Join(filepath.Dir(filename), "..", "..", "..", "..", "shared", "currency", "catalog.json")
-	data, err := os.ReadFile(catalogPath)
-	if err != nil {
-		t.Fatalf("reading shared currency catalog: %v", err)
-	}
-
-	var entries []catalogSourceEntry
-	if err := json.Unmarshal(data, &entries); err != nil {
-		t.Fatalf("parsing shared currency catalog: %v", err)
-	}
-
-	codes := make(map[string]bool, len(entries))
-	for _, entry := range entries {
-		codes[entry.Code] = true
+// loadCatalogCodes reads the shared currency catalog codes.
+func loadCatalogCodes() map[string]bool {
+	codes := make(map[string]bool)
+	for _, definition := range currency.All() {
+		codes[definition.Code] = true
 	}
 	return codes
 }

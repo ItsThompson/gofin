@@ -25,8 +25,8 @@ func TestGetHistoricalComparison_MixedCurrencyNotComparable(t *testing.T) {
 	prevPeriod := makePeriod("p11", 2026, 11)
 	prevPeriod.ReportingCurrency = "EUR"
 	periods := []*model.BudgetPeriod{currentPeriod, prevPeriod}
-	exp.set(2026, 12, []ExpenseData{{Amount: 80000}})
-	exp.set(2026, 11, []ExpenseData{{Amount: 70000}})
+	exp.set(2026, 12, []ExpenseData{{Amount: 80000, ReportingAmount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{Amount: 70000, ReportingAmount: 70000}})
 	svc := newFanoutService(historicalRepo(periods), exp)
 
 	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
@@ -47,8 +47,8 @@ func TestGetHistoricalComparison_SameCurrencyComparable(t *testing.T) {
 		makePeriod("p12", 2026, 12),
 		makePeriod("p11", 2026, 11),
 	}
-	exp.set(2026, 12, []ExpenseData{{Amount: 80000}})
-	exp.set(2026, 11, []ExpenseData{{Amount: 70000}})
+	exp.set(2026, 12, []ExpenseData{{Amount: 80000, ReportingAmount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{Amount: 70000, ReportingAmount: 70000}})
 	svc := newFanoutService(historicalRepo(periods), exp)
 
 	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
