@@ -16,9 +16,7 @@ interface RecentExpensesProps {
 /**
  * Recent expense list on the dashboard. Each row shows the budget-impact
  * (reporting) amount formatted in the period reporting currency, not the
- * transaction amount. For legacy rows without a reportingAmount, the amount
- * field is used as a fallback (it equals the reporting amount for same-currency
- * legacy rows).
+ * transaction amount.
  */
 export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
   return (
@@ -37,8 +35,7 @@ export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
       <CardContent>
         <div className="divide-y">
           {expenses.map((expense) => {
-            const reportingAmount =
-              expense.reportingAmount ?? expense.amount;
+            const reportingAmount = expense.reportingAmount;
             return (
               <div
                 key={expense.id}

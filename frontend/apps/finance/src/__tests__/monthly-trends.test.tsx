@@ -16,6 +16,7 @@ const mockTrendData: TrendPoint[] = [
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
+    reportingCurrency: "USD",
   },
   {
     year: 2026,
@@ -28,6 +29,7 @@ const mockTrendData: TrendPoint[] = [
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
+    reportingCurrency: "USD",
   },
   {
     year: 2026,
@@ -40,6 +42,7 @@ const mockTrendData: TrendPoint[] = [
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
+    reportingCurrency: "USD",
   },
   {
     year: 2026,
@@ -52,6 +55,7 @@ const mockTrendData: TrendPoint[] = [
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
+    reportingCurrency: "USD",
   },
   {
     year: 2026,
@@ -64,6 +68,7 @@ const mockTrendData: TrendPoint[] = [
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
+    reportingCurrency: "USD",
   },
   {
     year: 2026,
@@ -76,6 +81,7 @@ const mockTrendData: TrendPoint[] = [
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
+    reportingCurrency: "USD",
   },
 ];
 

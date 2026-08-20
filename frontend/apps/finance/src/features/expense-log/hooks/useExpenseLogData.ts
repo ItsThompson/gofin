@@ -113,7 +113,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
   }, [fetchResult.periods, selectedYear, selectedMonth]);
 
   const expenses = useMemo(() => {
-    const rows = resolveTagNames(fetchResult.rawExpenses, fetchResult.tags, reportingCurrency);
+    const rows = resolveTagNames(fetchResult.rawExpenses, fetchResult.tags);
 
     return rows.filter((row) => {
       if (filters.selectedTypes.size > 0 && !filters.selectedTypes.has(row.expenseType)) {
@@ -136,7 +136,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       }
       return true;
     });
-  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo, filters.selectedTransactionCurrencies, filters.selectedReportingCurrencies, reportingCurrency]);
+  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo, filters.selectedTransactionCurrencies, filters.selectedReportingCurrencies]);
 
   return {
     expenses,

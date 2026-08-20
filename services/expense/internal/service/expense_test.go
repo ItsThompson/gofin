@@ -281,7 +281,6 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		PeriodYear:            2026,
 		PeriodMonth:           5,
 		Status:                "active",
-		MoneySnapshotVersion:  1,
 		TransactionAmount:     1250,
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
@@ -301,7 +300,6 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	require.NotNil(t, captured)
 
 	// The ledger row stores transaction amount/currency unchanged.
-	assert.Equal(t, int32(1), captured.MoneySnapshotVersion)
 	assert.Equal(t, int64(1250), captured.TransactionAmount)
 	assert.Equal(t, "EUR", captured.TransactionCurrency)
 

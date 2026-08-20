@@ -26,15 +26,13 @@ export interface Expense {
   proRataIndex?: number;
   proRataTotal?: number;
   createdAt: string;
-  // --- Money snapshot fields (present on rows written after multi-currency cutover) ---
-  /** Snapshot version; 1 for rows written after the cutover. */
-  moneySnapshotVersion?: number;
+  // --- Money snapshot fields (backfilled for every row) ---
   /** Original amount in transaction currency minor units. */
-  transactionAmount?: number;
+  transactionAmount: number;
   /** Converted amount in the period reporting currency minor units. */
-  reportingAmount?: number;
+  reportingAmount: number;
   /** Budget period reporting currency for this ledger row. */
-  reportingCurrency?: string;
+  reportingCurrency: string;
   /** Source-to-target exchange rate used for this row. */
   exchangeRate?: string;
   /** "open_exchange_rates" | "identity" | "migration". */

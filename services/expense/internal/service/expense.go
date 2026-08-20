@@ -522,7 +522,6 @@ func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency,
 // are the provider facts returned by FX.
 func buildProviderSnapshot(transactionAmount int64, transactionCurrency, reportingCurrency string, fx *FxConvertResponse) model.Expense {
 	return model.Expense{
-		MoneySnapshotVersion:  1,
 		TransactionAmount:     transactionAmount,
 		TransactionCurrency:   transactionCurrency,
 		ReportingAmount:       fx.ConvertedAmount,

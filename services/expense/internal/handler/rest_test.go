@@ -297,7 +297,6 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 		PeriodYear:            2026,
 		PeriodMonth:           5,
 		Status:                "active",
-		MoneySnapshotVersion:  1,
 		TransactionAmount:     1250,
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",

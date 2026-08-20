@@ -5,13 +5,13 @@ import type { Expense, Tag } from "@gofin/core";
 /** Enriched expense with resolved tag name and derived money display fields. */
 export interface ExpenseRow extends Expense {
   tagName: string;
-  /** Effective transaction amount (falls back to legacy amount). */
+  /** Effective transaction amount. */
   transactionAmountEffective: number;
-  /** Effective transaction currency (falls back to legacy currency or period currency). */
+  /** Effective transaction currency. */
   transactionCurrencyEffective: string;
-  /** Effective reporting amount (falls back to legacy amount). */
+  /** Effective reporting amount. */
   reportingAmountEffective: number;
-  /** Effective reporting currency (falls back to period reporting currency). */
+  /** Effective reporting currency. */
   reportingCurrencyEffective: string;
   /** True when transaction currency differs from reporting currency. */
   showReportingAmount: boolean;
@@ -110,28 +110,21 @@ export function buildExpenseColumns() {
 /**
  * Resolve tag names and derived money display fields by mapping tag IDs to tag
  * name strings and computing effective transaction/reporting amounts with
- * showReportingAmount. Falls back to legacy amount/currency for rows without
- * explicit money snapshots.
+ * showReportingAmount.
  *
  * @param expenses Raw expense data from the API.
  * @param tags Available tags for name resolution.
- * @param periodCurrency The selected period's reporting currency, used as a
- *   fallback for reportingCurrencyEffective when the expense lacks an explicit
- *   snapshot.
  */
 export function resolveTagNames(
   expenses: Expense[],
   tags: Tag[],
-  periodCurrency: string,
 ): ExpenseRow[] {
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
   return expenses.map((expense) => {
-    const transactionAmountEffective = expense.transactionAmount ?? expense.amount;
-    const transactionCurrencyEffective =
-      expense.transactionCurrency ?? expense.currency ?? periodCurrency;
-    const reportingAmountEffective = expense.reportingAmount ?? expense.amount;
-    const reportingCurrencyEffective =
-      expense.reportingCurrency ?? periodCurrency;
+    const transactionAmountEffective = expense.transactionAmount;
+    const transactionCurrencyEffective = expense.transactionCurrency;
+    const reportingAmountEffective = expense.reportingAmount;
+    const reportingCurrencyEffective = expense.reportingCurrency;
     const showReportingAmount =
       transactionCurrencyEffective !== reportingCurrencyEffective;
 

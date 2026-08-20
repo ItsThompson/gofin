@@ -113,6 +113,8 @@ export function computeCumulativeSpend(): CumulativeSpendPoint[] {
 export const mockComparison: HistoricalComparison = {
   currentSpent: mockSummary.totalSpent,
   previousSpent: 285000, // $2,850 last month
+  previousReportingCurrency: "USD",
+  comparable: true,
   rollingAverage: 275000, // $2,750 rolling 3-month avg
   changePercent: -5.3,
 };
