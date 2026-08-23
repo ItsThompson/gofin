@@ -196,8 +196,6 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 		Id:                    e.ID,
 		UserId:                e.UserID,
 		Name:                  e.Name,
-		Amount:                e.Amount,
-		Currency:              e.Currency,
 		TransactionCurrency:   e.TransactionCurrency,
 		ExpenseType:           e.ExpenseType,
 		TagId:                 e.TagID,

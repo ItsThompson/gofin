@@ -12,9 +12,7 @@ type Expense struct {
 	ID                  string `json:"id"`
 	UserID              string `json:"userId"`
 	Name                string `json:"name"`
-	Amount              int64  `json:"amount"` // Legacy minor-units column; equals TransactionAmount for new same-currency rows.
 	TransactionCurrency string `json:"transactionCurrency"`
-	Currency            string `json:"currency"`    // Legacy ISO 4217 column; mirrors TransactionCurrency during rollout.
 	ExpenseType         string `json:"expenseType"` // "essentials", "desires", "savings"
 	TagID               string `json:"tagId"`
 	ExpenseDate         string `json:"expenseDate"` // ISO date: "2026-05-03"

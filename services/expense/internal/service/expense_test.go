@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -160,8 +159,7 @@ func TestCreateExpense_Success(t *testing.T) {
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		// Same-currency (USD/USD) create writes an identity snapshot.
-		return expense.Amount == 2500 &&
-			expense.TransactionCurrency == "USD" &&
+		return expense.TransactionCurrency == "USD" &&
 			expense.TransactionAmount == 2500 &&
 			expense.ReportingAmount == 2500 &&
 			expense.ReportingCurrency == "USD" &&
@@ -171,8 +169,6 @@ func TestCreateExpense_Success(t *testing.T) {
 		ID:                 "exp-123",
 		UserID:             "user-1",
 		Name:               "Grocery shopping",
-		Amount:             2500,
-		Currency:           "USD",
 		ExpenseType:        "essentials",
 		TagID:              "tag-food",
 		ExpenseDate:        "2026-05-03",
@@ -191,7 +187,7 @@ func TestCreateExpense_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "exp-123", expense.ID)
 	assert.Equal(t, "user-1", expense.UserID)
-	assert.Equal(t, int64(2500), expense.Amount)
+	assert.Equal(t, int64(2500), expense.TransactionAmount)
 	assert.Equal(t, "essentials", expense.ExpenseType)
 	assert.Equal(t, "active", expense.Status)
 }
@@ -272,9 +268,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		ID:                    "exp-fx-1",
 		UserID:                "user-1",
 		Name:                  "Grocery shopping",
-		Amount:                1250,
 		TransactionCurrency:   "EUR",
-		Currency:              "EUR",
 		ExpenseType:           "essentials",
 		TagID:                 "tag-food",
 		ExpenseDate:           "2026-05-03",
@@ -456,15 +450,15 @@ func TestCreateExpense_UnsupportedReportingCurrencyDefaultsToInternal(t *testing
 	fxClient.AssertNotCalled(t, "ConvertAmount", mock.Anything, mock.Anything)
 }
 
-// TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent asserts an FX
-// server failure (500) is logged as a conversion failure at Error level, not as
-// a routine conversion-unavailable Info event.
-func TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent(t *testing.T) {
+// TestCreateExpense_ForeignCurrencyFxServerFailureWrapsErrorWithCurrencyPair
+// asserts an FX server failure (500) is wrapped in an error that carries the
+// currency pair via ReportData, so the handler's errkit.Report merges it into
+// the Sentry context and slog record. The service itself does not report.
+func TestCreateExpense_ForeignCurrencyFxServerFailureWrapsErrorWithCurrencyPair(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	fxClient := new(mockFxClient)
-	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	svc := NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
@@ -482,9 +476,10 @@ func TestCreateExpense_ForeignCurrencyFxServerFailureLogsErrorEvent(t *testing.T
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
-	_ = requireAPIError(t, err)
-	assert.Contains(t, buf.String(), "foreign_currency_conversion_failed")
-	assert.NotContains(t, buf.String(), "foreign_currency_conversion_unavailable")
+	require.Error(t, err)
+	var carrier interface{ ReportData() map[string]any }
+	require.ErrorAs(t, err, &carrier)
+	assert.Equal(t, map[string]any{"transaction_currency": "EUR", "reporting_currency": "USD"}, carrier.ReportData())
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
@@ -528,9 +523,7 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 		ID:                  "exp-xyz",
 		UserID:              "user-1",
 		Name:                "Grocery shopping",
-		Amount:              2500,
 		TransactionCurrency: "USD",
-		Currency:            "USD",
 		ExpenseType:         "essentials",
 		TagID:               "tag-food",
 		ExpenseDate:         "2026-05-03",
@@ -638,13 +631,12 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 				repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 					// Identity snapshot for same-currency writes.
 					return expense.TransactionCurrency == tt.expectedCurrency &&
-						expense.Currency == tt.expectedCurrency &&
 						expense.TransactionAmount == int64(2500) &&
 						expense.ReportingAmount == int64(2500) &&
 						expense.ReportingCurrency == reportingCurrency &&
 						expense.ExchangeRate == "1" &&
 						expense.ExchangeRateSource == model.ExchangeSourceIdentity
-				})).Return(&model.Expense{ID: "exp-123", TransactionCurrency: tt.expectedCurrency, Currency: tt.expectedCurrency, Status: "active"}, nil)
+				})).Return(&model.Expense{ID: "exp-123", TransactionCurrency: tt.expectedCurrency, Status: "active"}, nil)
 			}
 
 			req := validCreateRequest()
@@ -795,8 +787,8 @@ func TestGetExpensesForPeriod_Success(t *testing.T) {
 	svc := newTestService(repo)
 
 	expenses := []*model.Expense{
-		{ID: "exp-1", Name: "Groceries", Amount: 5000, Status: "active"},
-		{ID: "exp-2", Name: "Coffee", Amount: 500, Status: "active"},
+		{ID: "exp-1", Name: "Groceries", Status: "active"},
+		{ID: "exp-2", Name: "Coffee", Status: "active"},
 	}
 
 	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
@@ -925,9 +917,7 @@ func activeExpenseInCurrentPeriod(now time.Time) *model.Expense {
 		ID:                  "exp-original",
 		UserID:              "user-1",
 		Name:                "Coffee",
-		Amount:              500,
 		TransactionCurrency: "USD",
-		Currency:            "USD",
 		ExpenseType:         "desires",
 		TagID:               "tag-food",
 		ExpenseDate:         now.Format("2006-01-02"),
@@ -979,11 +969,10 @@ func TestCorrectExpense_Success(t *testing.T) {
 			correction := args.Get(2).(*model.Expense)
 			// Verify correction fields
 			assert.Equal(t, "Updated Coffee", correction.Name)
-			assert.Equal(t, int64(600), correction.Amount)
+			assert.Equal(t, int64(600), correction.TransactionAmount)
 			assert.Equal(t, "active", correction.Status)
 			assert.Equal(t, "exp-original", correction.CorrectsID)
 			assert.Equal(t, "USD", correction.TransactionCurrency)
-			assert.Equal(t, "USD", correction.Currency) // Inherited, mirrored
 			assert.Equal(t, original.PeriodYear, correction.PeriodYear)
 			assert.Equal(t, original.PeriodMonth, correction.PeriodMonth)
 			assert.NotEmpty(t, correction.ID)
@@ -1002,9 +991,7 @@ func TestCorrectExpense_Success(t *testing.T) {
 			ID:                  "exp-correction",
 			UserID:              "user-1",
 			Name:                "Updated Coffee",
-			Amount:              600,
 			TransactionCurrency: "USD",
-			Currency:            "USD",
 			ExpenseType:         "desires",
 			TagID:               "tag-food",
 			ExpenseDate:         "2026-05-03",
@@ -1026,7 +1013,7 @@ func TestCorrectExpense_Success(t *testing.T) {
 	assert.Equal(t, "exp-correction", result.ID)
 	assert.Equal(t, "active", result.Status)
 	assert.Equal(t, "exp-original", result.CorrectsID)
-	assert.Equal(t, int64(600), result.Amount)
+	assert.Equal(t, int64(600), result.TransactionAmount)
 	assert.Equal(t, "USD", result.TransactionCurrency)
 	assert.Equal(t, int64(600), result.ReportingAmount)
 	assert.Equal(t, "USD", result.ReportingCurrency)
@@ -1061,8 +1048,6 @@ func TestCorrectExpense_PeriodLocked(t *testing.T) {
 		ID:          "exp-past",
 		UserID:      "user-1",
 		Name:        "Old Coffee",
-		Amount:      500,
-		Currency:    "USD",
 		ExpenseType: "desires",
 		TagID:       "tag-food",
 		ExpenseDate: "2026-04-15",

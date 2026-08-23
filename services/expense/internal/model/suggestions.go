@@ -13,8 +13,6 @@ type ExpenseSuggestionRequest struct {
 type ExpenseSuggestionInput struct {
 	ID                  string
 	Name                string
-	Amount              int64  // Legacy minor-units column; mirrors TransactionAmount for new rows.
-	Currency            string // Legacy ISO 4217 column; mirrors TransactionCurrency for new rows.
 	TransactionAmount   int64  // Original transaction amount in minor units from the money snapshot.
 	TransactionCurrency string // Original transaction currency from the money snapshot.
 	ExpenseType         string
@@ -27,15 +25,11 @@ type ExpenseSuggestionInput struct {
 
 // ExpenseSuggestion is one aggregated exact-name suggestion.
 // TransactionAmount/TransactionCurrency are the canonical fields sourced from
-// the latest active matching expense. Amount/Currency are deprecated aliases
-// that mirror the transaction values for rollout compatibility with older
-// frontend clients.
+// the latest active matching expense.
 type ExpenseSuggestion struct {
 	Name                string  `json:"name"`
 	TransactionAmount   int64   `json:"transactionAmount"`
 	TransactionCurrency string  `json:"transactionCurrency"`
-	Amount              int64   `json:"amount"`   // Deprecated: mirrors TransactionAmount.
-	Currency            string  `json:"currency"` // Deprecated: mirrors TransactionCurrency.
 	ExpenseType         string  `json:"expenseType"`
 	TagID               string  `json:"tagId"`
 	Frequency           int32   `json:"frequency"`

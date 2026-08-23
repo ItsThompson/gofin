@@ -88,13 +88,11 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
-		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+		return expense.TransactionCurrency == "EUR"
 	})).Return(&model.Expense{
 		ID:                  "exp-1",
 		UserID:              "user-1",
-		Amount:              1200,
 		TransactionCurrency: "EUR",
-		Currency:            "EUR",
 		Status:              "active",
 		TransactionAmount:   1200,
 		ReportingAmount:     1200,
@@ -146,7 +144,6 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 		UserId:      "user-1",
 		Name:        "Coffee",
 		Amount:      450,
-		Currency:    "USD",
 		ExpenseType: "desires",
 		TagId:       "tag-food",
 		ExpenseDate: "2026-06-03",
@@ -199,9 +196,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		ID:                    "exp-fx-1",
 		UserID:                "user-1",
 		Name:                  "Cafe",
-		Amount:                1250,
 		TransactionCurrency:   "EUR",
-		Currency:              "EUR",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
 		ExpenseDate:           "2026-05-03",

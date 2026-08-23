@@ -102,8 +102,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 			RequestedAt:    now,
 		})
 		if convErr != nil {
-			logFxConversionFailure(s.logger, convErr, transactionCurrency, reportingCurrency)
-			return nil, convErr
+			return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 		}
 		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
 	}
@@ -112,9 +111,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		ID:                    uuid.New().String(),
 		UserID:                userID,
 		Name:                  req.Name,
-		Amount:                req.Amount,
 		TransactionCurrency:   transactionCurrency,
-		Currency:              transactionCurrency,
 		ExpenseType:           req.ExpenseType,
 		TagID:                 req.TagID,
 		ExpenseDate:           req.ExpenseDate,
@@ -145,7 +142,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		slog.String("method", "CreateExpense"),
 		slog.String("user_id", userID),
 		slog.String("expense_id", created.ID),
-		slog.Int64("amount", created.Amount),
+		slog.Int64("amount", created.TransactionAmount),
 		slog.String("expense_type", created.ExpenseType),
 	)
 
@@ -265,9 +262,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		ID:                    uuid.New().String(),
 		UserID:                userID,
 		Name:                  req.Name,
-		Amount:                req.Amount,
 		TransactionCurrency:   transactionCurrency,
-		Currency:              transactionCurrency, // immudb currency column is NOT NULL; mirror the transaction currency
 		ExpenseType:           req.ExpenseType,
 		TagID:                 req.TagID,
 		ExpenseDate:           req.ExpenseDate,
@@ -477,26 +472,50 @@ func conversionUnavailableError() *apierr.Error {
 	}
 }
 
-// logFxConversionFailure logs an FX conversion failure with an event whose
-// severity matches the failure: retryable conversion outages are Info, while
-// unexpected FX server failures (500) are Error so they are visible as defects
-// rather than as routine provider outages.
-func logFxConversionFailure(logger *slog.Logger, err error, transactionCurrency, reportingCurrency string) {
+// fxConversionError wraps an FX conversion failure that is the service's fault
+// (a 500) and carries the currency pair so the handler's errkit.Report merges it
+// into the Sentry context block and slog record automatically.
+type fxConversionError struct {
+	err                 error
+	transactionCurrency string
+	reportingCurrency   string
+}
+
+func (e *fxConversionError) Error() string { return e.err.Error() }
+func (e *fxConversionError) Unwrap() error { return e.err }
+func (e *fxConversionError) ReportData() map[string]any {
+	return map[string]any{"transaction_currency": e.transactionCurrency, "reporting_currency": e.reportingCurrency}
+}
+
+// handleFxConversionFailure classifies an FX conversion failure and returns the
+// error the caller should surface. The handler reports 500s via errkit.Report,
+// so the service only logs here and never reports: a 503 outage and a 400 client
+// error are expected outcomes, while a 500 is wrapped in fxConversionError so the
+// handler's report carries the currency pair.
+func (s *ExpenseService) handleFxConversionFailure(err error, transactionCurrency, reportingCurrency string) error {
 	var apiErr *apierr.Error
 	if errors.As(err, &apiErr) && apiErr.Code == model.ErrConversionUnavailable {
-		logger.Info("foreign currency conversion unavailable",
+		s.logger.Info("foreign currency conversion unavailable",
 			slog.String("event", "foreign_currency_conversion_unavailable"),
 			slog.String("transaction_currency", transactionCurrency),
 			slog.String("reporting_currency", reportingCurrency),
 		)
-		return
+		return err
 	}
-	logger.Error("foreign currency conversion failed",
-		slog.String("event", "foreign_currency_conversion_failed"),
-		slog.String("transaction_currency", transactionCurrency),
-		slog.String("reporting_currency", reportingCurrency),
-		slog.String("error", err.Error()),
-	)
+	if errors.As(err, &apiErr) && !apierr.IsServerError(apiErr) {
+		s.logger.Info("foreign currency conversion rejected",
+			slog.String("event", "foreign_currency_conversion_rejected"),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", reportingCurrency),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	return &fxConversionError{
+		err:                 err,
+		transactionCurrency: transactionCurrency,
+		reportingCurrency:   reportingCurrency,
+	}
 }
 
 // buildIdentitySnapshot builds the money snapshot for a same-currency expense:

@@ -25,8 +25,6 @@ func streamExpense(id, createdAt string) *model.Expense {
 		ID:          id,
 		UserID:      "user-1",
 		Name:        "Expense " + id,
-		Amount:      1000,
-		Currency:    "USD",
 		ExpenseType: "essentials",
 		TagID:       "tag-1",
 		ExpenseDate: "2026-05-01",

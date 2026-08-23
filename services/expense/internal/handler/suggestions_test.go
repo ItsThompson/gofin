@@ -30,7 +30,7 @@ func TestGetExpenseSuggestionsHandler_DefaultsPaginationAndReturnsShape(t *testi
 	repo := new(mockExpenseRepository)
 	r := setupTestRouter(repo)
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Groceries", Amount: 2500, Currency: "USD", TransactionAmount: 2500, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-1", Name: "Groceries", TransactionAmount: 2500, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
 	}, nil)
 
 	w := doJSONWithUserID(r, http.MethodGet, "/api/expenses/suggestions", "user-1", nil)
@@ -44,7 +44,6 @@ func TestGetExpenseSuggestionsHandler_DefaultsPaginationAndReturnsShape(t *testi
 	assert.False(t, response.HasMore)
 	require.Len(t, response.Data, 1)
 	assert.Equal(t, "Groceries", response.Data[0].Name)
-	assert.Equal(t, int64(2500), response.Data[0].Amount)
 	assert.Equal(t, int64(2500), response.Data[0].TransactionAmount)
 	assert.Equal(t, "USD", response.Data[0].TransactionCurrency)
 }

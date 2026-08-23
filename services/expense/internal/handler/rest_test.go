@@ -153,18 +153,17 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 
 	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
 		Return(&model.Expense{
-			ID:          "exp-123",
-			UserID:      "user-1",
-			Name:        "Grocery shopping",
-			Amount:      2500,
-			Currency:    "USD",
-			ExpenseType: "essentials",
-			TagID:       "tag-food",
-			ExpenseDate: "2026-05-03",
-			PeriodYear:  2026,
-			PeriodMonth: 5,
-			Status:      "active",
-			CreatedAt:   "2026-05-03T10:00:00Z",
+			ID:                "exp-123",
+			UserID:            "user-1",
+			Name:              "Grocery shopping",
+			ExpenseType:       "essentials",
+			TagID:             "tag-food",
+			ExpenseDate:       "2026-05-03",
+			PeriodYear:        2026,
+			PeriodMonth:       5,
+			Status:            "active",
+			CreatedAt:         "2026-05-03T10:00:00Z",
+			TransactionAmount: 2500,
 		}, nil)
 
 	r := setupTestRouter(repo)
@@ -185,7 +184,7 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "exp-123", resp.Expense.ID)
 	assert.Equal(t, "user-1", resp.Expense.UserID)
-	assert.Equal(t, int64(2500), resp.Expense.Amount)
+	assert.Equal(t, int64(2500), resp.Expense.TransactionAmount)
 	assert.Equal(t, "essentials", resp.Expense.ExpenseType)
 	assert.Equal(t, "active", resp.Expense.Status)
 }
@@ -203,14 +202,12 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	}, nil)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
-		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+		return expense.TransactionCurrency == "EUR"
 	})).Return(&model.Expense{
 		ID:                  "exp-123",
 		UserID:              "user-1",
 		Name:                "Coffee",
-		Amount:              450,
 		TransactionCurrency: "EUR",
-		Currency:            "EUR",
 		ExpenseType:         "desires",
 		TagID:               "tag-food",
 		ExpenseDate:         "2026-05-03",
@@ -243,7 +240,6 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	var resp model.ExpenseResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
-	assert.Equal(t, "EUR", resp.Expense.Currency)
 	// Canonical transaction and reporting money fields are present in the response.
 	assert.Equal(t, int64(450), resp.Expense.TransactionAmount)
 	assert.Equal(t, int64(450), resp.Expense.ReportingAmount)
@@ -288,9 +284,7 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 		ID:                    "exp-fx-1",
 		UserID:                "user-1",
 		Name:                  "Cafe",
-		Amount:                1250,
 		TransactionCurrency:   "EUR",
-		Currency:              "EUR",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
 		ExpenseDate:           "2026-05-03",
@@ -485,8 +479,8 @@ func TestGetExpensesHandler_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
 	expenses := []*model.Expense{
-		{ID: "exp-1", Name: "Groceries", Amount: 5000, Status: "active", ExpenseDate: "2026-05-02"},
-		{ID: "exp-2", Name: "Coffee", Amount: 500, Status: "active", ExpenseDate: "2026-05-01"},
+		{ID: "exp-1", Name: "Groceries", Status: "active", ExpenseDate: "2026-05-02"},
+		{ID: "exp-2", Name: "Coffee", Status: "active", ExpenseDate: "2026-05-01"},
 	}
 
 	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
@@ -511,7 +505,7 @@ func TestGetExpensesHandler_WithPagination(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
 	expenses := []*model.Expense{
-		{ID: "exp-3", Name: "Lunch", Amount: 1500, Status: "active"},
+		{ID: "exp-3", Name: "Lunch", Status: "active"},
 	}
 
 	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(2), int32(10)).
@@ -582,8 +576,6 @@ func TestGetExpenseHandler_Success(t *testing.T) {
 			ID:          "exp-123",
 			UserID:      "user-1",
 			Name:        "Coffee",
-			Amount:      500,
-			Currency:    "USD",
 			ExpenseType: "desires",
 			Status:      "active",
 		}, nil)
@@ -635,8 +627,8 @@ func TestCorrectExpenseHandler_Success(t *testing.T) {
 
 	original := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
-		Amount: 500, Currency: "USD", ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		ExpenseType: "desires",
+		TagID:       "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 		CreatedAt: "2026-05-01T10:00:00Z",
 	}
@@ -645,8 +637,8 @@ func TestCorrectExpenseHandler_Success(t *testing.T) {
 	repo.On("CorrectExpense", mock.Anything, original, mock.AnythingOfType("*model.Expense")).
 		Return(&model.Expense{
 			ID: "exp-correction", UserID: "user-1", Name: "Updated Coffee",
-			Amount: 600, Currency: "USD", ExpenseType: "desires",
-			TagID: "tag-food", ExpenseDate: "2026-05-01",
+			ExpenseType: "desires",
+			TagID:       "tag-food", ExpenseDate: "2026-05-01",
 			PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 			CorrectsID: "exp-original", CreatedAt: "2026-05-03T10:00:00Z",
 		}, nil)
@@ -671,8 +663,8 @@ func TestCorrectExpenseHandler_AlreadyCorrected(t *testing.T) {
 
 	corrected := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
-		Amount: 500, Currency: "USD", ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		ExpenseType: "desires",
+		TagID:       "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "corrected",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(corrected, nil)
@@ -695,8 +687,8 @@ func TestCorrectExpenseHandler_PeriodLocked(t *testing.T) {
 
 	pastExpense := &model.Expense{
 		ID: "exp-past", UserID: "user-1", Name: "Old Coffee",
-		Amount: 500, Currency: "USD", ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-04-15",
+		ExpenseType: "desires",
+		TagID:       "tag-food", ExpenseDate: "2026-04-15",
 		PeriodYear: 2026, PeriodMonth: 4, Status: "active",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-past", "user-1").Return(pastExpense, nil)

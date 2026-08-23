@@ -33,8 +33,7 @@ message ExpenseData {
   string id = 1;
   string user_id = 2;
   string name = 3;
-  int64 amount = 4;
-  string currency = 5;
+  reserved 4, 5;
   string expense_type = 6;
   string tag_id = 7;
   string expense_date = 8;
@@ -66,7 +65,7 @@ message CreateExpenseRequest {
   string user_id = 1;
   string name = 2;
   int64 amount = 3;
-  string currency = 4;
+  reserved 4;
   string expense_type = 5;
   string tag_id = 6;
   string expense_date = 7;

@@ -83,8 +83,6 @@ func (s *ExpenseService) aggregateExpenseSuggestions(inputs []*model.ExpenseSugg
 			Name:                name,
 			TransactionAmount:   group.latest.TransactionAmount,
 			TransactionCurrency: group.latest.TransactionCurrency,
-			Amount:              group.latest.TransactionAmount,   // Deprecated: mirrors transaction value.
-			Currency:            group.latest.TransactionCurrency, // Deprecated: mirrors transaction value.
 			ExpenseType:         group.latest.ExpenseType,
 			TagID:               group.latest.TagID,
 			Frequency:           frequency,

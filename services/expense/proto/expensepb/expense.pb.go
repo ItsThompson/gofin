@@ -26,8 +26,6 @@ type ExpenseData struct {
 	Id                  string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name                string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Amount              int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency            string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
 	ExpenseType         string                 `protobuf:"bytes,6,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
 	TagId               string                 `protobuf:"bytes,7,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
 	ExpenseDate         string                 `protobuf:"bytes,8,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
@@ -100,20 +98,6 @@ func (x *ExpenseData) GetUserId() string {
 func (x *ExpenseData) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *ExpenseData) GetAmount() int64 {
-	if x != nil {
-		return x.Amount
-	}
-	return 0
-}
-
-func (x *ExpenseData) GetCurrency() string {
-	if x != nil {
-		return x.Currency
 	}
 	return ""
 }
@@ -263,7 +247,6 @@ type CreateExpenseRequest struct {
 	UserId              string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Amount              int64                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency            string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`
 	ExpenseType         string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
 	TagId               string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
 	ExpenseDate         string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
@@ -327,13 +310,6 @@ func (x *CreateExpenseRequest) GetAmount() int64 {
 		return x.Amount
 	}
 	return 0
-}
-
-func (x *CreateExpenseRequest) GetCurrency() string {
-	if x != nil {
-		return x.Currency
-	}
-	return ""
 }
 
 func (x *CreateExpenseRequest) GetExpenseType() string {
@@ -1110,13 +1086,11 @@ var File_proto_expense_proto protoreflect.FileDescriptor
 
 const file_proto_expense_proto_rawDesc = "" +
 	"\n" +
-	"\x13proto/expense.proto\x12\aexpense\"\x8d\a\n" +
+	"\x13proto/expense.proto\x12\aexpense\"\xe5\x06\n" +
 	"\vExpenseData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12\x1a\n" +
-	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12!\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12!\n" +
 	"\fexpense_type\x18\x06 \x01(\tR\vexpenseType\x12\x15\n" +
 	"\x06tag_id\x18\a \x01(\tR\x05tagId\x12!\n" +
 	"\fexpense_date\x18\b \x01(\tR\vexpenseDate\x12\x1f\n" +
@@ -1140,12 +1114,11 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\rexchange_rate\x18\x17 \x01(\tR\fexchangeRate\x120\n" +
 	"\x14exchange_rate_source\x18\x18 \x01(\tR\x12exchangeRateSource\x126\n" +
 	"\x17exchange_rate_timestamp\x18\x19 \x01(\tR\x15exchangeRateTimestamp\x127\n" +
-	"\x18exchange_rate_expires_at\x18\x1a \x01(\tR\x15exchangeRateExpiresAt\"\xdd\x03\n" +
+	"\x18exchange_rate_expires_at\x18\x1a \x01(\tR\x15exchangeRateExpiresAtJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\xc7\x03\n" +
 	"\x14CreateExpenseRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
-	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12\x1a\n" +
-	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12!\n" +
+	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12!\n" +
 	"\fexpense_type\x18\x05 \x01(\tR\vexpenseType\x12\x15\n" +
 	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12!\n" +
 	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\x12\x1f\n" +
@@ -1157,7 +1130,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_group\x18\v \x01(\tR\fproRataGroup\x12$\n" +
 	"\x0epro_rata_index\x18\f \x01(\x05R\fproRataIndex\x12$\n" +
 	"\x0epro_rata_total\x18\r \x01(\x05R\fproRataTotal\x121\n" +
-	"\x14transaction_currency\x18\x0e \x01(\tR\x13transactionCurrency\"A\n" +
+	"\x14transaction_currency\x18\x0e \x01(\tR\x13transactionCurrencyJ\x04\b\x04\x10\x05\"A\n" +
 	"\x0fExpenseResponse\x12.\n" +
 	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\x91\x01\n" +
 	"\x1bGetExpensesForPeriodRequest\x12\x17\n" +
