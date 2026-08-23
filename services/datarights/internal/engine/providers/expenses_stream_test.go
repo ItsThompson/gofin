@@ -21,17 +21,17 @@ func streamRowFixtures(n int) []*expensepb.ExpenseData {
 	rows := make([]*expensepb.ExpenseData, n)
 	for i := range rows {
 		rows[i] = &expensepb.ExpenseData{
-			Id:          fmt.Sprintf("exp-%08d", i),
-			Name:        "Expense",
-			Amount:      int64(1000 + i),
-			Currency:    "USD",
-			ExpenseType: "essentials",
-			TagId:       "tag-1",
-			ExpenseDate: "2026-05-01",
-			PeriodYear:  2026,
-			PeriodMonth: 5,
-			Status:      "active",
-			CreatedAt:   fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
+			Id:                  fmt.Sprintf("exp-%08d", i),
+			Name:                "Expense",
+			TransactionAmount:   int64(1000 + i),
+			TransactionCurrency: "USD",
+			ExpenseType:         "essentials",
+			TagId:               "tag-1",
+			ExpenseDate:         "2026-05-01",
+			PeriodYear:          2026,
+			PeriodMonth:         5,
+			Status:              "active",
+			CreatedAt:           fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
 		}
 	}
 	return rows
