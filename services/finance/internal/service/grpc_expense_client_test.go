@@ -33,7 +33,6 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 				Data: []*expensepb.ExpenseData{
 					{
 						Id:                "e1",
-						Amount:            25000, // legacy amount in transaction currency
 						ReportingAmount:   90000, // converted reporting amount
 						ReportingCurrency: "USD",
 						ExpenseType:       "essentials",
@@ -42,7 +41,6 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 					},
 					{
 						Id:                "e2",
-						Amount:            25000,
 						ReportingAmount:   110000,
 						ReportingCurrency: "USD",
 						ExpenseType:       "desires",
@@ -62,7 +60,6 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 
 	assert.Equal(t, int64(90000), expenses[0].ReportingAmount)
 	assert.Equal(t, "USD", expenses[0].ReportingCurrency)
-	assert.Equal(t, int64(25000), expenses[0].Amount) // legacy amount preserved
 	assert.Equal(t, int64(110000), expenses[1].ReportingAmount)
 	assert.Equal(t, "USD", expenses[1].ReportingCurrency)
 

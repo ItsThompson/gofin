@@ -5,7 +5,6 @@ import "context"
 // ExpenseData holds the fields the finance service needs from an expense record.
 type ExpenseData struct {
 	ID                string
-	Amount            int64  // Legacy amount column; kept for backward compatibility.
 	ReportingAmount   int64  // Converted amount in the period reporting currency minor units.
 	ReportingCurrency string // Budget period reporting currency for this row.
 	ExpenseType       string // "essentials", "desires", "savings"

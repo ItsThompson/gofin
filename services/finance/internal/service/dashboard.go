@@ -288,19 +288,14 @@ func (s *FinanceService) computeHistoricalComparison(
 
 	// Rolling average: need at least 3 prior periods in the same reporting currency.
 	// When the prior periods span mixed currencies the average is not meaningful.
-	if hasRollingAverage {
-		currentCurrency := periods[requestedIdx].ReportingCurrency
-		allSameCurrency := currentCurrency != ""
-		for _, pp := range priorPeriods[:3] {
-			if pp.ReportingCurrency != currentCurrency {
-				allSameCurrency = false
-				break
-			}
-		}
-		if allSameCurrency {
-			avg := (spent[1] + spent[2] + spent[3]) / 3
-			result.RollingAverage = &avg
-		}
+	if !hasRollingAverage {
+		return result, nil
+	}
+
+	currentCurrency := periods[requestedIdx].ReportingCurrency
+	if allSameReportingCurrency(currentCurrency, priorPeriods[:3]) {
+		avg := (spent[1] + spent[2] + spent[3]) / 3
+		result.RollingAverage = &avg
 	}
 
 	return result, nil
@@ -545,4 +540,18 @@ func parseDayForPeriod(date string, periodYear, periodMonth int32) int32 {
 		return 1
 	}
 	return int32(t.Day())
+}
+
+// allSameReportingCurrency reports whether every period has the same non-empty
+// reporting currency as current.
+func allSameReportingCurrency(current string, periods []*model.BudgetPeriod) bool {
+	if current == "" {
+		return false
+	}
+	for _, p := range periods {
+		if p.ReportingCurrency != current {
+			return false
+		}
+	}
+	return true
 }
