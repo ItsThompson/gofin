@@ -11,8 +11,6 @@ function buildSuggestion(overrides: Partial<ExpenseSuggestion> = {}): ExpenseSug
     name: "Groceries",
     transactionAmount: 7423,
     transactionCurrency: "USD",
-    amount: 7423,
-    currency: "USD",
     expenseType: "essentials",
     tagId: "tag-groceries",
     frequency: 12,
@@ -153,9 +151,9 @@ describe("useExpenseAutocomplete", () => {
   });
 
   it("dedupes candidates by exact name and keeps the first ranked record", async () => {
-    const firstGroceries = buildSuggestion({ name: "Groceries", amount: 1000, frecencyScore: 50 });
-    const duplicateGroceries = buildSuggestion({ name: "Groceries", amount: 2000, frecencyScore: 10 });
-    const coffee = buildSuggestion({ name: "Coffee", amount: 500, frecencyScore: 20 });
+    const firstGroceries = buildSuggestion({ name: "Groceries", transactionAmount: 1000, frecencyScore: 50 });
+    const duplicateGroceries = buildSuggestion({ name: "Groceries", transactionAmount: 2000, frecencyScore: 10 });
+    const coffee = buildSuggestion({ name: "Coffee", transactionAmount: 500, frecencyScore: 20 });
     mockApiResponse(buildResponse([firstGroceries, duplicateGroceries, coffee]));
 
     const { result } = renderHook(() => useExpenseAutocomplete());
@@ -168,9 +166,9 @@ describe("useExpenseAutocomplete", () => {
   });
 
   it("loads the next page and appends deduped candidates", async () => {
-    const groceries = buildSuggestion({ name: "Groceries", amount: 1000, frecencyScore: 50 });
-    const duplicateGroceries = buildSuggestion({ name: "Groceries", amount: 2000, frecencyScore: 10 });
-    const coffee = buildSuggestion({ name: "Coffee", amount: 500, frecencyScore: 20 });
+    const groceries = buildSuggestion({ name: "Groceries", transactionAmount: 1000, frecencyScore: 50 });
+    const duplicateGroceries = buildSuggestion({ name: "Groceries", transactionAmount: 2000, frecencyScore: 10 });
+    const coffee = buildSuggestion({ name: "Coffee", transactionAmount: 500, frecencyScore: 20 });
     mockApiResponse(buildResponse([groceries], { hasMore: true }));
     mockApiResponse(buildResponse([duplicateGroceries, coffee], { page: 2, hasMore: false }));
 

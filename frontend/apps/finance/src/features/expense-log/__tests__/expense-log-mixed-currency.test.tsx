@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -44,7 +44,6 @@ const sameCurrencyExpense: Expense = {
   id: "exp-same",
   userId: "user-1",
   name: "Groceries",
-  amount: 5000,
   transactionCurrency: "USD",
   transactionAmount: 5000,
   reportingAmount: 5000,
@@ -67,7 +66,6 @@ const foreignCurrencyExpense: Expense = {
   id: "exp-foreign",
   userId: "user-1",
   name: "Hotel",
-  amount: 15000,
   transactionCurrency: "EUR",
   transactionAmount: 15000,
   reportingAmount: 16200,
@@ -90,7 +88,6 @@ const jpyExpense: Expense = {
   id: "exp-jpy",
   userId: "user-1",
   name: "Tokyo Lunch",
-  amount: 2000,
   transactionCurrency: "JPY",
   transactionAmount: 2000,
   reportingAmount: 1350,
@@ -143,7 +140,13 @@ function renderExpenseLog(user: User = mockUser) {
 
 describe("ExpenseLogFeature mixed-currency", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-12T12:00:00Z"));
     mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("same-currency row shows one amount", async () => {
@@ -191,7 +194,7 @@ describe("ExpenseLogFeature mixed-currency", () => {
     // Data order is [foreign, same] = [Hotel, Groceries].
     // After ascending sort by reportingAmount, same (5000) should come before foreign (16200).
     mockAllDataSuccess([foreignCurrencyExpense, sameCurrencyExpense]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
 
     await waitFor(() => {
@@ -220,7 +223,7 @@ describe("ExpenseLogFeature mixed-currency", () => {
 
   it("filters by transaction currency", async () => {
     mockAllDataSuccess([sameCurrencyExpense, foreignCurrencyExpense]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
 
     await waitFor(() => {
@@ -241,7 +244,7 @@ describe("ExpenseLogFeature mixed-currency", () => {
 
   it("filters by reporting currency", async () => {
     mockAllDataSuccess([sameCurrencyExpense, foreignCurrencyExpense]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
 
     await waitFor(() => {
@@ -262,7 +265,7 @@ describe("ExpenseLogFeature mixed-currency", () => {
 
   it("applies AND logic for transaction and reporting currency filters", async () => {
     mockAllDataSuccess([sameCurrencyExpense, foreignCurrencyExpense]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
 
     await waitFor(() => {

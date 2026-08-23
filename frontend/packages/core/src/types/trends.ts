@@ -1,4 +1,3 @@
-/** A single monthly data point in the spending trends chart. */
 export interface TrendPoint {
   year: number;
   month: number;

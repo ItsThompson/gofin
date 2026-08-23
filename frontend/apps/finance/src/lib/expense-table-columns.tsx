@@ -2,16 +2,11 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { formatAmount } from "@gofin/core";
 import type { Expense, Tag } from "@gofin/core";
 
-/** Enriched expense with resolved tag name and derived money display fields. */
 export interface ExpenseRow extends Expense {
   tagName: string;
-  /** Effective transaction amount. */
   transactionAmountEffective: number;
-  /** Effective transaction currency. */
   transactionCurrencyEffective: string;
-  /** Effective reporting amount. */
   reportingAmountEffective: number;
-  /** Effective reporting currency. */
   reportingCurrencyEffective: string;
   /** True when transaction currency differs from reporting currency. */
   showReportingAmount: boolean;
@@ -19,7 +14,6 @@ export interface ExpenseRow extends Expense {
 
 const columnHelper = createColumnHelper<ExpenseRow>();
 
-/** Build table column definitions for the expense log. */
 export function buildExpenseColumns() {
   return [
     columnHelper.accessor("expenseDate", {
@@ -107,14 +101,6 @@ export function buildExpenseColumns() {
   ];
 }
 
-/**
- * Resolve tag names and derived money display fields by mapping tag IDs to tag
- * name strings and computing effective transaction/reporting amounts with
- * showReportingAmount.
- *
- * @param expenses Raw expense data from the API.
- * @param tags Available tags for name resolution.
- */
 export function resolveTagNames(
   expenses: Expense[],
   tags: Tag[],

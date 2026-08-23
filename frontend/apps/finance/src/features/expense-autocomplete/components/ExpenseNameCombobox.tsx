@@ -15,11 +15,12 @@ import { useExpenseAutocomplete } from "../hooks/useExpenseAutocomplete";
 import type { ExpenseSuggestion } from "../types";
 
 function formatSuggestionAmount(suggestion: ExpenseSuggestion): string {
-  const amount = suggestion.transactionAmount ?? suggestion.amount;
-  const currency = suggestion.transactionCurrency ?? suggestion.currency;
-  const major = toMajorUnits(amount, currency);
-  const symbol = getCurrencySymbol(currency);
-  const digits = getMinorUnitDigits(currency);
+  const major = toMajorUnits(
+    suggestion.transactionAmount,
+    suggestion.transactionCurrency,
+  );
+  const symbol = getCurrencySymbol(suggestion.transactionCurrency);
+  const digits = getMinorUnitDigits(suggestion.transactionCurrency);
   return `${symbol}${major.toFixed(digits)}`;
 }
 
@@ -84,7 +85,7 @@ export function ExpenseNameCombobox({
               <div className="flex flex-col">
                 <span>{suggestion.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {formatSuggestionAmount(suggestion)} · {suggestion.transactionCurrency ?? suggestion.currency} · Frecency: {suggestion.frecencyScore}
+                  {formatSuggestionAmount(suggestion)} · {suggestion.transactionCurrency} · Frecency: {suggestion.frecencyScore}
                 </span>
               </div>
             </ComboboxItem>

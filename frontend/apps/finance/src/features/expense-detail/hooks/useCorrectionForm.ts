@@ -49,7 +49,7 @@ export function useCorrectionForm(
   const expenseFields = useExpenseFields(
     {
       name: expense.name,
-      amountDollars: toMajorUnits(expense.amount, expense.transactionCurrency).toFixed(
+      amountDollars: toMajorUnits(expense.transactionAmount, expense.transactionCurrency).toFixed(
         getMinorUnitDigits(expense.transactionCurrency),
       ),
       expenseType: expense.expenseType,

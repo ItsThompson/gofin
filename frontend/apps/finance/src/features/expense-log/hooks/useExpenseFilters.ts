@@ -1,7 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
 
-/** Immutable filter criteria object. */
 export interface FilterCriteria {
   selectedTypes: Set<string>;
   selectedTags: Set<string>;
@@ -11,7 +10,6 @@ export interface FilterCriteria {
   dateTo: string;
 }
 
-/** Empty state constant for reset operations. */
 export const EMPTY_CRITERIA: FilterCriteria = {
   selectedTypes: new Set(),
   selectedTags: new Set(),
@@ -22,32 +20,22 @@ export const EMPTY_CRITERIA: FilterCriteria = {
 };
 
 export interface ExpenseFilters {
-  /** Current filter criteria. */
   criteria: FilterCriteria;
-  /** Whether the filter panel is visible. */
   showFilters: boolean;
-  /** Derived: true if any filter is active. */
+  /** Derived from the current criteria. */
   hasActiveFilters: boolean;
-  /** Toggle a type in/out of the selected set. */
   toggleType: (type: string) => void;
-  /** Toggle a tag in/out of the selected set. Syncs URL param. */
+  /** Syncs the ?tag= URL param. */
   toggleTag: (tagId: string) => void;
-  /** Toggle a transaction currency in/out of the selected set. */
   toggleTransactionCurrency: (currency: string) => void;
-  /** Toggle a reporting currency in/out of the selected set. */
   toggleReportingCurrency: (currency: string) => void;
-  /** Toggle filter panel visibility. */
   toggleFilters: () => void;
-  /** Reset all filters to empty. */
   clearFilters: () => void;
-  /** Set the start date filter. */
   setDateFrom: (value: string) => void;
-  /** Set the end date filter. */
   setDateTo: (value: string) => void;
 }
 
 /**
- * Encapsulates expense filter state with URL search param sync.
  * Tag filter state is synced to/from the `?tag=` URL parameter.
  */
 export function useExpenseFilters(): ExpenseFilters {
@@ -66,17 +54,36 @@ export function useExpenseFilters(): ExpenseFilters {
     };
   });
 
-  const toggleType = useCallback((type: string) => {
-    setCriteria((prev) => {
-      const next = new Set(prev.selectedTypes);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return { ...prev, selectedTypes: next };
-    });
-  }, []);
+  const toggleSetField = useCallback(
+    (
+      field:
+        | "selectedTypes"
+        | "selectedTransactionCurrencies"
+        | "selectedReportingCurrencies",
+    ) =>
+      (value: string) => {
+        setCriteria((prev) => {
+          const next = new Set(prev[field]);
+          if (next.has(value)) {
+            next.delete(value);
+          } else {
+            next.add(value);
+          }
+          return { ...prev, [field]: next };
+        });
+      },
+    [],
+  );
+
+  const toggleType = useMemo(() => toggleSetField("selectedTypes"), [toggleSetField]);
+  const toggleTransactionCurrency = useMemo(
+    () => toggleSetField("selectedTransactionCurrencies"),
+    [toggleSetField],
+  );
+  const toggleReportingCurrency = useMemo(
+    () => toggleSetField("selectedReportingCurrencies"),
+    [toggleSetField],
+  );
 
   const toggleTag = useCallback(
     (tagId: string) => {
@@ -99,30 +106,6 @@ export function useExpenseFilters(): ExpenseFilters {
     },
     [searchParams, setSearchParams],
   );
-
-  const toggleTransactionCurrency = useCallback((currency: string) => {
-    setCriteria((prev) => {
-      const next = new Set(prev.selectedTransactionCurrencies);
-      if (next.has(currency)) {
-        next.delete(currency);
-      } else {
-        next.add(currency);
-      }
-      return { ...prev, selectedTransactionCurrencies: next };
-    });
-  }, []);
-
-  const toggleReportingCurrency = useCallback((currency: string) => {
-    setCriteria((prev) => {
-      const next = new Set(prev.selectedReportingCurrencies);
-      if (next.has(currency)) {
-        next.delete(currency);
-      } else {
-        next.add(currency);
-      }
-      return { ...prev, selectedReportingCurrencies: next };
-    });
-  }, []);
 
   const toggleFilters = useCallback(() => {
     setShowFilters((prev) => !prev);

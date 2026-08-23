@@ -12,7 +12,7 @@ export type HealthComponentKey =
   | "allocation_balance"
   | "spending_stability";
 
-/** One contributing sub-score. Score is in [0, max]; max is the weight. */
+/** Score is in [0, max]; max is the weight. */
 export interface HealthComponent {
   /**
    * Component key. Open union: the backend may add or rename components across
@@ -35,7 +35,7 @@ export interface HealthInsight {
   nudge: string;
 }
 
-/** Monthly financial health score from GET /api/finance/health-score. */
+/** Returned by GET /api/finance/health-score. */
 export interface HealthScore {
   year: number;
   month: number;

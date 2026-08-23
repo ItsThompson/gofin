@@ -10,7 +10,7 @@ import { mockExpenses } from "./expenses";
 import { mockTags } from "./tags";
 
 function computeSummary(): PeriodSummary {
-  const totalSpent = mockExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalSpent = mockExpenses.reduce((sum, expense) => sum + expense.transactionAmount, 0);
   const totalBudget = mockPeriod.budgetAmount;
   const remaining = totalBudget - totalSpent;
   const daysRemaining = daysInMonth - daysElapsed;
@@ -20,13 +20,13 @@ function computeSummary(): PeriodSummary {
 
   const essentialsSpent = mockExpenses
     .filter((expense) => expense.expenseType === "essentials")
-    .reduce((sum, expense) => sum + expense.amount, 0);
+    .reduce((sum, expense) => sum + expense.transactionAmount, 0);
   const desiresSpent = mockExpenses
     .filter((expense) => expense.expenseType === "desires")
-    .reduce((sum, expense) => sum + expense.amount, 0);
+    .reduce((sum, expense) => sum + expense.transactionAmount, 0);
   const savingsSpent = mockExpenses
     .filter((expense) => expense.expenseType === "savings")
-    .reduce((sum, expense) => sum + expense.amount, 0);
+    .reduce((sum, expense) => sum + expense.transactionAmount, 0);
 
   const dailySpendRate = daysElapsed > 0 ? Math.round(totalSpent / daysElapsed) : 0;
   const idealDailyRate = daysInMonth > 0 ? Math.round(totalBudget / daysInMonth) : 0;
@@ -68,10 +68,10 @@ function computeSummary(): PeriodSummary {
 export const mockSummary: PeriodSummary = computeSummary();
 
 export function computeTagSpending(): TagSpending[] {
-  const totalSpent = mockExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalSpent = mockExpenses.reduce((sum, expense) => sum + expense.transactionAmount, 0);
   const byTag = new Map<string, number>();
   mockExpenses.forEach((expense) => {
-    byTag.set(expense.tagId, (byTag.get(expense.tagId) ?? 0) + expense.amount);
+    byTag.set(expense.tagId, (byTag.get(expense.tagId) ?? 0) + expense.transactionAmount);
   });
 
   return Array.from(byTag.entries())
@@ -96,7 +96,7 @@ export function computeCumulativeSpend(): CumulativeSpendPoint[] {
 
     const dayExpenses = mockExpenses
       .filter((expense) => expense.expenseDate === dateStr)
-      .reduce((sum, expense) => sum + expense.amount, 0);
+      .reduce((sum, expense) => sum + expense.transactionAmount, 0);
 
     cumulative += dayExpenses;
 

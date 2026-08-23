@@ -53,7 +53,6 @@ export function buildExpense(overrides?: Partial<Expense>): Expense {
     id: nextId("expense"),
     userId: "user-1",
     name: "Test Expense",
-    amount: 5000,
     transactionCurrency: "USD",
     transactionAmount: 5000,
     reportingAmount: 5000,

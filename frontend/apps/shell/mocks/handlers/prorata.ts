@@ -18,7 +18,6 @@ export const prorataHandlers = [
         id: crypto.randomUUID(),
         userId: currentMockUser.id,
         name: body.name,
-        amount: Math.round(body.totalAmount / body.months),
         transactionCurrency: body.transactionCurrency,
         transactionAmount: Math.round(body.totalAmount / body.months),
         reportingAmount: Math.round(body.totalAmount / body.months),

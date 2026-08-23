@@ -105,7 +105,7 @@ export function computeMockHealthScore(): HealthScore {
   const sumByType = (type: string) =>
     mockExpenses
       .filter((expense) => expense.expenseType === type)
-      .reduce((sum, expense) => sum + expense.amount, 0);
+      .reduce((sum, expense) => sum + expense.transactionAmount, 0);
   const essentialsActual = sumByType("essentials");
   const desiresActual = sumByType("desires");
   const savingsActual = sumByType("savings");

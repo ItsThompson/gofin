@@ -41,7 +41,7 @@ export default function HistoryRoute() {
       sectionName="History"
       loadingFallback={<HistoryLoadingSkeleton />}
     >
-      <HistoryFeature user={user} />
+      <HistoryFeature />
     </RemoteBoundary>
   );
 }

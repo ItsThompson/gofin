@@ -8,8 +8,6 @@ export interface Expense {
   id: string;
   userId: string;
   name: string;
-  /** Amount in transaction currency minor units. */
-  amount: number;
   /** Canonical transaction ISO 4217 currency code. */
   transactionCurrency: string;
   /** One of: "essentials", "desires", "savings". */

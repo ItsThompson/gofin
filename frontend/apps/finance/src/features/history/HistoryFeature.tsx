@@ -4,7 +4,6 @@ import type { BudgetPeriod } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Card, CardContent } from "@gofin/ui/components/card";
 import { History, ArrowLeft, Loader2 } from "lucide-react";
-import type { FinancePageProps } from "../../types";
 import { ActiveDashboard } from "../dashboard";
 import { useHistoryData } from "./hooks/useHistoryData";
 import { PeriodRow } from "./components/PeriodRow";
@@ -13,8 +12,7 @@ import { PeriodRow } from "./components/PeriodRow";
  * History page: shows past budget periods with spent/surplus data.
  * Clicking a period shows a read-only dashboard view.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function HistoryFeature(_props: FinancePageProps) {
+export function HistoryFeature() {
   const { periods, loading } = useHistoryData();
   const [selectedPeriod, setSelectedPeriod] = useState<BudgetPeriod | null>(
     null,

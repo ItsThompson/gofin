@@ -13,6 +13,7 @@ import { ExpenseTable } from "./components/ExpenseTable";
 import { ExpenseList } from "./components/ExpenseList";
 import { PaginationControls } from "./components/PaginationControls";
 import { ExpenseDetailModal } from "../expense-detail";
+import { ExpenseLogUnavailableCard } from "./components/ExpenseLogUnavailableCard";
 
 /**
  * Expense log feature orchestrator. Composes filter, data, and table hooks
@@ -23,7 +24,9 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
   const now = new Date();
   const filters = useExpenseFilters();
   const data = useExpenseLogData(filters.criteria);
-  const { table } = useExpenseTable(data.expenses);
+  const { table } = useExpenseTable(
+    data.state.status === "active" ? data.state.expenses : [],
+  );
 
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
@@ -37,10 +40,30 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
     setSelectedExpenseId(row.id);
   }
 
-  if (data.loading) {
+  if (data.state.status === "loading") {
     return <ExpenseLogSkeleton />;
   }
 
+  if (data.state.status === "missing") {
+    return (
+      <ExpenseLogUnavailableCard
+        year={data.selectedYear}
+        month={data.selectedMonth}
+      />
+    );
+  }
+
+  if (data.state.status === "error") {
+    return (
+      <ExpenseLogUnavailableCard
+        year={data.selectedYear}
+        month={data.selectedMonth}
+        errorMessage={data.state.message}
+      />
+    );
+  }
+
+  const { expenses, tags, periods, reportingCurrency } = data.state;
   const periodValue = `${data.selectedYear}-${data.selectedMonth}`;
 
   return (
@@ -61,8 +84,8 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
             onChange={(event) => handlePeriodChange(event.target.value)}
             className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            {data.periods.length > 0 ? (
-              data.periods.map((period) => {
+            {periods.length > 0 ? (
+              periods.map((period) => {
                 const optionValue = `${period.year}-${period.month}`;
                 const label = new Date(
                   period.year,
@@ -115,15 +138,15 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
         )}
 
         <span className="ml-auto text-sm text-muted-foreground">
-          {data.expenses.length} expense{data.expenses.length !== 1 ? "s" : ""}
+          {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {filters.showFilters && (
-        <FilterPanel filters={filters} tags={data.tags} />
+        <FilterPanel filters={filters} tags={tags} />
       )}
 
-      {data.expenses.length === 0 ? (
+      {expenses.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Receipt className="mb-4 size-12 text-muted-foreground/50" />
@@ -153,8 +176,8 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
 
       <ExpenseDetailModal
         expenseId={selectedExpenseId}
-        currency={data.reportingCurrency}
-        tags={data.tags}
+        currency={reportingCurrency}
+        tags={tags}
         currentYear={now.getFullYear()}
         currentMonth={now.getMonth() + 1}
         onClose={() => setSelectedExpenseId(null)}

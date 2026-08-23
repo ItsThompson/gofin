@@ -1,4 +1,4 @@
-/** Category breakdown within a period summary (E/D/S). */
+/** Category breakdown (E/D/S). */
 export interface CategorySummary {
   /** Allocated amount in minor units (cents). */
   allocated: number;
@@ -10,7 +10,7 @@ export interface CategorySummary {
   percentUsed: number;
 }
 
-/** Full period summary returned by GET /api/finance/summary. */
+/** Returned by GET /api/finance/summary. */
 export interface PeriodSummary {
   periodId: string;
   year: number;
@@ -39,7 +39,6 @@ export interface SummaryResponse {
   summary: PeriodSummary;
 }
 
-/** Single tag's spending data for the tag spending chart. */
 export interface TagSpending {
   tagId: string;
   tagName: string;
@@ -54,7 +53,6 @@ export interface TagSpendingResponse {
   tagSpending: TagSpending[];
 }
 
-/** One data point in the cumulative spend chart. */
 export interface CumulativeSpendPoint {
   /** Day of month (1-31). */
   day: number;
@@ -69,7 +67,6 @@ export interface CumulativeSpendResponse {
   points: CumulativeSpendPoint[];
 }
 
-/** Historical spending comparison data. */
 export interface HistoricalComparison {
   /** Current period total spent in minor units (cents). */
   currentSpent: number;

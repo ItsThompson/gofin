@@ -68,8 +68,8 @@ export const testCumulativeData = Array.from({ length: 31 }, (_, index) => ({
 const testExpenseSuggestions = [
   {
     name: "Groceries",
-    amount: 50000,
-    currency: "USD",
+    transactionAmount: 50000,
+    transactionCurrency: "USD",
     expenseType: "essentials" as const,
     tagId: "tag-food",
     frequency: 114,
@@ -79,8 +79,8 @@ const testExpenseSuggestions = [
   },
   {
     name: "Coffee",
-    amount: 4500,
-    currency: "USD",
+    transactionAmount: 4500,
+    transactionCurrency: "USD",
     expenseType: "desires" as const,
     tagId: "tag-social",
     frequency: 42,
@@ -95,7 +95,6 @@ export const testExpenses = [
     id: "exp-1",
     userId: "user-1",
     name: "Groceries",
-    amount: 50000,
     transactionAmount: 50000,
     reportingAmount: 50000,
     expenseType: "essentials",
@@ -109,7 +108,6 @@ export const testExpenses = [
     id: "exp-2",
     userId: "user-1",
     name: "Coffee",
-    amount: 4500,
     transactionAmount: 4500,
     reportingAmount: 4500,
     expenseType: "desires",

@@ -165,7 +165,7 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const secondPageSuggestion = {
       ...mockSuggestions.data[0],
       name: "Custom Coffee Roaster",
-      amount: 2200,
+      transactionAmount: 2200,
       frecencyScore: 18,
     };
 
@@ -216,7 +216,7 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const secondPageSuggestion = {
       ...mockSuggestions.data[0],
       name: "Coffee Cart",
-      amount: 900,
+      transactionAmount: 900,
       frecencyScore: 12,
     };
 
@@ -359,8 +359,6 @@ describe("NewExpenseFeature autocomplete integration", () => {
           name: "Hotel Berlin",
           transactionAmount: 15000,
           transactionCurrency: "EUR",
-          amount: 15000,
-          currency: "EUR",
           expenseType: "desires",
           tagId: "tag-food",
           frequency: 3,

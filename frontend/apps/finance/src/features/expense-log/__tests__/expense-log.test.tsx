@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -68,7 +68,6 @@ const mockExpenses: Expense[] = [
     id: "exp-1",
     userId: "user-1",
     name: "Groceries",
-    amount: 5000,
     transactionCurrency: "USD",
     transactionAmount: 5000,
     reportingAmount: 5000,
@@ -86,7 +85,6 @@ const mockExpenses: Expense[] = [
     id: "exp-2",
     userId: "user-1",
     name: "Bus Pass",
-    amount: 2000,
     transactionCurrency: "USD",
     transactionAmount: 2000,
     reportingAmount: 2000,
@@ -104,7 +102,6 @@ const mockExpenses: Expense[] = [
     id: "exp-3",
     userId: "user-1",
     name: "Old Coffee",
-    amount: 450,
     transactionCurrency: "USD",
     transactionAmount: 450,
     reportingAmount: 450,
@@ -182,8 +179,14 @@ function renderExpenseLogWithSearchParams(
 
 describe("ExpenseLogFeature", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-12T12:00:00Z"));
     mockFetch.mockReset();
     mockNavigate.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders skeleton loading state initially", () => {
@@ -287,7 +290,7 @@ describe("ExpenseLogFeature", () => {
   describe("sorting", () => {
     it("sorts by column when clicking header", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -304,7 +307,7 @@ describe("ExpenseLogFeature", () => {
 
     it("toggles sort direction on repeated clicks", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -327,7 +330,7 @@ describe("ExpenseLogFeature", () => {
   describe("filtering", () => {
     it("shows filter panel when Filters button is clicked", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -343,7 +346,7 @@ describe("ExpenseLogFeature", () => {
 
     it("filters by expense type", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -361,7 +364,7 @@ describe("ExpenseLogFeature", () => {
 
     it("filters by tag", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -378,7 +381,7 @@ describe("ExpenseLogFeature", () => {
 
     it("applies combinatorial AND logic for filters", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -396,7 +399,7 @@ describe("ExpenseLogFeature", () => {
 
     it("filters by date range", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -415,7 +418,7 @@ describe("ExpenseLogFeature", () => {
 
     it("clears all filters when Clear filters is clicked", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -465,7 +468,6 @@ describe("ExpenseLogFeature", () => {
         id: `exp-${index}`,
         userId: "user-1",
         name: `Expense ${index + 1}`,
-        amount: 1000 + index * 100,
         transactionCurrency: "USD",
         transactionAmount: 1000 + index * 100,
         reportingAmount: 1000 + index * 100,
@@ -481,7 +483,7 @@ describe("ExpenseLogFeature", () => {
       }));
 
       mockAllDataSuccess(manyExpenses);
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -499,7 +501,6 @@ describe("ExpenseLogFeature", () => {
         id: `exp-${index}`,
         userId: "user-1",
         name: `Expense ${index + 1}`,
-        amount: 1000,
         transactionCurrency: "USD",
         transactionAmount: 1000,
         reportingAmount: 1000,
@@ -515,7 +516,7 @@ describe("ExpenseLogFeature", () => {
       }));
 
       mockAllDataSuccess(manyExpenses);
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -547,7 +548,7 @@ describe("ExpenseLogFeature", () => {
 
     it("reloads data when period is changed", async () => {
       mockAllDataSuccess();
-      userEvent.setup();
+      userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -559,7 +560,6 @@ describe("ExpenseLogFeature", () => {
           id: "exp-apr-1",
           userId: "user-1",
           name: "April Rent",
-          amount: 100000,
           transactionCurrency: "USD",
           transactionAmount: 100000,
           reportingAmount: 100000,
@@ -591,7 +591,7 @@ describe("ExpenseLogFeature", () => {
   describe("row click opens detail modal", () => {
     it("opens expense detail modal on row click", async () => {
       mockAllDataSuccess();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderExpenseLog();
 
       await waitFor(() => {
@@ -666,28 +666,28 @@ describe("ExpenseLogFeature", () => {
     });
   });
 
-  describe("error state", () => {
-    it("shows empty state when all fetches fail (toast handles error)", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+  describe("missing state", () => {
+    it("shows the unavailable card when the selected period is absent", async () => {
+      mockAllDataSuccess(mockExpenses, mockTags, [mockPeriods[1]]);
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getByText("No expenses for this period")).toBeInTheDocument();
+        expect(
+          screen.getByText("No budget period for this month"),
+        ).toBeInTheDocument();
       });
     });
+  });
 
-    it("loads data on period change after initial failure", async () => {
+  describe("error state", () => {
+    it("shows the unavailable card with the error message when all fetches fail", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
-      userEvent.setup();
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getByText("No expenses for this period")).toBeInTheDocument();
-      });
-
-      mockAllDataSuccess();
-      await waitFor(() => {
-        expect(screen.getByLabelText("Period:")).toBeDefined();
+        expect(
+          screen.getByText("Failed to load expense log."),
+        ).toBeInTheDocument();
       });
     });
   });

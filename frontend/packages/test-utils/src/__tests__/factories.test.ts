@@ -82,7 +82,7 @@ describe("buildExpense", () => {
     expect(expense.id).toMatch(/^expense-\d+$/);
     expect(expense.userId).toBe("user-1");
     expect(expense.name).toBe("Test Expense");
-    expect(expense.amount).toBe(5000);
+    expect(expense.transactionAmount).toBe(5000);
     expect(expense.transactionCurrency).toBe("USD");
     expect(expense.expenseType).toBe("essentials");
     expect(expense.tagId).toBe("tag-1");
@@ -104,12 +104,12 @@ describe("buildExpense", () => {
   it("accepts partial overrides", () => {
     const expense = buildExpense({
       name: "Coffee",
-      amount: 450,
+      transactionAmount: 450,
       expenseType: "desires",
     });
 
     expect(expense.name).toBe("Coffee");
-    expect(expense.amount).toBe(450);
+    expect(expense.transactionAmount).toBe(450);
     expect(expense.expenseType).toBe("desires");
     expect(expense.userId).toBe("user-1");
   });

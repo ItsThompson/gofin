@@ -17,7 +17,6 @@ const activeExpense: Expense = {
   id: "exp-1",
   userId: "user-1",
   name: "Groceries",
-  amount: 5000,
   transactionCurrency: "USD",
   transactionAmount: 5000,
   reportingAmount: 5000,

@@ -3,21 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { HistoryFeature } from "../index";
-import type { User } from "@gofin/core";
 import type { BudgetPeriod } from "@gofin/core";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
-
-const mockUser: User = {
-  id: "user-1",
-  username: "alice",
-  email: "alice@example.com",
-  role: "user",
-  currency: "USD",
-  hasCompletedOnboarding: true,
-  createdAt: "2026-01-01T00:00:00Z",
-};
 
 const mockPeriods: BudgetPeriod[] = [
   {
@@ -71,7 +60,7 @@ function mockPeriodsAndSummary() {
 function renderHistory() {
   return render(
     <MemoryRouter>
-      <HistoryFeature user={mockUser} />
+      <HistoryFeature />
     </MemoryRouter>,
   );
 }

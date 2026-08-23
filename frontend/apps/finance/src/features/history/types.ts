@@ -1,6 +1,5 @@
 import type { BudgetPeriod } from "@gofin/core";
 
-/** Delta from the previous history row, guarded for currency comparability. */
 export interface PeriodDelta {
   /** Signed amount difference (current totalSpent - previous totalSpent). */
   amount: number;
@@ -8,13 +7,11 @@ export interface PeriodDelta {
   comparable: boolean;
 }
 
-/** Base properties available in all history row states. */
 interface HistoricalPeriodRowBase {
-  /** The budget period the row describes. */
   period: BudgetPeriod;
 }
 
-/** The period's summary loaded. A totalSpent of 0 means the user spent nothing. */
+/** A totalSpent of 0 means the user spent nothing. */
 export interface LoadedPeriodRow extends HistoricalPeriodRowBase {
   status: "loaded";
   /** Amount spent in the period, in minor currency units. */
@@ -42,8 +39,6 @@ export interface UnavailablePeriodRow extends HistoricalPeriodRowBase {
 export type HistoricalPeriodRow = LoadedPeriodRow | UnavailablePeriodRow;
 
 export interface HistoryDataResult {
-  /** Historical period rows, each either loaded or unavailable. */
   periods: HistoricalPeriodRow[];
-  /** Whether data is currently being fetched. */
   loading: boolean;
 }
