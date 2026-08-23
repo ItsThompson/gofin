@@ -105,8 +105,8 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	}
 
 	// Drop the legacy amount/currency columns from tables created before the
-	// multi-currency cutover. This is intentional and temporary: a separate
-	// cleanup ticket removes it after this branch merges.
+	// multi-currency cutover. This is temporary: remove it once prod has booted
+	// with the new schema and the pre-cutover tables have been migrated.
 	dropColumns := []string{
 		`ALTER TABLE expenses DROP COLUMN amount;`,
 		`ALTER TABLE expenses DROP COLUMN currency;`,

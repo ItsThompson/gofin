@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -480,6 +481,42 @@ func TestCreateExpense_ForeignCurrencyFxServerFailureWrapsErrorWithCurrencyPair(
 	var carrier interface{ ReportData() map[string]any }
 	require.ErrorAs(t, err, &carrier)
 	assert.Equal(t, map[string]any{"transaction_currency": "EUR", "reporting_currency": "USD"}, carrier.ReportData())
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+// TestCreateExpense_ForeignCurrencyFxClientRejectionReturnsUnwrapped asserts
+// an FX client rejection (400) is returned as the original *apierr.Error, not
+// wrapped in fxConversionError, so the handler maps it to a 400 without
+// reporting it as a service fault.
+func TestCreateExpense_ForeignCurrencyFxClientRejectionReturnsUnwrapped(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	svc := NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, apierr.Validation("The FX service rejected the conversion amount", nil))
+
+	req := validCreateRequest()
+	req.TransactionCurrency = "EUR"
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	require.Error(t, err)
+	var apiErr *apierr.Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, apierr.CodeValidation, apiErr.Code)
+
+	var carrier interface{ ReportData() map[string]any }
+	assert.False(t, errors.As(err, &carrier))
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
