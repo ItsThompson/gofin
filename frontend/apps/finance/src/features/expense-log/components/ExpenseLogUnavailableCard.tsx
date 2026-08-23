@@ -1,4 +1,5 @@
-import { AlertTriangle, CalendarX2 } from "lucide-react";
+import { AlertTriangle, CalendarX2, RefreshCw } from "lucide-react";
+import { Button } from "@gofin/ui/components/button";
 import {
   Card,
   CardContent,
@@ -11,12 +12,14 @@ interface ExpenseLogUnavailableCardProps {
   year: number;
   month: number;
   errorMessage?: string;
+  onRetry?: () => void;
 }
 
 export function ExpenseLogUnavailableCard({
   year,
   month,
   errorMessage,
+  onRetry,
 }: ExpenseLogUnavailableCardProps) {
   const monthName = new Date(year, month - 1).toLocaleString("en-US", {
     month: "long",
@@ -52,6 +55,12 @@ export function ExpenseLogUnavailableCard({
             <p className="text-sm text-muted-foreground">
               Select a different period to view expenses.
             </p>
+          )}
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry}>
+              <RefreshCw className="size-4" />
+              Retry
+            </Button>
           )}
         </CardContent>
       </Card>

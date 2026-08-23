@@ -14,6 +14,7 @@ import { ExpenseList } from "./components/ExpenseList";
 import { PaginationControls } from "./components/PaginationControls";
 import { ExpenseDetailModal } from "../expense-detail";
 import { ExpenseLogUnavailableCard } from "./components/ExpenseLogUnavailableCard";
+import { PeriodSelector } from "./components/PeriodSelector";
 
 /**
  * Expense log feature orchestrator. Composes filter, data, and table hooks
@@ -46,10 +47,24 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
 
   if (data.state.status === "missing") {
     return (
-      <ExpenseLogUnavailableCard
-        year={data.selectedYear}
-        month={data.selectedMonth}
-      />
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Receipt className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold">Expense Log</h1>
+        </div>
+
+        <PeriodSelector
+          periods={data.state.periods}
+          selectedYear={data.selectedYear}
+          selectedMonth={data.selectedMonth}
+          onChange={handlePeriodChange}
+        />
+
+        <ExpenseLogUnavailableCard
+          year={data.selectedYear}
+          month={data.selectedMonth}
+        />
+      </div>
     );
   }
 
@@ -59,12 +74,12 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
         year={data.selectedYear}
         month={data.selectedMonth}
         errorMessage={data.state.message}
+        onRetry={data.refresh}
       />
     );
   }
 
   const { expenses, tags, periods, reportingCurrency } = data.state;
-  const periodValue = `${data.selectedYear}-${data.selectedMonth}`;
 
   return (
     <div className="space-y-4">
@@ -74,42 +89,12 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label htmlFor="period-select" className="text-sm font-medium">
-            Period:
-          </label>
-          <select
-            id="period-select"
-            value={periodValue}
-            onChange={(event) => handlePeriodChange(event.target.value)}
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {periods.length > 0 ? (
-              periods.map((period) => {
-                const optionValue = `${period.year}-${period.month}`;
-                const label = new Date(
-                  period.year,
-                  period.month - 1,
-                ).toLocaleString("en-US", {
-                  month: "long",
-                  year: "numeric",
-                });
-                return (
-                  <option key={optionValue} value={optionValue}>
-                    {label}
-                  </option>
-                );
-              })
-            ) : (
-              <option value={periodValue}>
-                {new Date(data.selectedYear, data.selectedMonth - 1).toLocaleString(
-                  "en-US",
-                  { month: "long", year: "numeric" },
-                )}
-              </option>
-            )}
-          </select>
-        </div>
+        <PeriodSelector
+          periods={periods}
+          selectedYear={data.selectedYear}
+          selectedMonth={data.selectedMonth}
+          onChange={handlePeriodChange}
+        />
 
         <Button
           variant={filters.showFilters ? "default" : "outline"}

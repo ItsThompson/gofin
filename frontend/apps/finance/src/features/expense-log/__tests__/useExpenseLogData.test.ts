@@ -185,6 +185,12 @@ describe("useExpenseLogData", () => {
       await waitFor(() => {
         expect(result.current.state.status).toBe("missing");
       });
+
+      if (result.current.state.status !== "missing") {
+        throw new Error("expected missing state");
+      }
+
+      expect(result.current.state.periods).toEqual(mockPeriods);
     });
   });
 

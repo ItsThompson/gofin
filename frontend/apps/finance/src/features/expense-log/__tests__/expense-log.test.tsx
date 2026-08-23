@@ -676,6 +676,13 @@ describe("ExpenseLogFeature", () => {
           screen.getByText("No budget period for this month"),
         ).toBeInTheDocument();
       });
+
+      const periodSelect = screen.getByLabelText("Period:");
+      expect(periodSelect).toBeInTheDocument();
+
+      const options = within(periodSelect).getAllByRole("option");
+      expect(options).toHaveLength(1);
+      expect(options[0].textContent).toContain("April");
     });
   });
 
@@ -688,6 +695,17 @@ describe("ExpenseLogFeature", () => {
         expect(
           screen.getByText("Failed to load expense log."),
         ).toBeInTheDocument();
+      });
+
+      const retryButton = screen.getByRole("button", { name: /retry/i });
+      expect(retryButton).toBeInTheDocument();
+
+      mockAllDataSuccess();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await user.click(retryButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Expense Log")).toBeInTheDocument();
       });
     });
   });

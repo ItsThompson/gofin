@@ -16,7 +16,7 @@ export interface ExpenseLogFetchResult {
 
 export type ExpenseLogDataState =
   | { status: "loading" }
-  | { status: "missing" }
+  | { status: "missing"; periods: BudgetPeriod[] }
   | { status: "error"; message: string }
   | {
       status: "active";
@@ -132,7 +132,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
     const selected = fetchResult.periods.find(
       (period) => period.year === selectedYear && period.month === selectedMonth,
     );
-    if (!selected) return { status: "missing" };
+    if (!selected) return { status: "missing", periods: fetchResult.periods };
     return {
       status: "active",
       expenses,
