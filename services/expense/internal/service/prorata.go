@@ -96,8 +96,7 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		Snapshot:       toFxCapturedRateSnapshot(req.CapturedRateSnapshot),
 	})
 	if convErr != nil {
-		logFxConversionFailure(s.logger, convErr, transactionCurrency, reportingCurrency)
-		return nil, convErr
+		return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 	}
 
 	snapshot := buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
@@ -106,9 +105,7 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		ID:                    uuid.New().String(),
 		UserID:                req.UserID,
 		Name:                  req.Name,
-		Amount:                req.Amount,
 		TransactionCurrency:   transactionCurrency,
-		Currency:              transactionCurrency,
 		ExpenseType:           req.ExpenseType,
 		TagID:                 req.TagID,
 		ExpenseDate:           req.ExpenseDate,

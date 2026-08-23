@@ -290,8 +290,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 			RequestedAt:    nowTS,
 		})
 		if convErr != nil {
-			logFxConversionFailure(s.logger, convErr, transactionCurrency, reportingCurrency)
-			return nil, convErr
+			return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 		}
 		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
 	}

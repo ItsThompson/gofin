@@ -152,9 +152,7 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 		ID:                    "exp-original",
 		UserID:                "user-1",
 		Name:                  "Coffee",
-		Amount:                500,
 		TransactionCurrency:   "USD",
-		Currency:              "USD",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
 		ExpenseDate:           "2026-05-01",
@@ -179,14 +177,12 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 	}, nil)
 
 	repo.On("CorrectExpense", mock.Anything, original, mock.MatchedBy(func(correction *model.Expense) bool {
-		return correction.TransactionCurrency == "USD" && correction.Currency == "USD"
+		return correction.TransactionCurrency == "USD"
 	})).Return(&model.Expense{
 		ID:                  "exp-correction",
 		UserID:              "user-1",
 		Name:                "Updated Coffee",
-		Amount:              600,
 		TransactionCurrency: "USD",
-		Currency:            "USD",
 		ExpenseType:         "desires",
 		TagID:               "tag-food",
 		ExpenseDate:         "2026-05-01",

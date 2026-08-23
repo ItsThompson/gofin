@@ -74,7 +74,8 @@ describe("CorrectionTimeline", () => {
 
     // The foreign-currency original shows its transaction amount and its
     // reporting amount in parentheses.
-    expect(screen.getByText(/€12\.50/)).toBeInTheDocument();
+    // €12.50 appears in the row and in the Amount change chip.
+    expect(screen.getAllByText(/€12\.50/).length).toBeGreaterThan(0);
     expect(screen.getByText(/\(\$13\.64\)/)).toBeInTheDocument();
     // The same-currency correction shows the period amount without parentheses.
     expect(screen.getByText(/Updated Coffee · \$14\.00/)).toBeInTheDocument();
