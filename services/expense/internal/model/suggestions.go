@@ -9,7 +9,7 @@ type ExpenseSuggestionRequest struct {
 
 // ExpenseSuggestionInput is the minimal active row data required to build suggestions.
 // TransactionAmount/TransactionCurrency come from the explicit money snapshot
-// columns, which InitSchema backfills for every row.
+// columns, which the mc/03 migration backfilled for every row.
 type ExpenseSuggestionInput struct {
 	ID                  string
 	Name                string

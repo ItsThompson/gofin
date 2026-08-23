@@ -113,11 +113,15 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	}
 	for _, stmt := range dropColumns {
 		if _, dropErr := r.client.SQLExec(ctx, stmt, nil); dropErr != nil {
-			// Expected when the column does not exist (idempotent drop).
-			r.logger.Debug("legacy column drop skipped (may not exist)",
-				slog.String("statement", stmt),
-				slog.String("error", dropErr.Error()),
-			)
+			if strings.Contains(strings.ToLower(dropErr.Error()), "does not exist") {
+				// Expected when the column was already dropped (idempotent drop).
+				r.logger.Debug("legacy column drop skipped (already dropped)",
+					slog.String("statement", stmt),
+					slog.String("error", dropErr.Error()),
+				)
+				continue
+			}
+			return fmt.Errorf("dropping legacy column: %w", dropErr)
 		}
 	}
 
@@ -361,8 +365,8 @@ const expenseColumnCount = 23
 // SELECT clause in queries. It returns an error on a short/malformed row rather
 // than panicking on an out-of-range index.
 //
-// Every row must carry the required snapshot fields. InitSchema backfills rows
-// missing them at startup, so a row still missing a required field on read is a
+// Every row must carry the required snapshot fields. The mc/03 migration
+// backfilled legacy rows, so a row still missing a required field on read is a
 // data-integrity error.
 func rowToExpense(row SQLRow) (*model.Expense, error) {
 	values := row.Values
