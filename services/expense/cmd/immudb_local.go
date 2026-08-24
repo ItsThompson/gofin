@@ -189,7 +189,7 @@ func toInt32(v interface{}) int32 {
 // column order used by the SELECT queries in the repository.
 func rowToSQLRow(row map[string]interface{}) repository.SQLRow {
 	columns := []string{
-		"id", "user_id", "name", "amount", "currency", "expense_type", "tag_id",
+		"id", "user_id", "name", "expense_type", "tag_id",
 		"expense_date", "period_year", "period_month", "status", "corrects_id",
 		"is_pro_rata", "pro_rata_group", "pro_rata_index", "pro_rata_total", "created_at",
 		"transaction_amount", "transaction_currency",

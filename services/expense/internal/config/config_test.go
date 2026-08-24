@@ -13,6 +13,7 @@ func TestLoad_Success(t *testing.T) {
 	t.Setenv("IMMUDB_USERNAME", "testuser")
 	t.Setenv("IMMUDB_PASSWORD", "testpass")
 	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 
 	cfg, err := Load()
 
@@ -21,6 +22,7 @@ func TestLoad_Success(t *testing.T) {
 	assert.Equal(t, "testuser", cfg.ImmudbUsername)
 	assert.Equal(t, "testpass", cfg.ImmudbPassword)
 	assert.Equal(t, "localhost:9083", cfg.FinanceServiceAddr)
+	assert.Equal(t, "localhost:9085", cfg.FxServiceAddr)
 	assert.Equal(t, "8082", cfg.RESTPort)
 	assert.Equal(t, "9082", cfg.GRPCPort)
 	assert.Equal(t, "info", cfg.LogLevel)
@@ -40,6 +42,7 @@ func TestLoad_RequiresImmudbAddr(t *testing.T) {
 func TestLoad_RequiresFinanceServiceAddr(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	_ = os.Unsetenv("FINANCE_SERVICE_ADDR")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 
 	_, err := Load()
 
@@ -47,9 +50,21 @@ func TestLoad_RequiresFinanceServiceAddr(t *testing.T) {
 	assert.Contains(t, err.Error(), "FINANCE_SERVICE_ADDR is required")
 }
 
+func TestLoad_RequiresFxServiceAddr(t *testing.T) {
+	t.Setenv("IMMUDB_ADDR", "localhost:3322")
+	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	_ = os.Unsetenv("FX_SERVICE_ADDR")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FX_SERVICE_ADDR is required")
+}
+
 func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 	// Leave username/password unset to test defaults
 	_ = os.Unsetenv("IMMUDB_USERNAME")
 	_ = os.Unsetenv("IMMUDB_PASSWORD")
@@ -64,6 +79,7 @@ func TestLoad_Defaults(t *testing.T) {
 func TestLoad_CustomPorts(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 	t.Setenv("REST_PORT", "9999")
 	t.Setenv("GRPC_PORT", "9998")
 
@@ -89,6 +105,7 @@ func TestResolveRESTPort(t *testing.T) {
 func TestIsProduction(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 
 	t.Setenv("ENVIRONMENT", "development")
 	cfg, _ := Load()

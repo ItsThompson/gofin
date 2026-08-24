@@ -54,7 +54,7 @@ export function CorrectionTimeline({
               </span>
             </div>
             <div className="text-muted-foreground">
-              {entry.name} · {formatCurrency(entry.amount, currency)} ·{" "}
+              {entry.name} · {formatCurrency(entry.transactionAmount, currency)} ·{" "}
               {entry.expenseType} · {tagMap.get(entry.tagId) ?? entry.tagId}
             </div>
             {changes.length > 0 && (

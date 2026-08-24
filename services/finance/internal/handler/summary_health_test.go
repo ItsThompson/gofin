@@ -36,8 +36,8 @@ func TestGetPeriodSummaryHandler_Success(t *testing.T) {
 
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{
-			{ID: "e1", Amount: 50000, ReportingAmount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
-			{ID: "e2", Amount: 20000, ReportingAmount: 20000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-10"},
+			{ID: "e1", ReportingAmount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+			{ID: "e2", ReportingAmount: 20000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-10"},
 		}, nil)
 
 	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
@@ -128,9 +128,9 @@ func TestGetHealthScoreHandler_Success(t *testing.T) {
 	repo.On("ListPeriods", mock.Anything, "user-123").Return([]*model.BudgetPeriod{period}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
 		Return([]service.ExpenseData{
-			{ID: "e1", Amount: 140000, ReportingAmount: 140000, ExpenseType: "essentials", ExpenseDate: "2026-05-05"},
-			{ID: "e2", Amount: 80000, ReportingAmount: 80000, ExpenseType: "desires", ExpenseDate: "2026-05-06"},
-			{ID: "e3", Amount: 40000, ReportingAmount: 40000, ExpenseType: "savings", ExpenseDate: "2026-05-07"},
+			{ID: "e1", ReportingAmount: 140000, ExpenseType: "essentials", ExpenseDate: "2026-05-05"},
+			{ID: "e2", ReportingAmount: 80000, ExpenseType: "desires", ExpenseDate: "2026-05-06"},
+			{ID: "e3", ReportingAmount: 40000, ExpenseType: "savings", ExpenseDate: "2026-05-07"},
 		}, nil)
 
 	// Fixed clock inside May 2026 -> the target month is provisional (computed
@@ -306,9 +306,9 @@ func TestGetHistoricalComparisonHandler_Success(t *testing.T) {
 	}, nil)
 
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
-		Return([]service.ExpenseData{{Amount: 80000, ReportingAmount: 80000}}, nil)
+		Return([]service.ExpenseData{{ReportingAmount: 80000}}, nil)
 	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(4)).
-		Return([]service.ExpenseData{{Amount: 60000, ReportingAmount: 60000}}, nil)
+		Return([]service.ExpenseData{{ReportingAmount: 60000}}, nil)
 
 	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
 

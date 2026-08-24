@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"testing"
 	"time"
 
@@ -22,8 +23,29 @@ import (
 
 func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, time.Now, logger)
 	return NewGRPCHandler(expenseSvc)
+}
+
+// mockFxClient implements service.FxClient for handler tests.
+type mockFxClient struct {
+	mock.Mock
+}
+
+func (m *mockFxClient) ConvertAmount(ctx context.Context, req service.FxConvertRequest) (*service.FxConvertResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*service.FxConvertResponse), args.Error(1)
+}
+
+// stubFxClient is a non-nil FxClient for handler tests that never exercise FX.
+// A call to it means a test accidentally routed a foreign-currency request.
+type stubFxClient struct{}
+
+func (stubFxClient) ConvertAmount(ctx context.Context, req service.FxConvertRequest) (*service.FxConvertResponse, error) {
+	return nil, fmt.Errorf("stubFxClient: unexpected ConvertAmount call")
 }
 
 // TestGRPC_RemovedReadRPCsAreNotRegistered asserts GetCorrectionHistory and
@@ -62,17 +84,15 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 		ReportingCurrency: "EUR",
 	}, nil)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
-		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+		return expense.TransactionCurrency == "EUR"
 	})).Return(&model.Expense{
 		ID:                  "exp-1",
 		UserID:              "user-1",
-		Amount:              1200,
 		TransactionCurrency: "EUR",
-		Currency:            "EUR",
 		Status:              "active",
 		TransactionAmount:   1200,
 		ReportingAmount:     1200,
@@ -109,7 +129,7 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(6)).
@@ -124,7 +144,6 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 		UserId:      "user-1",
 		Name:        "Coffee",
 		Amount:      450,
-		Currency:    "USD",
 		ExpenseType: "desires",
 		TagId:       "tag-food",
 		ExpenseDate: "2026-06-03",
@@ -141,12 +160,17 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
-// TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable asserts a
-// transaction currency that differs from the period reporting currency maps
-// to codes.Unavailable (FX not yet wired) and does not write a ledger row.
-func TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable(t *testing.T) {
+// TestGRPC_CreateExpense_ForeignCurrencyFxSuccess asserts a foreign-currency
+// expense with a wired FX client calls FX, writes the provider snapshot, and
+// returns both transaction and reporting money fields in the gRPC response.
+func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	requestedAt := now.UTC().Format(time.RFC3339)
+
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
 		PeriodID:          "period-1",
 		UserID:            "user-1",
@@ -154,14 +178,99 @@ func TestGRPC_CreateExpense_ForeignCurrencyReturnsUnavailable(t *testing.T) {
 		Month:             5,
 		ReportingCurrency: "USD",
 	}, nil)
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
+		return req.Amount == 1250 &&
+			req.SourceCurrency == "EUR" &&
+			req.TargetCurrency == "USD" &&
+			req.RequestedAt == requestedAt
+	})).Return(&service.FxConvertResponse{
+		ConvertedAmount: 1364,
+		ExchangeRate:    "1.0912",
+		RateTimestamp:   "2026-08-14T10:00:00Z",
+		Source:          model.ExchangeSourceOpenExchangeRates,
+		ExpiresAt:       "2026-08-14T11:00:00Z",
+	}, nil)
+
+	repo.On("CreateExpense", mock.Anything, mock.Anything).Return(&model.Expense{
+		ID:                    "exp-fx-1",
+		UserID:                "user-1",
+		Name:                  "Cafe",
+		TransactionCurrency:   "EUR",
+		ExpenseType:           "desires",
+		TagID:                 "tag-food",
+		ExpenseDate:           "2026-05-03",
+		PeriodYear:            2026,
+		PeriodMonth:           5,
+		Status:                "active",
+		TransactionAmount:     1250,
+		ReportingAmount:       1364,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1.0912",
+		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
+		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+	}, nil)
+
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, func() time.Time { return now }, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
 		UserId:              "user-1",
-		Name:                "Coffee",
-		Amount:              450,
+		Name:                "Cafe",
+		Amount:              1250,
+		TransactionCurrency: "EUR",
+		ExpenseType:         "desires",
+		TagId:               "tag-food",
+		ExpenseDate:         "2026-05-03",
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	exp := resp.GetExpense()
+	assert.Equal(t, int64(1250), exp.GetTransactionAmount())
+	assert.Equal(t, "EUR", exp.GetTransactionCurrency())
+	assert.Equal(t, int64(1364), exp.GetReportingAmount())
+	assert.Equal(t, "USD", exp.GetReportingCurrency())
+	assert.Equal(t, "1.0912", exp.GetExchangeRate())
+	assert.Equal(t, "open_exchange_rates", exp.GetExchangeRateSource())
+	assert.Equal(t, "2026-08-14T10:00:00Z", exp.GetExchangeRateTimestamp())
+	assert.Equal(t, "2026-08-14T11:00:00Z", exp.GetExchangeRateExpiresAt())
+}
+
+// TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable asserts a foreign-currency
+// expense with an FX failure maps to codes.Unavailable and does not write a ledger row.
+func TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, &apierr.Error{
+		Code:    model.ErrConversionUnavailable,
+		Message: "currency conversion is unavailable",
+		Status:  http.StatusServiceUnavailable,
+	})
+
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+	handler := NewGRPCHandler(expenseSvc)
+
+	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
+		UserId:              "user-1",
+		Name:                "Cafe",
+		Amount:              1250,
 		TransactionCurrency: "EUR",
 		ExpenseType:         "desires",
 		TagId:               "tag-food",

@@ -10,8 +10,8 @@ export interface ExpenseSuggestionPatch {
 
 export interface ExpenseSuggestion {
   name: string;
-  amount: number;
-  currency: string;
+  transactionAmount: number;
+  transactionCurrency: string;
   expenseType: ExpenseType;
   tagId: string;
   frequency: number;

@@ -90,6 +90,7 @@ describe("useHistoryData", () => {
       status: "loaded",
       totalSpent: 200000,
       surplus: 100000, // 300000 - 200000
+      deltaFromPrevious: { amount: -80000, comparable: true }, // 200000 - 280000
     });
     expect(result.current.periods[1]).toEqual({
       period: mockPeriods[1],

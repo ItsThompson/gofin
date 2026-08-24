@@ -346,4 +346,95 @@ describe("NewExpenseFeature", () => {
     ) as HTMLInputElement;
     expect(essentialsRadio.checked).toBe(false);
   });
+
+  it("submits foreign-currency payload with transactionCurrency and shows conversion-unavailable banner on FX failure", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitForFormBootstrap();
+
+    setNewExpenseFetchMock({
+      expensePost: () =>
+        jsonResponse(
+          {
+            code: "CONVERSION_UNAVAILABLE",
+            message:
+              "Conversion unavailable. Try again later, or enter the manually converted amount in the period currency.",
+          },
+          503,
+        ),
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Cafe abroad");
+    await user.selectOptions(
+      screen.getByLabelText("Transaction Currency"),
+      "EUR",
+    );
+    await user.type(screen.getByLabelText("Amount"), "12.50");
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    // The POST payload carries transactionCurrency (not legacy currency).
+    const postCall = findExpensePostCall();
+    expect(postCall).toBeDefined();
+    const body = JSON.parse(postCall![1].body);
+    expect(body.transactionCurrency).toBe("EUR");
+    expect(body.currency).toBeUndefined();
+
+    // The conversion-unavailable guidance banner is shown.
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Conversion unavailable/i),
+      ).toBeInTheDocument();
+    });
+
+    // The toast shows the conversion-unavailable guidance, not the generic failure.
+    await waitFor(() => {
+      expect(mockToastError).toHaveBeenCalledWith(
+        expect.stringContaining("Conversion unavailable"),
+      );
+    });
+
+    // Form values are preserved after the failed foreign-currency save.
+    expect(screen.getByLabelText("Name")).toHaveValue("Cafe abroad");
+    expect(screen.getByLabelText("Amount")).toHaveValue(12.5);
+    expect(screen.getByLabelText("Transaction Currency")).toHaveValue("EUR");
+
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("does not show a partially saved expense after FX failure (no refetch of expenses list)", async () => {
+    const user = userEvent.setup();
+    renderNewExpense();
+
+    await waitForFormBootstrap();
+
+    setNewExpenseFetchMock({
+      expensePost: () =>
+        jsonResponse(
+          {
+            code: "CONVERSION_UNAVAILABLE",
+            message:
+              "Conversion unavailable. Try again later, or enter the manually converted amount in the period currency.",
+          },
+          503,
+        ),
+    });
+
+    await user.type(screen.getByLabelText("Name"), "FX fail");
+    await user.selectOptions(
+      screen.getByLabelText("Transaction Currency"),
+      "GBP",
+    );
+    await user.type(screen.getByLabelText("Amount"), "10.00");
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Conversion unavailable/i)).toBeInTheDocument();
+    });
+
+    // The form is still visible (not navigated away or reset), so the user
+    // can retry without retyping. No expense list refetch is triggered.
+    expect(screen.getByLabelText("Name")).toHaveValue("FX fail");
+    expect(screen.getByRole("button", { name: "Log Expense" })).toBeEnabled();
+  });
 });

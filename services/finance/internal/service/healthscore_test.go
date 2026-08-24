@@ -15,11 +15,12 @@ func healthPeriod(budget int64, essentials, desires, savings int32) *model.Budge
 	return &model.BudgetPeriod{
 		ID: "p-health", UserID: "user-1", Year: 2026, Month: 5,
 		BudgetAmount: budget, EssentialsPercent: essentials, DesiresPercent: desires, SavingsPercent: savings,
+		ReportingCurrency: "USD",
 	}
 }
 
 func healthExpense(expenseType string, amount int64) ExpenseData {
-	return ExpenseData{ExpenseType: expenseType, Amount: amount, ReportingAmount: amount}
+	return ExpenseData{ExpenseType: expenseType, ReportingAmount: amount}
 }
 
 // currentMonthNow is inside the compute period's month (May 2026) so provisional

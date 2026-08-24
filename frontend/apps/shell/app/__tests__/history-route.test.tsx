@@ -5,8 +5,8 @@ import { useAuthStore } from "@/stores/auth-store";
 
 // Mock the finance feature module so this test does not pull in its real tree
 vi.mock("@gofin/finance/src/features/history", () => ({
-  HistoryFeature: ({ user }: { user: { username: string } }) => (
-    <div data-testid="history-feature">Budget History for {user.username}</div>
+  HistoryFeature: () => (
+    <div data-testid="history-feature">Budget History</div>
   ),
 }));
 
@@ -70,7 +70,7 @@ describe("HistoryRoute", () => {
     });
 
     expect(
-      screen.getByText("Budget History for testuser"),
+      screen.getByText("Budget History"),
     ).toBeInTheDocument();
   });
 

@@ -69,6 +69,7 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 		if !isProvisional(period.Year, period.Month, now) {
 			if scalar := scalarByMonth[[2]int32{period.Year, period.Month}]; scalar != nil && scalar.FormulaVersion == model.FormulaVersion {
 				points[i] = *scalar
+				points[i].ReportingCurrency = period.ReportingCurrency
 				continue
 			}
 		}
@@ -78,12 +79,13 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 			return nil, err
 		}
 		points[i] = model.HealthScoreTrendPoint{
-			Year:           score.Year,
-			Month:          score.Month,
-			Total:          score.Total,
-			Band:           score.Band,
-			Provisional:    score.Provisional,
-			FormulaVersion: score.FormulaVersion,
+			Year:              score.Year,
+			Month:             score.Month,
+			Total:             score.Total,
+			Band:              score.Band,
+			Provisional:       score.Provisional,
+			FormulaVersion:    score.FormulaVersion,
+			ReportingCurrency: period.ReportingCurrency,
 		}
 	}
 	return points, nil

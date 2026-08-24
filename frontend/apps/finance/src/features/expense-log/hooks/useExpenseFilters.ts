@@ -1,45 +1,41 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router";
 
-/** Immutable filter criteria object. */
 export interface FilterCriteria {
   selectedTypes: Set<string>;
   selectedTags: Set<string>;
+  selectedTransactionCurrencies: Set<string>;
+  selectedReportingCurrencies: Set<string>;
   dateFrom: string;
   dateTo: string;
 }
 
-/** Empty state constant for reset operations. */
 export const EMPTY_CRITERIA: FilterCriteria = {
   selectedTypes: new Set(),
   selectedTags: new Set(),
+  selectedTransactionCurrencies: new Set(),
+  selectedReportingCurrencies: new Set(),
   dateFrom: "",
   dateTo: "",
 };
 
 export interface ExpenseFilters {
-  /** Current filter criteria. */
   criteria: FilterCriteria;
-  /** Whether the filter panel is visible. */
   showFilters: boolean;
-  /** Derived: true if any filter is active. */
+  /** Derived from the current criteria. */
   hasActiveFilters: boolean;
-  /** Toggle a type in/out of the selected set. */
   toggleType: (type: string) => void;
-  /** Toggle a tag in/out of the selected set. Syncs URL param. */
+  /** Syncs the ?tag= URL param. */
   toggleTag: (tagId: string) => void;
-  /** Toggle filter panel visibility. */
+  toggleTransactionCurrency: (currency: string) => void;
+  toggleReportingCurrency: (currency: string) => void;
   toggleFilters: () => void;
-  /** Reset all filters to empty. */
   clearFilters: () => void;
-  /** Set the start date filter. */
   setDateFrom: (value: string) => void;
-  /** Set the end date filter. */
   setDateTo: (value: string) => void;
 }
 
 /**
- * Encapsulates expense filter state with URL search param sync.
  * Tag filter state is synced to/from the `?tag=` URL parameter.
  */
 export function useExpenseFilters(): ExpenseFilters {
@@ -51,22 +47,43 @@ export function useExpenseFilters(): ExpenseFilters {
     return {
       selectedTypes: new Set(),
       selectedTags: tagParam ? new Set([tagParam]) : new Set(),
+      selectedTransactionCurrencies: new Set(),
+      selectedReportingCurrencies: new Set(),
       dateFrom: "",
       dateTo: "",
     };
   });
 
-  const toggleType = useCallback((type: string) => {
-    setCriteria((prev) => {
-      const next = new Set(prev.selectedTypes);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return { ...prev, selectedTypes: next };
-    });
-  }, []);
+  const toggleSetField = useCallback(
+    (
+      field:
+        | "selectedTypes"
+        | "selectedTransactionCurrencies"
+        | "selectedReportingCurrencies",
+    ) =>
+      (value: string) => {
+        setCriteria((prev) => {
+          const next = new Set(prev[field]);
+          if (next.has(value)) {
+            next.delete(value);
+          } else {
+            next.add(value);
+          }
+          return { ...prev, [field]: next };
+        });
+      },
+    [],
+  );
+
+  const toggleType = useMemo(() => toggleSetField("selectedTypes"), [toggleSetField]);
+  const toggleTransactionCurrency = useMemo(
+    () => toggleSetField("selectedTransactionCurrencies"),
+    [toggleSetField],
+  );
+  const toggleReportingCurrency = useMemo(
+    () => toggleSetField("selectedReportingCurrencies"),
+    [toggleSetField],
+  );
 
   const toggleTag = useCallback(
     (tagId: string) => {
@@ -110,6 +127,8 @@ export function useExpenseFilters(): ExpenseFilters {
   const hasActiveFilters =
     criteria.selectedTypes.size > 0 ||
     criteria.selectedTags.size > 0 ||
+    criteria.selectedTransactionCurrencies.size > 0 ||
+    criteria.selectedReportingCurrencies.size > 0 ||
     criteria.dateFrom !== "" ||
     criteria.dateTo !== "";
 
@@ -119,6 +138,8 @@ export function useExpenseFilters(): ExpenseFilters {
     hasActiveFilters,
     toggleType,
     toggleTag,
+    toggleTransactionCurrency,
+    toggleReportingCurrency,
     toggleFilters,
     clearFilters,
     setDateFrom,

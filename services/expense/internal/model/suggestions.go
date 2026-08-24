@@ -8,30 +8,34 @@ type ExpenseSuggestionRequest struct {
 }
 
 // ExpenseSuggestionInput is the minimal active row data required to build suggestions.
+// TransactionAmount/TransactionCurrency come from the explicit money snapshot
+// columns, which the mc/03 migration backfilled for every row.
 type ExpenseSuggestionInput struct {
-	ID           string
-	Name         string
-	Amount       int64
-	Currency     string
-	ExpenseType  string
-	TagID        string
-	CreatedAt    string
-	ExpenseDate  string
-	IsProRata    bool
-	ProRataGroup string
+	ID                  string
+	Name                string
+	TransactionAmount   int64  // Original transaction amount in minor units from the money snapshot.
+	TransactionCurrency string // Original transaction currency from the money snapshot.
+	ExpenseType         string
+	TagID               string
+	CreatedAt           string
+	ExpenseDate         string
+	IsProRata           bool
+	ProRataGroup        string
 }
 
 // ExpenseSuggestion is one aggregated exact-name suggestion.
+// TransactionAmount/TransactionCurrency are the canonical fields sourced from
+// the latest active matching expense.
 type ExpenseSuggestion struct {
-	Name          string  `json:"name"`
-	Amount        int64   `json:"amount"`
-	Currency      string  `json:"currency"`
-	ExpenseType   string  `json:"expenseType"`
-	TagID         string  `json:"tagId"`
-	Frequency     int32   `json:"frequency"`
-	LastUsedAt    string  `json:"lastUsedAt"`
-	RecencyBucket string  `json:"recencyBucket"`
-	FrecencyScore float64 `json:"frecencyScore"`
+	Name                string  `json:"name"`
+	TransactionAmount   int64   `json:"transactionAmount"`
+	TransactionCurrency string  `json:"transactionCurrency"`
+	ExpenseType         string  `json:"expenseType"`
+	TagID               string  `json:"tagId"`
+	Frequency           int32   `json:"frequency"`
+	LastUsedAt          string  `json:"lastUsedAt"`
+	RecencyBucket       string  `json:"recencyBucket"`
+	FrecencyScore       float64 `json:"frecencyScore"`
 }
 
 // ExpenseSuggestionListResponse follows the app pagination shape.

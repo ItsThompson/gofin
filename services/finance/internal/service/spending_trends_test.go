@@ -30,9 +30,9 @@ func TestComputeSpendingTrends_NormalSixMonths(t *testing.T) {
 			SavingsPercent:    20,
 		}
 		expensesByMonth[i] = []ExpenseData{
-			{Amount: 100000, ReportingAmount: 100000, ExpenseType: "essentials"},
-			{Amount: 50000, ReportingAmount: 50000, ExpenseType: "desires"},
-			{Amount: 20000, ReportingAmount: 20000, ExpenseType: "savings"},
+			{ReportingAmount: 100000, ExpenseType: "essentials"},
+			{ReportingAmount: 50000, ExpenseType: "desires"},
+			{ReportingAmount: 20000, ExpenseType: "savings"},
 		}
 	}
 
@@ -80,7 +80,7 @@ func TestComputeSpendingTrends_TwelveMonthsWithGaps(t *testing.T) {
 			SavingsPercent:    20,
 		}
 		expensesByMonth[idx] = []ExpenseData{
-			{Amount: 80000, ReportingAmount: 80000, ExpenseType: "essentials"},
+			{ReportingAmount: 80000, ExpenseType: "essentials"},
 		}
 	}
 
@@ -122,7 +122,7 @@ func TestComputeSpendingTrends_ZeroBudgetAmount(t *testing.T) {
 		{BudgetAmount: 0, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20},
 	}
 	expensesByMonth := [][]ExpenseData{
-		{{Amount: 5000, ReportingAmount: 5000, ExpenseType: "essentials"}},
+		{{ReportingAmount: 5000, ExpenseType: "essentials"}},
 	}
 	years := []int32{2026}
 	monthSlice := []int32{2}
@@ -142,9 +142,9 @@ func TestComputeSpendingTrends_SingleMonth(t *testing.T) {
 	}
 	expensesByMonth := [][]ExpenseData{
 		{
-			{Amount: 40000, ReportingAmount: 40000, ExpenseType: "essentials"},
-			{Amount: 30000, ReportingAmount: 30000, ExpenseType: "desires"},
-			{Amount: 10000, ReportingAmount: 10000, ExpenseType: "savings"},
+			{ReportingAmount: 40000, ExpenseType: "essentials"},
+			{ReportingAmount: 30000, ExpenseType: "desires"},
+			{ReportingAmount: 10000, ExpenseType: "savings"},
 		},
 	}
 	years := []int32{2026}
@@ -162,6 +162,29 @@ func TestComputeSpendingTrends_SingleMonth(t *testing.T) {
 	assert.Equal(t, float64(60), result[0].EssentialsPercent)
 	assert.Equal(t, float64(25), result[0].DesiresPercent)
 	assert.Equal(t, float64(15), result[0].SavingsPercent)
+}
+
+// --- Trend reporting currency ---
+
+func TestComputeSpendingTrends_ReportingCurrencyPerPoint(t *testing.T) {
+	periods := []*model.BudgetPeriod{
+		{BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrency: "USD"},
+		{BudgetAmount: 30000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrency: "JPY"},
+		nil, // gap month
+	}
+	expensesByMonth := [][]ExpenseData{
+		{{ExpenseType: "essentials"}},
+		{{ExpenseType: "essentials"}},
+		nil,
+	}
+	years := []int32{2026, 2026, 2026}
+	monthSlice := []int32{1, 2, 3}
+
+	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
+
+	assert.Equal(t, "USD", result[0].ReportingCurrency)
+	assert.Equal(t, "JPY", result[1].ReportingCurrency)
+	assert.Equal(t, "", result[2].ReportingCurrency, "nil period yields empty reporting currency")
 }
 
 func TestComputeSpendingTrends_NilPeriodReturnsZeros(t *testing.T) {
@@ -213,8 +236,8 @@ func TestGetSpendingTrends_FanOutByteIdentical(t *testing.T) {
 			SavingsPercent:    20,
 		})
 		exp.set(2026, m, []ExpenseData{
-			{Amount: int64(m) * 1000, ReportingAmount: int64(m) * 1000, ExpenseType: "essentials"},
-			{Amount: int64(m) * 500, ReportingAmount: int64(m) * 500, ExpenseType: "desires"},
+			{ReportingAmount: int64(m) * 1000, ExpenseType: "essentials"},
+			{ReportingAmount: int64(m) * 500, ExpenseType: "desires"},
 		})
 	}
 	svc := newFanoutService(&fakeFanoutRepo{periods: periods}, exp)

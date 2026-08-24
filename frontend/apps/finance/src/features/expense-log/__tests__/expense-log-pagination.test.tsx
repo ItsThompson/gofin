@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -49,8 +49,10 @@ function generateExpenses(count: number): Expense[] {
     id: `exp-${index}`,
     userId: "user-1",
     name: `Expense ${index + 1}`,
-    amount: 1000 + index * 100,
     transactionCurrency: "USD",
+    transactionAmount: 1000 + index * 100,
+    reportingAmount: 1000 + index * 100,
+    reportingCurrency: "USD",
     expenseType: "essentials" as const,
     tagId: "tag-food",
     expenseDate: "2026-05-01",
@@ -97,13 +99,19 @@ function renderExpenseLog() {
 
 describe("ExpenseLogFeature - Pagination navigation", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-12T12:00:00Z"));
     mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("navigates to last page, then back to first via First page button", async () => {
     const expenses = generateExpenses(25);
     mockAllData(expenses);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
 
     await waitFor(() => {
@@ -122,7 +130,7 @@ describe("ExpenseLogFeature - Pagination navigation", () => {
   it("navigates forward then back via Previous page button", async () => {
     const expenses = generateExpenses(25);
     mockAllData(expenses);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
 
     await waitFor(() => {

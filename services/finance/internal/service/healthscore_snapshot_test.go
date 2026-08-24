@@ -39,11 +39,12 @@ func canonicalHealthScore() *model.HealthScore {
 	period := &model.BudgetPeriod{
 		Year: 2026, Month: 3, BudgetAmount: 300000,
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: "USD",
 	}
 	expenses := []ExpenseData{
-		{ExpenseType: "essentials", Amount: 140000, ReportingAmount: 140000},
-		{ExpenseType: "desires", Amount: 95000, ReportingAmount: 95000},
-		{ExpenseType: "savings", Amount: 30000, ReportingAmount: 30000},
+		{ExpenseType: "essentials", ReportingAmount: 140000},
+		{ExpenseType: "desires", ReportingAmount: 95000},
+		{ExpenseType: "savings", ReportingAmount: 30000},
 	}
 	desiresWindow := []int64{60000, 90000, 120000, 80000}
 	closedNow := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC) // March 2026 is closed

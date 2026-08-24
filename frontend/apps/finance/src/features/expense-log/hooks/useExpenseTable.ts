@@ -21,14 +21,13 @@ export interface ExpenseTableState {
  */
 export function useExpenseTable(
   data: ExpenseRow[],
-  currency: string,
 ): ExpenseTableState {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
   const columns = useMemo(
-    () => buildExpenseColumns(currency),
-    [currency],
+    () => buildExpenseColumns(),
+    [],
   );
 
   const table = useReactTable({
@@ -37,6 +36,7 @@ export function useExpenseTable(
     state: { sorting, columnFilters },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    enableMultiSort: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

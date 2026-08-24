@@ -1,16 +1,20 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { formatCurrency } from "@gofin/core";
+import { formatAmount } from "@gofin/core";
 import type { Expense, Tag } from "@gofin/core";
 
-/** Enriched expense with resolved tag name for display. */
 export interface ExpenseRow extends Expense {
   tagName: string;
+  transactionAmountEffective: number;
+  transactionCurrencyEffective: string;
+  reportingAmountEffective: number;
+  reportingCurrencyEffective: string;
+  /** True when transaction currency differs from reporting currency. */
+  showReportingAmount: boolean;
 }
 
 const columnHelper = createColumnHelper<ExpenseRow>();
 
-/** Build table column definitions for the expense log. */
-export function buildExpenseColumns(currency: string) {
+export function buildExpenseColumns() {
   return [
     columnHelper.accessor("expenseDate", {
       header: "Date",
@@ -28,17 +32,42 @@ export function buildExpenseColumns(currency: string) {
         );
       },
     }),
-    columnHelper.accessor("amount", {
+    columnHelper.accessor("reportingAmountEffective", {
       header: "Amount",
       cell: (info) => {
         const row = info.row.original;
+        const transactionFormatted = formatAmount(
+          row.transactionAmountEffective,
+          row.transactionCurrencyEffective,
+        );
+        const className = row.status === "corrected" ? "line-through" : "";
+
+        if (!row.showReportingAmount) {
+          return (
+            <span className={className}>{transactionFormatted}</span>
+          );
+        }
+
+        // Foreign-currency row: show transaction amount and secondary reporting amount.
+        const reportingFormatted = formatAmount(
+          row.reportingAmountEffective,
+          row.reportingCurrencyEffective,
+        );
         return (
-          <span className={row.status === "corrected" ? "line-through" : ""}>
-            {formatCurrency(info.getValue(), currency)}
-          </span>
+          <div className="flex flex-col">
+            <span className={className}>{transactionFormatted}</span>
+            <span
+              className={`text-xs text-muted-foreground ${className}`}
+              aria-label={`Budget impact: ${reportingFormatted}`}
+            >
+              Budget impact: {reportingFormatted}
+            </span>
+          </div>
         );
       },
-      sortingFn: "basic",
+      sortingFn: (rowA, rowB) =>
+        (rowA.original?.reportingAmountEffective ?? 0) - (rowB.original?.reportingAmountEffective ?? 0),
+      sortDescFirst: false,
     }),
     columnHelper.accessor("expenseType", {
       header: "Type",
@@ -72,17 +101,27 @@ export function buildExpenseColumns(currency: string) {
   ];
 }
 
-/**
- * Resolve tag names by mapping tag IDs to tag name strings.
- * Falls back to the tag ID if the tag is not found.
- */
 export function resolveTagNames(
   expenses: Expense[],
   tags: Tag[],
 ): ExpenseRow[] {
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
-  return expenses.map((expense) => ({
-    ...expense,
-    tagName: tagMap.get(expense.tagId) ?? expense.tagId,
-  }));
+  return expenses.map((expense) => {
+    const transactionAmountEffective = expense.transactionAmount;
+    const transactionCurrencyEffective = expense.transactionCurrency;
+    const reportingAmountEffective = expense.reportingAmount;
+    const reportingCurrencyEffective = expense.reportingCurrency;
+    const showReportingAmount =
+      transactionCurrencyEffective !== reportingCurrencyEffective;
+
+    return {
+      ...expense,
+      tagName: tagMap.get(expense.tagId) ?? expense.tagId,
+      transactionAmountEffective,
+      transactionCurrencyEffective,
+      reportingAmountEffective,
+      reportingCurrencyEffective,
+      showReportingAmount,
+    };
+  });
 }

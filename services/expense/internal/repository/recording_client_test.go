@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -67,46 +66,6 @@ func (c *recordingImmudbClient) countQueriesContaining(substr string) int {
 
 func (c *recordingImmudbClient) SQLExec(_ context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
 	c.record(sql, params)
-
-	// Simulate the backfill UPDATE so subsequent COUNT queries reflect the
-	// mutation. This lets batched-backfill tests observe multiple UPDATE
-	// iterations without a real database.
-	upper := strings.ToUpper(sql)
-	if strings.Contains(upper, "UPDATE EXPENSES SET") &&
-		strings.Contains(upper, "TRANSACTION_AMOUNT = AMOUNT") {
-		limit := len(c.rows) // default: update all matching
-		if idx := strings.Index(upper, "LIMIT"); idx >= 0 {
-			rest := sql[idx+5:]
-			numEnd := 0
-			for numEnd < len(rest) && rest[numEnd] == ' ' {
-				numEnd++
-			}
-			start := numEnd
-			for numEnd < len(rest) && rest[numEnd] >= '0' && rest[numEnd] <= '9' {
-				numEnd++
-			}
-			if n, err := strconv.Atoi(rest[start:numEnd]); err == nil && n >= 0 {
-				limit = n
-			}
-		}
-		updated := 0
-		for _, row := range c.rows {
-			if updated >= limit {
-				break
-			}
-			if row.TransactionAmount == 0 && row.Status != "redacted" {
-				row.TransactionAmount = row.Amount
-				row.TransactionCurrency = row.Currency
-				row.ReportingAmount = row.Amount
-				row.ReportingCurrency = row.Currency
-				row.ExchangeRate = "1"
-				row.ExchangeRateSource = model.ExchangeSourceMigration
-				row.ExchangeRateTimestamp = row.CreatedAt
-				updated++
-			}
-		}
-	}
-
 	return &SQLResult{}, nil
 }
 
@@ -119,19 +78,6 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 	userID, _ := params["user_id"].(string)
 
 	if strings.Contains(strings.ToUpper(sql), "COUNT(*)") {
-		// The money-snapshot backfill count is global (no user_id): count rows
-		// missing a transaction amount that are not redacted, mirroring the real
-		// predicate.
-		if strings.Contains(strings.ToUpper(sql), "TRANSACTION_AMOUNT IS NULL") {
-			var count int64
-			for _, row := range c.rows {
-				if row.TransactionAmount == 0 && row.Status != "redacted" {
-					count++
-				}
-			}
-			return &SQLResult{Rows: []SQLRow{{Values: []SQLValue{fakeSQLValue{intValue: count}}}}}, nil
-		}
-
 		var count int64
 		for _, row := range c.rows {
 			if row.UserID == userID {
@@ -202,8 +148,6 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 			fakeSQLValue{stringValue: e.ID},
 			fakeSQLValue{stringValue: e.UserID},
 			fakeSQLValue{stringValue: e.Name},
-			fakeSQLValue{intValue: e.Amount},
-			fakeSQLValue{stringValue: e.Currency},
 			fakeSQLValue{stringValue: e.ExpenseType},
 			fakeSQLValue{stringValue: e.TagID},
 			fakeSQLValue{stringValue: e.ExpenseDate},
@@ -238,9 +182,7 @@ func buildTestExpense(id, userID, createdAt string) *model.Expense {
 		ID:                    id,
 		UserID:                userID,
 		Name:                  "Expense " + id,
-		Amount:                1000,
 		TransactionCurrency:   "USD",
-		Currency:              "USD",
 		ExpenseType:           "essentials",
 		TagID:                 "tag-1",
 		ExpenseDate:           "2026-05-01",

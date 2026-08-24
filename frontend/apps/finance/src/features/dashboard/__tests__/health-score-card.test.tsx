@@ -28,6 +28,7 @@ function buildHealthScore(overrides?: Partial<HealthScore>): HealthScore {
     band: "amber",
     provisional: false,
     formulaVersion: 2,
+    reportingCurrency: "USD",
     components: [
       { key: "savings_achievement", score: 20, max: 30, detail: "Saved $400 of $600 target" },
       { key: "budget_adherence", score: 30, max: 30, detail: "Spent $2,000 of $2,400 plan" },
@@ -45,9 +46,9 @@ function buildHealthScore(overrides?: Partial<HealthScore>): HealthScore {
 
 function buildTrend(): HealthScoreTrendPoint[] {
   return [
-    { year: 2026, month: 3, total: 58, band: "amber", provisional: false, formulaVersion: 2 },
-    { year: 2026, month: 4, total: 64, band: "amber", provisional: false, formulaVersion: 2 },
-    { year: 2026, month: 5, total: 56, band: "amber", provisional: true, formulaVersion: 2 },
+    { year: 2026, month: 3, total: 58, band: "amber", provisional: false, formulaVersion: 2, reportingCurrency: "USD" },
+    { year: 2026, month: 4, total: 64, band: "amber", provisional: false, formulaVersion: 2, reportingCurrency: "USD" },
+    { year: 2026, month: 5, total: 56, band: "amber", provisional: true, formulaVersion: 2, reportingCurrency: "USD" },
   ];
 }
 

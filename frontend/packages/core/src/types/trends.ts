@@ -1,4 +1,3 @@
-/** A single monthly data point in the spending trends chart. */
 export interface TrendPoint {
   year: number;
   month: number;
@@ -18,6 +17,8 @@ export interface TrendPoint {
   desiresPercent: number;
   /** Budgeted savings percentage (0-100). */
   savingsPercent: number;
+  /** The period's reporting currency for this data point. */
+  reportingCurrency: string;
 }
 
 /** Response from GET /api/finance/spending/trends. */

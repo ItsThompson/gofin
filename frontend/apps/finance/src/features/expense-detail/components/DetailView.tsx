@@ -47,14 +47,14 @@ export function DetailView({
       {correctedBy && (
         <div className="rounded-lg bg-yellow-100 p-3 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           This expense was corrected. See correction: {correctedBy.name} (
-          {formatCurrency(correctedBy.amount, currency)})
+          {formatCurrency(correctedBy.transactionAmount, currency)})
         </div>
       )}
 
       {correctsEntry && (
         <div className="rounded-lg bg-blue-100 p-3 text-sm text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
           This corrects expense: {correctsEntry.name} (
-          {formatCurrency(correctsEntry.amount, currency)})
+          {formatCurrency(correctsEntry.transactionAmount, currency)})
         </div>
       )}
 
@@ -62,7 +62,7 @@ export function DetailView({
         <DetailField label="Name" value={expense.name} />
         <DetailField
           label="Amount"
-          value={formatCurrency(expense.amount, currency)}
+          value={formatCurrency(expense.transactionAmount, currency)}
         />
         <DetailField
           label="Type"
@@ -112,7 +112,7 @@ export function DetailView({
               <DetailField
                 label="Total Amount (all installments)"
                 value={formatCurrency(
-                  proRataGroup.reduce((sum, entry) => sum + entry.amount, 0),
+                  proRataGroup.reduce((sum, entry) => sum + entry.transactionAmount, 0),
                   currency,
                 )}
               />
@@ -136,7 +136,7 @@ export function DetailView({
                       {entry.id === expense.id && " (current)"}
                     </span>
                     <span className="text-muted-foreground">
-                      {formatCurrency(entry.amount, currency)} · {entry.expenseDate}
+                      {formatCurrency(entry.transactionAmount, currency)} · {entry.expenseDate}
                     </span>
                   </div>
                 ))}

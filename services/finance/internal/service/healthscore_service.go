@@ -20,7 +20,7 @@ func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year
 		return nil, err
 	}
 	if period.BudgetAmount == 0 {
-		return &model.HealthScore{Year: year, Month: month, ConfigureBudget: true}, nil
+		return &model.HealthScore{Year: year, Month: month, ConfigureBudget: true, ReportingCurrency: period.ReportingCurrency}, nil
 	}
 	return s.resolveHealthScore(ctx, userID, period, year, month)
 }
@@ -42,6 +42,11 @@ func (s *FinanceService) resolveHealthScore(ctx context.Context, userID string, 
 		return nil, fmt.Errorf("getting stored health score: %w", err)
 	}
 	if stored != nil && stored.FormulaVersion == model.FormulaVersion {
+		// Backfill ReportingCurrency for scores persisted before the field was
+		// added. The period's reporting currency is immutable, so this is safe.
+		if stored.ReportingCurrency == "" {
+			stored.ReportingCurrency = period.ReportingCurrency
+		}
 		return stored, nil
 	}
 
@@ -64,16 +69,14 @@ func (s *FinanceService) resolveHealthScore(ctx context.Context, userID string, 
 }
 
 // computeHealthScore reads the inputs the pure ComputeHealthScore needs: the
-// user currency, the target month's expenses, and the desires window that feeds
-// the stability sub-score.
+// target month's expenses and the desires window that feeds the stability
+// sub-score. The insight currency is the scored period's immutable reporting
+// currency, not the user's default settings currency, so the display stays
+// stable after default settings changes.
 func (s *FinanceService) computeHealthScore(ctx context.Context, userID string, period *model.BudgetPeriod, year, month int32) (*model.HealthScore, error) {
-	currency := defaultCurrency
-	defaults, err := s.repo.GetDefaults(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("getting defaults: %w", err)
-	}
-	if defaults != nil && defaults.Currency != "" {
-		currency = defaults.Currency
+	currency := period.ReportingCurrency
+	if currency == "" {
+		currency = defaultCurrency
 	}
 
 	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, year, month)

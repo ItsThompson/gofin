@@ -23,8 +23,8 @@ const mockTags: Tag[] = [
 
 const mockSuggestion: ExpenseSuggestion = {
   name: "Train Pass",
-  amount: 1234,
-  currency: "USD",
+  transactionAmount: 1234,
+  transactionCurrency: "USD",
   expenseType: "desires",
   tagId: "tag-transport",
   frequency: 4,
@@ -37,8 +37,10 @@ const mockExpense: Expense = {
   id: "exp-1",
   userId: "user-1",
   name: "Groceries",
-  amount: 5000,
   transactionCurrency: "USD",
+  transactionAmount: 5000,
+  reportingAmount: 5000,
+  reportingCurrency: "USD",
   expenseType: "essentials",
   tagId: "tag-food",
   expenseDate: "2026-05-02",
@@ -82,7 +84,7 @@ describe("useCorrectionForm", () => {
     it("derives amountDollars correctly from cents", () => {
       const expenseWithOddAmount: Expense = {
         ...mockExpense,
-        amount: 1299, // $12.99
+        transactionAmount: 1299, // $12.99
       };
       const onSubmit = vi.fn();
       const { result } = renderHook(() =>

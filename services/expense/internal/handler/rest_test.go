@@ -109,9 +109,21 @@ func setupTestRouter(repo *mockExpenseRepository) *gin.Engine {
 // setupTestRouterWithPeriod builds a router wired to a custom period context
 // client, so handler tests can exercise non-default reporting currencies.
 func setupTestRouterWithPeriod(repo *mockExpenseRepository, periodClient *mockPeriodContextClient) *gin.Engine {
+	return setupTestRouterWithFx(repo, periodClient, &stubFxClient{})
+}
+
+// setupTestRouterWithFx builds a router wired to a custom period context client
+// and FX client, so handler tests can exercise foreign-currency conversion.
+func setupTestRouterWithFx(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, fxClient service.FxClient) *gin.Engine {
+	return setupTestRouterWithFxClock(repo, periodClient, fxClient, time.Now)
+}
+
+// setupTestRouterWithFxClock builds a router with a fixed clock so FX tests can
+// assert the exact request (including RequestedAt).
+func setupTestRouterWithFxClock(repo *mockExpenseRepository, periodClient *mockPeriodContextClient, fxClient service.FxClient, clock func() time.Time) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, periodClient, time.Now, logger)
+	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, clock, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -141,18 +153,17 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 
 	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
 		Return(&model.Expense{
-			ID:          "exp-123",
-			UserID:      "user-1",
-			Name:        "Grocery shopping",
-			Amount:      2500,
-			Currency:    "USD",
-			ExpenseType: "essentials",
-			TagID:       "tag-food",
-			ExpenseDate: "2026-05-03",
-			PeriodYear:  2026,
-			PeriodMonth: 5,
-			Status:      "active",
-			CreatedAt:   "2026-05-03T10:00:00Z",
+			ID:                "exp-123",
+			UserID:            "user-1",
+			Name:              "Grocery shopping",
+			ExpenseType:       "essentials",
+			TagID:             "tag-food",
+			ExpenseDate:       "2026-05-03",
+			PeriodYear:        2026,
+			PeriodMonth:       5,
+			Status:            "active",
+			CreatedAt:         "2026-05-03T10:00:00Z",
+			TransactionAmount: 2500,
 		}, nil)
 
 	r := setupTestRouter(repo)
@@ -173,7 +184,7 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "exp-123", resp.Expense.ID)
 	assert.Equal(t, "user-1", resp.Expense.UserID)
-	assert.Equal(t, int64(2500), resp.Expense.Amount)
+	assert.Equal(t, int64(2500), resp.Expense.TransactionAmount)
 	assert.Equal(t, "essentials", resp.Expense.ExpenseType)
 	assert.Equal(t, "active", resp.Expense.Status)
 }
@@ -191,14 +202,12 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	}, nil)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
-		return expense.TransactionCurrency == "EUR" && expense.Currency == "EUR"
+		return expense.TransactionCurrency == "EUR"
 	})).Return(&model.Expense{
 		ID:                  "exp-123",
 		UserID:              "user-1",
 		Name:                "Coffee",
-		Amount:              450,
 		TransactionCurrency: "EUR",
-		Currency:            "EUR",
 		ExpenseType:         "desires",
 		TagID:               "tag-food",
 		ExpenseDate:         "2026-05-03",
@@ -231,7 +240,6 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	var resp model.ExpenseResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
-	assert.Equal(t, "EUR", resp.Expense.Currency)
 	// Canonical transaction and reporting money fields are present in the response.
 	assert.Equal(t, int64(450), resp.Expense.TransactionAmount)
 	assert.Equal(t, int64(450), resp.Expense.ReportingAmount)
@@ -241,12 +249,16 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
-// TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable asserts a
-// transaction currency that differs from the period reporting currency maps
-// to HTTP 503 CONVERSION_UNAVAILABLE and does not write a ledger row.
-func TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable(t *testing.T) {
+// TestCreateExpenseHandler_ForeignCurrencyFxSuccess asserts a foreign-currency
+// expense with a wired FX client returns 201 with both transaction and reporting
+// money fields plus snapshot metadata.
+func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	requestedAt := now.UTC().Format(time.RFC3339)
+
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
 		PeriodID:          "period-1",
 		UserID:            "user-1",
@@ -255,11 +267,92 @@ func TestCreateExpenseHandler_ForeignCurrencyReturnsServiceUnavailable(t *testin
 		ReportingCurrency: "USD",
 	}, nil)
 
-	r := setupTestRouterWithPeriod(repo, periodClient)
+	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
+		return req.Amount == 1250 &&
+			req.SourceCurrency == "EUR" &&
+			req.TargetCurrency == "USD" &&
+			req.RequestedAt == requestedAt
+	})).Return(&service.FxConvertResponse{
+		ConvertedAmount: 1364,
+		ExchangeRate:    "1.0912",
+		RateTimestamp:   "2026-08-14T10:00:00Z",
+		Source:          model.ExchangeSourceOpenExchangeRates,
+		ExpiresAt:       "2026-08-14T11:00:00Z",
+	}, nil)
+
+	repo.On("CreateExpense", mock.Anything, mock.Anything).Return(&model.Expense{
+		ID:                    "exp-fx-1",
+		UserID:                "user-1",
+		Name:                  "Cafe",
+		TransactionCurrency:   "EUR",
+		ExpenseType:           "desires",
+		TagID:                 "tag-food",
+		ExpenseDate:           "2026-05-03",
+		PeriodYear:            2026,
+		PeriodMonth:           5,
+		Status:                "active",
+		TransactionAmount:     1250,
+		ReportingAmount:       1364,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1.0912",
+		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
+		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+	}, nil)
+
+	r := setupTestRouterWithFxClock(repo, periodClient, fxClient, func() time.Time { return now })
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
-		"name":                "Coffee",
-		"amount":              450,
+		"name":                "Cafe",
+		"amount":              1250,
+		"transactionCurrency": "EUR",
+		"expenseType":         "desires",
+		"tagId":               "tag-food",
+		"expenseDate":         "2026-05-03",
+		"periodYear":          2026,
+		"periodMonth":         5,
+	})
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var resp model.ExpenseResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, int64(1250), resp.Expense.TransactionAmount)
+	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
+	assert.Equal(t, int64(1364), resp.Expense.ReportingAmount)
+	assert.Equal(t, "USD", resp.Expense.ReportingCurrency)
+	assert.Equal(t, "1.0912", resp.Expense.ExchangeRate)
+	assert.Equal(t, "open_exchange_rates", resp.Expense.ExchangeRateSource)
+	assert.Equal(t, "2026-08-14T10:00:00Z", resp.Expense.ExchangeRateTimestamp)
+	assert.Equal(t, "2026-08-14T11:00:00Z", resp.Expense.ExchangeRateExpiresAt)
+}
+
+// TestCreateExpenseHandler_ForeignCurrencyFxUnavailable asserts a foreign-currency
+// expense with an FX failure returns 503 CONVERSION_UNAVAILABLE and does not write.
+func TestCreateExpenseHandler_ForeignCurrencyFxUnavailable(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, &apierr.Error{
+		Code:    model.ErrConversionUnavailable,
+		Message: "currency conversion is unavailable",
+		Status:  http.StatusServiceUnavailable,
+	})
+
+	r := setupTestRouterWithFx(repo, periodClient, fxClient)
+
+	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
+		"name":                "Cafe",
+		"amount":              1250,
 		"transactionCurrency": "EUR",
 		"expenseType":         "desires",
 		"tagId":               "tag-food",
@@ -386,8 +479,8 @@ func TestGetExpensesHandler_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
 	expenses := []*model.Expense{
-		{ID: "exp-1", Name: "Groceries", Amount: 5000, Status: "active", ExpenseDate: "2026-05-02"},
-		{ID: "exp-2", Name: "Coffee", Amount: 500, Status: "active", ExpenseDate: "2026-05-01"},
+		{ID: "exp-1", Name: "Groceries", Status: "active", ExpenseDate: "2026-05-02"},
+		{ID: "exp-2", Name: "Coffee", Status: "active", ExpenseDate: "2026-05-01"},
 	}
 
 	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
@@ -412,7 +505,7 @@ func TestGetExpensesHandler_WithPagination(t *testing.T) {
 	repo := new(mockExpenseRepository)
 
 	expenses := []*model.Expense{
-		{ID: "exp-3", Name: "Lunch", Amount: 1500, Status: "active"},
+		{ID: "exp-3", Name: "Lunch", Status: "active"},
 	}
 
 	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(2), int32(10)).
@@ -483,8 +576,6 @@ func TestGetExpenseHandler_Success(t *testing.T) {
 			ID:          "exp-123",
 			UserID:      "user-1",
 			Name:        "Coffee",
-			Amount:      500,
-			Currency:    "USD",
 			ExpenseType: "desires",
 			Status:      "active",
 		}, nil)
@@ -523,7 +614,7 @@ func TestGetExpenseHandler_NotFound(t *testing.T) {
 func setupTestRouterWithClock(repo *mockExpenseRepository, now time.Time) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), func() time.Time { return now }, logger)
+	expenseSvc := service.NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, func() time.Time { return now }, logger)
 	h := NewRESTHandler(expenseSvc)
 	r := gin.New()
 	h.RegisterRoutes(r)
@@ -536,8 +627,8 @@ func TestCorrectExpenseHandler_Success(t *testing.T) {
 
 	original := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
-		Amount: 500, Currency: "USD", ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		ExpenseType: "desires",
+		TagID:       "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 		CreatedAt: "2026-05-01T10:00:00Z",
 	}
@@ -546,8 +637,8 @@ func TestCorrectExpenseHandler_Success(t *testing.T) {
 	repo.On("CorrectExpense", mock.Anything, original, mock.AnythingOfType("*model.Expense")).
 		Return(&model.Expense{
 			ID: "exp-correction", UserID: "user-1", Name: "Updated Coffee",
-			Amount: 600, Currency: "USD", ExpenseType: "desires",
-			TagID: "tag-food", ExpenseDate: "2026-05-01",
+			ExpenseType: "desires",
+			TagID:       "tag-food", ExpenseDate: "2026-05-01",
 			PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 			CorrectsID: "exp-original", CreatedAt: "2026-05-03T10:00:00Z",
 		}, nil)
@@ -572,8 +663,8 @@ func TestCorrectExpenseHandler_AlreadyCorrected(t *testing.T) {
 
 	corrected := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
-		Amount: 500, Currency: "USD", ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		ExpenseType: "desires",
+		TagID:       "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "corrected",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(corrected, nil)
@@ -596,8 +687,8 @@ func TestCorrectExpenseHandler_PeriodLocked(t *testing.T) {
 
 	pastExpense := &model.Expense{
 		ID: "exp-past", UserID: "user-1", Name: "Old Coffee",
-		Amount: 500, Currency: "USD", ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-04-15",
+		ExpenseType: "desires",
+		TagID:       "tag-food", ExpenseDate: "2026-04-15",
 		PeriodYear: 2026, PeriodMonth: 4, Status: "active",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-past", "user-1").Return(pastExpense, nil)

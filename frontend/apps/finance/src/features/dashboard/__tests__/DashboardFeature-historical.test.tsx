@@ -111,6 +111,8 @@ describe("DashboardFeature", () => {
             comparison: {
               currentSpent: 54500,
               previousSpent: 0,
+              previousReportingCurrency: "",
+              comparable: true,
               rollingAverage: null,
               changePercent: 0,
             },

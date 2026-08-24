@@ -65,11 +65,17 @@ CREATE TABLE finance.period_reporting_currency_migration_report (
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Record rows that used auth fallback or app fallback so operators can audit
+-- which periods inherited a currency that was not the user's explicit default.
 INSERT INTO finance.period_reporting_currency_migration_report (period_id, user_id, reporting_currency, reason)
-SELECT period.id, period.user_id, backfill.reporting_currency, 'no_supported_default_or_auth_currency'
+SELECT period.id, period.user_id, backfill.reporting_currency,
+       CASE backfill.source
+           WHEN 'auth_user'  THEN 'auth_fallback'
+           WHEN 'fallback'  THEN 'app_fallback'
+       END
 FROM finance.budget_periods AS period
 JOIN period_reporting_currency_backfill AS backfill ON backfill.period_id = period.id
-WHERE backfill.source = 'fallback';
+WHERE backfill.source IN ('auth_user', 'fallback');
 
 UPDATE finance.budget_periods AS period
 SET reporting_currency = backfill.reporting_currency

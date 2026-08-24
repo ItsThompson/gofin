@@ -58,7 +58,7 @@ export function setNewExpenseFetchMock(
           expense: {
             id: "exp-123",
             name: "Coffee",
-            amount: 450,
+            transactionAmount: 450,
             expenseType: "desires",
             status: "active",
           },

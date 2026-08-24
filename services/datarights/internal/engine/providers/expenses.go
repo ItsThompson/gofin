@@ -49,7 +49,7 @@ func (p *ExpensesProvider) Name() string {
 // Headers returns the CSV column headers for expense data.
 func (p *ExpensesProvider) Headers() []string {
 	return []string{
-		"id", "name", "amount", "currency", "expense_type", "tag_name",
+		"id", "name", "transaction_amount", "transaction_currency", "expense_type", "tag_name",
 		"expense_date", "period_year", "period_month", "status",
 		"corrects_id", "is_pro_rata", "pro_rata_group", "pro_rata_index",
 		"pro_rata_total", "created_at",
@@ -128,7 +128,7 @@ func (p *ExpensesProvider) streamExpenses(
 // formatRow converts a single expense into a CSV row with all transformations applied.
 func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData, tagMap map[string]string) []string {
 	tagName := resolveTagName(exp.GetTagId(), tagMap)
-	amount := formatCentsToDollars(exp.GetAmount())
+	amount := formatCentsToDollars(exp.GetTransactionAmount())
 	isProRata := formatBool(exp.GetIsProRata())
 
 	// Pro-rata fields: render empty string for non-pro-rata expenses
@@ -140,7 +140,7 @@ func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData, tagMap map[stri
 		exp.GetId(),
 		exp.GetName(),
 		amount,
-		exp.GetCurrency(),
+		exp.GetTransactionCurrency(),
 		exp.GetExpenseType(),
 		tagName,
 		exp.GetExpenseDate(),

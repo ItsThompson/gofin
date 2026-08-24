@@ -2,11 +2,33 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
+
+// SnapshotIntegrityError signals a row that is missing a required snapshot
+// field. The repository logs this as expense_snapshot_integrity_error
+// telemetry before returning the error to the caller.
+//
+// It is exported so errors.As can detect it across the %w wrap boundary.
+type SnapshotIntegrityError struct {
+	ExpenseID     string
+	MissingFields []string
+}
+
+func (e *SnapshotIntegrityError) Error() string {
+	return fmt.Sprintf("expense row %s: missing required snapshot fields: %s", e.ExpenseID, strings.Join(e.MissingFields, ", "))
+}
+
+// ReportData satisfies the errkit DataCarrier interface so a report of this
+// error carries the expense id and the missing field names automatically.
+func (e *SnapshotIntegrityError) ReportData() map[string]any {
+	return map[string]any{"expense_id": e.ExpenseID, "missing_fields": e.MissingFields}
+}
 
 // ImmudbExpenseRepository implements ExpenseRepository using immudb's SQL interface.
 type ImmudbExpenseRepository struct {
@@ -29,8 +51,6 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		id              VARCHAR(36)  NOT NULL,
 		user_id         VARCHAR(36)  NOT NULL,
 		name            VARCHAR(255) NOT NULL,
-		amount          INTEGER      NOT NULL,
-		currency        VARCHAR(3)   NOT NULL,
 		expense_type    VARCHAR(20)  NOT NULL,
 		tag_id          VARCHAR(36)  NOT NULL,
 		expense_date    VARCHAR(10)  NOT NULL,
@@ -84,9 +104,25 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		}
 	}
 
-	// Run the one-time legacy money-snapshot migration after the columns exist.
-	if err := r.backfillMoneySnapshots(ctx); err != nil {
-		return err
+	// Drop the legacy amount/currency columns from tables created before the
+	// multi-currency cutover. This is temporary: remove it once prod has booted
+	// with the new schema and the pre-cutover tables have been migrated.
+	dropColumns := []string{
+		`ALTER TABLE expenses DROP COLUMN amount;`,
+		`ALTER TABLE expenses DROP COLUMN currency;`,
+	}
+	for _, stmt := range dropColumns {
+		if _, dropErr := r.client.SQLExec(ctx, stmt, nil); dropErr != nil {
+			if strings.Contains(strings.ToLower(dropErr.Error()), "does not exist") {
+				// Expected when the column was already dropped (idempotent drop).
+				r.logger.Debug("legacy column drop skipped (already dropped)",
+					slog.String("statement", stmt),
+					slog.String("error", dropErr.Error()),
+				)
+				continue
+			}
+			return fmt.Errorf("dropping legacy column: %w", dropErr)
+		}
 	}
 
 	indexes := []string{
@@ -113,98 +149,17 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 	return nil
 }
 
-// backfillBatchSize is the maximum number of rows updated per SQLExec during
-// the money-snapshot backfill. immudb's DefaultMaxTxEntries is 1024 key-value
-// entries per transaction; during backfill (before secondary indexes are
-// created) each row UPDATE generates approximately one entry, so 100 provides
-// a 10x safety margin. Batching prevents the "max number of entries per tx
-// exceeded" error that a single bulk UPDATE triggers on large tables.
-const backfillBatchSize = 100
-
-// backfillMoneySnapshots backfills rows missing a transaction amount with an
-// identity snapshot in their legacy currency. It is idempotent and resumable:
-// each batch UPDATEs at most backfillBatchSize rows matching the WHERE
-// predicate, so a crash mid-loop resumes cleanly on the next startup: rows
-// already backfilled have a non-NULL transaction_amount and are excluded.
-//
-// TODO: delete this method once the mc/03 migration has shipped and prod has
-// booted with the new code. It is a one-time data migration, not startup logic.
-func (r *ImmudbExpenseRepository) backfillMoneySnapshots(ctx context.Context) error {
-	backfillCountQuery := `SELECT COUNT(*) FROM expenses
-		WHERE transaction_amount IS NULL
-		AND status <> 'redacted';`
-	countResult, err := r.client.SQLQuery(ctx, backfillCountQuery, nil)
-	if err != nil {
-		return fmt.Errorf("counting legacy money snapshot rows: %w", err)
-	}
-	var legacyRows int64
-	if len(countResult.Rows) > 0 && len(countResult.Rows[0].Values) > 0 {
-		legacyRows = countResult.Rows[0].Values[0].GetInt()
-	}
-	r.logger.Info("money_snapshot_backfill check",
-		slog.String("event", "money_snapshot_backfill"),
-		slog.Int64("legacy_rows", legacyRows),
-	)
-	if legacyRows == 0 {
-		return nil
-	}
-
-	backfillUpdate := fmt.Sprintf(`UPDATE expenses SET
-		transaction_amount = amount,
-		transaction_currency = currency,
-		reporting_amount = amount,
-		reporting_currency = currency,
-		exchange_rate = '1',
-		exchange_rate_source = '%s',
-		exchange_rate_timestamp = created_at
-		WHERE transaction_amount IS NULL
-		AND status <> 'redacted'
-		LIMIT %d;`, model.ExchangeSourceMigration, backfillBatchSize)
-
-	var totalBackfilled int64
-	for {
-		if _, err := r.client.SQLExec(ctx, backfillUpdate, nil); err != nil {
-			return fmt.Errorf("backfilling legacy money snapshots: %w", err)
-		}
-
-		remainingResult, err := r.client.SQLQuery(ctx, backfillCountQuery, nil)
-		if err != nil {
-			return fmt.Errorf("counting remaining legacy rows after backfill batch: %w", err)
-		}
-		var remaining int64
-		if len(remainingResult.Rows) > 0 && len(remainingResult.Rows[0].Values) > 0 {
-			remaining = remainingResult.Rows[0].Values[0].GetInt()
-		}
-		totalBackfilled += legacyRows - remaining
-		r.logger.Info("money_snapshot_backfill batch complete",
-			slog.String("event", "money_snapshot_backfill_batch"),
-			slog.Int64("remaining", remaining),
-			slog.Int64("backfilled_so_far", totalBackfilled),
-		)
-		legacyRows = remaining
-		if remaining == 0 {
-			break
-		}
-	}
-
-	r.logger.Info("money_snapshot_backfill done",
-		slog.String("event", "money_snapshot_backfill_done"),
-		slog.Int64("total_backfilled", totalBackfilled),
-	)
-	return nil
-}
-
 // CreateExpense inserts a new expense entry into the immudb ledger.
 func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *model.Expense) (*model.Expense, error) {
 	query := `INSERT INTO expenses (
-		id, user_id, name, amount, currency, expense_type, tag_id,
+		id, user_id, name, expense_type, tag_id,
 		expense_date, period_year, period_month, status, corrects_id,
 		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at,
 		transaction_amount, transaction_currency,
 		reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
 		exchange_rate_timestamp, exchange_rate_expires_at
 	) VALUES (
-		@id, @user_id, @name, @amount, @currency, @expense_type, @tag_id,
+		@id, @user_id, @name, @expense_type, @tag_id,
 		@expense_date, @period_year, @period_month, @status, @corrects_id,
 		@is_pro_rata, @pro_rata_group, @pro_rata_index, @pro_rata_total, @created_at,
 		@transaction_amount, @transaction_currency,
@@ -216,8 +171,6 @@ func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *mo
 		"id":                       expense.ID,
 		"user_id":                  expense.UserID,
 		"name":                     expense.Name,
-		"amount":                   expense.Amount,
-		"currency":                 expense.Currency,
 		"expense_type":             expense.ExpenseType,
 		"tag_id":                   expense.TagID,
 		"expense_date":             expense.ExpenseDate,
@@ -300,7 +253,7 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 
 	expenses := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense, convErr := rowToExpense(row)
+		expense, convErr := r.mapRow(row)
 		if convErr != nil {
 			return nil, 0, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -326,7 +279,7 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 		return nil, nil
 	}
 
-	expense, err := rowToExpense(result.Rows[0])
+	expense, err := r.mapRow(result.Rows[0])
 	if err != nil {
 		return nil, fmt.Errorf("mapping expense row: %w", err)
 	}
@@ -360,8 +313,8 @@ const expenseSuggestionInputLimit int32 = 1000
 
 // GetActiveExpenseSuggestionInputs returns recent active expense rows for suggestion ranking.
 func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error) {
-	query := `SELECT id, name, amount, currency, expense_type, tag_id, created_at,
-		expense_date, is_pro_rata, pro_rata_group
+	query := `SELECT id, name, transaction_amount, transaction_currency,
+		expense_type, tag_id, created_at, expense_date, is_pro_rata, pro_rata_group
 		FROM expenses
 		WHERE user_id = @user_id
 		AND status = 'active'
@@ -384,16 +337,36 @@ func (r *ImmudbExpenseRepository) GetActiveExpenseSuggestionInputs(ctx context.C
 	return inputs, nil
 }
 
+// mapRow wraps rowToExpense with telemetry. When rowToExpense returns a
+// SnapshotIntegrityError (row missing required fields), it logs the
+// expense_snapshot_integrity_error event before returning the error, so the
+// data-integrity issue is recorded even though the read fails.
+func (r *ImmudbExpenseRepository) mapRow(row SQLRow) (*model.Expense, error) {
+	expense, err := rowToExpense(row)
+	if err == nil {
+		return expense, nil
+	}
+	var integrityErr *SnapshotIntegrityError
+	if errors.As(err, &integrityErr) {
+		r.logger.Warn("expense snapshot integrity error",
+			slog.String("event", "expense_snapshot_integrity_error"),
+			slog.String("expense_id", integrityErr.ExpenseID),
+			slog.Any("missing_fields", integrityErr.MissingFields),
+		)
+	}
+	return nil, err
+}
+
 // expenseColumnCount is the number of columns rowToExpense expects in a result
 // row. It must match the expenseSelectColumns list and the ExpenseData schema.
-const expenseColumnCount = 25
+const expenseColumnCount = 23
 
 // rowToExpense maps a result row to an Expense. The column order must match the
 // SELECT clause in queries. It returns an error on a short/malformed row rather
 // than panicking on an out-of-range index.
 //
-// Every row must carry the required snapshot fields. InitSchema backfills rows
-// missing them at startup, so a row still missing a required field on read is a
+// Every row must carry the required snapshot fields. The mc/03 migration
+// backfilled legacy rows, so a row still missing a required field on read is a
 // data-integrity error.
 func rowToExpense(row SQLRow) (*model.Expense, error) {
 	values := row.Values
@@ -404,35 +377,52 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		ID:                    values[0].GetString(),
 		UserID:                values[1].GetString(),
 		Name:                  values[2].GetString(),
-		Amount:                values[3].GetInt(),
-		Currency:              values[4].GetString(),
-		ExpenseType:           values[5].GetString(),
-		TagID:                 values[6].GetString(),
-		ExpenseDate:           values[7].GetString(),
-		PeriodYear:            int32(values[8].GetInt()),
-		PeriodMonth:           int32(values[9].GetInt()),
-		Status:                values[10].GetString(),
-		CorrectsID:            values[11].GetString(),
-		IsProRata:             values[12].GetBool(),
-		ProRataGroup:          values[13].GetString(),
-		ProRataIndex:          int32(values[14].GetInt()),
-		ProRataTotal:          int32(values[15].GetInt()),
-		CreatedAt:             values[16].GetString(),
-		TransactionAmount:     values[17].GetInt(),
-		TransactionCurrency:   values[18].GetString(),
-		ReportingAmount:       values[19].GetInt(),
-		ReportingCurrency:     values[20].GetString(),
-		ExchangeRate:          values[21].GetString(),
-		ExchangeRateSource:    values[22].GetString(),
-		ExchangeRateTimestamp: values[23].GetString(),
-		ExchangeRateExpiresAt: values[24].GetString(),
+		ExpenseType:           values[3].GetString(),
+		TagID:                 values[4].GetString(),
+		ExpenseDate:           values[5].GetString(),
+		PeriodYear:            int32(values[6].GetInt()),
+		PeriodMonth:           int32(values[7].GetInt()),
+		Status:                values[8].GetString(),
+		CorrectsID:            values[9].GetString(),
+		IsProRata:             values[10].GetBool(),
+		ProRataGroup:          values[11].GetString(),
+		ProRataIndex:          int32(values[12].GetInt()),
+		ProRataTotal:          int32(values[13].GetInt()),
+		CreatedAt:             values[14].GetString(),
+		TransactionAmount:     values[15].GetInt(),
+		TransactionCurrency:   values[16].GetString(),
+		ReportingAmount:       values[17].GetInt(),
+		ReportingCurrency:     values[18].GetString(),
+		ExchangeRate:          values[19].GetString(),
+		ExchangeRateSource:    values[20].GetString(),
+		ExchangeRateTimestamp: values[21].GetString(),
+		ExchangeRateExpiresAt: values[22].GetString(),
 	}
 
-	if exp.TransactionAmount == 0 || exp.TransactionCurrency == "" ||
-		exp.ReportingAmount == 0 || exp.ReportingCurrency == "" ||
-		exp.ExchangeRate == "" || exp.ExchangeRateSource == "" ||
-		exp.ExchangeRateTimestamp == "" {
-		return nil, fmt.Errorf("expense row %s: missing required snapshot fields", exp.ID)
+	missing := make([]string, 0, 7)
+	if exp.TransactionAmount == 0 {
+		missing = append(missing, "transaction_amount")
+	}
+	if exp.TransactionCurrency == "" {
+		missing = append(missing, "transaction_currency")
+	}
+	if exp.ReportingAmount == 0 {
+		missing = append(missing, "reporting_amount")
+	}
+	if exp.ReportingCurrency == "" {
+		missing = append(missing, "reporting_currency")
+	}
+	if exp.ExchangeRate == "" {
+		missing = append(missing, "exchange_rate")
+	}
+	if exp.ExchangeRateSource == "" {
+		missing = append(missing, "exchange_rate_source")
+	}
+	if exp.ExchangeRateTimestamp == "" {
+		missing = append(missing, "exchange_rate_timestamp")
+	}
+	if len(missing) > 0 {
+		return nil, &SnapshotIntegrityError{ExpenseID: exp.ID, MissingFields: missing}
 	}
 
 	return exp, nil
@@ -442,16 +432,16 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 func rowToExpenseSuggestionInput(row SQLRow) *model.ExpenseSuggestionInput {
 	values := row.Values
 	return &model.ExpenseSuggestionInput{
-		ID:           values[0].GetString(),
-		Name:         values[1].GetString(),
-		Amount:       values[2].GetInt(),
-		Currency:     values[3].GetString(),
-		ExpenseType:  values[4].GetString(),
-		TagID:        values[5].GetString(),
-		CreatedAt:    values[6].GetString(),
-		ExpenseDate:  values[7].GetString(),
-		IsProRata:    values[8].GetBool(),
-		ProRataGroup: values[9].GetString(),
+		ID:                  values[0].GetString(),
+		Name:                values[1].GetString(),
+		TransactionAmount:   values[2].GetInt(),
+		TransactionCurrency: values[3].GetString(),
+		ExpenseType:         values[4].GetString(),
+		TagID:               values[5].GetString(),
+		CreatedAt:           values[6].GetString(),
+		ExpenseDate:         values[7].GetString(),
+		IsProRata:           values[8].GetBool(),
+		ProRataGroup:        values[9].GetString(),
 	}
 }
 
@@ -482,7 +472,7 @@ func (r *ImmudbExpenseRepository) CorrectExpense(ctx context.Context, original *
 }
 
 // expenseSelectColumns is the shared SELECT column list for expense queries.
-const expenseSelectColumns = `id, user_id, name, amount, currency, expense_type, tag_id,
+const expenseSelectColumns = `id, user_id, name, expense_type, tag_id,
 		expense_date, period_year, period_month, status, corrects_id,
 		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at,
 		transaction_amount, transaction_currency,
@@ -542,7 +532,7 @@ func (r *ImmudbExpenseRepository) GetCorrectionHistory(ctx context.Context, expe
 			break
 		}
 
-		next, convErr := rowToExpense(result.Rows[0])
+		next, convErr := r.mapRow(result.Rows[0])
 		if convErr != nil {
 			return nil, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -574,7 +564,7 @@ func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID s
 
 	expenses := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense, convErr := rowToExpense(row)
+		expense, convErr := r.mapRow(row)
 		if convErr != nil {
 			return nil, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -626,7 +616,7 @@ func (r *ImmudbExpenseRepository) GetExpensesByUserAfter(ctx context.Context, us
 
 	rows := make([]*model.Expense, 0, len(result.Rows))
 	for _, row := range result.Rows {
-		expense, convErr := rowToExpense(row)
+		expense, convErr := r.mapRow(row)
 		if convErr != nil {
 			return nil, ExpenseCursor{}, false, fmt.Errorf("mapping expense row: %w", convErr)
 		}
@@ -657,8 +647,6 @@ func (r *ImmudbExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, 
 	query := `UPDATE expenses SET
 		user_id = 'DELETED',
 		name = 'REDACTED',
-		amount = 0,
-		currency = '',
 		expense_type = '',
 		tag_id = '',
 		expense_date = '',

@@ -164,13 +164,13 @@ func cannedExpensePages() []*expensepb.ExpenseListResponse {
 		{
 			Data: []*expensepb.ExpenseData{
 				{
-					Id: "exp-1", Name: "Groceries", Amount: 4599, Currency: "USD",
+					Id: "exp-1", Name: "Groceries", TransactionAmount: 4599, TransactionCurrency: "USD",
 					ExpenseType: "essentials", TagId: "tag-1", ExpenseDate: "2026-05-01",
 					PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 					CreatedAt: "2026-05-01T12:00:00Z",
 				},
 				{
-					Id: "exp-2", Name: "Bus pass", Amount: 3000, Currency: "USD",
+					Id: "exp-2", Name: "Bus pass", TransactionAmount: 3000, TransactionCurrency: "USD",
 					ExpenseType: "essentials", TagId: "tag-2", ExpenseDate: "2026-05-02",
 					PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 					CreatedAt: "2026-05-02T09:00:00Z",

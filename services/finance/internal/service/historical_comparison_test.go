@@ -12,7 +12,50 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
-// --- GetHistoricalComparison fan-out regression tests ---
+// --- Cross-currency historical comparison ---
+
+// TestGetHistoricalComparison_MixedCurrencyNotComparable asserts that when the
+// current and previous periods have different reporting currencies, the
+// Comparable flag is false, ChangePercent is zeroed, and the rolling average is
+// suppressed.
+func TestGetHistoricalComparison_MixedCurrencyNotComparable(t *testing.T) {
+	exp := newCountingExpenseClient()
+	currentPeriod := makePeriod("p12", 2026, 12)
+	currentPeriod.ReportingCurrency = "USD"
+	prevPeriod := makePeriod("p11", 2026, 11)
+	prevPeriod.ReportingCurrency = "EUR"
+	periods := []*model.BudgetPeriod{currentPeriod, prevPeriod}
+	exp.set(2026, 12, []ExpenseData{{ReportingAmount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{ReportingAmount: 70000}})
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.Equal(t, int64(80000), result.CurrentSpent)
+	assert.Equal(t, int64(70000), result.PreviousSpent)
+	assert.Equal(t, "EUR", result.PreviousReportingCurrency)
+	assert.False(t, result.Comparable, "different reporting currencies are not comparable")
+	assert.Equal(t, float64(0), result.ChangePercent, "change percent zeroed when not comparable")
+	assert.Nil(t, result.RollingAverage, "rolling average suppressed for mixed currencies")
+}
+
+// TestGetHistoricalComparison_SameCurrencyComparable asserts that same-currency
+// adjacent periods produce a Comparable=true result with a valid change percent.
+func TestGetHistoricalComparison_SameCurrencyComparable(t *testing.T) {
+	exp := newCountingExpenseClient()
+	periods := []*model.BudgetPeriod{
+		makePeriod("p12", 2026, 12),
+		makePeriod("p11", 2026, 11),
+	}
+	exp.set(2026, 12, []ExpenseData{{ReportingAmount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{ReportingAmount: 70000}})
+	svc := newFanoutService(historicalRepo(periods), exp)
+
+	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.True(t, result.Comparable)
+	assert.InDelta(t, 14.29, result.ChangePercent, 0.01)
+}
 
 // TestGetHistoricalComparison_FanOutByteIdentical asserts the fan-out yields the
 // expected values (current/previous/change/rolling) while reading each distinct
@@ -27,11 +70,11 @@ func TestGetHistoricalComparison_FanOutByteIdentical(t *testing.T) {
 		makePeriod("p09", 2026, 9),
 		makePeriod("p08", 2026, 8),
 	}
-	exp.set(2026, 12, []ExpenseData{{Amount: 80000, ReportingAmount: 80000}})
-	exp.set(2026, 11, []ExpenseData{{Amount: 70000, ReportingAmount: 70000}})
-	exp.set(2026, 10, []ExpenseData{{Amount: 60000, ReportingAmount: 60000}})
-	exp.set(2026, 9, []ExpenseData{{Amount: 50000, ReportingAmount: 50000}})
-	exp.set(2026, 8, []ExpenseData{{Amount: 40000, ReportingAmount: 40000}})
+	exp.set(2026, 12, []ExpenseData{{ReportingAmount: 80000}})
+	exp.set(2026, 11, []ExpenseData{{ReportingAmount: 70000}})
+	exp.set(2026, 10, []ExpenseData{{ReportingAmount: 60000}})
+	exp.set(2026, 9, []ExpenseData{{ReportingAmount: 50000}})
+	exp.set(2026, 8, []ExpenseData{{ReportingAmount: 40000}})
 	svc := newFanoutService(historicalRepo(periods), exp)
 
 	result, err := svc.GetHistoricalComparison(context.Background(), "user-1", 2026, 12)
@@ -60,7 +103,7 @@ func TestGetHistoricalComparison_FanOutRunsConcurrently(t *testing.T) {
 		makePeriod("p10", 2026, 10), makePeriod("p09", 2026, 9),
 	}
 	for m := int32(9); m <= 12; m++ {
-		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000, ReportingAmount: int64(m) * 1000}})
+		exp.set(2026, m, []ExpenseData{{ReportingAmount: int64(m) * 1000}})
 	}
 	svc := newFanoutService(historicalRepo(periods), exp)
 
@@ -79,7 +122,7 @@ func TestGetHistoricalComparison_FanOutWrapsError(t *testing.T) {
 		makePeriod("p10", 2026, 10), makePeriod("p09", 2026, 9),
 	}
 	for m := int32(9); m <= 12; m++ {
-		exp.set(2026, m, []ExpenseData{{Amount: int64(m) * 1000, ReportingAmount: int64(m) * 1000}})
+		exp.set(2026, m, []ExpenseData{{ReportingAmount: int64(m) * 1000}})
 	}
 	exp.failOn(2026, 10, errors.New("upstream down"))
 	svc := newFanoutService(historicalRepo(periods), exp)

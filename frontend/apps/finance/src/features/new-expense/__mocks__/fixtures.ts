@@ -32,8 +32,8 @@ export const mockSuggestions: ExpenseSuggestionsResponse = {
   data: [
     {
       name: "Coffee Shop",
-      amount: 450,
-      currency: "USD",
+      transactionAmount: 450,
+      transactionCurrency: "USD",
       expenseType: "desires",
       tagId: "tag-food",
       frequency: 4,
@@ -43,8 +43,8 @@ export const mockSuggestions: ExpenseSuggestionsResponse = {
     },
     {
       name: "Coffee Beans",
-      amount: 1200,
-      currency: "USD",
+      transactionAmount: 1200,
+      transactionCurrency: "USD",
       expenseType: "essentials",
       tagId: "tag-food",
       frequency: 2,

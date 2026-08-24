@@ -5,6 +5,8 @@ import { expenseLogApi } from "../api";
 import { resolveTagNames, type ExpenseRow } from "../../../lib/expense-table-columns";
 import type { FilterCriteria } from "./useExpenseFilters";
 
+const EXPENSE_LOG_LOAD_ERROR = "Failed to load expense log.";
+
 /** Result of the data fetch, grouped for atomic replacement. */
 export interface ExpenseLogFetchResult {
   rawExpenses: Expense[];
@@ -12,18 +14,20 @@ export interface ExpenseLogFetchResult {
   periods: BudgetPeriod[];
 }
 
-/** Empty state constant for initial state and resets. */
-export const EMPTY_FETCH_RESULT: ExpenseLogFetchResult = {
-  rawExpenses: [],
-  tags: [],
-  periods: [],
-};
+export type ExpenseLogDataState =
+  | { status: "loading" }
+  | { status: "missing"; periods: BudgetPeriod[] }
+  | { status: "error"; message: string }
+  | {
+      status: "active";
+      expenses: ExpenseRow[];
+      tags: Tag[];
+      periods: BudgetPeriod[];
+      reportingCurrency: string;
+    };
 
 export interface ExpenseLogData {
-  expenses: ExpenseRow[];
-  tags: Tag[];
-  periods: BudgetPeriod[];
-  loading: boolean;
+  state: ExpenseLogDataState;
   selectedYear: number;
   selectedMonth: number;
   setSelectedYear: (year: number) => void;
@@ -33,22 +37,21 @@ export interface ExpenseLogData {
 
 /**
  * Encapsulates expense log data fetching, year/month selection, and
- * filtering. Returns resolved expense rows (with tag names) already
- * filtered by the current filter state.
- *
- * Internal state separates selection (year/month) from fetch results
- * (expenses/tags/periods). When selection changes, `loading` is set to
- * `true` immediately so consumers can dim stale content while the new
- * fetch completes.
+ * filtering. Returns a discriminated union so callers cannot hold
+ * contradictory flags (loading + active, missing + error) at once.
  */
 export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
-  // Grouped fetch-result state: replaced atomically on success
-  const [fetchResult, setFetchResult] = useState<ExpenseLogFetchResult>(EMPTY_FETCH_RESULT);
+  const [fetchResult, setFetchResult] = useState<ExpenseLogFetchResult>({
+    rawExpenses: [],
+    tags: [],
+    periods: [],
+  });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Track whether this is the initial mount to avoid duplicate loading=true
   const isInitialMount = useRef(true);
@@ -61,6 +64,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     const result = await toastCall(async () => {
       const [expensesResponse, tagsResponse, periodsResponse] =
         await Promise.all([
@@ -77,6 +81,8 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
         tags: result.tagsResponse.tags,
         periods: result.periodsResponse.periods,
       });
+    } else {
+      setError(EXPENSE_LOG_LOAD_ERROR);
     }
     setLoading(false);
   }, [selectedYear, selectedMonth, toastCall]);
@@ -110,15 +116,34 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       if (filters.dateTo && row.expenseDate > filters.dateTo) {
         return false;
       }
+      if (filters.selectedTransactionCurrencies.size > 0 && !filters.selectedTransactionCurrencies.has(row.transactionCurrencyEffective)) {
+        return false;
+      }
+      if (filters.selectedReportingCurrencies.size > 0 && !filters.selectedReportingCurrencies.has(row.reportingCurrencyEffective)) {
+        return false;
+      }
       return true;
     });
-  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo]);
+  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo, filters.selectedTransactionCurrencies, filters.selectedReportingCurrencies]);
+
+  const state = useMemo<ExpenseLogDataState>(() => {
+    if (loading) return { status: "loading" };
+    if (error) return { status: "error", message: error };
+    const selected = fetchResult.periods.find(
+      (period) => period.year === selectedYear && period.month === selectedMonth,
+    );
+    if (!selected) return { status: "missing", periods: fetchResult.periods };
+    return {
+      status: "active",
+      expenses,
+      tags: fetchResult.tags,
+      periods: fetchResult.periods,
+      reportingCurrency: selected.reportingCurrency,
+    };
+  }, [loading, error, fetchResult, selectedYear, selectedMonth, expenses]);
 
   return {
-    expenses,
-    tags: fetchResult.tags,
-    periods: fetchResult.periods,
-    loading,
+    state,
     selectedYear,
     selectedMonth,
     setSelectedYear,

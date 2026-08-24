@@ -80,15 +80,15 @@ func (s *ExpenseService) aggregateExpenseSuggestions(inputs []*model.ExpenseSugg
 		frequency := group.nonProRataCount + int32(len(group.proRataGroups))
 		bucket, weight := recencyBucket(group.latest.CreatedAt, s.clock())
 		suggestions = append(suggestions, &model.ExpenseSuggestion{
-			Name:          name,
-			Amount:        group.latest.Amount,
-			Currency:      group.latest.Currency,
-			ExpenseType:   group.latest.ExpenseType,
-			TagID:         group.latest.TagID,
-			Frequency:     frequency,
-			LastUsedAt:    group.latest.CreatedAt,
-			RecencyBucket: bucket,
-			FrecencyScore: float64(frequency * weight),
+			Name:                name,
+			TransactionAmount:   group.latest.TransactionAmount,
+			TransactionCurrency: group.latest.TransactionCurrency,
+			ExpenseType:         group.latest.ExpenseType,
+			TagID:               group.latest.TagID,
+			Frequency:           frequency,
+			LastUsedAt:          group.latest.CreatedAt,
+			RecencyBucket:       bucket,
+			FrecencyScore:       float64(frequency * weight),
 		})
 	}
 

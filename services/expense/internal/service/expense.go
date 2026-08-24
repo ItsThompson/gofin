@@ -26,22 +26,30 @@ var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 type ExpenseService struct {
 	repo         repository.ExpenseRepository
 	periodClient PeriodContextClient
+	fxClient     FxClient
 	logger       *slog.Logger
 	clock        func() time.Time
 }
 
 // NewExpenseService creates a new ExpenseService. The clock seam supplies the
 // current time for CreatedAt stamping and the period-lock check; production
-// passes time.Now and tests inject a fixed clock.
+// passes time.Now and tests inject a fixed clock. fxClient is required: a nil
+// client is a programming error and panics immediately, so a forgotten wire-up
+// fails at construction rather than on the first foreign-currency user.
 func NewExpenseService(
 	repo repository.ExpenseRepository,
 	periodClient PeriodContextClient,
+	fxClient FxClient,
 	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
+	if fxClient == nil {
+		panic("NewExpenseService: fxClient must not be nil")
+	}
 	return &ExpenseService{
 		repo:         repo,
 		periodClient: periodClient,
+		fxClient:     fxClient,
 		logger:       logger,
 		clock:        clock,
 	}
@@ -58,6 +66,21 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
+	// Normalize the period reporting currency once and validate it before any
+	// currency resolution or FX work. Finance owns the stored value, but an
+	// unsupported reporting currency is an internal invariant violation that
+	// must surface as a 500, not a 400 transaction-currency error from the
+	// defaulting branch. Normalization keeps casing/whitespace drift from
+	// routing a same-currency write to FX or persisting mismatched casing.
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	if err := validateReportingCurrency(reportingCurrency); err != nil {
+		s.logger.Error("unsupported reporting currency from period context",
+			slog.String("event", "unsupported_reporting_currency"),
+			slog.String("reporting_currency", reportingCurrency),
+		)
+		return nil, err
+	}
+
 	transactionCurrency, err := s.resolveCreateTransactionCurrency(period, req)
 	if err != nil {
 		return nil, err
@@ -67,29 +90,28 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 
 	// Resolve the money snapshot. Same-currency expenses bypass the FX provider
 	// and write an identity snapshot (rate "1", source "identity"). Foreign-currency
-	// conversion requires the FX provider, which is not wired until the
-	// foreign-currency ticket; until then a foreign-currency request cannot be
-	// converted and must not write a partial ledger row, so it returns
-	// CONVERSION_UNAVAILABLE (spec error matrix: FX unavailable → no write).
+	// conversion calls the FX Service ConvertAmount RPC before writing the row.
 	var snapshot model.Expense
-	if transactionCurrency == period.ReportingCurrency {
-		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, period.ReportingCurrency, now)
+	if transactionCurrency == reportingCurrency {
+		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, reportingCurrency, now)
 	} else {
-		s.logger.Info("foreign currency conversion unavailable",
-			slog.String("event", "foreign_currency_conversion_unavailable"),
-			slog.String("transaction_currency", transactionCurrency),
-			slog.String("reporting_currency", period.ReportingCurrency),
-		)
-		return nil, conversionUnavailableError()
+		fxResp, convErr := s.fxClient.ConvertAmount(ctx, FxConvertRequest{
+			Amount:         req.Amount,
+			SourceCurrency: transactionCurrency,
+			TargetCurrency: reportingCurrency,
+			RequestedAt:    now,
+		})
+		if convErr != nil {
+			return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
+		}
+		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
 	}
 
 	expense := &model.Expense{
 		ID:                    uuid.New().String(),
 		UserID:                userID,
 		Name:                  req.Name,
-		Amount:                req.Amount,
 		TransactionCurrency:   transactionCurrency,
-		Currency:              transactionCurrency,
 		ExpenseType:           req.ExpenseType,
 		TagID:                 req.TagID,
 		ExpenseDate:           req.ExpenseDate,
@@ -120,7 +142,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		slog.String("method", "CreateExpense"),
 		slog.String("user_id", userID),
 		slog.String("expense_id", created.ID),
-		slog.Int64("amount", created.Amount),
+		slog.Int64("amount", created.TransactionAmount),
 		slog.String("expense_type", created.ExpenseType),
 	)
 
@@ -240,9 +262,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		ID:                    uuid.New().String(),
 		UserID:                userID,
 		Name:                  req.Name,
-		Amount:                req.Amount,
 		TransactionCurrency:   transactionCurrency,
-		Currency:              transactionCurrency, // immudb currency column is NOT NULL; mirror the transaction currency
 		ExpenseType:           req.ExpenseType,
 		TagID:                 req.TagID,
 		ExpenseDate:           req.ExpenseDate,
@@ -447,8 +467,54 @@ func unsupportedCurrencyError(currencyCode string) *apierr.Error {
 func conversionUnavailableError() *apierr.Error {
 	return &apierr.Error{
 		Code:    model.ErrConversionUnavailable,
-		Message: "currency conversion is unavailable, please try again later",
+		Message: "Conversion unavailable. Try again later, or enter the manually converted amount in the period currency.",
 		Status:  http.StatusServiceUnavailable,
+	}
+}
+
+// fxConversionError wraps an FX conversion failure that is the service's fault
+// (a 500) and carries the currency pair so the handler's errkit.Report merges it
+// into the Sentry context block and slog record automatically.
+type fxConversionError struct {
+	err                 error
+	transactionCurrency string
+	reportingCurrency   string
+}
+
+func (e *fxConversionError) Error() string { return e.err.Error() }
+func (e *fxConversionError) Unwrap() error { return e.err }
+func (e *fxConversionError) ReportData() map[string]any {
+	return map[string]any{"transaction_currency": e.transactionCurrency, "reporting_currency": e.reportingCurrency}
+}
+
+// handleFxConversionFailure classifies an FX conversion failure and returns the
+// error the caller should surface. The handler reports 500s via errkit.Report,
+// so the service only logs here and never reports: a 503 outage and a 400 client
+// error are expected outcomes, while a 500 is wrapped in fxConversionError so the
+// handler's report carries the currency pair.
+func (s *ExpenseService) handleFxConversionFailure(err error, transactionCurrency, reportingCurrency string) error {
+	var apiErr *apierr.Error
+	if errors.As(err, &apiErr) && apiErr.Code == model.ErrConversionUnavailable {
+		s.logger.Info("foreign currency conversion unavailable",
+			slog.String("event", "foreign_currency_conversion_unavailable"),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", reportingCurrency),
+		)
+		return err
+	}
+	if errors.As(err, &apiErr) && !apierr.IsServerError(apiErr) {
+		s.logger.Info("foreign currency conversion rejected",
+			slog.String("event", "foreign_currency_conversion_rejected"),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", reportingCurrency),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	return &fxConversionError{
+		err:                 err,
+		transactionCurrency: transactionCurrency,
+		reportingCurrency:   reportingCurrency,
 	}
 }
 
@@ -466,6 +532,36 @@ func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency,
 		ExchangeRateSource:    model.ExchangeSourceIdentity,
 		ExchangeRateTimestamp: timestamp,
 	}
+}
+
+// buildProviderSnapshot builds the money snapshot for a foreign-currency expense
+// from the FX Service ConvertAmount response. The transaction amount and
+// currency are the user's original input (unchanged); the reporting amount is
+// the FX-converted amount; and the exchange rate, source, timestamp, and expiry
+// are the provider facts returned by FX.
+func buildProviderSnapshot(transactionAmount int64, transactionCurrency, reportingCurrency string, fx *FxConvertResponse) model.Expense {
+	return model.Expense{
+		TransactionAmount:     transactionAmount,
+		TransactionCurrency:   transactionCurrency,
+		ReportingAmount:       fx.ConvertedAmount,
+		ReportingCurrency:     reportingCurrency,
+		ExchangeRate:          fx.ExchangeRate,
+		ExchangeRateSource:    fx.Source,
+		ExchangeRateTimestamp: fx.RateTimestamp,
+		ExchangeRateExpiresAt: fx.ExpiresAt,
+	}
+}
+
+// validateReportingCurrency checks that the period reporting currency is in the
+// shared static catalog. The period context is trusted (Finance owns it), so an
+// unsupported reporting currency is an internal invariant violation, not a user
+// input error or a conversion outage. It surfaces as a 500 internal error.
+func validateReportingCurrency(reportingCurrency string) *apierr.Error {
+	code := normalizeCurrencyCode(reportingCurrency)
+	if !currencycatalog.IsSupported(code) {
+		return apierr.Internal("reporting currency is not supported")
+	}
+	return nil
 }
 
 func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext, req *model.CreateExpenseRequest) (string, error) {

@@ -6,7 +6,7 @@ WORKDIR /app
 COPY fx/go.mod fx/go.sum* ./fx/
 COPY apierr/go.mod ./apierr/
 COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
-COPY errkit/go.mod ./errkit/
+COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
 COPY shared/currency/go.mod ./shared/currency/

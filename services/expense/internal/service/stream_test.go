@@ -25,8 +25,6 @@ func streamExpense(id, createdAt string) *model.Expense {
 		ID:          id,
 		UserID:      "user-1",
 		Name:        "Expense " + id,
-		Amount:      1000,
-		Currency:    "USD",
 		ExpenseType: "essentials",
 		TagID:       "tag-1",
 		ExpenseDate: "2026-05-01",
@@ -207,7 +205,7 @@ func (r *panickingStreamRepo) GetExpensesByUserAfter(context.Context, string, re
 // errc send it hangs on <-errc until the guard timeout.
 func TestStreamAllUserExpenses_ProducerPanicTerminatesTheStream(t *testing.T) {
 	logger, logs := serverkittest.NewLogger()
-	svc := NewExpenseService(&panickingStreamRepo{}, newTestPeriodClient(), time.Now, logger)
+	svc := NewExpenseService(&panickingStreamRepo{}, newTestPeriodClient(), &stubFxClient{}, time.Now, logger)
 
 	sendCount := 0
 	err := collectStream(t, svc, "user-1", 10, func(*model.Expense) error {
@@ -262,7 +260,7 @@ func TestStreamAllUserExpenses_ProducerLookAheadBoundedToOnePage(t *testing.T) {
 		page: page,
 		next: repository.ExpenseCursor{CreatedAt: "2026-05-01T00:00:00Z", ID: "exp-9"},
 	}
-	svc := NewExpenseService(repo, newTestPeriodClient(), time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	svc := NewExpenseService(repo, newTestPeriodClient(), &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

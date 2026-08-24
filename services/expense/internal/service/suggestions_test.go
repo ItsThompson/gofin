@@ -19,9 +19,9 @@ func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) 
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-old", CreatedAt: "2026-05-20T10:00:00Z"},
-		{ID: "exp-2", Name: "Groceries", Amount: 1250, Currency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
-		{ID: "exp-3", Name: "Coffee", Amount: 500, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-01T10:00:00Z"},
+		{ID: "exp-1", Name: "Groceries", TransactionAmount: 1000, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-old", CreatedAt: "2026-05-20T10:00:00Z"},
+		{ID: "exp-2", Name: "Groceries", TransactionAmount: 1250, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-3", Name: "Coffee", TransactionAmount: 500, TransactionCurrency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-01T10:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 1})
@@ -33,11 +33,30 @@ func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) 
 	assert.True(t, result.HasMore)
 	require.Len(t, result.Data, 1)
 	assert.Equal(t, "Groceries", result.Data[0].Name)
-	assert.Equal(t, int64(1250), result.Data[0].Amount)
+	assert.Equal(t, int64(1250), result.Data[0].TransactionAmount)
+	assert.Equal(t, "USD", result.Data[0].TransactionCurrency)
 	assert.Equal(t, "tag-new", result.Data[0].TagID)
 	assert.Equal(t, int32(2), result.Data[0].Frequency)
 	assert.Equal(t, "last_7_days", result.Data[0].RecencyBucket)
 	assert.Equal(t, float64(8), result.Data[0].FrecencyScore)
+}
+
+func TestGetExpenseSuggestions_PreservesForeignTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
+
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
+		{ID: "exp-1", Name: "Hotel", TransactionAmount: 15000, TransactionCurrency: "EUR", ExpenseType: "desires", TagID: "tag-travel", CreatedAt: "2026-05-28T10:00:00Z"},
+		{ID: "exp-2", Name: "Hotel", TransactionAmount: 16000, TransactionCurrency: "EUR", ExpenseType: "desires", TagID: "tag-travel", CreatedAt: "2026-05-30T10:00:00Z"},
+	}, nil)
+
+	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
+
+	require.NoError(t, err)
+	require.Len(t, result.Data, 1)
+	// The latest active matching expense determines the suggestion values.
+	assert.Equal(t, int64(16000), result.Data[0].TransactionAmount)
+	assert.Equal(t, "EUR", result.Data[0].TransactionCurrency)
 }
 
 func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
@@ -45,9 +64,9 @@ func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Insurance", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-01T10:00:00Z", IsProRata: true, ProRataGroup: "group-1"},
-		{ID: "exp-2", Name: "Insurance", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-02T10:00:00Z", IsProRata: true, ProRataGroup: "group-1"},
-		{ID: "exp-3", Name: "Insurance", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-03T10:00:00Z", IsProRata: true},
+		{ID: "exp-1", Name: "Insurance", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-01T10:00:00Z", IsProRata: true, ProRataGroup: "group-1"},
+		{ID: "exp-2", Name: "Insurance", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-02T10:00:00Z", IsProRata: true, ProRataGroup: "group-1"},
+		{ID: "exp-3", Name: "Insurance", ExpenseType: "essentials", TagID: "tag-ins", CreatedAt: "2026-05-03T10:00:00Z", IsProRata: true},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
@@ -62,12 +81,12 @@ func TestGetExpenseSuggestions_RankingTieBreakers(t *testing.T) {
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Coffee", Amount: 500, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T10:00:00Z"},
-		{ID: "exp-2", Name: "Coffee", Amount: 600, Currency: "USD", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T11:00:00Z"},
-		{ID: "exp-3", Name: "Groceries", Amount: 2000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
-		{ID: "exp-4", Name: "Transit", Amount: 300, Currency: "USD", ExpenseType: "essentials", TagID: "tag-transit", CreatedAt: "2026-05-29T10:00:00Z"},
-		{ID: "exp-5", Name: "Apples", Amount: 700, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-28T10:00:00Z"},
-		{ID: "exp-6", Name: "Bakery", Amount: 800, Currency: "USD", ExpenseType: "desires", TagID: "tag-bakery", CreatedAt: "2026-05-28T10:00:00Z"},
+		{ID: "exp-1", Name: "Coffee", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T10:00:00Z"},
+		{ID: "exp-2", Name: "Coffee", ExpenseType: "desires", TagID: "tag-coffee", CreatedAt: "2026-05-30T11:00:00Z"},
+		{ID: "exp-3", Name: "Groceries", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-4", Name: "Transit", ExpenseType: "essentials", TagID: "tag-transit", CreatedAt: "2026-05-29T10:00:00Z"},
+		{ID: "exp-5", Name: "Apples", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-28T10:00:00Z"},
+		{ID: "exp-6", Name: "Bakery", ExpenseType: "desires", TagID: "tag-bakery", CreatedAt: "2026-05-28T10:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
@@ -82,15 +101,15 @@ func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Lunch", Amount: 1200, Currency: "USD", ExpenseType: "desires", TagID: "tag-old", CreatedAt: "2026-05-31T10:00:00Z"},
-		{ID: "exp-2", Name: "Lunch", Amount: 1500, Currency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-1", Name: "Lunch", TransactionAmount: 1200, TransactionCurrency: "USD", ExpenseType: "desires", TagID: "tag-old", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-2", Name: "Lunch", TransactionAmount: 1500, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "tag-new", CreatedAt: "2026-05-31T10:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
 
 	require.NoError(t, err)
 	require.Len(t, result.Data, 1)
-	assert.Equal(t, int64(1500), result.Data[0].Amount)
+	assert.Equal(t, int64(1500), result.Data[0].TransactionAmount)
 	assert.Equal(t, "essentials", result.Data[0].ExpenseType)
 	assert.Equal(t, "tag-new", result.Data[0].TagID)
 }
@@ -100,10 +119,10 @@ func TestGetExpenseSuggestions_AssignsRecencyBucketWeights(t *testing.T) {
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Today", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-1", CreatedAt: "2026-06-01T01:00:00Z"},
-		{ID: "exp-2", Name: "Last 7", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-2", CreatedAt: "2026-05-29T12:00:00Z"},
-		{ID: "exp-3", Name: "Last 30", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-3", CreatedAt: "2026-05-15T12:00:00Z"},
-		{ID: "exp-4", Name: "Older", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-4", CreatedAt: "2026-04-15T12:00:00Z"},
+		{ID: "exp-1", Name: "Today", ExpenseType: "essentials", TagID: "tag-1", CreatedAt: "2026-06-01T01:00:00Z"},
+		{ID: "exp-2", Name: "Last 7", ExpenseType: "essentials", TagID: "tag-2", CreatedAt: "2026-05-29T12:00:00Z"},
+		{ID: "exp-3", Name: "Last 30", ExpenseType: "essentials", TagID: "tag-3", CreatedAt: "2026-05-15T12:00:00Z"},
+		{ID: "exp-4", Name: "Older", ExpenseType: "essentials", TagID: "tag-4", CreatedAt: "2026-04-15T12:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50})
@@ -123,8 +142,6 @@ func TestGetExpenseSuggestions_PaginatesRankedSuggestions(t *testing.T) {
 		inputs = append(inputs, &model.ExpenseSuggestionInput{
 			ID:          fmt.Sprintf("exp-%02d", i),
 			Name:        fmt.Sprintf("Expense %02d", i),
-			Amount:      int64(1000 + i),
-			Currency:    "USD",
 			ExpenseType: "essentials",
 			TagID:       "tag",
 			CreatedAt:   "2026-05-31T10:00:00Z",
@@ -152,7 +169,7 @@ func TestGetExpenseSuggestions_ReturnsEmptyPageWhenPageStartExceedsTotal(t *test
 	svc := newTestServiceWithClock(repo, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
 
 	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return([]*model.ExpenseSuggestionInput{
-		{ID: "exp-1", Name: "Groceries", Amount: 1000, Currency: "USD", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
+		{ID: "exp-1", Name: "Groceries", ExpenseType: "essentials", TagID: "tag-food", CreatedAt: "2026-05-31T10:00:00Z"},
 	}, nil)
 
 	result, err := svc.GetExpenseSuggestions(context.Background(), &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 2, PageSize: 50})

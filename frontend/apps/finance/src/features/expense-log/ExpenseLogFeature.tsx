@@ -13,16 +13,21 @@ import { ExpenseTable } from "./components/ExpenseTable";
 import { ExpenseList } from "./components/ExpenseList";
 import { PaginationControls } from "./components/PaginationControls";
 import { ExpenseDetailModal } from "../expense-detail";
+import { ExpenseLogUnavailableCard } from "./components/ExpenseLogUnavailableCard";
+import { PeriodSelector } from "./components/PeriodSelector";
 
 /**
  * Expense log feature orchestrator. Composes filter, data, and table hooks
  * and renders the appropriate view components.
  */
-export function ExpenseLogFeature({ user }: FinancePageProps) {
+export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
+  void _user;
   const now = new Date();
   const filters = useExpenseFilters();
   const data = useExpenseLogData(filters.criteria);
-  const { table } = useExpenseTable(data.expenses, user.currency);
+  const { table } = useExpenseTable(
+    data.state.status === "active" ? data.state.expenses : [],
+  );
 
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
 
@@ -36,11 +41,45 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
     setSelectedExpenseId(row.id);
   }
 
-  if (data.loading) {
+  if (data.state.status === "loading") {
     return <ExpenseLogSkeleton />;
   }
 
-  const periodValue = `${data.selectedYear}-${data.selectedMonth}`;
+  if (data.state.status === "missing") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Receipt className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold">Expense Log</h1>
+        </div>
+
+        <PeriodSelector
+          periods={data.state.periods}
+          selectedYear={data.selectedYear}
+          selectedMonth={data.selectedMonth}
+          onChange={handlePeriodChange}
+        />
+
+        <ExpenseLogUnavailableCard
+          year={data.selectedYear}
+          month={data.selectedMonth}
+        />
+      </div>
+    );
+  }
+
+  if (data.state.status === "error") {
+    return (
+      <ExpenseLogUnavailableCard
+        year={data.selectedYear}
+        month={data.selectedMonth}
+        errorMessage={data.state.message}
+        onRetry={data.refresh}
+      />
+    );
+  }
+
+  const { expenses, tags, periods, reportingCurrency } = data.state;
 
   return (
     <div className="space-y-4">
@@ -50,42 +89,12 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label htmlFor="period-select" className="text-sm font-medium">
-            Period:
-          </label>
-          <select
-            id="period-select"
-            value={periodValue}
-            onChange={(event) => handlePeriodChange(event.target.value)}
-            className="h-8 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {data.periods.length > 0 ? (
-              data.periods.map((period) => {
-                const optionValue = `${period.year}-${period.month}`;
-                const label = new Date(
-                  period.year,
-                  period.month - 1,
-                ).toLocaleString("en-US", {
-                  month: "long",
-                  year: "numeric",
-                });
-                return (
-                  <option key={optionValue} value={optionValue}>
-                    {label}
-                  </option>
-                );
-              })
-            ) : (
-              <option value={periodValue}>
-                {new Date(data.selectedYear, data.selectedMonth - 1).toLocaleString(
-                  "en-US",
-                  { month: "long", year: "numeric" },
-                )}
-              </option>
-            )}
-          </select>
-        </div>
+        <PeriodSelector
+          periods={periods}
+          selectedYear={data.selectedYear}
+          selectedMonth={data.selectedMonth}
+          onChange={handlePeriodChange}
+        />
 
         <Button
           variant={filters.showFilters ? "default" : "outline"}
@@ -98,6 +107,8 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
             <span className="ml-1 rounded-full bg-primary-foreground px-1.5 text-xs font-bold text-primary">
               {filters.criteria.selectedTypes.size +
                 filters.criteria.selectedTags.size +
+                filters.criteria.selectedTransactionCurrencies.size +
+                filters.criteria.selectedReportingCurrencies.size +
                 (filters.criteria.dateFrom ? 1 : 0) +
                 (filters.criteria.dateTo ? 1 : 0)}
             </span>
@@ -112,15 +123,15 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
         )}
 
         <span className="ml-auto text-sm text-muted-foreground">
-          {data.expenses.length} expense{data.expenses.length !== 1 ? "s" : ""}
+          {expenses.length} expense{expenses.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {filters.showFilters && (
-        <FilterPanel filters={filters} tags={data.tags} />
+        <FilterPanel filters={filters} tags={tags} />
       )}
 
-      {data.expenses.length === 0 ? (
+      {expenses.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Receipt className="mb-4 size-12 text-muted-foreground/50" />
@@ -140,7 +151,6 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
           <div className="md:hidden">
             <ExpenseList
               table={table}
-              currency={user.currency}
               onRowClick={handleRowClick}
             />
           </div>
@@ -151,8 +161,8 @@ export function ExpenseLogFeature({ user }: FinancePageProps) {
 
       <ExpenseDetailModal
         expenseId={selectedExpenseId}
-        currency={user.currency}
-        tags={data.tags}
+        currency={reportingCurrency}
+        tags={tags}
         currentYear={now.getFullYear()}
         currentMonth={now.getMonth() + 1}
         onClose={() => setSelectedExpenseId(null)}

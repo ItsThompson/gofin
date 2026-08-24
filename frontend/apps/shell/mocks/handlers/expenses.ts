@@ -34,10 +34,14 @@ export const expensesHandlers = [
     async ({ request }) => {
       await simulateLatency();
       const body = await request.json();
+      const { amount, ...rest } = body;
       const expense: Expense = {
         id: crypto.randomUUID(),
         userId: currentMockUser.id,
-        ...body,
+        ...rest,
+        transactionAmount: amount,
+        reportingAmount: amount,
+        reportingCurrency: rest.transactionCurrency,
         status: "active",
         isProRata: false,
         createdAt: new Date().toISOString(),
@@ -66,16 +70,19 @@ export const expensesHandlers = [
     async ({ request, params }) => {
       await simulateLatency();
       const body = await request.json();
+      const { amount, ...rest } = body;
       const original = mockExpenses.find((e) => e.id === params.id);
       const base: Expense = original ?? {
         id: params.id,
         userId: currentMockUser.id,
-        name: body.name,
-        amount: body.amount,
+        name: rest.name,
         transactionCurrency: currentMockUser.currency,
-        expenseType: body.expenseType,
-        tagId: body.tagId,
-        expenseDate: body.expenseDate,
+        transactionAmount: amount,
+        reportingAmount: amount,
+        reportingCurrency: currentMockUser.currency,
+        expenseType: rest.expenseType,
+        tagId: rest.tagId,
+        expenseDate: rest.expenseDate,
         periodYear: new Date().getFullYear(),
         periodMonth: new Date().getMonth() + 1,
         status: "active",
@@ -85,7 +92,9 @@ export const expensesHandlers = [
       const correction: Expense = {
         ...base,
         id: crypto.randomUUID(),
-        ...body,
+        ...rest,
+        transactionAmount: amount,
+        reportingAmount: amount,
         status: "active",
         correctsId: params.id,
         createdAt: new Date().toISOString(),

@@ -9,9 +9,20 @@ import {
   ComboboxList,
 } from "@gofin/ui/components/combobox";
 import { FormMessage } from "@gofin/ui/components/form";
+import { getCurrencySymbol, toMajorUnits, getMinorUnitDigits } from "@gofin/core";
 
 import { useExpenseAutocomplete } from "../hooks/useExpenseAutocomplete";
 import type { ExpenseSuggestion } from "../types";
+
+function formatSuggestionAmount(suggestion: ExpenseSuggestion): string {
+  const major = toMajorUnits(
+    suggestion.transactionAmount,
+    suggestion.transactionCurrency,
+  );
+  const symbol = getCurrencySymbol(suggestion.transactionCurrency);
+  const digits = getMinorUnitDigits(suggestion.transactionCurrency);
+  return `${symbol}${major.toFixed(digits)}`;
+}
 
 export interface ExpenseNameComboboxProps {
   id?: string;
@@ -74,7 +85,7 @@ export function ExpenseNameCombobox({
               <div className="flex flex-col">
                 <span>{suggestion.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  Frecency score: {suggestion.frecencyScore}
+                  {formatSuggestionAmount(suggestion)} · {suggestion.transactionCurrency} · Frecency: {suggestion.frecencyScore}
                 </span>
               </div>
             </ComboboxItem>

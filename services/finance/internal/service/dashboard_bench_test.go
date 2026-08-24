@@ -32,8 +32,8 @@ func seedYearPeriods(exp *countingExpenseClient) []*model.BudgetPeriod {
 			SavingsPercent:    20,
 		})
 		exp.set(2026, m, []ExpenseData{
-			{Amount: int64(m) * 1000, ReportingAmount: int64(m) * 1000, ExpenseType: "essentials"},
-			{Amount: int64(m) * 500, ReportingAmount: int64(m) * 500, ExpenseType: "desires"},
+			{ReportingAmount: int64(m) * 1000, ExpenseType: "essentials"},
+			{ReportingAmount: int64(m) * 500, ExpenseType: "desires"},
 		})
 	}
 	return periods

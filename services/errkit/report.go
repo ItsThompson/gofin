@@ -43,6 +43,7 @@ func report(ctx context.Context, err error, m Meta, skip int) error {
 	}
 
 	level := m.level()
+	m.Data = mergeData(m.Data, err)
 
 	// Logged before the hub is resolved and unconditionally, because the log
 	// record is the durable artifact: it must not depend on a DSN being set.

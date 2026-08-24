@@ -49,8 +49,6 @@ func streamRow(id, createdAt string) *model.Expense {
 		ID:          id,
 		UserID:      "user-1",
 		Name:        "Expense " + id,
-		Amount:      2500,
-		Currency:    "USD",
 		ExpenseType: "essentials",
 		TagID:       "tag-1",
 		ExpenseDate: "2026-05-01",
@@ -76,7 +74,6 @@ func TestGRPC_StreamAllUserExpenses_SendsAllRowsAsProto(t *testing.T) {
 	require.Len(t, stream.sent, 2)
 	assert.Equal(t, "exp-1", stream.sent[0].GetId())
 	assert.Equal(t, "exp-2", stream.sent[1].GetId())
-	assert.Equal(t, int64(2500), stream.sent[0].GetAmount())
 	assert.Equal(t, "2026-05-01T00:00:01Z", stream.sent[1].GetCreatedAt())
 	repo.AssertExpectations(t)
 }

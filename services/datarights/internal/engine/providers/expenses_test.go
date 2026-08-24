@@ -19,7 +19,7 @@ func TestExpensesProvider_Name(t *testing.T) {
 func TestExpensesProvider_Headers(t *testing.T) {
 	p := NewExpensesProvider(nil, nil)
 	expected := []string{
-		"id", "name", "amount", "currency", "expense_type", "tag_name",
+		"id", "name", "transaction_amount", "transaction_currency", "expense_type", "tag_name",
 		"expense_date", "period_year", "period_month", "status",
 		"corrects_id", "is_pro_rata", "pro_rata_group", "pro_rata_index",
 		"pro_rata_total", "created_at",
@@ -34,18 +34,18 @@ func TestExpensesProvider_Collect_Success(t *testing.T) {
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{
-				Id:          "exp-1",
-				Name:        "Groceries",
-				Amount:      4599,
-				Currency:    "USD",
-				ExpenseType: "essentials",
-				TagId:       "tag-1",
-				ExpenseDate: "2026-05-01",
-				PeriodYear:  2026,
-				PeriodMonth: 5,
-				Status:      "active",
-				IsProRata:   false,
-				CreatedAt:   "2026-05-01T12:00:00Z",
+				Id:                  "exp-1",
+				Name:                "Groceries",
+				TransactionAmount:   4599,
+				TransactionCurrency: "USD",
+				ExpenseType:         "essentials",
+				TagId:               "tag-1",
+				ExpenseDate:         "2026-05-01",
+				PeriodYear:          2026,
+				PeriodMonth:         5,
+				Status:              "active",
+				IsProRata:           false,
+				CreatedAt:           "2026-05-01T12:00:00Z",
 			},
 		},
 	}
@@ -70,21 +70,21 @@ func TestExpensesProvider_Collect_ProRataExpense(t *testing.T) {
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{
-				Id:           "exp-pr-1",
-				Name:         "Rent (1/3)",
-				Amount:       50000,
-				Currency:     "USD",
-				ExpenseType:  "essentials",
-				TagId:        "tag-1",
-				ExpenseDate:  "2026-05-01",
-				PeriodYear:   2026,
-				PeriodMonth:  5,
-				Status:       "active",
-				IsProRata:    true,
-				ProRataGroup: "group-abc",
-				ProRataIndex: 1,
-				ProRataTotal: 3,
-				CreatedAt:    "2026-05-01T10:00:00Z",
+				Id:                  "exp-pr-1",
+				Name:                "Rent (1/3)",
+				TransactionAmount:   50000,
+				TransactionCurrency: "USD",
+				ExpenseType:         "essentials",
+				TagId:               "tag-1",
+				ExpenseDate:         "2026-05-01",
+				PeriodYear:          2026,
+				PeriodMonth:         5,
+				Status:              "active",
+				IsProRata:           true,
+				ProRataGroup:        "group-abc",
+				ProRataIndex:        1,
+				ProRataTotal:        3,
+				CreatedAt:           "2026-05-01T10:00:00Z",
 			},
 		},
 	}
@@ -109,17 +109,17 @@ func TestExpensesProvider_Collect_MissingTagResolvesToUnknown(t *testing.T) {
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{
-				Id:          "exp-1",
-				Name:        "Mystery",
-				Amount:      1000,
-				Currency:    "USD",
-				ExpenseType: "desires",
-				TagId:       "deleted-tag-id",
-				ExpenseDate: "2026-01-15",
-				PeriodYear:  2026,
-				PeriodMonth: 1,
-				Status:      "active",
-				CreatedAt:   "2026-01-15T08:00:00Z",
+				Id:                  "exp-1",
+				Name:                "Mystery",
+				TransactionAmount:   1000,
+				TransactionCurrency: "USD",
+				ExpenseType:         "desires",
+				TagId:               "deleted-tag-id",
+				ExpenseDate:         "2026-01-15",
+				PeriodYear:          2026,
+				PeriodMonth:         1,
+				Status:              "active",
+				CreatedAt:           "2026-01-15T08:00:00Z",
 			},
 		},
 	}
@@ -139,9 +139,9 @@ func TestExpensesProvider_Collect_MultipleRowsInStreamOrder(t *testing.T) {
 	// created_at ASC, id ASC); the consumer does not page.
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
-			{Id: "exp-1", Name: "First", Amount: 100, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 1, CreatedAt: "2026-01-01T00:00:00Z"},
-			{Id: "exp-2", Name: "Second", Amount: 200, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 1, CreatedAt: "2026-01-02T00:00:00Z"},
-			{Id: "exp-3", Name: "Third", Amount: 300, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 2, CreatedAt: "2026-02-01T00:00:00Z"},
+			{Id: "exp-1", Name: "First", TransactionAmount: 100, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 1, CreatedAt: "2026-01-01T00:00:00Z"},
+			{Id: "exp-2", Name: "Second", TransactionAmount: 200, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 1, CreatedAt: "2026-01-02T00:00:00Z"},
+			{Id: "exp-3", Name: "Third", TransactionAmount: 300, TagId: "tag-1", PeriodYear: 2026, PeriodMonth: 2, CreatedAt: "2026-02-01T00:00:00Z"},
 		},
 	}
 
@@ -210,18 +210,18 @@ func TestExpensesProvider_Collect_CorrectedExpense(t *testing.T) {
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{
-				Id:          "exp-correction",
-				Name:        "Groceries (corrected)",
-				Amount:      5099,
-				Currency:    "USD",
-				ExpenseType: "essentials",
-				TagId:       "tag-1",
-				ExpenseDate: "2026-05-01",
-				PeriodYear:  2026,
-				PeriodMonth: 5,
-				Status:      "corrected",
-				CorrectsId:  "exp-original",
-				CreatedAt:   "2026-05-02T09:00:00Z",
+				Id:                  "exp-correction",
+				Name:                "Groceries (corrected)",
+				TransactionAmount:   5099,
+				TransactionCurrency: "USD",
+				ExpenseType:         "essentials",
+				TagId:               "tag-1",
+				ExpenseDate:         "2026-05-01",
+				PeriodYear:          2026,
+				PeriodMonth:         5,
+				Status:              "corrected",
+				CorrectsId:          "exp-original",
+				CreatedAt:           "2026-05-02T09:00:00Z",
 			},
 		},
 	}

@@ -114,9 +114,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Name"), "Coffee");
 
     expect(await screen.findByText("Coffee Shop")).toBeInTheDocument();
-    expect(screen.getByText("Frecency score: 42")).toBeInTheDocument();
+    expect(screen.getByText("$4.50 · USD · Frecency: 42")).toBeInTheDocument();
     expect(screen.getByText("Coffee Beans")).toBeInTheDocument();
-    expect(screen.getByText("Frecency score: 31")).toBeInTheDocument();
+    expect(screen.getByText("$12.00 · USD · Frecency: 31")).toBeInTheDocument();
   });
 
   it("places load more after visible suggestions when the latest page has more results", async () => {
@@ -130,8 +130,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const listbox = await screen.findByRole("listbox");
     const options = within(listbox).getAllByRole("option");
     expect(options.map((option) => option.textContent)).toEqual([
-      "Coffee ShopFrecency score: 42",
-      "Coffee BeansFrecency score: 31",
+      "Coffee Shop$4.50 · USD · Frecency: 42",
+      "Coffee Beans$12.00 · USD · Frecency: 31",
       "Load more suggestions",
     ]);
   });
@@ -165,7 +165,7 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const secondPageSuggestion = {
       ...mockSuggestions.data[0],
       name: "Custom Coffee Roaster",
-      amount: 2200,
+      transactionAmount: 2200,
       frecencyScore: 18,
     };
 
@@ -216,7 +216,7 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const secondPageSuggestion = {
       ...mockSuggestions.data[0],
       name: "Coffee Cart",
-      amount: 900,
+      transactionAmount: 900,
       frecencyScore: 12,
     };
 
@@ -349,6 +349,51 @@ describe("NewExpenseFeature autocomplete integration", () => {
     expect(screen.getByLabelText("Date")).toHaveValue(dateBeforeSelection);
     expect(screen.getByLabelText("Spread across months")).not.toBeChecked();
     expect(screen.queryByLabelText("Number of months")).not.toBeInTheDocument();
+  });
+
+  it("keeps a foreign suggestion currency selected and submits transactionCurrency", async () => {
+    const user = userEvent.setup();
+    const eurSuggestion: ExpenseSuggestionsResponse = {
+      data: [
+        {
+          name: "Hotel Berlin",
+          transactionAmount: 15000,
+          transactionCurrency: "EUR",
+          expenseType: "desires",
+          tagId: "tag-food",
+          frequency: 3,
+          lastUsedAt: "2026-05-20T00:00:00Z",
+          recencyBucket: "last_30_days",
+          frecencyScore: 25,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+      hasMore: false,
+    };
+    renderNewExpense(eurSuggestion);
+
+    await waitForFormBootstrap();
+
+    await user.type(screen.getByLabelText("Name"), "Hotel");
+    await user.click(await screen.findByText("Hotel Berlin"));
+
+    // The suggestion currency differs from the USD period reporting currency,
+    // so the form keeps EUR selected.
+    expect(screen.getByLabelText("Transaction Currency")).toHaveValue("EUR");
+    expect(screen.getByLabelText("Amount")).toHaveValue(150);
+
+    await user.click(screen.getByRole("button", { name: "Log Expense" }));
+
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved");
+    });
+
+    const body = getSubmittedExpenseRequest();
+    expect(body.amount).toBe(15000);
+    expect(body.transactionCurrency).toBe("EUR");
+    expect(body.currency).toBeUndefined();
   });
 
   it("applies the same autofill behavior with ArrowDown and Enter", async () => {

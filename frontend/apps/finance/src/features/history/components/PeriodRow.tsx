@@ -6,11 +6,11 @@ import { PeriodSpendFigures } from "./PeriodSpendFigures";
 
 interface PeriodRowProps {
   row: HistoricalPeriodRow;
-  currency: string;
   onSelect: () => void;
 }
 
-export function PeriodRow({ row, currency, onSelect }: PeriodRowProps) {
+export function PeriodRow({ row, onSelect }: PeriodRowProps) {
+  const reportingCurrency = row.period.reportingCurrency;
   const monthName = new Date(
     row.period.year,
     row.period.month - 1,
@@ -26,7 +26,7 @@ export function PeriodRow({ row, currency, onSelect }: PeriodRowProps) {
         <div className="flex flex-col gap-0.5">
           <span className="font-medium">{monthName}</span>
           <span className="text-xs text-muted-foreground">
-            Budget: {formatCurrency(row.period.budgetAmount, currency)}{" "}
+            Budget: {formatCurrency(row.period.budgetAmount, reportingCurrency)}{" "}
             · E/D/S: {row.period.essentialsPercent}/{row.period.desiresPercent}/
             {row.period.savingsPercent}
           </span>
@@ -37,7 +37,8 @@ export function PeriodRow({ row, currency, onSelect }: PeriodRowProps) {
               <PeriodSpendFigures
                 totalSpent={row.totalSpent}
                 surplus={row.surplus}
-                currency={currency}
+                currency={reportingCurrency}
+                delta={row.deltaFromPrevious}
               />
             ) : (
               <>

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useExpenseLogData, EMPTY_FETCH_RESULT } from "../hooks/useExpenseLogData";
+import { useExpenseLogData } from "../hooks/useExpenseLogData";
 import type { FilterCriteria } from "../hooks/useExpenseFilters";
 import type { Expense, Tag, BudgetPeriod } from "@gofin/core";
 
@@ -35,6 +35,8 @@ const mockGetPeriods = vi.mocked(expenseLogApi.getPeriods);
 const emptyFilters: FilterCriteria = {
   selectedTypes: new Set(),
   selectedTags: new Set(),
+  selectedTransactionCurrencies: new Set(),
+  selectedReportingCurrencies: new Set(),
   dateFrom: "",
   dateTo: "",
 };
@@ -44,8 +46,10 @@ const mockExpenses: Expense[] = [
     id: "exp-1",
     userId: "user-1",
     name: "Groceries",
-    amount: 5000,
     transactionCurrency: "USD",
+    transactionAmount: 5000,
+    reportingAmount: 5000,
+    reportingCurrency: "USD",
     expenseType: "essentials",
     tagId: "tag-food",
     expenseDate: "2026-05-02",
@@ -89,37 +93,24 @@ function mockSuccessfulFetch(
 
 describe("useExpenseLogData", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-05-12T12:00:00Z"));
     vi.clearAllMocks();
   });
 
-  describe("EMPTY_FETCH_RESULT constant", () => {
-    it("provides empty arrays for all fields", () => {
-      expect(EMPTY_FETCH_RESULT).toEqual({
-        rawExpenses: [],
-        tags: [],
-        periods: [],
-      });
-    });
-
-    it("is frozen/immutable reference", () => {
-      const ref1 = EMPTY_FETCH_RESULT;
-      const ref2 = EMPTY_FETCH_RESULT;
-      expect(ref1).toBe(ref2);
-    });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("initial state", () => {
-    it("starts with loading=true", () => {
+    it("starts with loading state", () => {
       mockGetExpenses.mockReturnValue(new Promise(() => {}));
       mockGetTags.mockReturnValue(new Promise(() => {}));
       mockGetPeriods.mockReturnValue(new Promise(() => {}));
 
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
-      expect(result.current.loading).toBe(true);
-      expect(result.current.expenses).toEqual([]);
-      expect(result.current.tags).toEqual([]);
-      expect(result.current.periods).toEqual([]);
+      expect(result.current.state).toEqual({ status: "loading" });
     });
 
     it("initializes selection to current year/month", () => {
@@ -135,63 +126,84 @@ describe("useExpenseLogData", () => {
     });
   });
 
-  describe("fetch-result grouping", () => {
+  describe("active state", () => {
     it("replaces all fetch data atomically on success", async () => {
       mockSuccessfulFetch();
 
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
-      expect(result.current.tags).toEqual(mockTags);
-      expect(result.current.periods).toEqual(mockPeriods);
-      expect(result.current.expenses).toHaveLength(1);
-      expect(result.current.expenses[0].name).toBe("Groceries");
-    });
+      if (result.current.state.status !== "active") {
+        throw new Error("expected active state");
+      }
 
-    it("retains previous fetch-result when new fetch fails", async () => {
+      expect(result.current.state.tags).toEqual(mockTags);
+      expect(result.current.state.periods).toEqual(mockPeriods);
+      expect(result.current.state.expenses).toHaveLength(1);
+      expect(result.current.state.expenses[0].name).toBe("Groceries");
+      expect(result.current.state.reportingCurrency).toBe("USD");
+    });
+  });
+
+  describe("error state", () => {
+    it("sets error when the fetch fails", async () => {
+      mockGetExpenses.mockRejectedValue(new Error("Network error"));
+      mockGetTags.mockRejectedValue(new Error("Network error"));
+      mockGetPeriods.mockRejectedValue(new Error("Network error"));
+
+      const { result } = renderHook(() => useExpenseLogData(emptyFilters));
+
+      await waitFor(() => {
+        expect(result.current.state.status).toBe("error");
+      });
+
+      if (result.current.state.status !== "error") {
+        throw new Error("expected error state");
+      }
+
+      expect(result.current.state.message).toBe("Failed to load expense log.");
+    });
+  });
+
+  describe("missing state", () => {
+    it("sets missing when the selected period is absent", async () => {
       mockSuccessfulFetch();
 
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
-
-      // Verify initial data is loaded
-      expect(result.current.tags).toEqual(mockTags);
-
-      // Now make the next fetch fail
-      mockGetExpenses.mockRejectedValue(new Error("Network error"));
-      mockGetTags.mockRejectedValue(new Error("Network error"));
-      mockGetPeriods.mockRejectedValue(new Error("Network error"));
 
       act(() => {
         result.current.setSelectedMonth(4);
       });
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("missing");
       });
 
-      // Previous data remains (stale-but-dimmed approach)
-      expect(result.current.tags).toEqual(mockTags);
+      if (result.current.state.status !== "missing") {
+        throw new Error("expected missing state");
+      }
+
+      expect(result.current.state.periods).toEqual(mockPeriods);
     });
   });
 
   describe("loading transition on selection change", () => {
-    it("sets loading=true when selectedYear changes", async () => {
+    it("sets loading when selectedYear changes", async () => {
       mockSuccessfulFetch();
 
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
-      // Stall the next fetch
       mockGetExpenses.mockReturnValue(new Promise(() => {}));
       mockGetTags.mockReturnValue(new Promise(() => {}));
       mockGetPeriods.mockReturnValue(new Promise(() => {}));
@@ -200,20 +212,18 @@ describe("useExpenseLogData", () => {
         result.current.setSelectedYear(2025);
       });
 
-      // Loading should be true immediately
-      expect(result.current.loading).toBe(true);
+      expect(result.current.state.status).toBe("loading");
     });
 
-    it("sets loading=true when selectedMonth changes", async () => {
+    it("sets loading when selectedMonth changes", async () => {
       mockSuccessfulFetch();
 
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
-      // Stall the next fetch
       mockGetExpenses.mockReturnValue(new Promise(() => {}));
       mockGetTags.mockReturnValue(new Promise(() => {}));
       mockGetPeriods.mockReturnValue(new Promise(() => {}));
@@ -222,17 +232,16 @@ describe("useExpenseLogData", () => {
         result.current.setSelectedMonth(3);
       });
 
-      // Loading should be true immediately
-      expect(result.current.loading).toBe(true);
+      expect(result.current.state.status).toBe("loading");
     });
 
-    it("loading transitions to false after successful fetch", async () => {
+    it("transitions to active after a successful fetch for the new period", async () => {
       mockSuccessfulFetch();
 
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
       const aprilExpenses: Expense[] = [{
@@ -241,17 +250,28 @@ describe("useExpenseLogData", () => {
         name: "April Purchase",
         periodMonth: 4,
       }];
-      mockSuccessfulFetch(aprilExpenses);
+      const aprilPeriods: BudgetPeriod[] = [
+        {
+          ...mockPeriods[0],
+          id: "period-apr",
+          month: 4,
+        },
+      ];
+      mockSuccessfulFetch(aprilExpenses, mockTags, aprilPeriods);
 
       act(() => {
         result.current.setSelectedMonth(4);
       });
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
-      expect(result.current.expenses[0].name).toBe("April Purchase");
+      if (result.current.state.status !== "active") {
+        throw new Error("expected active state");
+      }
+
+      expect(result.current.state.expenses[0].name).toBe("April Purchase");
     });
   });
 
@@ -262,7 +282,7 @@ describe("useExpenseLogData", () => {
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
       act(() => {
@@ -288,14 +308,10 @@ describe("useExpenseLogData", () => {
       const { result } = renderHook(() => useExpenseLogData(emptyFilters));
 
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(result.current.state.status).toBe("active");
       });
 
-      // Verify all fields of the public interface exist
-      expect(result.current).toHaveProperty("expenses");
-      expect(result.current).toHaveProperty("tags");
-      expect(result.current).toHaveProperty("periods");
-      expect(result.current).toHaveProperty("loading");
+      expect(result.current).toHaveProperty("state");
       expect(result.current).toHaveProperty("selectedYear");
       expect(result.current).toHaveProperty("selectedMonth");
       expect(result.current).toHaveProperty("setSelectedYear");

@@ -1,5 +1,5 @@
 import { useState, useEffect, type SyntheticEvent } from "react";
-import { apiClient, useFormMutation } from "@gofin/api";
+import { ApiRequestError, apiClient, useFormMutation } from "@gofin/api";
 import { toast } from "sonner";
 import { EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
 import type { ExpenseFields } from "../../../lib/validate-expense-fields";
@@ -89,7 +89,15 @@ export function useNewExpenseForm(
       toast.success(SUCCESS_TOAST_BY_KIND[submittedKind]);
       resetNewExpenseVisibleState();
     },
-    onError: () => {
+    onError: (message, cause) => {
+      // FX conversion-unavailable failures show the spec-mandated guidance
+      // toast instead of the generic failure message. The form error banner
+      // (state.error) already carries the server's guidance copy. Form values
+      // are preserved so the user can retry or manually convert.
+      if (cause instanceof ApiRequestError && cause.code === "CONVERSION_UNAVAILABLE") {
+        toast.error(message);
+        return;
+      }
       toast.error("Failed to save expense");
     },
   });

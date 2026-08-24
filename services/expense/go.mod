@@ -7,6 +7,7 @@ require (
 	github.com/ItsThompson/gofin/services/apierr v0.0.0
 	github.com/ItsThompson/gofin/services/errkit v0.0.0
 	github.com/ItsThompson/gofin/services/finance v0.0.0-00010101000000-000000000000
+	github.com/ItsThompson/gofin/services/fx v0.0.0
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/httpx v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
@@ -125,3 +126,5 @@ replace github.com/ItsThompson/gofin/services/finance => ../finance
 replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
 
 replace github.com/ItsThompson/gofin/services/errkit => ../errkit
+
+replace github.com/ItsThompson/gofin/services/fx => ../fx

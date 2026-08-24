@@ -105,7 +105,7 @@ export function computeMockHealthScore(): HealthScore {
   const sumByType = (type: string) =>
     mockExpenses
       .filter((expense) => expense.expenseType === type)
-      .reduce((sum, expense) => sum + expense.amount, 0);
+      .reduce((sum, expense) => sum + expense.transactionAmount, 0);
   const essentialsActual = sumByType("essentials");
   const desiresActual = sumByType("desires");
   const savingsActual = sumByType("savings");
@@ -200,6 +200,7 @@ export function computeMockHealthScore(): HealthScore {
     band,
     provisional: true,
     formulaVersion: 2,
+    reportingCurrency: "USD",
     components,
     insight,
   };
@@ -278,7 +279,7 @@ export function computeMockHealthScoreTrend(months: number): HealthScoreTrendPoi
     const total = provisional
       ? mockHealthScore.total
       : MOCK_TREND_TOTALS[(count - 1 - offset) % MOCK_TREND_TOTALS.length];
-    points.push({ year, month, total, band: bandFor(total), provisional, formulaVersion: 2 });
+    points.push({ year, month, total, band: bandFor(total), provisional, formulaVersion: 2, reportingCurrency: "USD" });
   }
   return points;
 }
