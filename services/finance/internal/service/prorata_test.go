@@ -431,14 +431,15 @@ func TestCreateProRataExpense_Validation(t *testing.T) {
 	svc := newProRataTestService(repo, txBeg, nil, fxClient, fixedNow(2026, 5, 15))
 
 	tests := []struct {
-		name string
-		req  *model.CreateProRataRequest
-		msg  string
+		name  string
+		req   *model.CreateProRataRequest
+		field string
+		msg   string
 	}{
-		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "Name is required"},
-		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "positive"},
-		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "at least 2"},
-		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "essentials, desires, or savings"},
+		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "name", "required"},
+		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "totalAmount", "must be positive"},
+		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "months", "must be at least 2"},
+		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "expenseType", "must be essentials, desires, or savings"},
 	}
 
 	for _, tt := range tests {
@@ -447,9 +448,37 @@ func TestCreateProRataExpense_Validation(t *testing.T) {
 			require.Error(t, err)
 			svcErr := requireAPIError(t, err)
 			assert.Equal(t, apierr.CodeValidation, svcErr.Code)
-			assert.Contains(t, svcErr.Message, tt.msg)
+			assert.Equal(t, "validation failed", svcErr.Message)
+			assert.Equal(t, tt.msg, svcErr.Fields[tt.field])
 		})
 	}
+}
+
+func TestCreateProRataExpense_ValidationAggregatesAllErrors(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	fxClient := new(mockFxClient)
+	svc := newProRataTestService(repo, txBeg, nil, fxClient, fixedNow(2026, 5, 15))
+
+	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name: "  ", TotalAmount: 0, Months: 1, TransactionCurrency: "USD",
+		ExpenseType: "invalid", TagID: " ", ExpenseDate: " ", PeriodYear: 0, PeriodMonth: 0,
+	})
+
+	require.Error(t, err)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, "validation failed", svcErr.Message)
+	assert.Equal(t, map[string]string{
+		"name":        "required",
+		"totalAmount": "must be positive",
+		"months":      "must be at least 2",
+		"expenseType": "must be essentials, desires, or savings",
+		"tagId":       "required",
+		"expenseDate": "required",
+		"periodYear":  "required",
+		"periodMonth": "must be between 1 and 12",
+	}, svcErr.Fields)
 }
 
 func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 
 // CalculateInstallments divides totalAmount across months using integer division.
@@ -57,30 +58,18 @@ func monthLabel(year int32, month int32) string {
 // one full provider snapshot, writes the first installment through the trusted
 // internal Expense contract, and stores future rows with the same snapshot.
 func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string, req *model.CreateProRataRequest) (*model.ProRataResponse, error) {
-	if strings.TrimSpace(req.Name) == "" {
-		return nil, apierr.Validation("Name is required", map[string]string{"name": "required"})
-	}
-	if req.TotalAmount <= 0 {
-		return nil, apierr.Validation("Total amount must be positive", map[string]string{"totalAmount": "must be positive"})
-	}
-	if req.Months < 2 {
-		return nil, apierr.Validation("Pro-rata requires at least 2 months", map[string]string{"months": "must be at least 2"})
-	}
+	v := validator.New()
+	v.Check(strings.TrimSpace(req.Name) != "", "name", "required")
+	v.Check(req.TotalAmount > 0, "totalAmount", "must be positive")
+	v.Check(req.Months >= 2, "months", "must be at least 2")
 	validTypes := map[string]bool{"essentials": true, "desires": true, "savings": true}
-	if !validTypes[req.ExpenseType] {
-		return nil, apierr.Validation("Expense type must be essentials, desires, or savings", map[string]string{"expenseType": "must be essentials, desires, or savings"})
-	}
-	if strings.TrimSpace(req.TagID) == "" {
-		return nil, apierr.Validation("Tag ID is required", map[string]string{"tagId": "required"})
-	}
-	if strings.TrimSpace(req.ExpenseDate) == "" {
-		return nil, apierr.Validation("Expense date is required", map[string]string{"expenseDate": "required"})
-	}
-	if req.PeriodYear < 1 {
-		return nil, apierr.Validation("Period year is required", map[string]string{"periodYear": "required"})
-	}
-	if req.PeriodMonth < 1 || req.PeriodMonth > 12 {
-		return nil, apierr.Validation("Period month must be between 1 and 12", map[string]string{"periodMonth": "must be between 1 and 12"})
+	v.Check(validTypes[req.ExpenseType], "expenseType", "must be essentials, desires, or savings")
+	v.Check(strings.TrimSpace(req.TagID) != "", "tagId", "required")
+	v.Check(strings.TrimSpace(req.ExpenseDate) != "", "expenseDate", "required")
+	v.Check(req.PeriodYear >= 1, "periodYear", "required")
+	v.Check(req.PeriodMonth >= 1 && req.PeriodMonth <= 12, "periodMonth", "must be between 1 and 12")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	// The creation period is the schedule's first target. Validate it exists
