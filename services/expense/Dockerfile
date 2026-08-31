@@ -19,6 +19,7 @@ COPY httpx/go.mod httpx/go.sum* ./httpx/
 COPY finance/go.mod finance/go.sum* ./finance/
 COPY fx/go.mod fx/go.sum* ./fx/
 COPY shared/currency/go.mod ./shared/currency/
+COPY shared/validator/go.mod ./shared/validator/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd expense && GOWORK=off go mod download
 
@@ -35,6 +36,7 @@ COPY httpx/ ./httpx/
 COPY finance/proto/ ./finance/proto/
 COPY fx/proto/ ./fx/proto/
 COPY shared/currency/ ./shared/currency/
+COPY shared/validator/ ./shared/validator/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
