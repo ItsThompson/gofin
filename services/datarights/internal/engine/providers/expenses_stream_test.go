@@ -15,30 +15,33 @@ import (
 )
 
 // streamRowFixtures builds n expense rows for the stream in chronological order.
-// Every row carries a tag id so tag resolution and formatRow run on each one,
-// exercising the same per-row work the real consumer does.
+// Every row carries a tag id and a complete version-1 identity snapshot so tag
+// resolution and formatRow run on each one, exercising the same per-row work the
+// real consumer does.
 func streamRowFixtures(n int) []*expensepb.ExpenseData {
 	rows := make([]*expensepb.ExpenseData, n)
 	for i := range rows {
+		amount := int64(1000 + i)
 		rows[i] = &expensepb.ExpenseData{
-			Id:                  fmt.Sprintf("exp-%08d", i),
-			Name:                "Expense",
-			TransactionAmount:   int64(1000 + i),
-			TransactionCurrency: "USD",
-			ExpenseType:         "essentials",
-			TagId:               "tag-1",
-			ExpenseDate:         "2026-05-01",
-			PeriodYear:          2026,
-			PeriodMonth:         5,
-			Status:              "active",
-			CreatedAt:           fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
+			Id:                    fmt.Sprintf("exp-%08d", i),
+			Name:                  "Expense",
+			ExpenseType:           "essentials",
+			TagId:                 "tag-1",
+			ExpenseDate:           "2026-05-01",
+			PeriodYear:            2026,
+			PeriodMonth:           5,
+			Status:                "active",
+			CreatedAt:             fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
+			TransactionCurrency:   "USD",
+			TransactionAmount:     amount,
+			ReportingAmount:       amount,
+			ReportingCurrency:     "USD",
+			ExchangeRate:          "1",
+			ExchangeRateSource:    "identity",
+			ExchangeRateTimestamp: fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
 		}
 	}
 	return rows
-}
-
-func streamTagMap() map[string]string {
-	return map[string]string{"tag-1": "Food"}
 }
 
 // discardCSVSink returns an emit callback that writes each formatted row into a
@@ -61,15 +64,14 @@ func discardCSVSink() (emit func([]string) error, flush func() error) {
 // still scale with row count because every row is formatted, which is expected.
 // The committed baseline records both shapes.
 func BenchmarkExpensesProvider_StreamIncrementalWrite(b *testing.B) {
-	tagMap := streamTagMap()
 	for _, n := range []int{1000, 50000} {
 		rows := streamRowFixtures(n)
-		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
+		p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil, nil)
 		b.Run(fmt.Sprintf("rows=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				emit, flush := discardCSVSink()
-				if err := p.streamExpenses(context.Background(), "user-1", tagMap, emit); err != nil {
+				if err := p.streamExpenses(context.Background(), "user-1", emit); err != nil {
 					b.Fatal(err)
 				}
 				if err := flush(); err != nil {
@@ -126,7 +128,6 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 		// a hard structural floor well above this bound.
 		noiseFloorBytes = 64 * 1024
 	)
-	tagMap := streamTagMap()
 
 	streamed := func(n int) func() any {
 		return func() any {
@@ -134,9 +135,9 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 			// not live during retainedHeapBytes' baseline (before) read; only what
 			// the consumer retains after the call should count.
 			rows := streamRowFixtures(n)
-			p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
+			p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil, nil)
 			emit, flush := discardCSVSink()
-			require.NoError(t, p.streamExpenses(context.Background(), "user-1", tagMap, emit))
+			require.NoError(t, p.streamExpenses(context.Background(), "user-1", emit))
 			require.NoError(t, flush())
 			return nil // the streamed consumer retains nothing
 		}
@@ -145,9 +146,9 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 	buffered := func(n int) func() any {
 		return func() any {
 			rows := streamRowFixtures(n)
-			p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil)
+			p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: rows}, nil, nil)
 			var out [][]string
-			require.NoError(t, p.streamExpenses(context.Background(), "user-1", tagMap, func(row []string) error {
+			require.NoError(t, p.streamExpenses(context.Background(), "user-1", func(row []string) error {
 				out = append(out, row)
 				return nil
 			}))
@@ -185,14 +186,13 @@ func TestExpensesProvider_StreamedConsumptionIsMemoryBounded(t *testing.T) {
 // the stream.
 func TestExpensesProvider_StreamCancellation_StopsPromptly(t *testing.T) {
 	const total = 1000
-	tagMap := streamTagMap()
-	p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: streamRowFixtures(total)}, nil)
+	p := NewExpensesProvider(&mockExpenseServiceClient{streamRows: streamRowFixtures(total)}, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	consumed := 0
-	err := p.streamExpenses(ctx, "user-1", tagMap, func(_ []string) error {
+	err := p.streamExpenses(ctx, "user-1", func(_ []string) error {
 		consumed++
 		if consumed == 3 {
 			cancel()

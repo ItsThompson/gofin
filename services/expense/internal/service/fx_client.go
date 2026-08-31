@@ -37,11 +37,34 @@ type FxConvertResponse struct {
 	ExpiresAt       string
 }
 
+// FxCapturedRateSnapshot is the Expense-side view of a captured provider
+// snapshot. It carries only the money facts needed for convert-with-snapshot.
+type FxCapturedRateSnapshot struct {
+	SnapshotVersion int32
+	Source          string
+	BaseCurrency    string
+	RateTimestamp   string
+	CapturedAt      string
+	ExpiresAt       string
+	RatesByCurrency map[string]string
+}
+
+// FxConvertWithSnapshotRequest derives a conversion from a previously captured
+// snapshot instead of a live provider rate.
+type FxConvertWithSnapshotRequest struct {
+	Amount         int64
+	SourceCurrency string
+	TargetCurrency string
+	RequestedAt    string
+	Snapshot       *FxCapturedRateSnapshot
+}
+
 // FxClient converts amounts between currencies using the FX Service. The
 // Expense service depends on this interface so tests can inject a mock; the
 // gRPC implementation is wired in main.go.
 type FxClient interface {
 	ConvertAmount(ctx context.Context, req FxConvertRequest) (*FxConvertResponse, error)
+	ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error)
 }
 
 // GRPCFxClient implements FxClient over the FX Service gRPC API.
@@ -66,11 +89,10 @@ func NewGRPCFxClientFromAddr(addr string) (*GRPCFxClient, *grpc.ClientConn, erro
 	return NewGRPCFxClient(fxpb.NewFxServiceClient(conn)), conn, nil
 }
 
-// ConvertAmount calls the FX Service ConvertAmount RPC and maps gRPC status
-// errors to the Expense service's safe CONVERSION_UNAVAILABLE error. Per the
-// spec error matrix, CONVERSION_UNAVAILABLE, provider auth failure, provider
-// response invalid, and missing live rate all map to the same safe REST error
-// and must not result in a ledger write.
+// ConvertAmount converts an amount through the FX Service ConvertAmount RPC.
+// Per the spec error matrix, CONVERSION_UNAVAILABLE, provider auth failure,
+// provider response invalid, and missing live rate all map to the same safe
+// REST error and must not result in a ledger write.
 func (c *GRPCFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) (*FxConvertResponse, error) {
 	resp, err := c.client.ConvertAmount(ctx, &fxpb.ConvertAmountRequest{
 		Amount:         req.Amount,
@@ -88,6 +110,44 @@ func (c *GRPCFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 		Source:          resp.GetSource(),
 		ExpiresAt:       resp.GetExpiresAt(),
 	}, nil
+}
+
+// ConvertWithSnapshot converts an amount through the FX Service
+// ConvertWithSnapshot RPC. It never calls the provider: the snapshot is the
+// caller's captured intent.
+func (c *GRPCFxClient) ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error) {
+	resp, err := c.client.ConvertWithSnapshot(ctx, &fxpb.ConvertWithSnapshotRequest{
+		Amount:         req.Amount,
+		SourceCurrency: req.SourceCurrency,
+		TargetCurrency: req.TargetCurrency,
+		RequestedAt:    req.RequestedAt,
+		Snapshot:       snapshotToFxProto(req.Snapshot),
+	})
+	if err != nil {
+		return nil, mapFxError(err)
+	}
+	return &FxConvertResponse{
+		ConvertedAmount: resp.GetConvertedAmount(),
+		ExchangeRate:    resp.GetExchangeRate(),
+		RateTimestamp:   resp.GetRateTimestamp(),
+		Source:          resp.GetSource(),
+		ExpiresAt:       resp.GetExpiresAt(),
+	}, nil
+}
+
+func snapshotToFxProto(s *FxCapturedRateSnapshot) *fxpb.CapturedRateSnapshot {
+	if s == nil {
+		return nil
+	}
+	return &fxpb.CapturedRateSnapshot{
+		SnapshotVersion: s.SnapshotVersion,
+		Source:          s.Source,
+		BaseCurrency:    s.BaseCurrency,
+		RateTimestamp:   s.RateTimestamp,
+		CapturedAt:      s.CapturedAt,
+		ExpiresAt:       s.ExpiresAt,
+		RatesByCurrency: s.RatesByCurrency,
+	}
 }
 
 // mapFxError maps an FX gRPC failure to the Expense service's REST error while

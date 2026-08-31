@@ -3,6 +3,7 @@ import type { Expense, Tag } from "@gofin/core";
 import { History, Pencil } from "lucide-react";
 import { Button } from "@gofin/ui/components/button";
 import { CorrectionTimeline } from "./CorrectionTimeline";
+import { hasSameCurrencySnapshot } from "../utils/moneyFacts";
 
 interface DetailViewProps {
   expense: Expense;
@@ -42,28 +43,64 @@ export function DetailView({
     ? history.find((entry) => entry.id === expense.correctsId)
     : null;
 
+  const transactionCurrency = expense.transactionCurrency;
+  const transactionAmount = expense.transactionAmount;
+  const reportingCurrency = expense.reportingCurrency;
+  const reportingAmount = expense.reportingAmount;
+  const sameCurrency = hasSameCurrencySnapshot(expense);
+
   return (
     <div className="space-y-4">
       {correctedBy && (
         <div className="rounded-lg bg-yellow-100 p-3 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           This expense was corrected. See correction: {correctedBy.name} (
-          {formatCurrency(correctedBy.transactionAmount, currency)})
+          {formatCurrency(
+            correctedBy.transactionAmount,
+            correctedBy.transactionCurrency,
+          )}
+          )
         </div>
       )}
 
       {correctsEntry && (
         <div className="rounded-lg bg-blue-100 p-3 text-sm text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
           This corrects expense: {correctsEntry.name} (
-          {formatCurrency(correctsEntry.transactionAmount, currency)})
+          {formatCurrency(
+            correctsEntry.transactionAmount,
+            correctsEntry.transactionCurrency,
+          )}
+          )
         </div>
       )}
 
       <div className="grid gap-3">
         <DetailField label="Name" value={expense.name} />
-        <DetailField
-          label="Amount"
-          value={formatCurrency(expense.transactionAmount, currency)}
-        />
+        {sameCurrency ? (
+          <DetailField
+            label="Period Amount"
+            value={formatCurrency(reportingAmount, reportingCurrency)}
+          />
+        ) : (
+          <>
+            <DetailField
+              label="Transaction Amount"
+              value={formatCurrency(transactionAmount, transactionCurrency)}
+            />
+            <DetailField
+              label="Budget Impact"
+              value={formatCurrency(reportingAmount, reportingCurrency)}
+            />
+            {expense.exchangeRate && (
+              <DetailField label="Exchange Rate" value={expense.exchangeRate} />
+            )}
+            {expense.exchangeRateTimestamp && (
+              <DetailField
+                label="Rate Timestamp"
+                value={expense.exchangeRateTimestamp}
+              />
+            )}
+          </>
+        )}
         <DetailField
           label="Type"
           value={
@@ -79,7 +116,6 @@ export function DetailView({
           label="Period"
           value={`${expense.periodYear}-${String(expense.periodMonth).padStart(2, "0")}`}
         />
-        <DetailField label="Currency" value={expense.transactionCurrency} />
         <DetailField label="Created" value={expense.createdAt} />
         <DetailField
           label="Status"

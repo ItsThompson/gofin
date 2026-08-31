@@ -217,6 +217,14 @@ func (m *mockFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 	return args.Get(0).(*FxConvertResponse), args.Error(1)
 }
 
+func (m *mockFxClient) ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*FxConvertResponse), args.Error(1)
+}
+
 // stubFxClient is a non-nil FxClient for tests that never exercise FX. A call
 // to it means a same-currency test accidentally routed a foreign-currency
 // request, so it fails loudly instead of returning zero values.
@@ -224,6 +232,10 @@ type stubFxClient struct{}
 
 func (stubFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) (*FxConvertResponse, error) {
 	return nil, fmt.Errorf("stubFxClient: unexpected ConvertAmount call")
+}
+
+func (stubFxClient) ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error) {
+	return nil, fmt.Errorf("stubFxClient: unexpected ConvertWithSnapshot call")
 }
 
 // TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot
@@ -951,22 +963,23 @@ func TestGetExpense_EmptyID(t *testing.T) {
 
 func activeExpenseInCurrentPeriod(now time.Time) *model.Expense {
 	return &model.Expense{
-		ID:                  "exp-original",
-		UserID:              "user-1",
-		Name:                "Coffee",
-		TransactionCurrency: "USD",
-		ExpenseType:         "desires",
-		TagID:               "tag-food",
-		ExpenseDate:         now.Format("2006-01-02"),
-		PeriodYear:          int32(now.Year()),
-		PeriodMonth:         int32(now.Month()),
-		Status:              "active",
-		CreatedAt:           now.Format(time.RFC3339),
-		TransactionAmount:   500,
-		ReportingAmount:     500,
-		ReportingCurrency:   "USD",
-		ExchangeRate:        "1",
-		ExchangeRateSource:  model.ExchangeSourceIdentity,
+		ID:                    "exp-original",
+		UserID:                "user-1",
+		Name:                  "Coffee",
+		TransactionCurrency:   "USD",
+		ExpenseType:           "desires",
+		TagID:                 "tag-food",
+		ExpenseDate:           now.Format("2006-01-02"),
+		PeriodYear:            int32(now.Year()),
+		PeriodMonth:           int32(now.Month()),
+		Status:                "active",
+		CreatedAt:             now.Format(time.RFC3339),
+		TransactionAmount:     500,
+		ReportingAmount:       500,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1",
+		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateTimestamp: now.Format(time.RFC3339),
 	}
 }
 
@@ -1160,6 +1173,135 @@ func TestCorrectExpense_ValidationErrors(t *testing.T) {
 			assert.NotEmpty(t, svcErr.Fields[tt.field])
 		})
 	}
+}
+
+// --- Correction currency and snapshot tests ---
+
+// TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot
+// asserts that changing the transaction currency to a foreign currency calls FX
+// before the ledger mutation and writes a provider snapshot on the correction row.
+func TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, now)
+
+	original := activeExpenseInCurrentPeriod(now)
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	requestedAt := now.UTC().Format(time.RFC3339)
+	fxResp := &FxConvertResponse{
+		ConvertedAmount: 655,
+		ExchangeRate:    "1.0912",
+		RateTimestamp:   "2026-08-14T10:00:00Z",
+		Source:          model.ExchangeSourceOpenExchangeRates,
+		ExpiresAt:       "2026-08-14T11:00:00Z",
+	}
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req FxConvertRequest) bool {
+		return req.Amount == 600 &&
+			req.SourceCurrency == "EUR" &&
+			req.TargetCurrency == "USD" &&
+			req.RequestedAt == requestedAt
+	})).Return(fxResp, nil)
+
+	var captured *model.Expense
+	repo.On("CorrectExpense", mock.Anything, original, mock.AnythingOfType("*model.Expense")).
+		Run(func(args mock.Arguments) {
+			captured = args.Get(2).(*model.Expense)
+		}).Return(&model.Expense{
+		ID:                    "exp-correction",
+		UserID:                "user-1",
+		Name:                  "Updated Coffee",
+		TransactionCurrency:   "EUR",
+		ExpenseType:           "desires",
+		TagID:                 "tag-food",
+		ExpenseDate:           "2026-05-03",
+		PeriodYear:            2026,
+		PeriodMonth:           5,
+		Status:                "active",
+		CorrectsID:            "exp-original",
+		CreatedAt:             requestedAt,
+		TransactionAmount:     600,
+		ReportingAmount:       655,
+		ReportingCurrency:     "USD",
+		ExchangeRate:          "1.0912",
+		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
+		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+	}, nil)
+
+	req := validCorrectRequest()
+	req.TransactionCurrency = "EUR"
+
+	resp, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", req)
+
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+
+	assert.Equal(t, "EUR", captured.TransactionCurrency)
+	assert.Equal(t, "USD", captured.ReportingCurrency)
+	assert.Equal(t, int64(600), captured.TransactionAmount)
+	assert.Equal(t, int64(655), captured.ReportingAmount)
+	assert.Equal(t, "1.0912", captured.ExchangeRate)
+	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, "2026-08-14T10:00:00Z", captured.ExchangeRateTimestamp)
+	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateExpiresAt)
+
+	assert.Equal(t, int64(655), resp.ReportingAmount)
+	assert.Equal(t, "USD", resp.ReportingCurrency)
+
+	fxClient.AssertExpectations(t)
+	repo.AssertExpectations(t)
+}
+
+// TestCorrectExpense_ForeignCurrencyFxUnavailableDoesNotCorrect asserts that a
+// failed foreign-currency conversion does not call the repository correction
+// method, so the original remains active and correction history is unchanged.
+func TestCorrectExpense_ForeignCurrencyFxUnavailableDoesNotCorrect(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	svc := NewExpenseService(repo, periodClient, fxClient, func() time.Time { return now }, logger)
+
+	original := activeExpenseInCurrentPeriod(now)
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req FxConvertRequest) bool {
+		return req.SourceCurrency == "EUR" && req.TargetCurrency == "USD"
+	})).Return(nil, conversionUnavailableError())
+
+	req := validCorrectRequest()
+	req.TransactionCurrency = "EUR"
+
+	_, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrConversionUnavailable, svcErr.Code)
+	assert.Equal(t, http.StatusServiceUnavailable, svcErr.Status)
+
+	repo.AssertNotCalled(t, "CorrectExpense", mock.Anything, mock.Anything, mock.Anything)
+	assert.Equal(t, "active", original.Status)
+	fxClient.AssertExpectations(t)
 }
 
 // --- GetCorrectionHistory tests ---

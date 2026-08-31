@@ -24,6 +24,7 @@ func TestConstructors_SetCodeAndStatus(t *testing.T) {
 	}{
 		{"unauthorized", apierr.Unauthorized("no auth"), apierr.CodeUnauthorized, http.StatusUnauthorized, "no auth"},
 		{"not found", apierr.NotFound("gone"), apierr.CodeNotFound, http.StatusNotFound, "gone"},
+		{"forbidden", apierr.Forbidden("no access"), apierr.CodeForbidden, http.StatusForbidden, "no access"},
 		{"validation", apierr.Validation("bad", nil), apierr.CodeValidation, http.StatusBadRequest, "bad"},
 		{"conflict", apierr.Conflict("DUPLICATE_TAG", "dup"), "DUPLICATE_TAG", http.StatusConflict, "dup"},
 		{"internal", apierr.Internal("boom"), apierr.CodeInternal, http.StatusInternalServerError, "boom"},

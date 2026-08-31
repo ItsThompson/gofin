@@ -45,12 +45,14 @@ export function useCorrectionForm(
   onSubmit: (form: CorrectExpenseRequest) => void,
   tags: Tag[] = [],
 ): { state: CorrectionFormState; actions: CorrectionFormActions } {
-  const [transactionCurrency, setTransactionCurrencyState] = useState(expense.transactionCurrency);
+  const transactionAmount = expense.transactionAmount;
+  const initialTransactionCurrency = expense.transactionCurrency;
+  const [transactionCurrency, setTransactionCurrencyState] = useState(initialTransactionCurrency);
   const expenseFields = useExpenseFields(
     {
       name: expense.name,
-      amountDollars: toMajorUnits(expense.transactionAmount, expense.transactionCurrency).toFixed(
-        getMinorUnitDigits(expense.transactionCurrency),
+      amountDollars: toMajorUnits(transactionAmount, initialTransactionCurrency).toFixed(
+        getMinorUnitDigits(initialTransactionCurrency),
       ),
       expenseType: expense.expenseType,
       tagId: expense.tagId,
@@ -104,6 +106,7 @@ export function useCorrectionForm(
         expenseType: fields.expenseType,
         tagId: fields.tagId,
         expenseDate: fields.expenseDate,
+        transactionCurrency,
       };
 
       onSubmit(body);

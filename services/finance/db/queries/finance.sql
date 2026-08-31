@@ -79,8 +79,11 @@ LIMIT 1;
 -- name: CreateProRataSchedule :one
 INSERT INTO finance.pro_rata_schedules
     (user_id, pro_rata_group, name, amount, currency, expense_type, tag_id,
-     target_year, target_month, installment_index, installment_total)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     target_year, target_month, installment_index, installment_total,
+     transaction_amount, transaction_currency, creation_reporting_currency,
+     captured_rate_snapshot, failure_reason)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+        $12, $13, $14, $15, $16)
 RETURNING *;
 
 -- name: GetPendingProRata :many

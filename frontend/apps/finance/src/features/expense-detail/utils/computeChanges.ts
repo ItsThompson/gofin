@@ -10,6 +10,7 @@ export interface ExpenseChange {
 interface CorrectionValues {
   name: string;
   transactionAmount: number;
+  transactionCurrency?: string;
   expenseType: ExpenseType;
   tagId: string;
   expenseDate: string;
@@ -36,8 +37,14 @@ export function computeChanges(
   if (original.transactionAmount !== corrected.transactionAmount) {
     changes.push({
       field: "Amount",
-      from: formatCurrency(original.transactionAmount, currency),
-      to: formatCurrency(corrected.transactionAmount, currency),
+      from: formatCurrency(
+        original.transactionAmount,
+        original.transactionCurrency,
+      ),
+      to: formatCurrency(
+        corrected.transactionAmount,
+        corrected.transactionCurrency ?? currency,
+      ),
     });
   }
 

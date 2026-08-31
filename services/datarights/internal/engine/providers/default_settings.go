@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
+	exportmetrics "github.com/ItsThompson/gofin/services/datarights/internal/metrics"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
@@ -45,8 +46,18 @@ func (p *DefaultSettingsProvider) Collect(_ context.Context, _ string) ([][]stri
 		return [][]string{}, nil
 	}
 
+	budgetAmount, err := formatMinorUnits(defaults.GetBudgetAmount(), defaults.GetCurrency())
+	if err != nil {
+		// Legacy default settings may carry an unsupported currency. Render the
+		// amount with the pre-multi-currency two-decimal behavior instead of
+		// failing the whole data-rights export for a future-period default, and
+		// count the fallback so unsupported legacy rows stay observable.
+		exportmetrics.ExportCurrencyFormattingFallbackTotal.Inc()
+		budgetAmount = formatMinorUnitsWithDigits(defaults.GetBudgetAmount(), 2)
+	}
+
 	row := []string{
-		formatCentsToDollars(defaults.GetBudgetAmount()),
+		budgetAmount,
 		strconv.FormatInt(int64(defaults.GetEssentialsPercent()), 10),
 		strconv.FormatInt(int64(defaults.GetDesiresPercent()), 10),
 		strconv.FormatInt(int64(defaults.GetSavingsPercent()), 10),

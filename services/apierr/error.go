@@ -26,6 +26,11 @@ func NotFound(msg string) *Error {
 	return &Error{Code: CodeNotFound, Message: msg, Status: http.StatusNotFound}
 }
 
+// Forbidden builds a 403 FORBIDDEN error.
+func Forbidden(msg string) *Error {
+	return &Error{Code: CodeForbidden, Message: msg, Status: http.StatusForbidden}
+}
+
 // Validation builds a 400 VALIDATION_ERROR error carrying optional field detail.
 func Validation(msg string, fields map[string]string) *Error {
 	return &Error{Code: CodeValidation, Message: msg, Status: http.StatusBadRequest, Fields: fields}

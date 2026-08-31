@@ -6,6 +6,7 @@ option go_package = "github.com/ItsThompson/gofin/services/expense/proto/expense
 
 service ExpenseService {
   rpc CreateExpense(CreateExpenseRequest) returns (ExpenseResponse);
+  rpc CreateProRataInstallment(CreateProRataInstallmentRequest) returns (ExpenseResponse);
   rpc GetExpensesForPeriod(GetExpensesForPeriodRequest) returns (ExpenseListResponse);
   rpc GetExpense(GetExpenseRequest) returns (ExpenseResponse);
 
@@ -82,6 +83,48 @@ message ExpenseResponse {
   ExpenseData expense = 1;
 }
 
+// TrustedPeriodContext is period context Finance resolved before asking Expense
+// to write a pro-rata installment. Expense validates its consistency but does
+// not call Finance again for Finance-originated pro-rata writes.
+message TrustedPeriodContext {
+  string period_id = 1;
+  string user_id = 2;
+  int32 year = 3;
+  int32 month = 4;
+  string reporting_currency = 5;
+  string source = 6;
+}
+
+// CapturedRateSnapshot is a full USD-based provider snapshot captured at
+// pro-rata schedule creation. Future installments derive target reporting
+// amounts from this snapshot instead of live rates.
+message CapturedRateSnapshot {
+  int32 snapshot_version = 1;
+  string source = 2;
+  string base_currency = 3;
+  string rate_timestamp = 4;
+  string captured_at = 5;
+  string expires_at = 6;
+  map<string, string> rates_by_currency = 7;
+}
+
+// CreateProRataInstallmentRequest is the Finance-originated internal write
+// contract for the first (and future) pro-rata installments.
+message CreateProRataInstallmentRequest {
+  string user_id = 1;
+  TrustedPeriodContext period_context = 2;
+  string name = 3;
+  int64 amount = 4;
+  string transaction_currency = 5;
+  string expense_type = 6;
+  string tag_id = 7;
+  string expense_date = 8;
+  string pro_rata_group = 9;
+  int32 pro_rata_index = 10;
+  int32 pro_rata_total = 11;
+  CapturedRateSnapshot captured_rate_snapshot = 12;
+}
+
 // ---------------------------------------------------------------------------
 // GetExpensesForPeriod
 // ---------------------------------------------------------------------------
@@ -123,6 +166,8 @@ message CorrectExpenseRequest {
   string expense_type = 5;
   string tag_id = 6;
   string expense_date = 7;
+  string transaction_currency = 8;
+  string currency = 9; // Deprecated alias during rollout.
 }
 
 // ---------------------------------------------------------------------------

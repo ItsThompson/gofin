@@ -129,6 +129,8 @@ func financeErrorStatus(err error) error {
 		return status.Error(codes.NotFound, apiErr.Message)
 	case model.ErrPeriodLocked:
 		return status.Error(codes.PermissionDenied, apiErr.Message)
+	case model.ErrConversionUnavailable:
+		return status.Error(codes.Unavailable, apiErr.Message)
 	}
 	return nil
 }
@@ -469,6 +471,39 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 		Tags:     pbTags,
 		Periods:  pbPeriods,
 		Defaults: pbDefaults,
+	}, nil
+}
+
+func (h *GRPCHandler) CreateProRataExpense(ctx context.Context, req *pb.CreateProRataExpenseRequest) (*pb.ProRataResponse, error) {
+	_, err := h.financeService.CreateProRataExpense(ctx, req.GetUserId(), &model.CreateProRataRequest{
+		Name:                req.GetName(),
+		TotalAmount:         req.GetTotalAmount(),
+		TransactionCurrency: req.GetTransactionCurrency(),
+		ExpenseType:         req.GetExpenseType(),
+		TagID:               req.GetTagId(),
+		ExpenseDate:         req.GetExpenseDate(),
+		Months:              req.GetMonths(),
+		PeriodYear:          req.GetPeriodYear(),
+		PeriodMonth:         req.GetPeriodMonth(),
+	})
+	if err != nil {
+		if statusErr := financeErrorStatus(err); statusErr != nil {
+			return nil, statusErr
+		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.create_pro_rata_expense",
+			Domain: reportDomain,
+			Msg:    "failed to create pro-rata expense",
+			Data: map[string]any{
+				"method":  "CreateProRataExpense",
+				"user_id": req.GetUserId(),
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to create pro-rata expense")
+	}
+
+	return &pb.ProRataResponse{
+		Message: "pro-rata schedule created",
 	}, nil
 }
 

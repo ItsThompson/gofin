@@ -65,6 +65,42 @@ func TestDefaultSettingsProvider_Collect_AmountFormatting(t *testing.T) {
 	assert.Equal(t, "45.99", rows[0][0])
 }
 
+func TestDefaultSettingsProvider_Collect_JPYHasNoDecimals(t *testing.T) {
+	data := &financepb.AllUserDataResponse{
+		Defaults: &financepb.DefaultsData{
+			BudgetAmount:      1250,
+			EssentialsPercent: 50,
+			DesiresPercent:    30,
+			SavingsPercent:    20,
+			Currency:          "JPY",
+		},
+	}
+
+	p := NewDefaultSettingsProvider(data)
+	rows, err := p.Collect(context.Background(), "user-123")
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "1250", rows[0][0])
+}
+
+func TestDefaultSettingsProvider_Collect_UnsupportedCurrencyFallsBackToTwoDecimals(t *testing.T) {
+	data := &financepb.AllUserDataResponse{
+		Defaults: &financepb.DefaultsData{
+			BudgetAmount: 100,
+			Currency:     "XXX",
+		},
+	}
+
+	p := NewDefaultSettingsProvider(data)
+	rows, err := p.Collect(context.Background(), "user-123")
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "1.00", rows[0][0])
+	assert.Equal(t, "XXX", rows[0][4])
+}
+
 func TestDefaultSettingsProvider_Collect_NilDefaults(t *testing.T) {
 	data := &financepb.AllUserDataResponse{
 		Defaults: nil,

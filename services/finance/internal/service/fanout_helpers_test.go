@@ -114,6 +114,10 @@ func (c *countingExpenseClient) CreateExpense(context.Context, CreateExpenseInpu
 	return nil, fmt.Errorf("CreateExpense not expected in dashboard fan-out tests")
 }
 
+func (c *countingExpenseClient) CreateProRataInstallment(context.Context, CreateProRataInstallmentInput) (*CreatedExpenseData, error) {
+	return nil, fmt.Errorf("CreateProRataInstallment not expected in dashboard fan-out tests")
+}
+
 // fakeFanoutRepo returns canned periods for the dashboard read paths. Only the
 // two methods those paths call (ListPeriods, GetCurrentPeriod) are implemented;
 // the embedded interface is nil, so any other repo call panics and surfaces an

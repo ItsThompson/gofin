@@ -12,4 +12,7 @@ const (
 	// be converted because the FX provider is unavailable (not yet wired or down).
 	// No ledger row is written. Mapped to HTTP 503 / gRPC codes.Unavailable.
 	ErrConversionUnavailable = "CONVERSION_UNAVAILABLE"
+	// ErrSnapshotCurrencyMissing is returned when a captured pro-rata snapshot
+	// lacks a rate needed to derive an installment reporting amount.
+	ErrSnapshotCurrencyMissing = "SNAPSHOT_CURRENCY_MISSING"
 )

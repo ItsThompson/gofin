@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+
+	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
 // GRPCExpenseClient implements ExpenseClient by calling the expense service gRPC API.
@@ -79,4 +81,54 @@ func (c *GRPCExpenseClient) CreateExpense(ctx context.Context, req CreateExpense
 		ID:        resp.GetExpense().GetId(),
 		CreatedAt: resp.GetExpense().GetCreatedAt(),
 	}, nil
+}
+
+// CreateProRataInstallment calls the Expense internal pro-rata write RPC with
+// trusted period context and the captured snapshot. Expense does not re-fetch
+// Finance context for this path.
+func (c *GRPCExpenseClient) CreateProRataInstallment(ctx context.Context, req CreateProRataInstallmentInput) (*CreatedExpenseData, error) {
+	resp, err := c.client.CreateProRataInstallment(ctx, &expensepb.CreateProRataInstallmentRequest{
+		UserId: req.UserID,
+		PeriodContext: &expensepb.TrustedPeriodContext{
+			PeriodId:          req.PeriodContext.PeriodID,
+			UserId:            req.PeriodContext.UserID,
+			Year:              req.PeriodContext.Year,
+			Month:             req.PeriodContext.Month,
+			ReportingCurrency: req.PeriodContext.ReportingCurrency,
+			Source:            req.PeriodContext.Source,
+		},
+		Name:                 req.Name,
+		Amount:               req.Amount,
+		TransactionCurrency:  req.Currency,
+		ExpenseType:          req.ExpenseType,
+		TagId:                req.TagID,
+		ExpenseDate:          req.ExpenseDate,
+		ProRataGroup:         req.ProRataGroup,
+		ProRataIndex:         req.ProRataIndex,
+		ProRataTotal:         req.ProRataTotal,
+		CapturedRateSnapshot: snapshotToProto(req.CapturedRateSnapshot),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("gRPC CreateProRataInstallment: %w", err)
+	}
+
+	return &CreatedExpenseData{
+		ID:        resp.GetExpense().GetId(),
+		CreatedAt: resp.GetExpense().GetCreatedAt(),
+	}, nil
+}
+
+func snapshotToProto(s *model.CapturedRateSnapshot) *expensepb.CapturedRateSnapshot {
+	if s == nil {
+		return nil
+	}
+	return &expensepb.CapturedRateSnapshot{
+		SnapshotVersion: s.SnapshotVersion,
+		Source:          s.Source,
+		BaseCurrency:    s.BaseCurrency,
+		RateTimestamp:   s.RateTimestamp,
+		CapturedAt:      s.CapturedAt,
+		ExpiresAt:       s.ExpiresAt,
+		RatesByCurrency: s.RatesByCurrency,
+	}
 }

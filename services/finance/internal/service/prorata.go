@@ -11,6 +11,8 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 
 // CalculateInstallments divides totalAmount across months using integer division.
@@ -51,80 +53,115 @@ func monthLabel(year int32, month int32) string {
 	return t.Format("January 2006")
 }
 
-// CreateProRataExpense creates a pro-rata expense: writes the first installment via
-// gRPC to the expense service, then creates PostgreSQL schedules for months 2-N.
+// CreateProRataExpense creates a pro-rata schedule with explicit selected-period
+// context and captured FX intent. Finance validates the creation period, captures
+// one full provider snapshot, writes the first installment through the trusted
+// internal Expense contract, and stores future rows with the same snapshot.
 func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string, req *model.CreateProRataRequest) (*model.ProRataResponse, error) {
-	if strings.TrimSpace(req.Name) == "" {
-		return nil, apierr.Validation("Name is required", map[string]string{"name": "required"})
-	}
-	if req.TotalAmount <= 0 {
-		return nil, apierr.Validation("Total amount must be positive", map[string]string{"totalAmount": "must be positive"})
-	}
-	if req.Months < 2 {
-		return nil, apierr.Validation("Pro-rata requires at least 2 months", map[string]string{"months": "must be at least 2"})
-	}
+	v := validator.New()
+	v.Check(strings.TrimSpace(req.Name) != "", "name", "required")
+	v.Check(req.TotalAmount > 0, "totalAmount", "must be positive")
+	v.Check(req.Months >= 2, "months", "must be at least 2")
 	validTypes := map[string]bool{"essentials": true, "desires": true, "savings": true}
-	if !validTypes[req.ExpenseType] {
-		return nil, apierr.Validation("Expense type must be essentials, desires, or savings", map[string]string{"expenseType": "must be essentials, desires, or savings"})
-	}
-	if strings.TrimSpace(req.TagID) == "" {
-		return nil, apierr.Validation("Tag ID is required", map[string]string{"tagId": "required"})
-	}
-	if strings.TrimSpace(req.ExpenseDate) == "" {
-		return nil, apierr.Validation("Expense date is required", map[string]string{"expenseDate": "required"})
+	v.Check(validTypes[req.ExpenseType], "expenseType", "must be essentials, desires, or savings")
+	v.Check(strings.TrimSpace(req.TagID) != "", "tagId", "required")
+	v.Check(strings.TrimSpace(req.ExpenseDate) != "", "expenseDate", "required")
+	v.Check(req.PeriodYear >= 1, "periodYear", "required")
+	v.Check(req.PeriodMonth >= 1 && req.PeriodMonth <= 12, "periodMonth", "must be between 1 and 12")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
-	resolvedCurrency := normalizeCurrencyCode(req.TransactionCurrency)
-	if resolvedCurrency == "" {
-		return nil, apierr.Validation("Transaction currency is required", map[string]string{"transactionCurrency": "required"})
+	// The creation period is the schedule's first target. Validate it exists
+	// before any first-installment write or future schedule insert.
+	period, err := s.GetCurrentPeriod(ctx, userID, req.PeriodYear, req.PeriodMonth)
+	if err != nil {
+		return nil, err
 	}
-	if verr := validateSupportedCurrency("transactionCurrency", resolvedCurrency); verr != nil {
-		return nil, verr
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	if !currencycatalog.IsSupported(reportingCurrency) {
+		return nil, apierr.Internal("creation period reporting currency is not supported")
 	}
+
+	transactionCurrency, err := s.resolveProRataTransactionCurrency(period, req)
+	if err != nil {
+		return nil, err
+	}
+
 
 	installments := CalculateInstallments(req.TotalAmount, req.Months)
 	proRataGroup := uuid.New().String()
+	now := s.nowFunc().UTC().Format(time.RFC3339)
 
-	now := s.nowFunc()
-	currentYear := int32(now.Year())
-	currentMonth := int32(now.Month())
+	// Pro-rata always spans at least two months, so capture the full provider
+	// snapshot before the first installment or any future row is written.
+	if s.fxClient == nil {
+		return nil, apierr.Internal("pro-rata snapshot capture is not configured")
+	}
+	snapshot, err := s.fxClient.CaptureRateSnapshot(ctx, FxCaptureRequest{
+		RequiredCurrencies: []string{transactionCurrency, reportingCurrency},
+		RequestedAt:        now,
+	})
+	if err != nil {
+		s.logger.Info("pro-rata snapshot capture failed",
+			slog.String("method", "CreateProRataExpense"),
+			slog.String("user_id", userID),
+			slog.String("transaction_currency", transactionCurrency),
+			slog.String("reporting_currency", reportingCurrency),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+	if snapshot == nil {
+		return nil, apierr.Internal("FX returned an empty pro-rata snapshot")
+	}
 
-	created, err := s.expenseClient.CreateExpense(ctx, CreateExpenseInput{
-		UserID:              userID,
-		Name:                req.Name,
-		Amount:              installments[0],
-		TransactionCurrency: resolvedCurrency,
-		ExpenseType:         req.ExpenseType,
-		TagID:               req.TagID,
-		ExpenseDate:         req.ExpenseDate,
-		PeriodYear:          currentYear,
-		PeriodMonth:         currentMonth,
-		IsProRata:           true,
-		ProRataGroup:        proRataGroup,
-		ProRataIndex:        1,
-		ProRataTotal:        req.Months,
+	created, err := s.expenseClient.CreateProRataInstallment(ctx, CreateProRataInstallmentInput{
+		UserID: userID,
+		PeriodContext: TrustedPeriodContext{
+			PeriodID:          period.ID,
+			UserID:            period.UserID,
+			Year:              period.Year,
+			Month:             period.Month,
+			ReportingCurrency: reportingCurrency,
+			Source:            "finance_service",
+		},
+		Name:                 req.Name,
+		Amount:               installments[0],
+		Currency:             transactionCurrency,
+		ExpenseType:          req.ExpenseType,
+		TagID:                req.TagID,
+		ExpenseDate:          req.ExpenseDate,
+		ProRataGroup:         proRataGroup,
+		ProRataIndex:         1,
+		ProRataTotal:         req.Months,
+		CapturedRateSnapshot: snapshot,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating first installment via expense service: %w", err)
 	}
 
 	schedules := make([]*model.ProRataSchedule, 0, req.Months-1)
-	targetYear, targetMonth := currentYear, currentMonth
+	targetYear, targetMonth := req.PeriodYear, req.PeriodMonth
 	for i := int32(2); i <= req.Months; i++ {
 		targetYear, targetMonth = AdvanceMonth(targetYear, targetMonth)
 
 		schedule, err := s.repo.CreateProRataSchedule(ctx, &model.ProRataSchedule{
-			UserID:           userID,
-			ProRataGroup:     proRataGroup,
-			Name:             req.Name,
-			Amount:           installments[i-1],
-			Currency:         resolvedCurrency,
-			ExpenseType:      req.ExpenseType,
-			TagID:            req.TagID,
-			TargetYear:       targetYear,
-			TargetMonth:      targetMonth,
-			InstallmentIndex: i,
-			InstallmentTotal: req.Months,
+			UserID:                    userID,
+			ProRataGroup:              proRataGroup,
+			Name:                      req.Name,
+			Amount:                    installments[i-1],
+			Currency:                  transactionCurrency,
+			ExpenseType:               req.ExpenseType,
+			TagID:                     req.TagID,
+			TargetYear:                targetYear,
+			TargetMonth:               targetMonth,
+			InstallmentIndex:          i,
+			InstallmentTotal:          req.Months,
+			TransactionAmount:         installments[i-1],
+			TransactionCurrency:       transactionCurrency,
+			CreationReportingCurrency: reportingCurrency,
+			CapturedRateSnapshot:      snapshot,
 		})
 		if err != nil {
 			// Log the inconsistency and return an error (the first installment is already written).
@@ -146,27 +183,52 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		slog.String("pro_rata_group", proRataGroup),
 		slog.Int("months", int(req.Months)),
 		slog.Int64("total_amount", req.TotalAmount),
+		slog.String("snapshot_rate_timestamp", snapshot.RateTimestamp),
 	)
 
 	return &model.ProRataResponse{
 		Expense: &model.CreatedExpense{
-			ID:           created.ID,
-			Name:         req.Name,
-			Amount:       installments[0],
-			Currency:     resolvedCurrency,
-			ExpenseType:  req.ExpenseType,
-			TagID:        req.TagID,
-			ExpenseDate:  req.ExpenseDate,
-			PeriodYear:   currentYear,
-			PeriodMonth:  currentMonth,
-			IsProRata:    true,
-			ProRataGroup: proRataGroup,
-			ProRataIndex: 1,
-			ProRataTotal: req.Months,
-			CreatedAt:    created.CreatedAt,
+			ID:                  created.ID,
+			Name:                req.Name,
+			Amount:              installments[0],
+			TransactionCurrency: transactionCurrency,
+			Currency:            transactionCurrency,
+			ExpenseType:         req.ExpenseType,
+			TagID:               req.TagID,
+			ExpenseDate:         req.ExpenseDate,
+			PeriodYear:          req.PeriodYear,
+			PeriodMonth:         req.PeriodMonth,
+			IsProRata:           true,
+			ProRataGroup:        proRataGroup,
+			ProRataIndex:        1,
+			ProRataTotal:        req.Months,
+			CreatedAt:           created.CreatedAt,
 		},
 		Schedules: schedules,
 	}, nil
+}
+
+// resolveProRataTransactionCurrency resolves the transaction currency from the
+// request. When absent, it defaults to the creation period reporting currency.
+func (s *FinanceService) resolveProRataTransactionCurrency(period *model.BudgetPeriod, req *model.CreateProRataRequest) (string, error) {
+	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	if transactionCurrency != "" {
+		return s.validateProRataTransactionCurrency(transactionCurrency)
+	}
+
+	defaultCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	s.logger.Info("transaction currency defaulted",
+		slog.String("event", "transaction_currency_defaulted"),
+		slog.String("reporting_currency", defaultCurrency),
+	)
+	return s.validateProRataTransactionCurrency(defaultCurrency)
+}
+
+func (s *FinanceService) validateProRataTransactionCurrency(currencyCode string) (string, error) {
+	if verr := validateSupportedCurrency("transactionCurrency", currencyCode); verr != nil {
+		return "", verr
+	}
+	return currencyCode, nil
 }
 
 // GetUpcomingProRata returns all pending pro-rata schedules for the user.

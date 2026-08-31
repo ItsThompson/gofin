@@ -84,7 +84,8 @@ describe("useCorrectionForm", () => {
     it("derives amountDollars correctly from cents", () => {
       const expenseWithOddAmount: Expense = {
         ...mockExpense,
-        transactionAmount: 1299, // $12.99
+        transactionAmount: 1299,
+        reportingAmount: 1299,
       };
       const onSubmit = vi.fn();
       const { result } = renderHook(() =>
@@ -227,6 +228,7 @@ describe("useCorrectionForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Groceries",
         amount: 5000,
+        transactionCurrency: "USD",
         expenseType: "essentials",
         tagId: "tag-food",
         expenseDate: "2026-05-02",
@@ -388,6 +390,7 @@ describe("useCorrectionForm", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Updated Name",
         amount: 7550,
+        transactionCurrency: "USD",
         expenseType: "desires",
         tagId: "tag-transport",
         expenseDate: "2026-05-10",

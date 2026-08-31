@@ -30,6 +30,7 @@ func TestAllMetricsRegistered(t *testing.T) {
 		"export_pool_active_jobs",
 		"export_pool_queued_jobs",
 		"export_rate_limit_rejections_total",
+		"export_currency_formatting_fallback_total",
 	}
 
 	foundMetrics := make(map[string]bool)
@@ -66,6 +67,13 @@ func TestExportRateLimitRejectionsTotal_Increments(t *testing.T) {
 	ExportRateLimitRejectionsTotal.Inc()
 
 	value := testutil.ToFloat64(ExportRateLimitRejectionsTotal)
+	assert.GreaterOrEqual(t, value, float64(1))
+}
+
+func TestExportCurrencyFormattingFallbackTotal_Increments(t *testing.T) {
+	ExportCurrencyFormattingFallbackTotal.Inc()
+
+	value := testutil.ToFloat64(ExportCurrencyFormattingFallbackTotal)
 	assert.GreaterOrEqual(t, value, float64(1))
 }
 

@@ -426,6 +426,322 @@ func (x *ExpenseResponse) GetExpense() *ExpenseData {
 	return nil
 }
 
+// TrustedPeriodContext is period context Finance resolved before asking Expense
+// to write a pro-rata installment. Expense validates its consistency but does
+// not call Finance again for Finance-originated pro-rata writes.
+type TrustedPeriodContext struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	PeriodId          string                 `protobuf:"bytes,1,opt,name=period_id,json=periodId,proto3" json:"period_id,omitempty"`
+	UserId            string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Year              int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
+	Month             int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
+	ReportingCurrency string                 `protobuf:"bytes,5,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
+	Source            string                 `protobuf:"bytes,6,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *TrustedPeriodContext) Reset() {
+	*x = TrustedPeriodContext{}
+	mi := &file_proto_expense_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrustedPeriodContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrustedPeriodContext) ProtoMessage() {}
+
+func (x *TrustedPeriodContext) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_expense_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrustedPeriodContext.ProtoReflect.Descriptor instead.
+func (*TrustedPeriodContext) Descriptor() ([]byte, []int) {
+	return file_proto_expense_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TrustedPeriodContext) GetPeriodId() string {
+	if x != nil {
+		return x.PeriodId
+	}
+	return ""
+}
+
+func (x *TrustedPeriodContext) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *TrustedPeriodContext) GetYear() int32 {
+	if x != nil {
+		return x.Year
+	}
+	return 0
+}
+
+func (x *TrustedPeriodContext) GetMonth() int32 {
+	if x != nil {
+		return x.Month
+	}
+	return 0
+}
+
+func (x *TrustedPeriodContext) GetReportingCurrency() string {
+	if x != nil {
+		return x.ReportingCurrency
+	}
+	return ""
+}
+
+func (x *TrustedPeriodContext) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+// CapturedRateSnapshot is a full USD-based provider snapshot captured at
+// pro-rata schedule creation. Future installments derive target reporting
+// amounts from this snapshot instead of live rates.
+type CapturedRateSnapshot struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	SnapshotVersion int32                  `protobuf:"varint,1,opt,name=snapshot_version,json=snapshotVersion,proto3" json:"snapshot_version,omitempty"`
+	Source          string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	BaseCurrency    string                 `protobuf:"bytes,3,opt,name=base_currency,json=baseCurrency,proto3" json:"base_currency,omitempty"`
+	RateTimestamp   string                 `protobuf:"bytes,4,opt,name=rate_timestamp,json=rateTimestamp,proto3" json:"rate_timestamp,omitempty"`
+	CapturedAt      string                 `protobuf:"bytes,5,opt,name=captured_at,json=capturedAt,proto3" json:"captured_at,omitempty"`
+	ExpiresAt       string                 `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	RatesByCurrency map[string]string      `protobuf:"bytes,7,rep,name=rates_by_currency,json=ratesByCurrency,proto3" json:"rates_by_currency,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CapturedRateSnapshot) Reset() {
+	*x = CapturedRateSnapshot{}
+	mi := &file_proto_expense_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CapturedRateSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CapturedRateSnapshot) ProtoMessage() {}
+
+func (x *CapturedRateSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_expense_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CapturedRateSnapshot.ProtoReflect.Descriptor instead.
+func (*CapturedRateSnapshot) Descriptor() ([]byte, []int) {
+	return file_proto_expense_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CapturedRateSnapshot) GetSnapshotVersion() int32 {
+	if x != nil {
+		return x.SnapshotVersion
+	}
+	return 0
+}
+
+func (x *CapturedRateSnapshot) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *CapturedRateSnapshot) GetBaseCurrency() string {
+	if x != nil {
+		return x.BaseCurrency
+	}
+	return ""
+}
+
+func (x *CapturedRateSnapshot) GetRateTimestamp() string {
+	if x != nil {
+		return x.RateTimestamp
+	}
+	return ""
+}
+
+func (x *CapturedRateSnapshot) GetCapturedAt() string {
+	if x != nil {
+		return x.CapturedAt
+	}
+	return ""
+}
+
+func (x *CapturedRateSnapshot) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *CapturedRateSnapshot) GetRatesByCurrency() map[string]string {
+	if x != nil {
+		return x.RatesByCurrency
+	}
+	return nil
+}
+
+// CreateProRataInstallmentRequest is the Finance-originated internal write
+// contract for the first (and future) pro-rata installments.
+type CreateProRataInstallmentRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	UserId               string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	PeriodContext        *TrustedPeriodContext  `protobuf:"bytes,2,opt,name=period_context,json=periodContext,proto3" json:"period_context,omitempty"`
+	Name                 string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Amount               int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	TransactionCurrency  string                 `protobuf:"bytes,5,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
+	ExpenseType          string                 `protobuf:"bytes,6,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId                string                 `protobuf:"bytes,7,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDate          string                 `protobuf:"bytes,8,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
+	ProRataGroup         string                 `protobuf:"bytes,9,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
+	ProRataIndex         int32                  `protobuf:"varint,10,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
+	ProRataTotal         int32                  `protobuf:"varint,11,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
+	CapturedRateSnapshot *CapturedRateSnapshot  `protobuf:"bytes,12,opt,name=captured_rate_snapshot,json=capturedRateSnapshot,proto3" json:"captured_rate_snapshot,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *CreateProRataInstallmentRequest) Reset() {
+	*x = CreateProRataInstallmentRequest{}
+	mi := &file_proto_expense_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateProRataInstallmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateProRataInstallmentRequest) ProtoMessage() {}
+
+func (x *CreateProRataInstallmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_expense_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateProRataInstallmentRequest.ProtoReflect.Descriptor instead.
+func (*CreateProRataInstallmentRequest) Descriptor() ([]byte, []int) {
+	return file_proto_expense_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateProRataInstallmentRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetPeriodContext() *TrustedPeriodContext {
+	if x != nil {
+		return x.PeriodContext
+	}
+	return nil
+}
+
+func (x *CreateProRataInstallmentRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *CreateProRataInstallmentRequest) GetTransactionCurrency() string {
+	if x != nil {
+		return x.TransactionCurrency
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetExpenseType() string {
+	if x != nil {
+		return x.ExpenseType
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetTagId() string {
+	if x != nil {
+		return x.TagId
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetExpenseDate() string {
+	if x != nil {
+		return x.ExpenseDate
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetProRataGroup() string {
+	if x != nil {
+		return x.ProRataGroup
+	}
+	return ""
+}
+
+func (x *CreateProRataInstallmentRequest) GetProRataIndex() int32 {
+	if x != nil {
+		return x.ProRataIndex
+	}
+	return 0
+}
+
+func (x *CreateProRataInstallmentRequest) GetProRataTotal() int32 {
+	if x != nil {
+		return x.ProRataTotal
+	}
+	return 0
+}
+
+func (x *CreateProRataInstallmentRequest) GetCapturedRateSnapshot() *CapturedRateSnapshot {
+	if x != nil {
+		return x.CapturedRateSnapshot
+	}
+	return nil
+}
+
 type GetExpensesForPeriodRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -439,7 +755,7 @@ type GetExpensesForPeriodRequest struct {
 
 func (x *GetExpensesForPeriodRequest) Reset() {
 	*x = GetExpensesForPeriodRequest{}
-	mi := &file_proto_expense_proto_msgTypes[3]
+	mi := &file_proto_expense_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -451,7 +767,7 @@ func (x *GetExpensesForPeriodRequest) String() string {
 func (*GetExpensesForPeriodRequest) ProtoMessage() {}
 
 func (x *GetExpensesForPeriodRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[3]
+	mi := &file_proto_expense_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -464,7 +780,7 @@ func (x *GetExpensesForPeriodRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExpensesForPeriodRequest.ProtoReflect.Descriptor instead.
 func (*GetExpensesForPeriodRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{3}
+	return file_proto_expense_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetExpensesForPeriodRequest) GetUserId() string {
@@ -515,7 +831,7 @@ type ExpenseListResponse struct {
 
 func (x *ExpenseListResponse) Reset() {
 	*x = ExpenseListResponse{}
-	mi := &file_proto_expense_proto_msgTypes[4]
+	mi := &file_proto_expense_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +843,7 @@ func (x *ExpenseListResponse) String() string {
 func (*ExpenseListResponse) ProtoMessage() {}
 
 func (x *ExpenseListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[4]
+	mi := &file_proto_expense_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +856,7 @@ func (x *ExpenseListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExpenseListResponse.ProtoReflect.Descriptor instead.
 func (*ExpenseListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{4}
+	return file_proto_expense_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExpenseListResponse) GetData() []*ExpenseData {
@@ -588,7 +904,7 @@ type GetExpenseRequest struct {
 
 func (x *GetExpenseRequest) Reset() {
 	*x = GetExpenseRequest{}
-	mi := &file_proto_expense_proto_msgTypes[5]
+	mi := &file_proto_expense_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -600,7 +916,7 @@ func (x *GetExpenseRequest) String() string {
 func (*GetExpenseRequest) ProtoMessage() {}
 
 func (x *GetExpenseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[5]
+	mi := &file_proto_expense_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -613,7 +929,7 @@ func (x *GetExpenseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExpenseRequest.ProtoReflect.Descriptor instead.
 func (*GetExpenseRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{5}
+	return file_proto_expense_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetExpenseRequest) GetId() string {
@@ -631,21 +947,23 @@ func (x *GetExpenseRequest) GetUserId() string {
 }
 
 type CorrectExpenseRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ExpenseId     string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Amount        int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	ExpenseType   string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId         string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate   string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ExpenseId           string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
+	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name                string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Amount              int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	ExpenseType         string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId               string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDate         string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
+	TransactionCurrency string                 `protobuf:"bytes,8,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
+	Currency            string                 `protobuf:"bytes,9,opt,name=currency,proto3" json:"currency,omitempty"` // Deprecated alias during rollout.
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CorrectExpenseRequest) Reset() {
 	*x = CorrectExpenseRequest{}
-	mi := &file_proto_expense_proto_msgTypes[6]
+	mi := &file_proto_expense_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -657,7 +975,7 @@ func (x *CorrectExpenseRequest) String() string {
 func (*CorrectExpenseRequest) ProtoMessage() {}
 
 func (x *CorrectExpenseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[6]
+	mi := &file_proto_expense_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -670,7 +988,7 @@ func (x *CorrectExpenseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CorrectExpenseRequest.ProtoReflect.Descriptor instead.
 func (*CorrectExpenseRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{6}
+	return file_proto_expense_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CorrectExpenseRequest) GetExpenseId() string {
@@ -722,6 +1040,20 @@ func (x *CorrectExpenseRequest) GetExpenseDate() string {
 	return ""
 }
 
+func (x *CorrectExpenseRequest) GetTransactionCurrency() string {
+	if x != nil {
+		return x.TransactionCurrency
+	}
+	return ""
+}
+
+func (x *CorrectExpenseRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
 type GetCorrectionHistoryRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ExpenseId     string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
@@ -731,7 +1063,7 @@ type GetCorrectionHistoryRequest struct {
 
 func (x *GetCorrectionHistoryRequest) Reset() {
 	*x = GetCorrectionHistoryRequest{}
-	mi := &file_proto_expense_proto_msgTypes[7]
+	mi := &file_proto_expense_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -743,7 +1075,7 @@ func (x *GetCorrectionHistoryRequest) String() string {
 func (*GetCorrectionHistoryRequest) ProtoMessage() {}
 
 func (x *GetCorrectionHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[7]
+	mi := &file_proto_expense_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -756,7 +1088,7 @@ func (x *GetCorrectionHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCorrectionHistoryRequest.ProtoReflect.Descriptor instead.
 func (*GetCorrectionHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{7}
+	return file_proto_expense_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetCorrectionHistoryRequest) GetExpenseId() string {
@@ -775,7 +1107,7 @@ type CorrectionHistoryResponse struct {
 
 func (x *CorrectionHistoryResponse) Reset() {
 	*x = CorrectionHistoryResponse{}
-	mi := &file_proto_expense_proto_msgTypes[8]
+	mi := &file_proto_expense_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -787,7 +1119,7 @@ func (x *CorrectionHistoryResponse) String() string {
 func (*CorrectionHistoryResponse) ProtoMessage() {}
 
 func (x *CorrectionHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[8]
+	mi := &file_proto_expense_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -800,7 +1132,7 @@ func (x *CorrectionHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CorrectionHistoryResponse.ProtoReflect.Descriptor instead.
 func (*CorrectionHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{8}
+	return file_proto_expense_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CorrectionHistoryResponse) GetEntries() []*ExpenseData {
@@ -819,7 +1151,7 @@ type GetProRataGroupRequest struct {
 
 func (x *GetProRataGroupRequest) Reset() {
 	*x = GetProRataGroupRequest{}
-	mi := &file_proto_expense_proto_msgTypes[9]
+	mi := &file_proto_expense_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +1163,7 @@ func (x *GetProRataGroupRequest) String() string {
 func (*GetProRataGroupRequest) ProtoMessage() {}
 
 func (x *GetProRataGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[9]
+	mi := &file_proto_expense_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -844,7 +1176,7 @@ func (x *GetProRataGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProRataGroupRequest.ProtoReflect.Descriptor instead.
 func (*GetProRataGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{9}
+	return file_proto_expense_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetProRataGroupRequest) GetGroupId() string {
@@ -864,7 +1196,7 @@ type StreamAllUserExpensesRequest struct {
 
 func (x *StreamAllUserExpensesRequest) Reset() {
 	*x = StreamAllUserExpensesRequest{}
-	mi := &file_proto_expense_proto_msgTypes[10]
+	mi := &file_proto_expense_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +1208,7 @@ func (x *StreamAllUserExpensesRequest) String() string {
 func (*StreamAllUserExpensesRequest) ProtoMessage() {}
 
 func (x *StreamAllUserExpensesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[10]
+	mi := &file_proto_expense_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +1221,7 @@ func (x *StreamAllUserExpensesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamAllUserExpensesRequest.ProtoReflect.Descriptor instead.
 func (*StreamAllUserExpensesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{10}
+	return file_proto_expense_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StreamAllUserExpensesRequest) GetUserId() string {
@@ -916,7 +1248,7 @@ type CountExpensesByTagRequest struct {
 
 func (x *CountExpensesByTagRequest) Reset() {
 	*x = CountExpensesByTagRequest{}
-	mi := &file_proto_expense_proto_msgTypes[11]
+	mi := &file_proto_expense_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -928,7 +1260,7 @@ func (x *CountExpensesByTagRequest) String() string {
 func (*CountExpensesByTagRequest) ProtoMessage() {}
 
 func (x *CountExpensesByTagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[11]
+	mi := &file_proto_expense_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -941,7 +1273,7 @@ func (x *CountExpensesByTagRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountExpensesByTagRequest.ProtoReflect.Descriptor instead.
 func (*CountExpensesByTagRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{11}
+	return file_proto_expense_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CountExpensesByTagRequest) GetTagId() string {
@@ -967,7 +1299,7 @@ type CountExpensesByTagResponse struct {
 
 func (x *CountExpensesByTagResponse) Reset() {
 	*x = CountExpensesByTagResponse{}
-	mi := &file_proto_expense_proto_msgTypes[12]
+	mi := &file_proto_expense_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -979,7 +1311,7 @@ func (x *CountExpensesByTagResponse) String() string {
 func (*CountExpensesByTagResponse) ProtoMessage() {}
 
 func (x *CountExpensesByTagResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[12]
+	mi := &file_proto_expense_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -992,7 +1324,7 @@ func (x *CountExpensesByTagResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountExpensesByTagResponse.ProtoReflect.Descriptor instead.
 func (*CountExpensesByTagResponse) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{12}
+	return file_proto_expense_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CountExpensesByTagResponse) GetCount() int64 {
@@ -1011,7 +1343,7 @@ type AnonymizeRequest struct {
 
 func (x *AnonymizeRequest) Reset() {
 	*x = AnonymizeRequest{}
-	mi := &file_proto_expense_proto_msgTypes[13]
+	mi := &file_proto_expense_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1023,7 +1355,7 @@ func (x *AnonymizeRequest) String() string {
 func (*AnonymizeRequest) ProtoMessage() {}
 
 func (x *AnonymizeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[13]
+	mi := &file_proto_expense_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1036,7 +1368,7 @@ func (x *AnonymizeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnonymizeRequest.ProtoReflect.Descriptor instead.
 func (*AnonymizeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{13}
+	return file_proto_expense_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AnonymizeRequest) GetUserId() string {
@@ -1054,7 +1386,7 @@ type AnonymizeResponse struct {
 
 func (x *AnonymizeResponse) Reset() {
 	*x = AnonymizeResponse{}
-	mi := &file_proto_expense_proto_msgTypes[14]
+	mi := &file_proto_expense_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1066,7 +1398,7 @@ func (x *AnonymizeResponse) String() string {
 func (*AnonymizeResponse) ProtoMessage() {}
 
 func (x *AnonymizeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_expense_proto_msgTypes[14]
+	mi := &file_proto_expense_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1079,7 +1411,7 @@ func (x *AnonymizeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AnonymizeResponse.ProtoReflect.Descriptor instead.
 func (*AnonymizeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_expense_proto_rawDescGZIP(), []int{14}
+	return file_proto_expense_proto_rawDescGZIP(), []int{17}
 }
 
 var File_proto_expense_proto protoreflect.FileDescriptor
@@ -1132,7 +1464,41 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_total\x18\r \x01(\x05R\fproRataTotal\x121\n" +
 	"\x14transaction_currency\x18\x0e \x01(\tR\x13transactionCurrencyJ\x04\b\x04\x10\x05\"A\n" +
 	"\x0fExpenseResponse\x12.\n" +
-	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\x91\x01\n" +
+	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\xbd\x01\n" +
+	"\x14TrustedPeriodContext\x12\x1b\n" +
+	"\tperiod_id\x18\x01 \x01(\tR\bperiodId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04year\x18\x03 \x01(\x05R\x04year\x12\x14\n" +
+	"\x05month\x18\x04 \x01(\x05R\x05month\x12-\n" +
+	"\x12reporting_currency\x18\x05 \x01(\tR\x11reportingCurrency\x12\x16\n" +
+	"\x06source\x18\x06 \x01(\tR\x06source\"\x89\x03\n" +
+	"\x14CapturedRateSnapshot\x12)\n" +
+	"\x10snapshot_version\x18\x01 \x01(\x05R\x0fsnapshotVersion\x12\x16\n" +
+	"\x06source\x18\x02 \x01(\tR\x06source\x12#\n" +
+	"\rbase_currency\x18\x03 \x01(\tR\fbaseCurrency\x12%\n" +
+	"\x0erate_timestamp\x18\x04 \x01(\tR\rrateTimestamp\x12\x1f\n" +
+	"\vcaptured_at\x18\x05 \x01(\tR\n" +
+	"capturedAt\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x06 \x01(\tR\texpiresAt\x12^\n" +
+	"\x11rates_by_currency\x18\a \x03(\v22.expense.CapturedRateSnapshot.RatesByCurrencyEntryR\x0fratesByCurrency\x1aB\n" +
+	"\x14RatesByCurrencyEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x04\n" +
+	"\x1fCreateProRataInstallmentRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12D\n" +
+	"\x0eperiod_context\x18\x02 \x01(\v2\x1d.expense.TrustedPeriodContextR\rperiodContext\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x03R\x06amount\x121\n" +
+	"\x14transaction_currency\x18\x05 \x01(\tR\x13transactionCurrency\x12!\n" +
+	"\fexpense_type\x18\x06 \x01(\tR\vexpenseType\x12\x15\n" +
+	"\x06tag_id\x18\a \x01(\tR\x05tagId\x12!\n" +
+	"\fexpense_date\x18\b \x01(\tR\vexpenseDate\x12$\n" +
+	"\x0epro_rata_group\x18\t \x01(\tR\fproRataGroup\x12$\n" +
+	"\x0epro_rata_index\x18\n" +
+	" \x01(\x05R\fproRataIndex\x12$\n" +
+	"\x0epro_rata_total\x18\v \x01(\x05R\fproRataTotal\x12S\n" +
+	"\x16captured_rate_snapshot\x18\f \x01(\v2\x1d.expense.CapturedRateSnapshotR\x14capturedRateSnapshot\"\x91\x01\n" +
 	"\x1bGetExpensesForPeriodRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
@@ -1147,7 +1513,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"<\n" +
 	"\x11GetExpenseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xd8\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xa7\x02\n" +
 	"\x15CorrectExpenseRequest\x12\x1d\n" +
 	"\n" +
 	"expense_id\x18\x01 \x01(\tR\texpenseId\x12\x17\n" +
@@ -1156,7 +1522,9 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12!\n" +
 	"\fexpense_type\x18\x05 \x01(\tR\vexpenseType\x12\x15\n" +
 	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12!\n" +
-	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\"<\n" +
+	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\x121\n" +
+	"\x14transaction_currency\x18\b \x01(\tR\x13transactionCurrency\x12\x1a\n" +
+	"\bcurrency\x18\t \x01(\tR\bcurrency\"<\n" +
 	"\x1bGetCorrectionHistoryRequest\x12\x1d\n" +
 	"\n" +
 	"expense_id\x18\x01 \x01(\tR\texpenseId\"K\n" +
@@ -1174,9 +1542,10 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x05count\x18\x01 \x01(\x03R\x05count\"+\n" +
 	"\x10AnonymizeRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x13\n" +
-	"\x11AnonymizeResponse2\xd0\x04\n" +
+	"\x11AnonymizeResponse2\xb0\x05\n" +
 	"\x0eExpenseService\x12H\n" +
-	"\rCreateExpense\x12\x1d.expense.CreateExpenseRequest\x1a\x18.expense.ExpenseResponse\x12Z\n" +
+	"\rCreateExpense\x12\x1d.expense.CreateExpenseRequest\x1a\x18.expense.ExpenseResponse\x12^\n" +
+	"\x18CreateProRataInstallment\x12(.expense.CreateProRataInstallmentRequest\x1a\x18.expense.ExpenseResponse\x12Z\n" +
 	"\x14GetExpensesForPeriod\x12$.expense.GetExpensesForPeriodRequest\x1a\x1c.expense.ExpenseListResponse\x12B\n" +
 	"\n" +
 	"GetExpense\x12\x1a.expense.GetExpenseRequest\x1a\x18.expense.ExpenseResponse\x12]\n" +
@@ -1197,47 +1566,56 @@ func file_proto_expense_proto_rawDescGZIP() []byte {
 	return file_proto_expense_proto_rawDescData
 }
 
-var file_proto_expense_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_proto_expense_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_proto_expense_proto_goTypes = []any{
-	(*ExpenseData)(nil),                  // 0: expense.ExpenseData
-	(*CreateExpenseRequest)(nil),         // 1: expense.CreateExpenseRequest
-	(*ExpenseResponse)(nil),              // 2: expense.ExpenseResponse
-	(*GetExpensesForPeriodRequest)(nil),  // 3: expense.GetExpensesForPeriodRequest
-	(*ExpenseListResponse)(nil),          // 4: expense.ExpenseListResponse
-	(*GetExpenseRequest)(nil),            // 5: expense.GetExpenseRequest
-	(*CorrectExpenseRequest)(nil),        // 6: expense.CorrectExpenseRequest
-	(*GetCorrectionHistoryRequest)(nil),  // 7: expense.GetCorrectionHistoryRequest
-	(*CorrectionHistoryResponse)(nil),    // 8: expense.CorrectionHistoryResponse
-	(*GetProRataGroupRequest)(nil),       // 9: expense.GetProRataGroupRequest
-	(*StreamAllUserExpensesRequest)(nil), // 10: expense.StreamAllUserExpensesRequest
-	(*CountExpensesByTagRequest)(nil),    // 11: expense.CountExpensesByTagRequest
-	(*CountExpensesByTagResponse)(nil),   // 12: expense.CountExpensesByTagResponse
-	(*AnonymizeRequest)(nil),             // 13: expense.AnonymizeRequest
-	(*AnonymizeResponse)(nil),            // 14: expense.AnonymizeResponse
+	(*ExpenseData)(nil),                     // 0: expense.ExpenseData
+	(*CreateExpenseRequest)(nil),            // 1: expense.CreateExpenseRequest
+	(*ExpenseResponse)(nil),                 // 2: expense.ExpenseResponse
+	(*TrustedPeriodContext)(nil),            // 3: expense.TrustedPeriodContext
+	(*CapturedRateSnapshot)(nil),            // 4: expense.CapturedRateSnapshot
+	(*CreateProRataInstallmentRequest)(nil), // 5: expense.CreateProRataInstallmentRequest
+	(*GetExpensesForPeriodRequest)(nil),     // 6: expense.GetExpensesForPeriodRequest
+	(*ExpenseListResponse)(nil),             // 7: expense.ExpenseListResponse
+	(*GetExpenseRequest)(nil),               // 8: expense.GetExpenseRequest
+	(*CorrectExpenseRequest)(nil),           // 9: expense.CorrectExpenseRequest
+	(*GetCorrectionHistoryRequest)(nil),     // 10: expense.GetCorrectionHistoryRequest
+	(*CorrectionHistoryResponse)(nil),       // 11: expense.CorrectionHistoryResponse
+	(*GetProRataGroupRequest)(nil),          // 12: expense.GetProRataGroupRequest
+	(*StreamAllUserExpensesRequest)(nil),    // 13: expense.StreamAllUserExpensesRequest
+	(*CountExpensesByTagRequest)(nil),       // 14: expense.CountExpensesByTagRequest
+	(*CountExpensesByTagResponse)(nil),      // 15: expense.CountExpensesByTagResponse
+	(*AnonymizeRequest)(nil),                // 16: expense.AnonymizeRequest
+	(*AnonymizeResponse)(nil),               // 17: expense.AnonymizeResponse
+	nil,                                     // 18: expense.CapturedRateSnapshot.RatesByCurrencyEntry
 }
 var file_proto_expense_proto_depIdxs = []int32{
 	0,  // 0: expense.ExpenseResponse.expense:type_name -> expense.ExpenseData
-	0,  // 1: expense.ExpenseListResponse.data:type_name -> expense.ExpenseData
-	0,  // 2: expense.CorrectionHistoryResponse.entries:type_name -> expense.ExpenseData
-	1,  // 3: expense.ExpenseService.CreateExpense:input_type -> expense.CreateExpenseRequest
-	3,  // 4: expense.ExpenseService.GetExpensesForPeriod:input_type -> expense.GetExpensesForPeriodRequest
-	5,  // 5: expense.ExpenseService.GetExpense:input_type -> expense.GetExpenseRequest
-	11, // 6: expense.ExpenseService.CountExpensesByTag:input_type -> expense.CountExpensesByTagRequest
-	10, // 7: expense.ExpenseService.StreamAllUserExpenses:input_type -> expense.StreamAllUserExpensesRequest
-	13, // 8: expense.ExpenseService.AnonymizeAllUserExpenses:input_type -> expense.AnonymizeRequest
-	6,  // 9: expense.ExpenseService.CorrectExpense:input_type -> expense.CorrectExpenseRequest
-	2,  // 10: expense.ExpenseService.CreateExpense:output_type -> expense.ExpenseResponse
-	4,  // 11: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
-	2,  // 12: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
-	12, // 13: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
-	0,  // 14: expense.ExpenseService.StreamAllUserExpenses:output_type -> expense.ExpenseData
-	14, // 15: expense.ExpenseService.AnonymizeAllUserExpenses:output_type -> expense.AnonymizeResponse
-	2,  // 16: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
-	10, // [10:17] is the sub-list for method output_type
-	3,  // [3:10] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	18, // 1: expense.CapturedRateSnapshot.rates_by_currency:type_name -> expense.CapturedRateSnapshot.RatesByCurrencyEntry
+	3,  // 2: expense.CreateProRataInstallmentRequest.period_context:type_name -> expense.TrustedPeriodContext
+	4,  // 3: expense.CreateProRataInstallmentRequest.captured_rate_snapshot:type_name -> expense.CapturedRateSnapshot
+	0,  // 4: expense.ExpenseListResponse.data:type_name -> expense.ExpenseData
+	0,  // 5: expense.CorrectionHistoryResponse.entries:type_name -> expense.ExpenseData
+	1,  // 6: expense.ExpenseService.CreateExpense:input_type -> expense.CreateExpenseRequest
+	5,  // 7: expense.ExpenseService.CreateProRataInstallment:input_type -> expense.CreateProRataInstallmentRequest
+	6,  // 8: expense.ExpenseService.GetExpensesForPeriod:input_type -> expense.GetExpensesForPeriodRequest
+	8,  // 9: expense.ExpenseService.GetExpense:input_type -> expense.GetExpenseRequest
+	14, // 10: expense.ExpenseService.CountExpensesByTag:input_type -> expense.CountExpensesByTagRequest
+	13, // 11: expense.ExpenseService.StreamAllUserExpenses:input_type -> expense.StreamAllUserExpensesRequest
+	16, // 12: expense.ExpenseService.AnonymizeAllUserExpenses:input_type -> expense.AnonymizeRequest
+	9,  // 13: expense.ExpenseService.CorrectExpense:input_type -> expense.CorrectExpenseRequest
+	2,  // 14: expense.ExpenseService.CreateExpense:output_type -> expense.ExpenseResponse
+	2,  // 15: expense.ExpenseService.CreateProRataInstallment:output_type -> expense.ExpenseResponse
+	7,  // 16: expense.ExpenseService.GetExpensesForPeriod:output_type -> expense.ExpenseListResponse
+	2,  // 17: expense.ExpenseService.GetExpense:output_type -> expense.ExpenseResponse
+	15, // 18: expense.ExpenseService.CountExpensesByTag:output_type -> expense.CountExpensesByTagResponse
+	0,  // 19: expense.ExpenseService.StreamAllUserExpenses:output_type -> expense.ExpenseData
+	17, // 20: expense.ExpenseService.AnonymizeAllUserExpenses:output_type -> expense.AnonymizeResponse
+	2,  // 21: expense.ExpenseService.CorrectExpense:output_type -> expense.ExpenseResponse
+	14, // [14:22] is the sub-list for method output_type
+	6,  // [6:14] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_proto_expense_proto_init() }
@@ -1251,7 +1629,7 @@ func file_proto_expense_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_expense_proto_rawDesc), len(file_proto_expense_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

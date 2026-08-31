@@ -1,0 +1,266 @@
+package service
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/expense/internal/model"
+)
+
+func prorataSnapshot() *CapturedRateSnapshot {
+	return &CapturedRateSnapshot{
+		SnapshotVersion: 1,
+		Source:          "open_exchange_rates",
+		BaseCurrency:    "USD",
+		RateTimestamp:   "2026-05-15T10:00:00Z",
+		CapturedAt:      "2026-05-15T12:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+		RatesByCurrency: map[string]string{"USD": "1", "EUR": "0.92", "GBP": "0.79"},
+	}
+}
+
+func validProRataInstallmentRequest() *CreateProRataInstallmentRequest {
+	return &CreateProRataInstallmentRequest{
+		UserID: "user-1",
+		PeriodContext: TrustedPeriodContext{
+			PeriodID:          "period-1",
+			UserID:            "user-1",
+			Year:              2026,
+			Month:             5,
+			ReportingCurrency: "USD",
+			Source:            "finance_service",
+		},
+		Name:                 "Annual subscription",
+		Amount:               3334,
+		TransactionCurrency:  "USD",
+		ExpenseType:          "essentials",
+		TagID:                "tag-1",
+		ExpenseDate:          "2026-05-15",
+		ProRataGroup:         "group-1",
+		ProRataIndex:         1,
+		ProRataTotal:         3,
+		CapturedRateSnapshot: prorataSnapshot(),
+	}
+}
+
+func TestCreateProRataInstallment_ForeignCurrencyUsesCapturedSnapshot(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, now)
+
+	req := validProRataInstallmentRequest()
+	req.TransactionCurrency = "EUR"
+
+	fxClient.On("ConvertWithSnapshot", mock.Anything, mock.MatchedBy(func(r FxConvertWithSnapshotRequest) bool {
+		return r.Amount == 3334 &&
+			r.SourceCurrency == "EUR" &&
+			r.TargetCurrency == "USD" &&
+			r.Snapshot != nil &&
+			r.Snapshot.RateTimestamp == "2026-05-15T10:00:00Z"
+	})).Return(&FxConvertResponse{
+		ConvertedAmount: 3624,
+		ExchangeRate:    "1.0872",
+		RateTimestamp:   "2026-05-15T10:00:00Z",
+		Source:          model.ExchangeSourceOpenExchangeRates,
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+	}, nil)
+
+	var captured *model.Expense
+	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
+		Run(func(args mock.Arguments) {
+			captured = args.Get(1).(*model.Expense)
+		}).Return(&model.Expense{ID: "exp-1", UserID: "user-1"}, nil)
+
+	created, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	require.NotNil(t, captured)
+	assert.Equal(t, "user-1", captured.UserID)
+	assert.Equal(t, int32(2026), captured.PeriodYear)
+	assert.Equal(t, int32(5), captured.PeriodMonth)
+	assert.True(t, captured.IsProRata)
+	assert.Equal(t, "group-1", captured.ProRataGroup)
+	assert.Equal(t, int32(1), captured.ProRataIndex)
+	assert.Equal(t, int32(3), captured.ProRataTotal)
+	assert.Equal(t, "EUR", captured.TransactionCurrency)
+	assert.Equal(t, int64(3334), captured.TransactionAmount)
+	assert.Equal(t, "USD", captured.ReportingCurrency)
+	assert.Equal(t, int64(3624), captured.ReportingAmount)
+	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, "2026-05-15T10:00:00Z", captured.ExchangeRateTimestamp)
+
+	// Finance-originated writes must not call back into Finance for period context.
+	periodClient.AssertNotCalled(t, "GetPeriodContext", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_SameCurrencyStillUsesSnapshotSource(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, now)
+
+	fxClient.On("ConvertWithSnapshot", mock.Anything, mock.Anything).Return(&FxConvertResponse{
+		ConvertedAmount: 3334,
+		ExchangeRate:    "1",
+		RateTimestamp:   "2026-05-15T10:00:00Z",
+		Source:          model.ExchangeSourceOpenExchangeRates,
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+	}, nil)
+
+	var captured *model.Expense
+	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
+		Run(func(args mock.Arguments) {
+			captured = args.Get(1).(*model.Expense)
+		}).Return(&model.Expense{ID: "exp-1", UserID: "user-1"}, nil)
+
+	_, err := svc.CreateProRataInstallment(context.Background(), validProRataInstallmentRequest())
+
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, "2026-05-15T10:00:00Z", captured.ExchangeRateTimestamp)
+	assert.Equal(t, int64(3334), captured.ReportingAmount)
+}
+
+func TestCreateProRataInstallment_MismatchedContextUser(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+	req := validProRataInstallmentRequest()
+	req.PeriodContext.UserID = "user-2"
+
+	_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeForbidden, svcErr.Code)
+	fxClient.AssertNotCalled(t, "ConvertWithSnapshot", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_NonFinanceSource(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+	req := validProRataInstallmentRequest()
+	req.PeriodContext.Source = "browser"
+
+	_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_StructuralContextViolationsAreInternal(t *testing.T) {
+	cases := []struct {
+		name string
+		mut  func(req *CreateProRataInstallmentRequest)
+	}{
+		{"missing period id", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.PeriodID = "" }},
+		{"zero year", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.Year = 0 }},
+		{"month below range", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.Month = 0 }},
+		{"month above range", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.Month = 13 }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(mockExpenseRepository)
+			periodClient := new(mockPeriodContextClient)
+			fxClient := new(mockFxClient)
+			svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+			req := validProRataInstallmentRequest()
+			tc.mut(req)
+
+			_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeInternal, svcErr.Code)
+			fxClient.AssertNotCalled(t, "ConvertWithSnapshot", mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestCreateProRataInstallment_UnsupportedTransactionCurrency(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+	req := validProRataInstallmentRequest()
+	req.TransactionCurrency = "XYZ"
+
+	_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrUnsupportedCurrency, svcErr.Code)
+	fxClient.AssertNotCalled(t, "ConvertWithSnapshot", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_MissingSnapshotCoverage(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+	req := validProRataInstallmentRequest()
+	req.TransactionCurrency = "EUR"
+	delete(req.CapturedRateSnapshot.RatesByCurrency, "EUR")
+
+	_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrSnapshotCurrencyMissing, svcErr.Code)
+	fxClient.AssertNotCalled(t, "ConvertWithSnapshot", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_NilSnapshot(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+	req := validProRataInstallmentRequest()
+	req.CapturedRateSnapshot = nil
+
+	_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrSnapshotCurrencyMissing, svcErr.Code)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_FxFailureDoesNotWrite(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+	req := validProRataInstallmentRequest()
+	req.TransactionCurrency = "EUR"
+
+	fxClient.On("ConvertWithSnapshot", mock.Anything, mock.Anything).Return(nil, conversionUnavailableError())
+
+	_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrConversionUnavailable, svcErr.Code)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}

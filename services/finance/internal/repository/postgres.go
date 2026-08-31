@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/db"
@@ -308,18 +309,28 @@ func (r *PostgresFinanceRepository) CreateProRataSchedule(ctx context.Context, s
 		return nil, err
 	}
 
+	snapl, err := marshalCapturedSnapshot(schedule.CapturedRateSnapshot)
+	if err != nil {
+		return nil, err
+	}
+
 	row, err := r.queries.CreateProRataSchedule(ctx, db.CreateProRataScheduleParams{
-		UserID:           uid,
-		ProRataGroup:     groupID,
-		Name:             schedule.Name,
-		Amount:           schedule.Amount,
-		Currency:         schedule.Currency,
-		ExpenseType:      schedule.ExpenseType,
-		TagID:            tagID,
-		TargetYear:       schedule.TargetYear,
-		TargetMonth:      schedule.TargetMonth,
-		InstallmentIndex: schedule.InstallmentIndex,
-		InstallmentTotal: schedule.InstallmentTotal,
+		UserID:                    uid,
+		ProRataGroup:              groupID,
+		Name:                      schedule.Name,
+		Amount:                    schedule.Amount,
+		Currency:                  schedule.Currency,
+		ExpenseType:               schedule.ExpenseType,
+		TagID:                     tagID,
+		TargetYear:                schedule.TargetYear,
+		TargetMonth:               schedule.TargetMonth,
+		InstallmentIndex:          schedule.InstallmentIndex,
+		InstallmentTotal:          schedule.InstallmentTotal,
+		TransactionAmount:         pgtype.Int8{Int64: schedule.TransactionAmount, Valid: true},
+		TransactionCurrency:       pgtype.Text{String: schedule.TransactionCurrency, Valid: schedule.TransactionCurrency != ""},
+		CreationReportingCurrency: pgtype.Text{String: schedule.CreationReportingCurrency, Valid: schedule.CreationReportingCurrency != ""},
+		CapturedRateSnapshot:      snapl,
+		FailureReason:             pgtype.Text{String: schedule.FailureReason, Valid: schedule.FailureReason != ""},
 	})
 	if err != nil {
 		return nil, err
@@ -547,7 +558,37 @@ func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
 		appliedAt := s.AppliedAt.Time
 		result.AppliedAt = &appliedAt
 	}
+	if s.TransactionAmount.Valid {
+		result.TransactionAmount = s.TransactionAmount.Int64
+	}
+	if s.TransactionCurrency.Valid {
+		result.TransactionCurrency = s.TransactionCurrency.String
+	}
+	if s.CreationReportingCurrency.Valid {
+		result.CreationReportingCurrency = s.CreationReportingCurrency.String
+	}
+	if s.FailureReason.Valid {
+		result.FailureReason = s.FailureReason.String
+	}
+	if len(s.CapturedRateSnapshot) > 0 {
+		result.CapturedRateSnapshot = unmarshalCapturedSnapshot(s.CapturedRateSnapshot)
+	}
 	return result
+}
+
+func marshalCapturedSnapshot(snapshot *model.CapturedRateSnapshot) ([]byte, error) {
+	if snapshot == nil {
+		return nil, nil
+	}
+	return json.Marshal(snapshot)
+}
+
+func unmarshalCapturedSnapshot(payload []byte) *model.CapturedRateSnapshot {
+	var snapshot model.CapturedRateSnapshot
+	if err := json.Unmarshal(payload, &snapshot); err != nil {
+		return nil
+	}
+	return &snapshot
 }
 
 // PostgresTxBeginner implements TxBeginner using pgxpool.

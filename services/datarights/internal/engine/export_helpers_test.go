@@ -110,7 +110,7 @@ func buildRealProviders(
 ) []engine.DataProvider {
 	return []engine.DataProvider{
 		providers.NewProfileProvider(auth),
-		providers.NewExpensesProvider(expense, providers.BuildTagMap(financeData)),
+		providers.NewExpensesProvider(expense, providers.BuildTagMap(financeData), providers.BuildPeriodCurrencyMap(financeData)),
 		providers.NewTagsProvider(financeData),
 		providers.NewBudgetPeriodsProvider(financeData),
 		providers.NewDefaultSettingsProvider(financeData),
@@ -145,7 +145,7 @@ func cannedAllUserData() *financepb.AllUserDataResponse {
 			{
 				Id: "period-1", Year: 2026, Month: 5, BudgetAmount: 250000,
 				EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-				CreatedAt: "2026-05-01T00:00:00Z",
+				ReportingCurrency: "USD", CreatedAt: "2026-05-01T00:00:00Z",
 			},
 		},
 		Defaults: &financepb.DefaultsData{
@@ -167,13 +167,17 @@ func cannedExpensePages() []*expensepb.ExpenseListResponse {
 					Id: "exp-1", Name: "Groceries", TransactionAmount: 4599, TransactionCurrency: "USD",
 					ExpenseType: "essentials", TagId: "tag-1", ExpenseDate: "2026-05-01",
 					PeriodYear: 2026, PeriodMonth: 5, Status: "active",
-					CreatedAt: "2026-05-01T12:00:00Z",
+					CreatedAt:           "2026-05-01T12:00:00Z",
+					ReportingAmount: 4599, ReportingCurrency: "USD",
+					ExchangeRate: "1", ExchangeRateSource: "identity", ExchangeRateTimestamp: "2026-05-01T12:00:00Z",
 				},
 				{
 					Id: "exp-2", Name: "Bus pass", TransactionAmount: 3000, TransactionCurrency: "USD",
 					ExpenseType: "essentials", TagId: "tag-2", ExpenseDate: "2026-05-02",
 					PeriodYear: 2026, PeriodMonth: 5, Status: "active",
-					CreatedAt: "2026-05-02T09:00:00Z",
+					CreatedAt:           "2026-05-02T09:00:00Z",
+					ReportingAmount: 3000, ReportingCurrency: "USD",
+					ExchangeRate: "1", ExchangeRateSource: "identity", ExchangeRateTimestamp: "2026-05-02T09:00:00Z",
 				},
 			},
 			HasMore: false,

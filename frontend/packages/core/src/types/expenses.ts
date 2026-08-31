@@ -29,9 +29,9 @@ export interface Expense {
   transactionAmount: number;
   /** Converted amount in the period reporting currency minor units. */
   reportingAmount: number;
-  /** Budget period reporting currency for this ledger row. */
+  /** Budget period reporting currency. */
   reportingCurrency: string;
-  /** Source-to-target exchange rate used for this row. */
+  /** Source-to-target exchange rate. */
   exchangeRate?: string;
   /** "open_exchange_rates" | "identity" | "migration". */
   exchangeRateSource?: string;
@@ -65,6 +65,8 @@ export interface CorrectExpenseRequest {
   name: string;
   /** Amount in transaction currency minor units. */
   amount: number;
+  /** Canonical transaction currency for the correction. */
+  transactionCurrency?: string;
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */

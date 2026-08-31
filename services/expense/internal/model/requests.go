@@ -49,11 +49,12 @@ type ExpenseListResponse struct {
 
 // CorrectExpenseRequest is the input for POST /api/expenses/:id/correct.
 type CorrectExpenseRequest struct {
-	Name        string `json:"name"`
-	Amount      int64  `json:"amount"`
-	ExpenseType string `json:"expenseType"`
-	TagID       string `json:"tagId"`
-	ExpenseDate string `json:"expenseDate"`
+	Name                string `json:"name"`
+	Amount              int64  `json:"amount"`
+	TransactionCurrency string `json:"transactionCurrency"`
+	ExpenseType         string `json:"expenseType"`
+	TagID               string `json:"tagId"`
+	ExpenseDate         string `json:"expenseDate"`
 }
 
 // CorrectionHistoryResponse is the response for GET /api/expenses/:id/history.

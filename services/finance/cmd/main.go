@@ -85,7 +85,18 @@ func run() error {
 	expenseClient := service.NewGRPCExpenseClient(
 		expensepb.NewExpenseServiceClient(expenseConn),
 	)
-	financeSvc := service.NewFinanceService(repo, txBeginner, expenseClient, time.Now, logger)
+
+	// Connect to the FX service for pro-rata snapshot capture.
+	fxClient, fxConn, err := service.NewGRPCFxClientFromAddr(cfg.FxServiceAddr)
+	if err != nil {
+		return fmt.Errorf("connecting to fx service at %s: %w", cfg.FxServiceAddr, err)
+	}
+	defer func() { _ = fxConn.Close() }()
+	logger.Info("fx service gRPC client created",
+		slog.String("addr", cfg.FxServiceAddr),
+	)
+
+	financeSvc := service.NewFinanceServiceWithFx(repo, txBeginner, expenseClient, fxClient, time.Now, logger)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

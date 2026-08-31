@@ -73,6 +73,9 @@ func (m *mockExpenseServiceClient) CountExpensesByTag(_ context.Context, _ *expe
 func (m *mockExpenseServiceClient) CorrectExpense(_ context.Context, _ *expensepb.CorrectExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil
 }
+func (m *mockExpenseServiceClient) CreateProRataInstallment(_ context.Context, _ *expensepb.CreateProRataInstallmentRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
+	return nil, nil
+}
 func (m *mockExpenseServiceClient) GetCorrectionHistory(_ context.Context, _ *expensepb.GetCorrectionHistoryRequest, _ ...grpc.CallOption) (*expensepb.CorrectionHistoryResponse, error) {
 	return nil, nil
 }
