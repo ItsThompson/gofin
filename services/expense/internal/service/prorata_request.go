@@ -85,25 +85,13 @@ func validateTrustedPeriodContext(userID string, pc TrustedPeriodContext) *apier
 			Fields:  map[string]string{"userId": "mismatch"},
 		}
 	}
-	if pc.Source != "finance_service" {
-		return internalContractError("trusted period context must originate from the finance service", map[string]string{
-			"source": "must be finance_service",
-		})
-	}
-	if pc.PeriodID == "" {
-		return internalContractError("trusted period context period id is required", map[string]string{
-			"periodId": "required",
-		})
-	}
-	if pc.Year < 1 {
-		return internalContractError("trusted period context year must be positive", map[string]string{
-			"year": "must be positive",
-		})
-	}
-	if pc.Month < 1 || pc.Month > 12 {
-		return internalContractError("trusted period context month must be between 1 and 12", map[string]string{
-			"month": "must be between 1 and 12",
-		})
+	v := validator.New()
+	v.Check(pc.Source == "finance_service", "source", "must be finance_service")
+	v.Check(pc.PeriodID != "", "periodId", "required")
+	v.Check(pc.Year >= 1, "year", "must be positive")
+	v.Check(pc.Month >= 1 && pc.Month <= 12, "month", "must be between 1 and 12")
+	if v.HasErrors() {
+		return internalContractError("trusted period context is invalid", v.Errors())
 	}
 	return nil
 }
