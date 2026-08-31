@@ -3,13 +3,7 @@ import type { Expense, Tag } from "@gofin/core";
 import { History, Pencil } from "lucide-react";
 import { Button } from "@gofin/ui/components/button";
 import { CorrectionTimeline } from "./CorrectionTimeline";
-import {
-  getReportingAmount,
-  getReportingCurrency,
-  getTransactionAmount,
-  getTransactionCurrency,
-  hasSameCurrencySnapshot,
-} from "../utils/moneyFacts";
+import { hasSameCurrencySnapshot } from "../utils/moneyFacts";
 
 interface DetailViewProps {
   expense: Expense;
@@ -49,10 +43,10 @@ export function DetailView({
     ? history.find((entry) => entry.id === expense.correctsId)
     : null;
 
-  const transactionCurrency = getTransactionCurrency(expense);
-  const transactionAmount = getTransactionAmount(expense);
-  const reportingCurrency = getReportingCurrency(expense);
-  const reportingAmount = getReportingAmount(expense);
+  const transactionCurrency = expense.transactionCurrency;
+  const transactionAmount = expense.transactionAmount;
+  const reportingCurrency = expense.reportingCurrency;
+  const reportingAmount = expense.reportingAmount;
   const sameCurrency = hasSameCurrencySnapshot(expense);
 
   return (
@@ -61,8 +55,8 @@ export function DetailView({
         <div className="rounded-lg bg-yellow-100 p-3 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           This expense was corrected. See correction: {correctedBy.name} (
           {formatCurrency(
-            getTransactionAmount(correctedBy),
-            getTransactionCurrency(correctedBy),
+            correctedBy.transactionAmount,
+            correctedBy.transactionCurrency,
           )}
           )
         </div>
@@ -72,8 +66,8 @@ export function DetailView({
         <div className="rounded-lg bg-blue-100 p-3 text-sm text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
           This corrects expense: {correctsEntry.name} (
           {formatCurrency(
-            getTransactionAmount(correctsEntry),
-            getTransactionCurrency(correctsEntry),
+            correctsEntry.transactionAmount,
+            correctsEntry.transactionCurrency,
           )}
           )
         </div>

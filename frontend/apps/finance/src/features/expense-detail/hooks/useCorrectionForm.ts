@@ -7,7 +7,6 @@ import {
   type ExpenseSuggestion,
 } from "../../expense-autocomplete";
 import { useExpenseFields } from "../../new-expense/hooks/useExpenseFields";
-import { getTransactionAmount, getTransactionCurrency } from "../utils/moneyFacts";
 
 /** State returned by useCorrectionForm (field-level only). */
 export interface CorrectionFormState {
@@ -46,8 +45,8 @@ export function useCorrectionForm(
   onSubmit: (form: CorrectExpenseRequest) => void,
   tags: Tag[] = [],
 ): { state: CorrectionFormState; actions: CorrectionFormActions } {
-  const transactionAmount = getTransactionAmount(expense);
-  const initialTransactionCurrency = getTransactionCurrency(expense);
+  const transactionAmount = expense.transactionAmount;
+  const initialTransactionCurrency = expense.transactionCurrency;
   const [transactionCurrency, setTransactionCurrencyState] = useState(initialTransactionCurrency);
   const expenseFields = useExpenseFields(
     {

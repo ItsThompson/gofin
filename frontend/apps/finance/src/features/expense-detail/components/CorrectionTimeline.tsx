@@ -2,13 +2,7 @@ import { formatCurrency } from "@gofin/core";
 import type { Expense, Tag } from "@gofin/core";
 import { ArrowRight } from "lucide-react";
 import { computeChanges } from "../utils/computeChanges";
-import {
-  getReportingAmount,
-  getReportingCurrency,
-  getTransactionAmount,
-  getTransactionCurrency,
-  hasSameCurrencySnapshot,
-} from "../utils/moneyFacts";
+import { hasSameCurrencySnapshot } from "../utils/moneyFacts";
 
 interface CorrectionTimelineProps {
   entries: Expense[];
@@ -63,15 +57,15 @@ export function CorrectionTimeline({
             <div className="text-muted-foreground">
               {entry.name} ·{" "}
               {formatCurrency(
-                getTransactionAmount(entry),
-                getTransactionCurrency(entry),
+                entry.transactionAmount,
+                entry.transactionCurrency,
               )}
               {!hasSameCurrencySnapshot(entry) && (
                 <span className="text-muted-foreground/80">
                   {" "}
                   ({formatCurrency(
-                    getReportingAmount(entry),
-                    getReportingCurrency(entry),
+                    entry.reportingAmount,
+                    entry.reportingCurrency,
                   )})
                 </span>
               )}{" "}
