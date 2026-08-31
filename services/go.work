@@ -18,4 +18,5 @@ use (
 	./pgutil
 	./serverkit
 	./shared/currency
+	./shared/validator
 )
