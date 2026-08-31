@@ -4,56 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
-
-// TrustedPeriodContext is period context Finance resolved before asking Expense
-// to write a pro-rata installment. Expense validates its consistency but never
-// calls Finance again for Finance-originated writes.
-type TrustedPeriodContext struct {
-	PeriodID          string
-	UserID            string
-	Year              int32
-	Month             int32
-	ReportingCurrency string
-	Source            string
-}
-
-// CapturedRateSnapshot is the USD-based provider snapshot captured at schedule
-// creation and used to derive installment reporting amounts without live rates.
-type CapturedRateSnapshot struct {
-	SnapshotVersion int32
-	Source          string
-	BaseCurrency    string
-	RateTimestamp   string
-	CapturedAt      string
-	ExpiresAt       string
-	RatesByCurrency map[string]string
-}
-
-// CreateProRataInstallmentRequest is the Finance-originated internal write
-// contract. It carries trusted period context and the captured snapshot so the
-// Expense service can write a ledger row without a Finance round trip.
-type CreateProRataInstallmentRequest struct {
-	UserID               string
-	PeriodContext        TrustedPeriodContext
-	Name                 string
-	Amount               int64
-	TransactionCurrency  string
-	ExpenseType          string
-	TagID                string
-	ExpenseDate          string
-	ProRataGroup         string
-	ProRataIndex         int32
-	ProRataTotal         int32
-	CapturedRateSnapshot *CapturedRateSnapshot
-}
 
 // CreateProRataInstallment writes a Finance-originated pro-rata installment
 // ledger row. Unlike public CreateExpense, it does not call the Finance period
@@ -141,98 +97,6 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 	)
 
 	return created, nil
-}
-
-func validateProRataInstallmentRequest(req *CreateProRataInstallmentRequest) *apierr.Error {
-	fields := make(map[string]string)
-
-	if req.UserID == "" {
-		fields["userId"] = "user_id is required"
-	}
-	if req.Name == "" {
-		fields["name"] = "name is required"
-	}
-	if req.Amount <= 0 {
-		fields["amount"] = "amount must be positive"
-	}
-	if !model.ValidExpenseTypes[req.ExpenseType] {
-		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"
-	}
-	if req.TagID == "" {
-		fields["tagId"] = "tag_id is required"
-	}
-	if req.ExpenseDate == "" {
-		fields["expenseDate"] = "expense_date is required"
-	} else if !isoDateRegex.MatchString(req.ExpenseDate) {
-		fields["expenseDate"] = "expense_date must be in ISO format (YYYY-MM-DD)"
-	}
-	if req.ProRataGroup == "" {
-		fields["proRataGroup"] = "pro_rata_group is required"
-	}
-	if req.ProRataIndex < 1 {
-		fields["proRataIndex"] = "pro_rata_index must be positive"
-	}
-	if req.ProRataTotal < req.ProRataIndex {
-		fields["proRataTotal"] = "pro_rata_total must be >= pro_rata_index"
-	}
-
-	if len(fields) > 0 {
-		return apierr.Validation("validation failed", fields)
-	}
-	return nil
-}
-
-// validateTrustedPeriodContext enforces the trusted-context invariants: the
-// context must originate from Finance, belong to the requesting user, and carry
-// a valid year/month. A mismatch is a caller error (no ledger write), not a
-// Finance round trip.
-func validateTrustedPeriodContext(userID string, pc TrustedPeriodContext) *apierr.Error {
-	if pc.Source != "finance_service" {
-		return apierr.Validation("trusted period context must originate from the finance service", map[string]string{
-			"source": "must be finance_service",
-		})
-	}
-	if pc.UserID != userID {
-		return apierr.Validation("trusted period context user does not match the request user", map[string]string{
-			"userId": "mismatch",
-		})
-	}
-	if pc.PeriodID == "" {
-		return apierr.Validation("trusted period context period id is required", map[string]string{
-			"periodId": "required",
-		})
-	}
-	if pc.Year < 1 {
-		return apierr.Validation("trusted period context year must be positive", map[string]string{
-			"year": "must be positive",
-		})
-	}
-	if pc.Month < 1 || pc.Month > 12 {
-		return apierr.Validation("trusted period context month must be between 1 and 12", map[string]string{
-			"month": "must be between 1 and 12",
-		})
-	}
-	return nil
-}
-
-func validateSnapshotCoverage(snapshot *CapturedRateSnapshot, currencies ...string) *apierr.Error {
-	if snapshot == nil || len(snapshot.RatesByCurrency) == 0 {
-		return snapshotCurrencyMissingError()
-	}
-	for _, currency := range currencies {
-		if _, ok := snapshot.RatesByCurrency[currency]; !ok {
-			return snapshotCurrencyMissingError()
-		}
-	}
-	return nil
-}
-
-func snapshotCurrencyMissingError() *apierr.Error {
-	return &apierr.Error{
-		Code:    model.ErrSnapshotCurrencyMissing,
-		Message: "The captured rate snapshot does not contain a required currency",
-		Status:  http.StatusConflict,
-	}
 }
 
 func toFxCapturedRateSnapshot(s *CapturedRateSnapshot) *FxCapturedRateSnapshot {

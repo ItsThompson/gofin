@@ -144,7 +144,7 @@ func TestCreateProRataInstallment_MismatchedContextUser(t *testing.T) {
 	_, err := svc.CreateProRataInstallment(context.Background(), req)
 
 	svcErr := requireAPIError(t, err)
-	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, apierr.CodeForbidden, svcErr.Code)
 	fxClient.AssertNotCalled(t, "ConvertWithSnapshot", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
@@ -161,8 +161,39 @@ func TestCreateProRataInstallment_NonFinanceSource(t *testing.T) {
 	_, err := svc.CreateProRataInstallment(context.Background(), req)
 
 	svcErr := requireAPIError(t, err)
-	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+func TestCreateProRataInstallment_StructuralContextViolationsAreInternal(t *testing.T) {
+	cases := []struct {
+		name string
+		mut  func(req *CreateProRataInstallmentRequest)
+	}{
+		{"missing period id", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.PeriodID = "" }},
+		{"zero year", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.Year = 0 }},
+		{"month below range", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.Month = 0 }},
+		{"month above range", func(req *CreateProRataInstallmentRequest) { req.PeriodContext.Month = 13 }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(mockExpenseRepository)
+			periodClient := new(mockPeriodContextClient)
+			fxClient := new(mockFxClient)
+			svc := newTestServiceWithFxClock(repo, periodClient, fxClient, time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC))
+
+			req := validProRataInstallmentRequest()
+			tc.mut(req)
+
+			_, err := svc.CreateProRataInstallment(context.Background(), req)
+
+			svcErr := requireAPIError(t, err)
+			assert.Equal(t, apierr.CodeInternal, svcErr.Code)
+			fxClient.AssertNotCalled(t, "ConvertWithSnapshot", mock.Anything, mock.Anything)
+			repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestCreateProRataInstallment_UnsupportedTransactionCurrency(t *testing.T) {

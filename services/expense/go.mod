@@ -13,6 +13,7 @@ require (
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
+	github.com/ItsThompson/gofin/services/shared/validator v0.0.0
 	github.com/codenotary/immudb v1.11.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
@@ -124,6 +125,8 @@ require (
 replace github.com/ItsThompson/gofin/services/finance => ../finance
 
 replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
+
+replace github.com/ItsThompson/gofin/services/shared/validator => ../shared/validator
 
 replace github.com/ItsThompson/gofin/services/errkit => ../errkit
 

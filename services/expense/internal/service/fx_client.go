@@ -89,11 +89,10 @@ func NewGRPCFxClientFromAddr(addr string) (*GRPCFxClient, *grpc.ClientConn, erro
 	return NewGRPCFxClient(fxpb.NewFxServiceClient(conn)), conn, nil
 }
 
-// ConvertAmount calls the FX Service ConvertAmount RPC and maps gRPC status
-// errors to the Expense service's safe CONVERSION_UNAVAILABLE error. Per the
-// spec error matrix, CONVERSION_UNAVAILABLE, provider auth failure, provider
-// response invalid, and missing live rate all map to the same safe REST error
-// and must not result in a ledger write.
+// ConvertAmount converts an amount through the FX Service ConvertAmount RPC.
+// Per the spec error matrix, CONVERSION_UNAVAILABLE, provider auth failure,
+// provider response invalid, and missing live rate all map to the same safe
+// REST error and must not result in a ledger write.
 func (c *GRPCFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) (*FxConvertResponse, error) {
 	resp, err := c.client.ConvertAmount(ctx, &fxpb.ConvertAmountRequest{
 		Amount:         req.Amount,
@@ -113,9 +112,9 @@ func (c *GRPCFxClient) ConvertAmount(ctx context.Context, req FxConvertRequest) 
 	}, nil
 }
 
-// ConvertWithSnapshot calls the FX Service ConvertWithSnapshot RPC and maps
-// gRPC status errors with the same classification as ConvertAmount. It never
-// calls the provider: the snapshot is the caller's captured intent.
+// ConvertWithSnapshot converts an amount through the FX Service
+// ConvertWithSnapshot RPC. It never calls the provider: the snapshot is the
+// caller's captured intent.
 func (c *GRPCFxClient) ConvertWithSnapshot(ctx context.Context, req FxConvertWithSnapshotRequest) (*FxConvertResponse, error) {
 	resp, err := c.client.ConvertWithSnapshot(ctx, &fxpb.ConvertWithSnapshotRequest{
 		Amount:         req.Amount,
