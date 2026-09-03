@@ -6,9 +6,9 @@ Reporting currency is period-scoped, not user-scoped. Each budget period stores 
 
 - **Period reporting currency**: chosen at period creation, immutable after creation.
 - **Default settings currency**: seeds future periods only. Changing it never mutates existing periods.
-- **Expense money snapshots**: each post-cutover ledger row stores transaction money, reporting money, and the conversion facts that connect them.
-- **Legacy migration snapshots**: pre-epic rows carry a `migration` snapshot (rate `1`, source `migration`) written by a one-time startup backfill during the mc/03 cutover. That backfill code is deleted; no writer of `migration` snapshots remains in the current code.
-- **Pro-rata captured snapshots**: schedules created after this epic store a full USD-based provider rate map so future installments never re-rate against live rates.
+- **Expense money snapshots**: each ledger row stores transaction money, reporting money, and the conversion facts that connect them.
+- **Legacy migration snapshots**: rows with `exchange_rate_source = migration` carry rate `1` and source `migration`. No code path writes migration snapshots; the datarights export normalizes these rows to the period reporting currency.
+- **Pro-rata captured snapshots**: schedules store a full USD-based provider rate map so future installments never re-rate against live rates.
 
 The shared currency catalog (`services/shared/currency/catalog.go`) is the source of truth for supported codes and minor-unit digits. The finance service serves it to the frontend through `GET /api/finance/currencies`. See [Architecture](architecture.md) for service boundaries.
 
@@ -110,7 +110,7 @@ User-defined expense categories. Tag names are unique per user (case-insensitive
 
 Tracks future installments of pro-rata expenses. Each row represents a single installment for a specific target month. Rows have a `status` of `pending` until the finance service applies them during budget period creation, at which point they transition to `applied`. Deterministic failures transition them to `failed` with a typed `failure_reason`.
 
-Post-epic rows also store:
+The schedule also stores:
 
 - `transaction_amount` and `transaction_currency`: the installment's original charged money.
 - `creation_reporting_currency`: the reporting currency of the period where the schedule was created.
@@ -135,7 +135,7 @@ The immutable expense ledger. Key design points:
 - **String dates**: immudb's SQL dialect has limited date type support, so dates are stored as ISO strings and parsed at the application layer.
 - **Tag by ID**: tags live in PostgreSQL (finance schema). The ledger stores the tag UUID, not the tag name, so tag renames do not affect historical data.
 - **Money snapshots**: every row carries `transaction_amount`, `transaction_currency`, `reporting_amount`, `reporting_currency`, `exchange_rate`, `exchange_rate_source`, `exchange_rate_timestamp`, and optional `exchange_rate_expires_at`.
-- **Legacy migration snapshots**: legacy rows already carry a `migration` snapshot written by the one-time mc/03 startup backfill (code since deleted). A row still missing a required snapshot field fails the read with a `SnapshotIntegrityError` (logged as `expense_snapshot_integrity_error`); the read is not synthesized.
+- **Legacy migration snapshots**: rows with `exchange_rate_source = migration` carry rate `1`. A row missing a required snapshot field fails the read with a `SnapshotIntegrityError` (logged as `expense_snapshot_integrity_error`); the read is not synthesized.
 
 Snapshot sources:
 
@@ -143,7 +143,7 @@ Snapshot sources:
 |--------|---------|
 | `identity` | Same-currency write or correction; rate `1`, no provider call |
 | `open_exchange_rates` | Foreign-currency write or correction through FX Service |
-| `migration` | Legacy row written once by the mc/03 startup backfill (code deleted); rate `1`. No writer remains. The datarights export normalizes these rows to the period reporting currency. |
+| `migration` | Legacy row with no provider conversion; rate `1`. No code path writes this source. The datarights export normalizes these rows to the period reporting currency. |
 
 ### Correction Chain
 
@@ -174,7 +174,7 @@ Currency has one reporting authority: the budget period. The shared catalog is t
 
 **PostgreSQL**: managed by [golang-migrate](https://github.com/golang-migrate/migrate). Files follow `000001_description.up.sql` / `.down.sql` naming. Each service runs its own migrations against its schema.
 
-**immudb**: no migration tool. The expense service creates tables and indexes at startup via `CREATE TABLE IF NOT EXISTS`. The startup schema reconcile adds the nullable money-snapshot columns to pre-cutover tables and drops the legacy `amount` and `currency` columns (a temporary cleanup). Legacy rows carry their `migration` snapshots in data; reads no longer synthesize them.
+**immudb**: no migration tool. The expense service creates tables and indexes at startup via `CREATE TABLE IF NOT EXISTS`. The startup schema reconcile adds the nullable money-snapshot columns to existing tables and drops the legacy `amount` and `currency` columns. Rows with `exchange_rate_source = migration` carry rate `1`; reads of rows missing required snapshot fields fail with a `SnapshotIntegrityError` instead of synthesizing values.
 
 ### Historical Migration Semantics
 

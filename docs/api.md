@@ -166,7 +166,7 @@ Admin-only GDPR data deletion (`/api/datarights/deletions/*`): creating async de
 - `reportingCurrency`: the immutable currency of a budget period. Every period-scoped response (period, dashboard summary, history row, health score) carries it; amounts beside it are minor units of that currency.
 - `transactionCurrency`: the original charged currency on an expense, correction, suggestion, or pro-rata request; amounts beside it are minor units of that currency.
 - `transactionAmount` / `reportingAmount`: minor-unit amounts on enriched expense responses. `reportingAmount` is the expense's contribution to the period budget.
-- `exchangeRate`, `exchangeRateSource`, `exchangeRateTimestamp`, `exchangeRateExpiresAt`: conversion facts stored with each post-cutover expense.
+- `exchangeRate`, `exchangeRateSource`, `exchangeRateTimestamp`, `exchangeRateExpiresAt`: conversion facts stored with each expense.
 
 ### Transaction Currency Defaults
 
