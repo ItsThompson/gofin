@@ -608,14 +608,15 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 		Name: "Insurance", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 5, InstallmentIndex: 2,
 		InstallmentTotal: 3, Status: "pending",
+		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{pendingSchedule}, nil)
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		return req.Name == "Insurance" && req.Amount == 3333 && req.ProRataIndex == 2 &&
-			req.LegacyMigration && req.PeriodContext.ReportingCurrency == "USD" &&
-			req.Currency == "USD"
+			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.Currency == "USD" && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "exp-applied", CreatedAt: "2026-05-01T00:00:00Z"}, nil)
 
 	repo.On("MarkProRataApplied", mock.Anything, "sched-1").Return(nil)
@@ -709,6 +710,7 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 		Name: "Subscription", Amount: 5000, Currency: "USD", ExpenseType: "desires",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 4, InstallmentIndex: 2,
 		InstallmentTotal: 3, Status: "pending",
+		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(4)).
 		Return([]*model.ProRataSchedule{aprSchedule}, nil)
@@ -718,7 +720,7 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 		Return([]*model.ProRataSchedule{}, nil)
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
-		return req.PeriodContext.Month == 4 && req.ProRataIndex == 2 && req.LegacyMigration
+		return req.PeriodContext.Month == 4 && req.ProRataIndex == 2 && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "exp-apr", CreatedAt: "2026-04-01T00:00:00Z"}, nil)
 
 	repo.On("MarkProRataApplied", mock.Anything, "s-apr").Return(nil)
@@ -772,13 +774,14 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 		Name: "Test", Amount: 1000, Currency: "USD", ExpenseType: "essentials",
 		TagID: "t-1", TargetYear: 2026, TargetMonth: 5,
 		InstallmentIndex: 2, InstallmentTotal: 3, ProRataGroup: "g-1",
+		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{schedule}, nil)
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
-		return req.LegacyMigration && req.ProRataGroup == "g-1" && req.ProRataIndex == 2
+		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2 && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "e-1", CreatedAt: "2026-05-01"}, nil)
 
 	repo.On("MarkProRataApplied", mock.Anything, "s-1").Return(nil)
@@ -795,10 +798,10 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 
 	// Verify MarkProRataApplied was called only after the ledger write succeeded.
 	repo.AssertCalled(t, "MarkProRataApplied", mock.Anything, "s-1")
-	// Verify CreateProRataInstallment was called with trusted context and legacy
-	// migration flag.
+	// Verify CreateProRataInstallment was called with trusted context and the
+	// captured snapshot.
 	expClient.AssertCalled(t, "CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
-		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2 && req.LegacyMigration
+		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2 && req.CapturedRateSnapshot != nil
 	}))
 }
 
@@ -881,7 +884,7 @@ func TestApplyProRata_CapturedSnapshotSameTargetCurrencyAppliesWithSnapshot(t *t
 	setupPeriodCreationMocks(repo, pending, 2026, 6, "USD")
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
-		return req.Currency == "USD" && !req.LegacyMigration &&
+		return req.Currency == "USD" &&
 			req.PeriodContext.ReportingCurrency == "USD" &&
 			req.CapturedRateSnapshot == snap && req.Amount == 3333
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-06-01T00:00:00Z"}, nil)
@@ -920,7 +923,7 @@ func TestApplyProRata_CapturedSnapshotDifferentTargetCurrencyAppliesInTargetCurr
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		// Target period reports in EUR; the transaction currency (captured
 		// schedule context) stays USD and the snapshot is forwarded.
-		return req.Currency == "USD" && !req.LegacyMigration &&
+		return req.Currency == "USD" &&
 			req.PeriodContext.ReportingCurrency == "EUR" &&
 			req.CapturedRateSnapshot == snap
 	})).Return(&CreatedExpenseData{ID: "exp-2", CreatedAt: "2026-07-01T00:00:00Z"}, nil)
@@ -967,6 +970,36 @@ func TestApplyProRata_CapturedSnapshotMissingTargetCurrencyMarksFailed(t *testin
 	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
 }
 
+// TestApplyProRata_NilSnapshotMarksFailed asserts that a pending schedule with
+// no captured snapshot (a data invariant violation) is marked failed with
+// snapshot_currency_missing rather than panicking, and no ledger row is written.
+func TestApplyProRata_NilSnapshotMarksFailed(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// TransactionCurrency is set, so this is a corrupted row, not a legacy one.
+	pending := []*model.ProRataSchedule{{
+		ID: "s-nil", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 10,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: nil,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 10, "USD")
+
+	repo.On("MarkProRataFailed", mock.Anything, "s-nil", model.ErrSnapshotCurrencyMissing).Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 10, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	repo.AssertCalled(t, "MarkProRataFailed", mock.Anything, "s-nil", model.ErrSnapshotCurrencyMissing)
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+}
+
 // TestApplyProRata_ExpenseWriteFailureLeavesSchedulePending asserts that a
 // transient Expense write failure leaves the schedule pending (no partial
 // expense row) and does not mark it applied or failed.
@@ -998,73 +1031,11 @@ func TestApplyProRata_ExpenseWriteFailureLeavesSchedulePending(t *testing.T) {
 	repo.AssertNotCalled(t, "MarkProRataFailed", mock.Anything, mock.Anything, mock.Anything)
 }
 
-// TestApplyProRata_LegacySameCurrencyAppliesWithMigration asserts that a legacy
-// pending schedule (no captured snapshot) whose target period reporting
-// currency equals the stored schedule currency is applied with a migration
-// snapshot (exchangeRateSource = migration, exchangeRate = 1) via the legacy
-// migration path.
-func TestApplyProRata_LegacySameCurrencyAppliesWithMigration(t *testing.T) {
-	repo := new(mockRepo)
-	txBeg := new(mockTxBeg)
-	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-
-	pending := []*model.ProRataSchedule{{
-		ID: "s-5", UserID: "user-1", ProRataGroup: "g-legacy", Status: "pending",
-		Name: "Insurance", Amount: 5000, Currency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", TargetYear: 2026, TargetMonth: 10,
-		InstallmentIndex: 2, InstallmentTotal: 3,
-		// Legacy: no TransactionCurrency / CapturedRateSnapshot.
-	}}
-	setupPeriodCreationMocks(repo, pending, 2026, 10, "USD")
-
-	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
-		return req.LegacyMigration && req.Currency == "USD" &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
-			req.CapturedRateSnapshot == nil
-	})).Return(&CreatedExpenseData{ID: "exp-leg", CreatedAt: "2026-10-01T00:00:00Z"}, nil)
-	repo.On("MarkProRataApplied", mock.Anything, "s-5").Return(nil)
-
-	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 10, "USD"))
-	require.NoError(t, err)
-	require.Len(t, result.AppliedProRata, 1)
-	assert.Equal(t, "applied", result.AppliedProRata[0].Status)
-	repo.AssertCalled(t, "MarkProRataApplied", mock.Anything, "s-5")
-}
-
-// TestApplyProRata_LegacyDifferentCurrencyMarksFailed asserts that a legacy
-// pending schedule whose target period reporting currency differs from the
-// stored schedule currency is marked failed with missing_captured_rate_snapshot
-// and writes no ledger row.
-func TestApplyProRata_LegacyDifferentCurrencyMarksFailed(t *testing.T) {
-	repo := new(mockRepo)
-	txBeg := new(mockTxBeg)
-	expClient := new(mockExpClient)
-	svc := newTagTestService(repo, txBeg, expClient)
-
-	pending := []*model.ProRataSchedule{{
-		ID: "s-6", UserID: "user-1", ProRataGroup: "g-legacy", Status: "pending",
-		Name: "Insurance", Amount: 5000, Currency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", TargetYear: 2026, TargetMonth: 11,
-		InstallmentIndex: 2, InstallmentTotal: 3,
-	}}
-	setupPeriodCreationMocks(repo, pending, 2026, 11, "EUR")
-
-	repo.On("MarkProRataFailed", mock.Anything, "s-6", model.ErrMissingCapturedRateSnapshot).Return(nil)
-
-	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 11, "EUR"))
-	require.NoError(t, err)
-	assert.Empty(t, result.AppliedProRata)
-	repo.AssertCalled(t, "MarkProRataFailed", mock.Anything, "s-6", model.ErrMissingCapturedRateSnapshot)
-	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
-	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
-}
-
-// TestApplyProRata_LegacyNoTargetPeriodRemainsPending asserts that a legacy
-// pending schedule with no matching target period is never loaded or applied:
+// TestApplyProRata_NoTargetPeriodRemainsPending asserts that a pending
+// schedule with no matching target period is never loaded or applied:
 // applyPendingProRata is only triggered after a period exists, and a month with
 // no period creation produces no ledger write.
-func TestApplyProRata_LegacyNoTargetPeriodRemainsPending(t *testing.T) {
+func TestApplyProRata_NoTargetPeriodRemainsPending(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
 	expClient := new(mockExpClient)

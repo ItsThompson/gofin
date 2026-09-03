@@ -243,19 +243,8 @@ func (s *FinanceService) GetUpcomingProRata(ctx context.Context, userID string) 
 	return schedules, nil
 }
 
-// applyPendingProRata applies all pending pro-rata schedules whose target
-// year/month matches the just-created target period. The target period
-// provides the reporting currency; Finance resolves it locally and passes
-// trusted period context plus the captured snapshot to Expense so the
-// installment write never re-enters Finance for period facts and never calls a
-// live provider rate.
-//
-// Each schedule is applied independently: a deterministic failure on one row
-// (missing snapshot currency, legacy differing currency) marks that row failed
-// and continues to the next. A transient Expense write or conversion failure
-// leaves the row pending so it can be retried; no partial expense row is
-// visible because Expense only persists after a successful conversion. Finance
-// marks a row applied only after the Expense ledger write succeeds.
+// applyPendingProRata applies pending schedules for a just-created target period.
+// Each schedule is applied independently so one failure does not block the rest.
 func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string, period *model.BudgetPeriod) ([]*model.ProRataSchedule, error) {
 	pending, err := s.repo.GetPendingProRata(ctx, userID, period.Year, period.Month)
 	if err != nil {
@@ -306,20 +295,15 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID string, schedule *model.ProRataSchedule, targetReportingCurrency string, trustedCtx TrustedPeriodContext) *model.ProRataSchedule {
 	expenseDate := fmt.Sprintf("%04d-%02d-01", schedule.TargetYear, schedule.TargetMonth)
 
-	hasSnapshot := schedule.CapturedRateSnapshot != nil
 	transactionCurrency := normalizeCurrencyCode(schedule.TransactionCurrency)
-	if transactionCurrency == "" {
-		// Legacy schedules store the original currency in the Currency column.
-		transactionCurrency = normalizeCurrencyCode(schedule.Currency)
+
+	if schedule.CapturedRateSnapshot == nil {
+		s.markProRataFailed(ctx, schedule, model.ErrSnapshotCurrencyMissing)
+		return nil
 	}
 
-	if !hasSnapshot {
-		return s.applyLegacyProRataSchedule(ctx, userID, schedule, targetReportingCurrency, transactionCurrency, trustedCtx, expenseDate)
-	}
-
-	// Captured-snapshot schedules: validate the snapshot can derive the target
-	// reporting currency before asking Expense to write. A missing currency is
-	// a deterministic failure (the captured intent cannot service this period).
+	// Validate the snapshot can derive the target reporting currency before
+	// asking Expense to write. A missing currency is a deterministic failure.
 	if _, ok := schedule.CapturedRateSnapshot.RatesByCurrency[targetReportingCurrency]; !ok {
 		s.markProRataFailed(ctx, schedule, model.ErrSnapshotCurrencyMissing)
 		return nil
@@ -362,63 +346,6 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 	if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
 		s.logger.Error("failed to mark pro-rata as applied after successful ledger write",
 			slog.String("method", "applyOneProRataSchedule"),
-			slog.String("schedule_id", schedule.ID),
-			slog.String("error", err.Error()),
-		)
-		return nil
-	}
-
-	schedule.Status = "applied"
-	return schedule
-}
-
-// applyLegacyProRataSchedule handles a legacy pending schedule with no captured
-// snapshot. When the target period reporting currency equals the stored schedule
-// currency, Finance asks Expense to write a migration snapshot
-// (rate = "1", source = "migration"). When the currencies differ, migration must
-// not invent a rate, so the row moves to failed with missing_captured_rate_snapshot.
-func (s *FinanceService) applyLegacyProRataSchedule(ctx context.Context, userID string, schedule *model.ProRataSchedule, targetReportingCurrency, transactionCurrency string, trustedCtx TrustedPeriodContext, expenseDate string) *model.ProRataSchedule {
-	if transactionCurrency != targetReportingCurrency {
-		s.markProRataFailed(ctx, schedule, model.ErrMissingCapturedRateSnapshot)
-		return nil
-	}
-
-	_, err := s.expenseClient.CreateProRataInstallment(ctx, CreateProRataInstallmentInput{
-		UserID:          userID,
-		PeriodContext:   trustedCtx,
-		Name:            schedule.Name,
-		Amount:          schedule.Amount,
-		Currency:        transactionCurrency,
-		ExpenseType:     schedule.ExpenseType,
-		TagID:           schedule.TagID,
-		ExpenseDate:     expenseDate,
-		ProRataGroup:    schedule.ProRataGroup,
-		ProRataIndex:    schedule.InstallmentIndex,
-		ProRataTotal:    schedule.InstallmentTotal,
-		LegacyMigration: true,
-	})
-	if err != nil {
-		// Legacy schedules have no captured snapshot, so the only deterministic
-		// Expense-side failure is a snapshot-coverage error surfaced by
-		// defense-in-depth. A currency mismatch is pre-checked by Finance, so any
-		// other error here is transient and the row stays pending for retry.
-		if reason := classifyProRataExpenseError(err); reason != "" {
-			s.markProRataFailed(ctx, schedule, reason)
-		} else {
-			s.logger.Error("legacy pro-rata installment write failed; schedule remains pending",
-				slog.String("method", "applyLegacyProRataSchedule"),
-				slog.String("schedule_id", schedule.ID),
-				slog.String("pro_rata_group", schedule.ProRataGroup),
-				slog.String("failure_reason", "transient_write_failure"),
-				slog.String("error", err.Error()),
-			)
-		}
-		return nil
-	}
-
-	if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
-		s.logger.Error("failed to mark legacy pro-rata as applied after successful ledger write",
-			slog.String("method", "applyLegacyProRataSchedule"),
 			slog.String("schedule_id", schedule.ID),
 			slog.String("error", err.Error()),
 		)

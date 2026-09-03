@@ -107,7 +107,6 @@ func (c *GRPCExpenseClient) CreateProRataInstallment(ctx context.Context, req Cr
 		ProRataIndex:         req.ProRataIndex,
 		ProRataTotal:         req.ProRataTotal,
 		CapturedRateSnapshot: snapshotToProto(req.CapturedRateSnapshot),
-		LegacyMigration:      req.LegacyMigration,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gRPC CreateProRataInstallment: %w", err)

@@ -51,11 +51,6 @@ type CreateProRataInstallmentInput struct {
 	ProRataIndex         int32
 	ProRataTotal         int32
 	CapturedRateSnapshot *model.CapturedRateSnapshot
-	// LegacyMigration marks a legacy pending pro-rata schedule that has no
-	// captured snapshot and whose target period reporting currency equals
-	// the stored schedule currency. Expense writes a migration snapshot
-	// (rate = "1", source = "migration") without calling FX.
-	LegacyMigration bool
 }
 
 // CreateExpenseInput is the data needed to create an expense via the expense service.

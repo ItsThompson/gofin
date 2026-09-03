@@ -4,7 +4,6 @@ package model
 const (
 	ExchangeSourceIdentity          = "identity"
 	ExchangeSourceOpenExchangeRates = "open_exchange_rates"
-	ExchangeSourceMigration         = "migration"
 )
 
 // Expense represents an entry in the immutable expense ledger.
