@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
@@ -240,70 +243,175 @@ func (s *FinanceService) GetUpcomingProRata(ctx context.Context, userID string) 
 	return schedules, nil
 }
 
-// applyPendingProRata applies all pending pro-rata schedules for a given month by
-// creating expense entries via gRPC and marking schedules as applied.
-func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string, year, month int32) ([]*model.ProRataSchedule, error) {
-	pending, err := s.repo.GetPendingProRata(ctx, userID, year, month)
+// applyPendingProRata applies pending schedules for a just-created target period.
+// Each schedule is applied independently so one failure does not block the rest.
+func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string, period *model.BudgetPeriod) ([]*model.ProRataSchedule, error) {
+	pending, err := s.repo.GetPendingProRata(ctx, userID, period.Year, period.Month)
 	if err != nil {
-		return nil, fmt.Errorf("getting pending pro-rata for %d-%02d: %w", year, month, err)
+		return nil, fmt.Errorf("getting pending pro-rata for %d-%02d: %w", period.Year, period.Month, err)
 	}
 
 	if len(pending) == 0 {
 		return nil, nil
 	}
 
+	targetReportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	trustedCtx := TrustedPeriodContext{
+		PeriodID:          period.ID,
+		UserID:            period.UserID,
+		Year:              period.Year,
+		Month:             period.Month,
+		ReportingCurrency: targetReportingCurrency,
+		Source:            "finance_service",
+	}
+
 	applied := make([]*model.ProRataSchedule, 0, len(pending))
+	failed := 0
 	for _, schedule := range pending {
-		// Determine the expense date: first day of the target month
-		expenseDate := fmt.Sprintf("%04d-%02d-01", year, month)
-
-		_, err := s.expenseClient.CreateExpense(ctx, CreateExpenseInput{
-			UserID:              userID,
-			Name:                schedule.Name,
-			Amount:              schedule.Amount,
-			TransactionCurrency: schedule.Currency,
-			ExpenseType:         schedule.ExpenseType,
-			TagID:               schedule.TagID,
-			ExpenseDate:         expenseDate,
-			PeriodYear:          year,
-			PeriodMonth:         month,
-			IsProRata:           true,
-			ProRataGroup:        schedule.ProRataGroup,
-			ProRataIndex:        schedule.InstallmentIndex,
-			ProRataTotal:        schedule.InstallmentTotal,
-		})
-		if err != nil {
-			s.logger.Error("failed to apply pro-rata installment",
-				slog.String("method", "applyPendingProRata"),
-				slog.String("schedule_id", schedule.ID),
-				slog.String("pro_rata_group", schedule.ProRataGroup),
-				slog.String("error", err.Error()),
-			)
-			return applied, fmt.Errorf("applying pro-rata schedule %s: %w", schedule.ID, err)
+		switch appliedRow := s.applyOneProRataSchedule(ctx, userID, schedule, targetReportingCurrency, trustedCtx); {
+		case appliedRow != nil:
+			applied = append(applied, appliedRow)
+		case schedule.Status == "failed":
+			failed++
 		}
-
-		if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
-			s.logger.Error("failed to mark pro-rata as applied",
-				slog.String("method", "applyPendingProRata"),
-				slog.String("schedule_id", schedule.ID),
-				slog.String("error", err.Error()),
-			)
-			return applied, fmt.Errorf("marking schedule %s as applied: %w", schedule.ID, err)
-		}
-
-		schedule.Status = "applied"
-		applied = append(applied, schedule)
 	}
 
 	s.logger.Info("pro-rata installments applied",
 		slog.String("method", "applyPendingProRata"),
 		slog.String("user_id", userID),
-		slog.Int("year", int(year)),
-		slog.Int("month", int(month)),
-		slog.Int("count", len(applied)),
+		slog.Int("year", int(period.Year)),
+		slog.Int("month", int(period.Month)),
+		slog.Int("pending", len(pending)),
+		slog.Int("applied", len(applied)),
+		slog.Int("failed", failed),
 	)
 
 	return applied, nil
+}
+
+// applyOneProRataSchedule applies a single pending pro-rata schedule against the
+// target period. It returns the updated schedule when the ledger write succeeds
+// (status "applied"), or nil when the row remains pending or moves to failed.
+func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID string, schedule *model.ProRataSchedule, targetReportingCurrency string, trustedCtx TrustedPeriodContext) *model.ProRataSchedule {
+	expenseDate := fmt.Sprintf("%04d-%02d-01", schedule.TargetYear, schedule.TargetMonth)
+
+	transactionCurrency := normalizeCurrencyCode(schedule.TransactionCurrency)
+
+	if schedule.CapturedRateSnapshot == nil {
+		s.markProRataFailed(ctx, schedule, model.ErrSnapshotCurrencyMissing)
+		return nil
+	}
+
+	// Validate the snapshot can derive the target reporting currency before
+	// asking Expense to write. A missing currency is a deterministic failure.
+	if _, ok := schedule.CapturedRateSnapshot.RatesByCurrency[targetReportingCurrency]; !ok {
+		s.markProRataFailed(ctx, schedule, model.ErrSnapshotCurrencyMissing)
+		return nil
+	}
+
+	_, err := s.expenseClient.CreateProRataInstallment(ctx, CreateProRataInstallmentInput{
+		UserID:               userID,
+		PeriodContext:        trustedCtx,
+		Name:                 schedule.Name,
+		Amount:               schedule.Amount,
+		Currency:             transactionCurrency,
+		ExpenseType:          schedule.ExpenseType,
+		TagID:                schedule.TagID,
+		ExpenseDate:          expenseDate,
+		ProRataGroup:         schedule.ProRataGroup,
+		ProRataIndex:         schedule.InstallmentIndex,
+		ProRataTotal:         schedule.InstallmentTotal,
+		CapturedRateSnapshot: schedule.CapturedRateSnapshot,
+	})
+	if err != nil {
+		// A deterministic typed failure (snapshot cannot derive a needed currency)
+		// would recur identically on retry, so move the row to failed. Any other
+		// error (conversion unavailable, internal, transport) is transient: leave
+		// the row pending so it can be retried. No partial expense row is visible
+		// because Expense only persists after a successful conversion.
+		if reason := classifyProRataExpenseError(err); reason != "" {
+			s.markProRataFailed(ctx, schedule, reason)
+		} else {
+			s.logger.Error("pro-rata installment write failed; schedule remains pending",
+				slog.String("method", "applyOneProRataSchedule"),
+				slog.String("schedule_id", schedule.ID),
+				slog.String("pro_rata_group", schedule.ProRataGroup),
+				slog.String("failure_reason", "transient_write_failure"),
+				slog.String("error", err.Error()),
+			)
+		}
+		return nil
+	}
+
+	if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
+		s.logger.Error("failed to mark pro-rata as applied after successful ledger write",
+			slog.String("method", "applyOneProRataSchedule"),
+			slog.String("schedule_id", schedule.ID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+
+	schedule.Status = "applied"
+	return schedule
+}
+
+// classifyProRataExpenseError inspects an error returned by the Expense
+// CreateProRataInstallment call and returns the deterministic pro-rata failure
+// reason when the error is a typed failure that would recur identically on retry
+// (snapshot_currency_missing). A transient or unclassified error returns an empty
+// string so the caller leaves the schedule pending for retry.
+//
+// Finance pre-checks snapshot coverage for the target reporting currency before
+// calling Expense, but Expense also validates the transaction currency and
+// snapshot coverage as defense-in-depth. If that check surfaces a
+// snapshot_currency_missing failure, the captured intent cannot service this
+// period and the row must move to failed rather than strand in pending.
+//
+// Two transports are handled: an in-process *apierr.Error (mocks / same-process
+// clients) and a wrapped gRPC status error (the production gRPC client, which
+// maps ErrSnapshotCurrencyMissing to codes.FailedPrecondition).
+func classifyProRataExpenseError(err error) string {
+	var apiErr *apierr.Error
+	if errors.As(err, &apiErr) {
+		if apiErr.Code == model.ErrSnapshotCurrencyMissing {
+			return model.ErrSnapshotCurrencyMissing
+		}
+		return ""
+	}
+	var statusErr interface{ GRPCStatus() *status.Status }
+	if errors.As(err, &statusErr) {
+		if statusErr.GRPCStatus().Code() == codes.FailedPrecondition {
+			return model.ErrSnapshotCurrencyMissing
+		}
+	}
+	return ""
+}
+
+// markProRataFailed moves a schedule to failed with the typed failure reason and
+// emits a diagnostic log so operators can see failed pro-rata rows. A repo
+// failure during the status update is logged but does not roll back the decision.
+func (s *FinanceService) markProRataFailed(ctx context.Context, schedule *model.ProRataSchedule, failureReason string) {
+	if err := s.repo.MarkProRataFailed(ctx, schedule.ID, failureReason); err != nil {
+		s.logger.Error("failed to mark pro-rata schedule as failed",
+			slog.String("method", "markProRataFailed"),
+			slog.String("schedule_id", schedule.ID),
+			slog.String("intended_failure_reason", failureReason),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	schedule.Status = "failed"
+	schedule.FailureReason = failureReason
+	s.logger.Warn("pro-rata schedule marked failed",
+		slog.String("method", "markProRataFailed"),
+		slog.String("schedule_id", schedule.ID),
+		slog.String("pro_rata_group", schedule.ProRataGroup),
+		slog.String("failure_reason", failureReason),
+		slog.Int("installment_index", int(schedule.InstallmentIndex)),
+		slog.Int("target_year", int(schedule.TargetYear)),
+		slog.Int("target_month", int(schedule.TargetMonth)),
+	)
 }
 
 // CreatePeriodWithProRata creates a budget period and applies any pending pro-rata
@@ -356,13 +464,15 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		return nil, fmt.Errorf("creating period: %w", err)
 	}
 
-	// Apply pro-rata for the current month
-	applied, err := s.applyPendingProRata(ctx, userID, req.Year, req.Month)
-	if err != nil {
-		s.logger.Error("failed to apply pro-rata for new period",
+	// Apply pro-rata for the current month. applyPendingProRata never returns a
+	// fatal error: deterministic failures mark individual rows failed and
+	// transient failures leave them pending.
+	applied, applyErr := s.applyPendingProRata(ctx, userID, period)
+	if applyErr != nil {
+		s.logger.Error("failed to load pending pro-rata for new period",
 			slog.Int("year", int(req.Year)),
 			slog.Int("month", int(req.Month)),
-			slog.String("error", err.Error()),
+			slog.String("error", applyErr.Error()),
 		)
 	}
 	allAppliedProRata = append(allAppliedProRata, applied...)
@@ -411,7 +521,7 @@ func (s *FinanceService) createMissedPeriods(
 	var autoCreatedMonths []string
 	var allApplied []*model.ProRataSchedule
 	for _, missed := range missedMonths {
-		_, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
+		autoPeriod, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
 			UserID:            userID,
 			Year:              missed.year,
 			Month:             missed.month,
@@ -425,13 +535,15 @@ func (s *FinanceService) createMissedPeriods(
 			return nil, nil, fmt.Errorf("auto-creating period for %d-%02d: %w", missed.year, missed.month, err)
 		}
 
-		// Apply pro-rata for the missed month
-		applied, err := s.applyPendingProRata(ctx, userID, missed.year, missed.month)
-		if err != nil {
-			s.logger.Error("failed to apply pro-rata for auto-created period",
+		// Apply pro-rata for the missed month. applyPendingProRata never
+		// returns a fatal error: deterministic failures mark individual rows
+		// failed and transient failures leave them pending.
+		applied, applyErr := s.applyPendingProRata(ctx, userID, autoPeriod)
+		if applyErr != nil {
+			s.logger.Error("failed to load pending pro-rata for auto-created period",
 				slog.Int("year", int(missed.year)),
 				slog.Int("month", int(missed.month)),
-				slog.String("error", err.Error()),
+				slog.String("error", applyErr.Error()),
 			)
 		}
 		allApplied = append(allApplied, applied...)

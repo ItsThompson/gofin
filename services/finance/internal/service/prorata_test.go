@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
@@ -31,6 +33,7 @@ func (m *mockFxClient) CaptureRateSnapshot(ctx context.Context, req FxCaptureReq
 	}
 	return args.Get(0).(*model.CapturedRateSnapshot), args.Error(1)
 }
+
 // --- CalculateInstallments Tests ---
 
 func TestCalculateInstallments_EvenSplit(t *testing.T) {
@@ -605,12 +608,15 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 		Name: "Insurance", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 5, InstallmentIndex: 2,
 		InstallmentTotal: 3, Status: "pending",
+		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{pendingSchedule}, nil)
 
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.Name == "Insurance" && req.Amount == 3333 && req.ProRataIndex == 2
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.Name == "Insurance" && req.Amount == 3333 && req.ProRataIndex == 2 &&
+			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.Currency == "USD" && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "exp-applied", CreatedAt: "2026-05-01T00:00:00Z"}, nil)
 
 	repo.On("MarkProRataApplied", mock.Anything, "sched-1").Return(nil)
@@ -704,6 +710,7 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 		Name: "Subscription", Amount: 5000, Currency: "USD", ExpenseType: "desires",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 4, InstallmentIndex: 2,
 		InstallmentTotal: 3, Status: "pending",
+		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(4)).
 		Return([]*model.ProRataSchedule{aprSchedule}, nil)
@@ -712,8 +719,8 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{}, nil)
 
-	expClient.On("CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.PeriodMonth == 4 && req.ProRataIndex == 2
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.PeriodContext.Month == 4 && req.ProRataIndex == 2 && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "exp-apr", CreatedAt: "2026-04-01T00:00:00Z"}, nil)
 
 	repo.On("MarkProRataApplied", mock.Anything, "s-apr").Return(nil)
@@ -767,13 +774,15 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 		Name: "Test", Amount: 1000, Currency: "USD", ExpenseType: "essentials",
 		TagID: "t-1", TargetYear: 2026, TargetMonth: 5,
 		InstallmentIndex: 2, InstallmentTotal: 3, ProRataGroup: "g-1",
+		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{schedule}, nil)
 
-	expClient.On("CreateExpense", mock.Anything, mock.Anything).
-		Return(&CreatedExpenseData{ID: "e-1", CreatedAt: "2026-05-01"}, nil)
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2 && req.CapturedRateSnapshot != nil
+	})).Return(&CreatedExpenseData{ID: "e-1", CreatedAt: "2026-05-01"}, nil)
 
 	repo.On("MarkProRataApplied", mock.Anything, "s-1").Return(nil)
 
@@ -787,11 +796,12 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 	assert.Len(t, result.AppliedProRata, 1)
 	assert.Equal(t, "applied", result.AppliedProRata[0].Status)
 
-	// Verify MarkProRataApplied was called
+	// Verify MarkProRataApplied was called only after the ledger write succeeded.
 	repo.AssertCalled(t, "MarkProRataApplied", mock.Anything, "s-1")
-	// Verify CreateExpense was called with correct data
-	expClient.AssertCalled(t, "CreateExpense", mock.Anything, mock.MatchedBy(func(req CreateExpenseInput) bool {
-		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2
+	// Verify CreateProRataInstallment was called with trusted context and the
+	// captured snapshot.
+	expClient.AssertCalled(t, "CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.ProRataGroup == "g-1" && req.ProRataIndex == 2 && req.CapturedRateSnapshot != nil
 	}))
 }
 
@@ -820,4 +830,388 @@ func TestCreatePeriodWithProRata_NilDefaultsReturnsError(t *testing.T) {
 
 	// CreatePeriod must never have been called.
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
+}
+
+// --- Pro-rata future application tests (ticket 14) ---
+//
+// These tests exercise applyPendingProRata through CreatePeriodWithProRata,
+// which is the public trigger that creates a target budget period and then
+// applies pending installments for that exact year and month.
+
+// setupPeriodCreationMocks wires the common CreatePeriodWithProRata mocks: a
+// latest prior period (so no missed months are auto-created), the target
+// period creation, and the pending-pro-rata loader. The caller adds
+// schedule-specific mocks (CreateProRataInstallment / MarkProRata*).
+func setupPeriodCreationMocks(repo *mockRepo, pending []*model.ProRataSchedule, targetYear, targetMonth int32, reportingCurrency string) {
+	repo.On("GetLatestPeriod", mock.Anything, "user-1").
+		Return(makePeriod("p-prev", targetYear, targetMonth-1), nil)
+	targetPeriod := makePeriod("p-target", targetYear, targetMonth)
+	targetPeriod.ReportingCurrency = reportingCurrency
+	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
+		return p.Year == targetYear && p.Month == targetMonth
+	})).Return(targetPeriod, nil)
+	repo.On("GetPendingProRata", mock.Anything, "user-1", targetYear, targetMonth).
+		Return(pending, nil)
+}
+
+func createPeriodRequest(year, month int32, reportingCurrency string) *model.CreatePeriodRequest {
+	return &model.CreatePeriodRequest{
+		Year: year, Month: month, BudgetAmount: int64Ptr(300000),
+		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+		ReportingCurrency: reportingCurrency,
+	}
+}
+
+// TestApplyProRata_CapturedSnapshotSameTargetCurrencyAppliesWithSnapshot asserts
+// that a captured-snapshot schedule whose target period reporting currency
+// equals the creation currency is applied through CreateProRataInstallment with
+// the captured snapshot and marked applied only after the ledger write succeeds.
+func TestApplyProRata_CapturedSnapshotSameTargetCurrencyAppliesWithSnapshot(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	snap := snapshotFixture()
+	pending := []*model.ProRataSchedule{{
+		ID: "s-1", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 6,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 6, "USD")
+
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		return req.Currency == "USD" &&
+			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.CapturedRateSnapshot == snap && req.Amount == 3333
+	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-06-01T00:00:00Z"}, nil)
+	repo.On("MarkProRataApplied", mock.Anything, "s-1").Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 6, "USD"))
+	require.NoError(t, err)
+	require.Len(t, result.AppliedProRata, 1)
+	assert.Equal(t, "applied", result.AppliedProRata[0].Status)
+	assert.Equal(t, "s-1", result.AppliedProRata[0].ID)
+	repo.AssertCalled(t, "MarkProRataApplied", mock.Anything, "s-1")
+	repo.AssertNotCalled(t, "MarkProRataFailed", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// TestApplyProRata_CapturedSnapshotDifferentTargetCurrencyAppliesInTargetCurrency
+// asserts that when the target period reporting currency differs from the
+// creation currency, the installment is applied with the target period currency
+// while preserving the captured schedule snapshot context.
+func TestApplyProRata_CapturedSnapshotDifferentTargetCurrencyAppliesInTargetCurrency(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	snap := snapshotFixture() // covers USD, EUR, GBP, JPY
+	pending := []*model.ProRataSchedule{{
+		ID: "s-2", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 7,
+		InstallmentIndex: 3, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 7, "EUR")
+
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
+		// Target period reports in EUR; the transaction currency (captured
+		// schedule context) stays USD and the snapshot is forwarded.
+		return req.Currency == "USD" &&
+			req.PeriodContext.ReportingCurrency == "EUR" &&
+			req.CapturedRateSnapshot == snap
+	})).Return(&CreatedExpenseData{ID: "exp-2", CreatedAt: "2026-07-01T00:00:00Z"}, nil)
+	repo.On("MarkProRataApplied", mock.Anything, "s-2").Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 7, "EUR"))
+	require.NoError(t, err)
+	require.Len(t, result.AppliedProRata, 1)
+	assert.Equal(t, "applied", result.AppliedProRata[0].Status)
+}
+
+// TestApplyProRata_CapturedSnapshotMissingTargetCurrencyMarksFailed asserts
+// that a schedule whose captured snapshot lacks the target reporting currency
+// is marked failed with snapshot_currency_missing and writes no ledger row.
+func TestApplyProRata_CapturedSnapshotMissingTargetCurrencyMarksFailed(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	snap := &model.CapturedRateSnapshot{
+		SnapshotVersion: 1, Source: "open_exchange_rates", BaseCurrency: "USD",
+		RateTimestamp: "2026-05-15T10:00:00Z", CapturedAt: "2026-05-15T12:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+		RatesByCurrency: map[string]string{"USD": "1", "EUR": "0.92"},
+	}
+	pending := []*model.ProRataSchedule{{
+		ID: "s-3", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 8,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 8, "JPY")
+
+	repo.On("MarkProRataFailed", mock.Anything, "s-3", model.ErrSnapshotCurrencyMissing).Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 8, "JPY"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	repo.AssertCalled(t, "MarkProRataFailed", mock.Anything, "s-3", model.ErrSnapshotCurrencyMissing)
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+}
+
+// TestApplyProRata_NilSnapshotMarksFailed asserts that a pending schedule with
+// no captured snapshot (a data invariant violation) is marked failed with
+// snapshot_currency_missing rather than panicking, and no ledger row is written.
+func TestApplyProRata_NilSnapshotMarksFailed(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// TransactionCurrency is set, so this is a corrupted row, not a legacy one.
+	pending := []*model.ProRataSchedule{{
+		ID: "s-nil", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 10,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: nil,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 10, "USD")
+
+	repo.On("MarkProRataFailed", mock.Anything, "s-nil", model.ErrSnapshotCurrencyMissing).Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 10, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	repo.AssertCalled(t, "MarkProRataFailed", mock.Anything, "s-nil", model.ErrSnapshotCurrencyMissing)
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+}
+
+// TestApplyProRata_ExpenseWriteFailureLeavesSchedulePending asserts that a
+// transient Expense write failure leaves the schedule pending (no partial
+// expense row) and does not mark it applied or failed.
+func TestApplyProRata_ExpenseWriteFailureLeavesSchedulePending(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	snap := snapshotFixture()
+	pending := []*model.ProRataSchedule{{
+		ID: "s-4", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 9,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 9, "USD")
+
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
+		Return(nil, &apierr.Error{Code: model.ErrConversionUnavailable, Message: "conversion unavailable", Status: 503})
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 9, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	// Schedule remains pending: neither applied nor failed is recorded.
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "MarkProRataFailed", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// TestApplyProRata_NoTargetPeriodRemainsPending asserts that a pending
+// schedule with no matching target period is never loaded or applied:
+// applyPendingProRata is only triggered after a period exists, and a month with
+// no period creation produces no ledger write.
+func TestApplyProRata_NoTargetPeriodRemainsPending(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// Creating a period for a *different* month (Dec) must not apply a pending
+	// schedule targeted at November.
+	repo.On("GetLatestPeriod", mock.Anything, "user-1").
+		Return(makePeriod("p-prev", 2026, 11), nil)
+	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
+		return p.Year == 2026 && p.Month == 12
+	})).Return(makePeriod("p-dec", 2026, 12), nil)
+	// December has no pending schedules; November's pending schedule is never
+	// loaded because no period was created for November.
+	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(12)).
+		Return([]*model.ProRataSchedule{}, nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 12, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "MarkProRataFailed", mock.Anything, mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+}
+
+// TestApplyProRata_FailedScheduleNotReapplied asserts that a schedule already
+// marked failed is not re-applied: GetPendingProRata only returns pending rows.
+func TestApplyProRata_FailedScheduleNotReapplied(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// The repository returns only pending rows; a failed row is excluded.
+	setupPeriodCreationMocks(repo, []*model.ProRataSchedule{}, 2026, 12, "USD")
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 12, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	expClient.AssertNotCalled(t, "CreateProRataInstallment", mock.Anything, mock.Anything)
+}
+
+// TestApplyProRata_DashboardExcludesPendingAndFailed asserts that dashboard
+// totals come from applied ledger rows only. Pending and failed schedules never
+// write a ledger row, so the dashboard's expense read is the only source. This
+// test documents the invariant: a pending schedule produces no ExpenseData.
+func TestApplyProRata_DashboardExcludesPendingAndFailed(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// A pending schedule that stays pending (write fails) contributes no
+	// expense to the period. The dashboard reads GetExpensesForPeriod, which
+	// returns only written ledger rows.
+	snap := snapshotFixture()
+	pending := []*model.ProRataSchedule{{
+		ID: "s-pending", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 12,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "USD",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 12, "USD")
+
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
+		Return(nil, &apierr.Error{Code: model.ErrConversionUnavailable, Message: "conversion unavailable", Status: 503})
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 12, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+
+	// The dashboard reads only applied ledger rows. A pending/failed schedule
+	// produced no row, so the expense client returns an empty set.
+	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(12)).
+		Return([]ExpenseData{}, nil)
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(12)).
+		Return(makePeriod("p-target", 2026, 12), nil)
+	summary, err := svc.GetPeriodSummary(context.Background(), "user-1", 2026, 12)
+	require.NoError(t, err)
+	assert.NotNil(t, summary)
+}
+
+// TestApplyProRata_ExpenseSnapshotCurrencyMissingMarksFailed asserts that when
+// Expense surfaces a snapshot_currency_missing failure (e.g. the transaction
+// currency is missing from the captured snapshot, which Finance's target-only
+// pre-check does not cover), Finance classifies it as deterministic and moves the
+// row to failed rather than stranding it in pending for a retry that would fail
+// identically.
+func TestApplyProRata_ExpenseSnapshotCurrencyMissingMarksFailed(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newTagTestService(repo, txBeg, expClient)
+
+	// Snapshot covers the target reporting currency (USD) so Finance's pre-check
+	// passes, but Expense's defense-in-depth coverage check fails for the
+	// transaction currency (EUR is missing).
+	snap := &model.CapturedRateSnapshot{
+		SnapshotVersion: 1, Source: "open_exchange_rates", BaseCurrency: "USD",
+		RateTimestamp: "2026-05-15T10:00:00Z", CapturedAt: "2026-05-15T12:00:00Z",
+		ExpiresAt:       "2026-05-15T13:00:00Z",
+		RatesByCurrency: map[string]string{"USD": "1", "GBP": "0.79"},
+	}
+	pending := []*model.ProRataSchedule{{
+		ID: "s-snap", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
+		Name: "Subscription", Amount: 3333, Currency: "EUR", ExpenseType: "essentials",
+		TagID: "tag-1", TargetYear: 2026, TargetMonth: 12,
+		InstallmentIndex: 2, InstallmentTotal: 3,
+		TransactionAmount: 3333, TransactionCurrency: "EUR",
+		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
+	}}
+	setupPeriodCreationMocks(repo, pending, 2026, 12, "USD")
+
+	// Finance's target-currency pre-check passes (USD is in the snapshot), so it
+	// calls Expense, which surfaces the snapshot_currency_missing failure.
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
+		Return(nil, &apierr.Error{Code: model.ErrSnapshotCurrencyMissing, Message: "snapshot currency missing", Status: 409})
+	repo.On("MarkProRataFailed", mock.Anything, "s-snap", model.ErrSnapshotCurrencyMissing).Return(nil)
+
+	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", createPeriodRequest(2026, 12, "USD"))
+	require.NoError(t, err)
+	assert.Empty(t, result.AppliedProRata)
+	repo.AssertCalled(t, "MarkProRataFailed", mock.Anything, "s-snap", model.ErrSnapshotCurrencyMissing)
+	repo.AssertNotCalled(t, "MarkProRataApplied", mock.Anything, mock.Anything)
+}
+
+// TestClassifyProRataExpenseError_TableTest asserts the deterministic-vs-transient
+// classification of Expense-returned errors, covering both the in-process
+// *apierr.Error path (mocks) and the wrapped gRPC status path (production).
+func TestClassifyProRataExpenseError_TableTest(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "in-process snapshot currency missing",
+			err:  &apierr.Error{Code: model.ErrSnapshotCurrencyMissing, Message: "missing", Status: 409},
+			want: model.ErrSnapshotCurrencyMissing,
+		},
+		{
+			name: "in-process conversion unavailable is transient",
+			err:  &apierr.Error{Code: model.ErrConversionUnavailable, Message: "unavailable", Status: 503},
+			want: "",
+		},
+		{
+			name: "gRPC FailedPrecondition maps to snapshot currency missing",
+			err:  status.Error(codes.FailedPrecondition, "The captured rate snapshot does not contain a required currency"),
+			want: model.ErrSnapshotCurrencyMissing,
+		},
+		{
+			name: "gRPC Unavailable is transient",
+			err:  status.Error(codes.Unavailable, "conversion unavailable"),
+			want: "",
+		},
+		{
+			name: "gRPC Internal is transient",
+			err:  status.Error(codes.Internal, "internal"),
+			want: "",
+		},
+		{
+			name: "wrapped gRPC FailedPrecondition is still classified",
+			err:  fmt.Errorf("gRPC CreateProRataInstallment: %w", status.Error(codes.FailedPrecondition, "snapshot currency missing")),
+			want: model.ErrSnapshotCurrencyMissing,
+		},
+		{
+			name: "plain non-gRPC error is transient",
+			err:  fmt.Errorf("some transport failure"),
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classifyProRataExpenseError(tt.err))
+		})
+	}
 }

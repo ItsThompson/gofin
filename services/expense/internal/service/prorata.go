@@ -34,11 +34,11 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		return nil, err
 	}
 
+	now := s.clock().UTC().Format(time.RFC3339)
+
 	if err := validateSnapshotCoverage(req.CapturedRateSnapshot, transactionCurrency, reportingCurrency); err != nil {
 		return nil, err
 	}
-
-	now := s.clock().UTC().Format(time.RFC3339)
 
 	// Pro-rata installments always derive their reporting amount from the
 	// captured snapshot (spec 06), so same-currency first installments also go
@@ -54,7 +54,6 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 	if convErr != nil {
 		return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 	}
-
 	snapshot := buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
 
 	expense := &model.Expense{

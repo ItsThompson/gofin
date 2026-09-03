@@ -138,6 +138,11 @@ func (m *mockRepo) MarkProRataApplied(ctx context.Context, scheduleID string) er
 	return args.Error(0)
 }
 
+func (m *mockRepo) MarkProRataFailed(ctx context.Context, scheduleID string, failureReason string) error {
+	args := m.Called(ctx, scheduleID, failureReason)
+	return args.Error(0)
+}
+
 func (m *mockRepo) GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {

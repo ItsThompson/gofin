@@ -626,6 +626,22 @@ func (q *Queries) MarkProRataApplied(ctx context.Context, id pgtype.UUID) error 
 	return err
 }
 
+const markProRataFailed = `-- name: MarkProRataFailed :exec
+UPDATE finance.pro_rata_schedules
+SET status = 'failed', failure_reason = $2
+WHERE id = $1
+`
+
+type MarkProRataFailedParams struct {
+	ID            pgtype.UUID `json:"id"`
+	FailureReason pgtype.Text `json:"failure_reason"`
+}
+
+func (q *Queries) MarkProRataFailed(ctx context.Context, arg MarkProRataFailedParams) error {
+	_, err := q.db.Exec(ctx, markProRataFailed, arg.ID, arg.FailureReason)
+	return err
+}
+
 const updatePeriod = `-- name: UpdatePeriod :one
 UPDATE finance.budget_periods
 SET budget_amount = $1, essentials_percent = $2, desires_percent = $3,

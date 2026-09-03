@@ -96,6 +96,11 @@ UPDATE finance.pro_rata_schedules
 SET status = 'applied', applied_at = now()
 WHERE id = $1;
 
+-- name: MarkProRataFailed :exec
+UPDATE finance.pro_rata_schedules
+SET status = 'failed', failure_reason = $2
+WHERE id = $1;
+
 -- name: GetUpcomingProRata :many
 SELECT * FROM finance.pro_rata_schedules
 WHERE user_id = $1 AND status = 'pending'

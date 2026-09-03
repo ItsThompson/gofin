@@ -368,6 +368,17 @@ func (r *PostgresFinanceRepository) MarkProRataApplied(ctx context.Context, sche
 	return r.queries.MarkProRataApplied(ctx, sid)
 }
 
+func (r *PostgresFinanceRepository) MarkProRataFailed(ctx context.Context, scheduleID string, failureReason string) error {
+	sid, err := pgutil.ParseUUID(scheduleID)
+	if err != nil {
+		return err
+	}
+	return r.queries.MarkProRataFailed(ctx, db.MarkProRataFailedParams{
+		ID:            sid,
+		FailureReason: pgtype.Text{String: failureReason, Valid: failureReason != ""},
+	})
+}
+
 func (r *PostgresFinanceRepository) GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error) {
 	uid, err := pgutil.ParseUUID(userID)
 	if err != nil {

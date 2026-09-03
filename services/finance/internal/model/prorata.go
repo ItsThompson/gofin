@@ -20,8 +20,7 @@ type ProRataSchedule struct {
 	CreatedAt        time.Time  `json:"createdAt"`
 	AppliedAt        *time.Time `json:"appliedAt"`
 
-	// Capture intent fields for schedules created after the multi-currency
-	// cutover. Legacy rows leave these empty and are resolved by migration.
+	// Capture intent fields for multi-currency pro-rata schedules.
 	TransactionAmount         int64                 `json:"transactionAmount"`
 	TransactionCurrency       string                `json:"transactionCurrency"`
 	CreationReportingCurrency string                `json:"creationReportingCurrency"`
