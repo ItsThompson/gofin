@@ -25,8 +25,10 @@ Each service is independently testable with clear boundaries. The strategy prior
 # All tests (backend + frontend)
 just test
 
-# Backend only (Go tests across all services)
+# Backend only (auth, expense, finance, fx, and gateway)
 just test-backend
+
+Datarights tests run via its own module (`cd services/datarights && go test ./...`); CI runs every workspace module by iterating `go work edit -json`.
 
 # Frontend only (via Turborepo)
 just test-frontend

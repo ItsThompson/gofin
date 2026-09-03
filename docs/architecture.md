@@ -159,6 +159,7 @@ Owns GDPR data export and user data portability (Article 20 compliance):
 - Startup recovery: re-submits non-terminal jobs found in the database
 - Bounded concurrency pool with configurable max concurrent exports
 - Currency-aware CSV rows: expense rows carry transaction and reporting money columns; period rows carry the reporting currency; amounts format with the shared catalog's per-currency precision
+- Admin-only data deletion: async deletion jobs that remove or anonymize a user's data across services (auth, finance, expense ledger), with password verification, self-deletion prevention, and idempotent deduplication
 
 The service coordinates data collection from all other compute services but owns no user data itself: it only stores job metadata (status, timestamps, file size) in its own PostgreSQL schema.
 
@@ -171,7 +172,7 @@ FX Service owns no database. Its provider snapshot cache lives in process memory
 
 ### Observability Stack (Node 4)
 
-- **Prometheus**: scrapes `/metrics` from all Go services on the compute network
+- **Prometheus**: scrapes `/metrics` from each Go service plus cadvisor and node-exporter over the monitoring network
 - **Alertmanager**: routes alerts based on Prometheus rules
 - **Grafana**: pre-provisioned dashboards for system overview, per-service metrics, and database health
 - **Auth Proxy**: a small Go service that validates JWTs and checks admin role before proxying to Grafana
@@ -185,7 +186,7 @@ Four Docker bridge networks enforce traffic boundaries:
 | `edge-net` | MFE, cloudflared-app, API Gateway | Public-facing traffic only |
 | `compute-net` | API Gateway, Auth, Expense, Finance, FX, Datarights | Internal service communication |
 | `data-net` | Auth, Finance, Datarights, Expense, PostgreSQL, immudb | Database access only; FX is absent because it owns no user ledger data |
-| `monitoring-net` | Prometheus, Grafana, Alertmanager, auth proxy, all Go services (for /metrics) | Observability plane |
+| `monitoring-net` | Prometheus, Grafana, Alertmanager, auth proxy, all Go services, cadvisor, node-exporter | Observability plane |
 
 Databases are never reachable from `edge-net`. The browser only communicates with the shell app, which proxies everything else.
 

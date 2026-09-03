@@ -50,6 +50,7 @@ The canonical route registry (`services/access/registry.go`) classifies each rou
 | `Public` | POST | `/api/auth/login` |
 | `Public` | POST | `/api/auth/refresh` |
 | `Public` | GET | `/health` |
+| `Public` | GET | `/readyz` |
 | `Public` | GET | `/metrics` |
 | `Admin` | GET | `/api/admin/users` |
 | `Admin` | POST | `/api/auth/assume` |
@@ -93,7 +94,7 @@ Admin-only user management endpoints (e.g., listing all registered users).
 
 CRUD operations on the immutable expense ledger: creating expenses, listing materialized (active-only) expenses for a period, viewing single expenses, creating corrections, viewing correction history, querying pro-rata groups, and retrieving ranked autocomplete suggestions.
 
-List endpoints support pagination, sorting, and filtering via query parameters.
+List endpoints support pagination (`page`, `pageSize`) and period scoping (`year`, `month`) where applicable; sorting and filtering are client-side.
 
 Create and correction requests accept `amount` (minor units) and optional `transactionCurrency`. Saved expense responses carry the money snapshot fields (`transactionAmount`, `transactionCurrency`, `reportingAmount`, `reportingCurrency`, `exchangeRate`, `exchangeRateSource`, `exchangeRateTimestamp`, optional `exchangeRateExpiresAt`). A create for a month with no budget period returns `404 PERIOD_NOT_FOUND` and writes no ledger row. See [Multi-Currency Fields](#multi-currency-fields).
 
@@ -155,6 +156,8 @@ Returns the supported-currency catalog: code, symbol, name, and minor-unit digit
 ### Datarights (`/api/datarights/*`)
 
 GDPR data export: creating async export jobs (POST returns 202, runs in background), listing export history with pagination, and retrieving individual job status. The POST endpoint is idempotent (returns existing in-progress job) and rate-limited to one successful export per 30 days (429 with `retryAfter` timestamp). Completed exports are delivered via email as a ZIP of CSV files.
+
+Admin-only GDPR data deletion (`/api/datarights/deletions/*`): creating async deletion jobs that remove or anonymize a user's data across services. The POST endpoint verifies the target user's password, refuses self-deletion, and is idempotent (returns an existing in-progress job).
 
 ## Multi-Currency Fields
 

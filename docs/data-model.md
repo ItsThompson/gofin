@@ -19,10 +19,10 @@ Each microservice owns its database schema exclusively. No service queries anoth
 | Service | Database | Access Method | Data Owned |
 |---------|----------|---------------|------------|
 | Auth Service | PostgreSQL (`auth` schema) | sqlc | Users, credentials, refresh token blacklist |
-| Finance Service | PostgreSQL (`finance` schema) | sqlc | Budget periods, default settings, tags, pro-rata schedules |
-| Datarights Service | PostgreSQL (`datarights` schema) | pgx | Export job records |
+| Finance Service | PostgreSQL (`finance` schema) | sqlc | Budget periods, default settings, tags, pro-rata schedules, health scores, period reporting currency migration audit |
+| Datarights Service | PostgreSQL (`datarights` schema) | pgx | Export job records, deletion job records |
 | Expense Service | immudb | Native Go client | Expense ledger entries |
-| FX Service | none | n/a | No persistent state; one-hour provider snapshot in process memory |
+| FX Service | none | n/a | No persistent state; provider snapshot cache in process memory (default one hour, `FX_CACHE_MAX_AGE`) |
 
 PostgreSQL runs as a single instance with separate schemas and connection credentials per service. This provides logical isolation with the option to split into separate databases later.
 
@@ -40,19 +40,7 @@ Stores export job metadata. The service tracks job lifecycle but does not persis
 - **Nullable terminal fields**: `error`, `file_size_bytes`, and `completed_at` are NULL while a job is in-progress, populated only on completion/failure
 - **Indexes**: `(user_id, status)` for rate limit and deduplication checks; `(user_id, created_at DESC)` for paginated listing
 
-```sql
-CREATE TABLE datarights.export_jobs (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id         UUID         NOT NULL,
-    status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending', 'running', 'completed', 'failed')),
-    error           TEXT,
-    file_size_bytes BIGINT,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    completed_at    TIMESTAMPTZ,
-    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
-);
-```
+Canonical DDL: `services/datarights/db/migrations/000001_create_export_jobs.up.sql`.
 
 ### Job State Machine
 
@@ -64,6 +52,17 @@ CREATE TABLE datarights.export_jobs (
 | running | failed | Any unrecoverable error | `completed_at`, `error` set |
 
 Only `completed` jobs consume the 30-day rate limit. Failed exports do not block retries.
+
+### `datarights.deletion_jobs`
+
+Tracks admin-initiated GDPR deletion jobs. Like export jobs, it stores only job metadata (status, timestamps); the deletion engine fans out across services to remove or anonymize the target user's data. Key design points:
+
+- **No foreign key to `auth.users`**: referential integrity enforced at the application layer
+- **Self-deletion prevention**: the service rejects a deletion job whose target is the acting admin
+- **Idempotent deduplication**: a non-terminal deletion job for the user short-circuits to the existing in-progress job
+- **Indexes**: `(user_id, status)` and `(status)` for pending-job discovery
+
+Canonical DDL: `services/datarights/db/migrations/000002_create_deletion_jobs.up.sql`.
 
 ## Auth Schema
 

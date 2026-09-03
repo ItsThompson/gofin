@@ -100,7 +100,7 @@ The E2E job builds and runs the full Docker Compose stack (without the `tunnels`
 
 1. Copies `.env.example` to `.env` (default values are sufficient for CI)
 2. Runs `docker compose up -d --build`
-3. Waits for `http://localhost:3000` (frontend) and `http://localhost:3000/api/health` (API gateway) with retry loops
+3. Waits for `http://localhost:3000` (frontend) and `http://localhost:8080/metrics` (API gateway, since `/api/health` is not an unauthenticated check) with retry loops
 4. Seeds the admin user via `docker compose exec -T auth-service /service seed-admin`
 5. Runs Playwright against `http://localhost:3000` using `.env.test.example` values
 6. Uploads `playwright-report/` as an artifact on failure

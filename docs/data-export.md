@@ -176,10 +176,10 @@ func (p *MyProvider) Collect(ctx context.Context, userID string) ([][]string, er
 
 ### 3. Add it to the per-job provider factory in `cmd/main.go`
 
-Export providers are built fresh for each job by a `ProviderFactory` (a `func(finance financepb.FinanceServiceClient) []engine.DataProvider`) passed to `engine.NewEngine`. Add your provider to the slice it returns; the slice order is the ZIP order:
+Export providers are built fresh for each job by a `ProviderFactory` (a `func(financeData *financepb.AllUserDataResponse) []engine.DataProvider`) passed to `engine.NewEngine`. Add your provider to the slice it returns; the slice order is the ZIP order:
 
 ```go
-newExportProviders := func(finance financepb.FinanceServiceClient) []engine.DataProvider {
+newExportProviders := func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
     return []engine.DataProvider{
         // ...existing providers...
         providers.NewMyProvider(myClient),
@@ -187,7 +187,7 @@ newExportProviders := func(finance financepb.FinanceServiceClient) []engine.Data
 }
 ```
 
-A finance-backed provider takes the `finance` parameter: a per-job `MemoizedFinanceClient` that collapses `GetAllUserData` to a single call per export and is never shared across jobs. The engine handles everything else: concurrent collection (`errgroup` fan-out), CSV writing, ZIP assembly, email delivery, error handling, and metrics emission per provider.
+The engine fetches `GetAllUserData` once per export job (in `engine.execute`) and passes the resolved response to the factory. Finance-backed providers take `financeData` (or a derived map such as `BuildTagMap` or `BuildPeriodCurrencyMap`); profile and expenses providers close over the auth and expense clients. The engine handles everything else: concurrent collection (`errgroup` fan-out), CSV writing, ZIP assembly, email delivery, error handling, and metrics emission per provider.
 
 ### Formatting helpers
 
