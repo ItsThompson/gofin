@@ -1484,7 +1484,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x11rates_by_currency\x18\a \x03(\v22.expense.CapturedRateSnapshot.RatesByCurrencyEntryR\x0fratesByCurrency\x1aB\n" +
 	"\x14RatesByCurrencyEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9b\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x04\n" +
 	"\x1fCreateProRataInstallmentRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12D\n" +
 	"\x0eperiod_context\x18\x02 \x01(\v2\x1d.expense.TrustedPeriodContextR\rperiodContext\x12\x12\n" +
@@ -1498,7 +1498,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_index\x18\n" +
 	" \x01(\x05R\fproRataIndex\x12$\n" +
 	"\x0epro_rata_total\x18\v \x01(\x05R\fproRataTotal\x12S\n" +
-	"\x16captured_rate_snapshot\x18\f \x01(\v2\x1d.expense.CapturedRateSnapshotR\x14capturedRateSnapshotJ\x04\b\r\x10\x0eR\x10legacy_migration\"\x91\x01\n" +
+	"\x16captured_rate_snapshot\x18\f \x01(\v2\x1d.expense.CapturedRateSnapshotR\x14capturedRateSnapshot\"\x91\x01\n" +
 	"\x1bGetExpensesForPeriodRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +

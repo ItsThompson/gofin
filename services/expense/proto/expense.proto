@@ -123,8 +123,6 @@ message CreateProRataInstallmentRequest {
   int32 pro_rata_index = 10;
   int32 pro_rata_total = 11;
   CapturedRateSnapshot captured_rate_snapshot = 12;
-  reserved 13;
-  reserved "legacy_migration";
 }
 
 // ---------------------------------------------------------------------------
