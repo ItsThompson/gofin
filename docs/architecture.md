@@ -122,7 +122,7 @@ Owns the immutable expense ledger backed by immudb:
 - Correction mechanics: new entries supersede originals, forming a correction chain
 - Materialized view: filters to `status=active` so downstream consumers see only current truth
 - Pro-rata installment tracking (group ID, index, total)
-- Money snapshots: every post-cutover row stores transaction money, reporting money, and the conversion facts (rate, source, timestamp) that connect them
+- Money snapshots: every row stores transaction money, reporting money, and the conversion facts (rate, source, timestamp) that connect them
 - Period context: public writes resolve the target period's reporting currency from Finance over gRPC before any ledger write
 - FX consumption: foreign-currency writes call FX Service over gRPC; same-currency writes use an identity snapshot and bypass FX
 
@@ -132,7 +132,7 @@ The business logic hub, orchestrating budgets, tags, and dashboard data:
 
 - Budget period lifecycle (creation, missed-month backfill, E/D/S allocation) with an immutable `reportingCurrency` per period
 - Default settings that seed only future period creation; changing defaults never mutates existing periods
-- Read-only period context API for Expense: period ID, reporting currency, lock state, and tag ownership
+- Read-only period context API for Expense: period ID, reporting currency, and lock state
 - Pro-rata scheduling: stores future installment schedules with captured FX snapshots, creates ledger entries via Expense Service gRPC when periods are created
 - Tag CRUD with lazy-seeded defaults
 - Dashboard aggregation: period summary, pacing, category breakdowns, cumulative spend, historical comparison, monthly financial health score (persisted per closed month), and its multi-month health-score trend, all computed in the period's reporting currency
@@ -141,7 +141,7 @@ The business logic hub, orchestrating budgets, tags, and dashboard data:
 
 An internal-only conversion service. It owns no user ledger data and exposes no browser-facing REST route. Expense and Finance call it over gRPC on the compute network:
 
-- `ConvertAmount`: live source-to-target conversion using a one-hour Open Exchange Rates snapshot cache
+- `ConvertAmount`: live source-to-target conversion using an in-memory Open Exchange Rates snapshot cache (default one hour, `FX_CACHE_MAX_AGE`)
 - `ConvertWithSnapshot`: derives a source-to-target rate from a previously captured snapshot without calling the provider
 - `CaptureRateSnapshot`: returns a full USD-based provider rate map that Finance stores on pro-rata schedules
 - Decimal conversion with half-away-from-zero rounding to the target currency's minor units
@@ -158,7 +158,7 @@ Owns GDPR data export and user data portability (Article 20 compliance):
 - In-progress job deduplication (idempotent POST)
 - Startup recovery: re-submits non-terminal jobs found in the database
 - Bounded concurrency pool with configurable max concurrent exports
-- Currency-aware CSV rows: expense and period rows carry transaction and reporting currency columns formatted with the shared catalog's per-currency precision
+- Currency-aware CSV rows: expense rows carry transaction and reporting money columns; period rows carry the reporting currency; amounts format with the shared catalog's per-currency precision
 
 The service coordinates data collection from all other compute services but owns no user data itself: it only stores job metadata (status, timestamps, file size) in its own PostgreSQL schema.
 
@@ -167,7 +167,7 @@ The service coordinates data collection from all other compute services but owns
 - **PostgreSQL**: single instance with three schemas (`auth`, `finance`, `datarights`), each accessed by its owning service via separate credentials. Logical isolation with the option to split later.
 - **immudb**: append-only storage for expense ledger entries. SQL interface for queries, native Go client for writes.
 
-FX Service owns no database. Its one-hour provider snapshot lives in process memory; conversion facts are persisted on ledger rows and pro-rata schedules, not in FX.
+FX Service owns no database. Its provider snapshot cache lives in process memory (default one hour, `FX_CACHE_MAX_AGE`); conversion facts are persisted on ledger rows and pro-rata schedules, not in FX.
 
 ### Observability Stack (Node 4)
 
@@ -189,7 +189,7 @@ Four Docker bridge networks enforce traffic boundaries:
 
 Databases are never reachable from `edge-net`. The browser only communicates with the shell app, which proxies everything else.
 
-FX Service joins only `compute-net` and `monitoring-net`. It has no `edge-net` membership and no REST route, so the browser can never reach it, and the gateway has no proxy prefix for it.
+FX Service joins only `compute-net` and `monitoring-net`. It has no `edge-net` membership and no browser-facing REST route, so the browser can never reach it, and the gateway has no proxy prefix for it.
 
 ## Key Design Decisions
 

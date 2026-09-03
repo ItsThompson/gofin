@@ -97,6 +97,10 @@ COOKIE_SECURE=true
 # Enable subdomain cookie access for Grafana
 COOKIE_DOMAIN=.usegofin.com
 
+# Live FX rates: empty falls back to static rate-1 dev rates, so set it in
+# production to avoid silently converting cross-currency values at 1:1
+OPEN_EXCHANGE_RATES_APP_ID=<your openexchangerates app id>
+
 # Grafana auth proxy "Back to gofin" link
 APP_URL=https://usegofin.com
 

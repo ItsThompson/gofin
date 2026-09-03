@@ -67,7 +67,7 @@ FX exposes conversion, provider, and cache counters from `services/fx/internal/m
 | `fx_conversion_latency_seconds` | Histogram | `source_currency`, `target_currency` | Conversion latency |
 | `fx_provider_latency_seconds` | Histogram | `result` | Open Exchange Rates request latency |
 
-`fx_provider_requests_total` uses `result` values `success`, `error`, `auth_failed`, `retryable_error`, and `invalid`. FX logs carry request IDs, the currency pair, cache status, and provider status only: no expense names, user emails, or provider credentials.
+`fx_provider_requests_total` uses `result` values `success`, `error`, `auth_failed`, `retryable_error`, and `invalid`. FX logs carry the currency pair and the failure reason (error text, or provider HTTP status on auth failure) only: no request IDs, cache status, expense names, user emails, or provider credentials.
 
 #### Known gaps
 
@@ -151,19 +151,7 @@ When reproducing `HighErrorRate` by hand against a running stack, drive at least
 
 ### FX and Multi-Currency Alert Context
 
-FX Service is a scrape target, so the existing `ServiceDown` rule (`up == 0`, critical) covers it going down: no separate FX-down rule is needed. The spec lists this condition as warning severity; the deployed shared rule pages at critical for every service, so FX inherits that.
-
-The spec defines these initial multi-currency alert thresholds. Only `ServiceDown` is wired today; the FX-provider and conversion-failure rules are defined but not yet present in `alerts.yml`:
-
-| Alert | Condition | Severity | Status |
-|-------|-----------|----------|--------|
-| FX Service down | `up == 0` for `fx-service` | critical | Active via `ServiceDown` |
-| FX provider unavailable | Provider failure rate above 50% for 10m and at least one conversion has no fresh cache fallback | warning | Defined, not wired |
-| High conversion failure rate | `CONVERSION_UNAVAILABLE` above 5% of conversion attempts for 10m | warning | Defined, not wired |
-| Pro-rata apply stuck | A pending installment targets a period that has existed for more than 24h | warning | Defined, not wired |
-| Export currency failures | Any export job fails due to currency formatting or snapshot resolution | warning | Defined, not wired |
-
-The FX metrics above are the inputs for the provider and conversion-failure rules: `fx_provider_requests_total{result!="success"}` feeds the provider-failure rate, and `fx_conversion_requests_total{result="failure"}` feeds the conversion-failure rate.
+FX Service is a scrape target in `monitoring/prometheus/prometheus.yml`, so the existing `ServiceDown` rule (`up == 0`, critical) covers it going down: no separate FX-down rule is needed. The shared rule pages at critical for every service, so FX inherits that.
 
 Alertmanager configuration (notification channels and routing) is at `monitoring/alertmanager/alertmanager.yml`.
 
