@@ -33,7 +33,7 @@ The CD workflow decodes tunnel credentials from GitHub Secrets, creates the two 
 
 `scripts/deploy.sh` polls `docker compose ps` for up to 60 seconds and requires every service that declares a healthcheck to report `healthy`. On success it writes the deployed SHA to `/opt/gofin/.deployed-sha`. On failure it re-pulls the previous SHA's images, retags them `:latest`, recreates the stack, and exits non-zero, which also skips the release finalization.
 
-The rollback is **partial**. It restores `api-gateway`, `auth-service`, `finance-service`, `datarights-service` and `mfe`, and omits three images CD also builds and pushes: `expense-service`, `alertmanager` and `grafana-auth-proxy`. It prints `Rollback complete. Previous version restored.` either way, so the gap is silent. After a rolled-back deploy, `expense-service` is still running the new image against restored siblings, and it is the immudb writer. Roll it back by hand until the loop derives its service list from the same images the build matrix builds.
+The rollback is **partial**. It restores `api-gateway`, `auth-service`, `finance-service`, `datarights-service` and `mfe`, and omits four images CD also builds and pushes: `expense-service`, `fx-service`, `alertmanager` and `grafana-auth-proxy`. It prints `Rollback complete. Previous version restored.` either way, so the gap is silent. After a rolled-back deploy, `expense-service` is still running the new image against restored siblings, and it is the immudb writer. Roll it back by hand until the loop derives its service list from the same images the build matrix builds.
 
 ## Required GitHub Secrets
 
@@ -100,7 +100,7 @@ The E2E job builds and runs the full Docker Compose stack (without the `tunnels`
 
 1. Copies `.env.example` to `.env` (default values are sufficient for CI)
 2. Runs `docker compose up -d --build`
-3. Waits for `http://localhost:3000` (frontend) and `http://localhost:3000/api/health` (API gateway) with retry loops
+3. Waits for `http://localhost:3000` (frontend) and `http://localhost:8080/metrics` (API gateway, since `/api/health` is not an unauthenticated check) with retry loops
 4. Seeds the admin user via `docker compose exec -T auth-service /service seed-admin`
 5. Runs Playwright against `http://localhost:3000` using `.env.test.example` values
 6. Uploads `playwright-report/` as an artifact on failure

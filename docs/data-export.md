@@ -59,8 +59,13 @@ All expense ledger entries (both active and corrected) in chronological order.
 |--------|------|-------|
 | `id` | UUID | |
 | `name` | string | Expense description |
-| `amount` | decimal | Dollars with 2 decimal places (e.g., `12.50`) |
-| `currency` | string | ISO 4217 code |
+| `transaction_amount` | decimal string | Formatted using `transaction_currency` minor-unit digits |
+| `transaction_currency` | string | ISO 4217 code of the original charge |
+| `reporting_amount` | decimal string | Formatted using `reporting_currency` minor-unit digits |
+| `reporting_currency` | string | Budget period reporting currency |
+| `exchange_rate` | decimal string | Source-to-target rate used for the row |
+| `exchange_rate_source` | string | `identity`, `open_exchange_rates`, or `migration` |
+| `exchange_rate_timestamp` | timestamp | Snapshot timestamp |
 | `expense_type` | string | `essentials`, `desires`, or `savings` |
 | `tag_name` | string | Resolved tag name (not ID). `Unknown` if tag was deleted |
 | `expense_date` | string | ISO date |
@@ -94,7 +99,8 @@ All budget periods (one per month configured).
 | `id` | UUID | |
 | `year` | int | |
 | `month` | int | 1-12 |
-| `budget_amount` | decimal | Dollars with 2 decimal places |
+| `budget_amount` | decimal string | Formatted using `reporting_currency` minor-unit digits |
+| `reporting_currency` | string | Immutable period currency |
 | `essentials_percent` | int | 0-100 |
 | `desires_percent` | int | 0-100 |
 | `savings_percent` | int | 0-100 |
@@ -106,11 +112,29 @@ Single row with current budget defaults (empty if not configured).
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `budget_amount` | decimal | Dollars with 2 decimal places |
+| `budget_amount` | decimal string | Formatted using the default settings currency |
 | `essentials_percent` | int | 0-100 |
 | `desires_percent` | int | 0-100 |
 | `savings_percent` | int | 0-100 |
-| `currency` | string | ISO 4217 code |
+| `currency` | string | Future-period default reporting currency |
+
+### Currency Precision Formatting
+
+Amount columns use the shared currency catalog's `minorUnitDigits` to scale integer minor units into decimal strings:
+
+| Rule | Behavior |
+|------|----------|
+| Transaction amount | Use `transactionCurrency` minor-unit digits |
+| Reporting amount | Use `reportingCurrency` minor-unit digits |
+| Zero-digit currencies | Render as a plain integer (JPY gets no forced `.00`) |
+| Same-currency row | `exchange_rate = 1`, `exchange_rate_source = identity` |
+| Provider-converted row | Include provider rate and timestamp |
+| Legacy migration row | `exchange_rate_source = migration`, rate `1`; both currency columns are set to the period reporting currency |
+| Legacy stored-currency mismatch | Normalize both currency columns to the period reporting currency; when the period is unknown, fall back to the row's stored `reporting_currency` |
+| Incomplete snapshot | `identity` or `open_exchange_rates` rows missing any required money field fail the export |
+| Unsupported stored currency | `expenses` and `budget_periods` fail the export; `default_settings` renders `budget_amount` with two decimals and counts the fallback in `export_currency_formatting_fallback_total` |
+
+See `services/datarights/internal/engine/providers/format.go` for the canonical `formatMinorUnits` implementation.
 
 ## Adding a Data Provider
 
@@ -152,10 +176,10 @@ func (p *MyProvider) Collect(ctx context.Context, userID string) ([][]string, er
 
 ### 3. Add it to the per-job provider factory in `cmd/main.go`
 
-Export providers are built fresh for each job by a `ProviderFactory` (a `func(finance financepb.FinanceServiceClient) []engine.DataProvider`) passed to `engine.NewEngine`. Add your provider to the slice it returns; the slice order is the ZIP order:
+Export providers are built fresh for each job by a `ProviderFactory` (a `func(financeData *financepb.AllUserDataResponse) []engine.DataProvider`) passed to `engine.NewEngine`. Add your provider to the slice it returns; the slice order is the ZIP order:
 
 ```go
-newExportProviders := func(finance financepb.FinanceServiceClient) []engine.DataProvider {
+newExportProviders := func(financeData *financepb.AllUserDataResponse) []engine.DataProvider {
     return []engine.DataProvider{
         // ...existing providers...
         providers.NewMyProvider(myClient),
@@ -163,13 +187,13 @@ newExportProviders := func(finance financepb.FinanceServiceClient) []engine.Data
 }
 ```
 
-A finance-backed provider takes the `finance` parameter: a per-job `MemoizedFinanceClient` that collapses `GetAllUserData` to a single call per export and is never shared across jobs. The engine handles everything else: concurrent collection (`errgroup` fan-out), CSV writing, ZIP assembly, email delivery, error handling, and metrics emission per provider.
+The engine fetches `GetAllUserData` once per export job (in `engine.execute`) and passes the resolved response to the factory. Finance-backed providers take `financeData` (or a derived map such as `BuildTagMap` or `BuildPeriodCurrencyMap`); profile and expenses providers close over the auth and expense clients. The engine handles everything else: concurrent collection (`errgroup` fan-out), CSV writing, ZIP assembly, email delivery, error handling, and metrics emission per provider.
 
 ### Formatting helpers
 
 `services/datarights/internal/engine/providers/format.go` provides:
 
-- `formatCentsToDollars(cents int64)`: converts cents to `"12.50"` format
+- `formatMinorUnits(amount int64, code string)`: scales integer minor units to a decimal string using the currency's `minorUnitDigits` (JPY renders as a plain integer)
 - `formatBool(b bool)`: renders `"true"` / `"false"`
 - `resolveTagName(tagID, tagMap)`: looks up tag names with `"Unknown"` fallback
 - `formatOptionalInt(value, condition)`: renders empty string when condition is false

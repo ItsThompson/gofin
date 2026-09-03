@@ -46,12 +46,28 @@ Custom business metrics for data export monitoring:
 | `export_jobs_created_total` | Counter | — | Export jobs submitted via the API |
 | `export_jobs_completed_total` | Counter | `status` (completed/failed) | Jobs reaching terminal state |
 | `export_rate_limit_rejections_total` | Counter | — | Requests rejected by 30-day cooldown |
+| `export_currency_formatting_fallback_total` | Counter | - | Legacy default-settings amounts rendered with the two-decimal fallback because the stored currency is unsupported |
 | `export_job_duration_seconds` | Histogram | — | End-to-end job duration (pending to terminal) |
 | `export_data_collection_duration_seconds` | Histogram | `provider` | Per-provider data collection latency |
 | `export_email_send_duration_seconds` | Histogram | — | Email delivery latency via Resend |
 | `export_zip_size_bytes` | Histogram | — | Size of generated ZIP files |
 | `export_pool_active_jobs` | Gauge | — | Currently running export goroutines |
 | `export_pool_queued_jobs` | Gauge | — | Jobs waiting for a pool slot |
+
+#### FX Service Metrics
+
+FX exposes conversion, provider, and cache counters from `services/fx/internal/metrics/metrics.go`:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `fx_conversion_requests_total` | Counter | `source_currency`, `target_currency`, `result` (`success`/`failure`) | Conversion attempts by pair and outcome |
+| `fx_provider_requests_total` | Counter | `result`, `status_code` | Open Exchange Rates requests by outcome |
+| `fx_cache_hits_total` | Counter | - | Fresh provider snapshot cache hits |
+| `fx_cache_misses_total` | Counter | - | Provider snapshot cache misses |
+| `fx_conversion_latency_seconds` | Histogram | `source_currency`, `target_currency` | Conversion latency |
+| `fx_provider_latency_seconds` | Histogram | `result` | Open Exchange Rates request latency |
+
+`fx_provider_requests_total` uses `result` values `success`, `error`, `auth_failed`, `retryable_error`, and `invalid`. FX logs carry the currency pair and the failure reason (error text, or provider HTTP status on auth failure) only: no request IDs, cache status, expense names, user emails, or provider credentials.
 
 #### Known gaps
 
@@ -132,6 +148,10 @@ When reproducing `HighErrorRate` by hand against a running stack, drive at least
 |-------|-----------|----------|-------------|
 | `ExportJobFailureRate` | >50% of jobs failed in 1h window | warning | Indicates systemic issue with upstream services or email delivery |
 | `ExportJobStuck` | Active jobs with no completions for 10m | warning | Likely a hung goroutine or upstream service timeout |
+
+### FX and Multi-Currency Alert Context
+
+FX Service is a scrape target in `monitoring/prometheus/prometheus.yml`, so the existing `ServiceDown` rule (`up == 0`, critical) covers it going down: no separate FX-down rule is needed. The shared rule pages at critical for every service, so FX inherits that.
 
 Alertmanager configuration (notification channels and routing) is at `monitoring/alertmanager/alertmanager.yml`.
 

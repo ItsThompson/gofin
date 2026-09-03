@@ -67,6 +67,7 @@ The mock layer provides:
 - Sample expenses across different categories and tags
 - The default tags plus one custom tag
 - Dashboard aggregation data (summary, pacing, tag spending, cumulative chart, historical comparison, monthly health score, and its multi-month trend)
+- The supported-currency catalog (`GET /api/finance/currencies`), with a reporting currency set on the budget period
 - An upcoming pro-rata installment
 
 Mock fixtures live in `frontend/apps/shell/mocks/data/`, one file per domain. Request handlers live in `frontend/apps/shell/mocks/handlers/`. The default mock user is the operator (admin), who lands on `/admin` and sees only the admin panel plus Settings (Profile and Password); a direct admin who opens a personal finance route by URL gets a 403 page, so the budget/expenses/dashboard fixtures are not reachable while acting as the admin. To exercise the personal finance UI, point `currentMockUser` at `regularUser` ("alex") in `mocks/data/users.ts`, or log in as the admin and assume that user from the admin panel.
@@ -152,8 +153,9 @@ Key variable groups:
 
 - **Shared**: `JWT_SECRET`, `LOG_LEVEL`, `ENVIRONMENT`
 - **Auth Service**: PostgreSQL connection, bcrypt cost, admin seed credentials
-- **Finance Service**: PostgreSQL connection, expense service gRPC address
-- **Expense Service**: immudb connection credentials
+- **Finance Service**: PostgreSQL connection, expense service gRPC address, FX service gRPC address
+- **Expense Service**: immudb connection credentials, finance and FX service gRPC addresses
+- **FX Service**: Open Exchange Rates app ID, provider timeout, retry count, cache max age
 - **Datarights Service**: PostgreSQL connection, Resend API key, email sender config
 - **API Gateway**: service addresses (gRPC and REST) for auth, expense, finance, and datarights
 - **MFE (Shell)**: API gateway URL, cookie security flag
@@ -172,6 +174,18 @@ just seed-admin
 This runs the auth service's `seed-admin` CLI subcommand, which reads `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` from environment variables. The command is idempotent: if an admin already exists, it exits successfully. It also marks the admin's onboarding complete server-side for data consistency, but that flag is not the exemption mechanism: admins are structurally exempt from onboarding via their role and the route access metadata (see below), not because the flag is set.
 
 The admin is an operator-only identity: it owns no finance data and does not use the onboarding or budget flows (`POST /api/auth/onboarding-complete` is a `Personal` route and returns 403 to a direct admin). After logging in through the normal UI, a direct admin lands on `/admin`; opening a personal finance route by URL renders a 403 page, because the route's access metadata rejects a direct operator.
+
+## FX Service
+
+The FX Service is an internal-only compute service. It exposes gRPC on port **9085** (consumed by the finance and expense services for currency conversion and captured-snapshot application) and a REST port **8085** for the health check and Prometheus metrics. It has no browser-facing route and no API gateway proxy prefix; the `services/access` registry test asserts it stays unproxied.
+
+### Local Development
+
+```bash
+just dev-service fx
+```
+
+With no `OPEN_EXCHANGE_RATES_APP_ID` set, the service logs a warning and falls back to a static provider that returns a rate of 1 for every supported currency, so FX-dependent flows work with deterministic values without a provider account (see `services/fx/cmd/main.go` and `services/fx/internal/provider/static.go`). Set the app ID to convert against live Open Exchange Rates rates.
 
 ## Datarights Service
 

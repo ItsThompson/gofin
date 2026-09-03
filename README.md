@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/44ed82d6-a7b6-499c-90ba-3655cedaf110
 
 ## Introduction
 
-gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, GDPR-compliant data export with email delivery, role-based access control with an operator-only admin identity (used for operations and identity assumption, never personal finance), and a full observability stack with Prometheus and Grafana.
+gofin is an intentionally overengineered personal finance tracker that lets users set monthly budgets with an essentials/desires/savings split, log expenses, and track spending via a real-time dashboard. It serves a dual purpose: a functional personal finance tool and a learning platform for distributed systems patterns. Key features include multi-currency budgets with a per-period reporting currency and FX conversion via Open Exchange Rates, an immutable expense ledger backed by [immudb](https://immudb.io/) with bank-style corrections (no edits, only appends), pro-rata expense spreading across multiple months, GDPR-compliant data export with email delivery, role-based access control with an operator-only admin identity (used for operations and identity assumption, never personal finance), and a full observability stack with Prometheus and Grafana.
 
 ## Technology Stack
 
@@ -35,6 +35,7 @@ gofin is an intentionally overengineered personal finance tracker that lets user
 - **Backend:** Go microservices (Gin framework) communicating over REST and gRPC
 - **Databases:** PostgreSQL (relational data), immudb (immutable expense ledger)
 - **Auth:** JWT with RBAC (operator-only admin), admin identity assumption
+- **FX:** Open Exchange Rates via an internal, gRPC-only FX Service
 - **Observability:** Prometheus, Grafana, Alertmanager
 - **Infrastructure:** Docker Compose, Cloudflare Tunnels, single-VPS deployment
 - **CI/CD:** GitHub Actions with automated deployment on push to main
@@ -62,6 +63,7 @@ graph TB
         Auth[Auth Service<br/><i>JWT, RBAC, Users</i>]
         Expense[Expense Service<br/><i>Immutable Ledger</i>]
         Finance[Finance Service<br/><i>Budgets, Tags, Pro-rata</i>]
+        FX[FX Service<br/><i>Currency Conversion</i>]
         DR[Datarights Service<br/><i>Data Export, GDPR</i>]
     end
 
@@ -80,6 +82,8 @@ graph TB
     Browser -->|HTTPS| CFApp --> Shell
     Browser -->|HTTPS| CFGraf --> AuthProxy
 
+    OER[Open Exchange Rates]
+
     Shell -->|build-time source import| FinPkg
     Shell -->|build-time source import| AdminPkg
     Shell -->|/api/* proxy| GW
@@ -90,9 +94,12 @@ graph TB
     GW -->|REST| Finance
     GW -->|REST| DR
     Finance -->|gRPC| Expense
+    Expense -->|gRPC| FX
+    Finance -->|gRPC| FX
     DR -->|gRPC| Auth
     DR -->|gRPC| Expense
     DR -->|gRPC| Finance
+    FX -->|HTTPS: rates| OER
 
     Auth --> PG
     Finance --> PG
@@ -104,6 +111,7 @@ graph TB
     Prom -->|scrape /metrics| Auth
     Prom -->|scrape /metrics| Expense
     Prom -->|scrape /metrics| Finance
+    Prom -->|scrape /metrics| FX
     Prom -->|scrape /metrics| DR
     Prom --> Alert
     Grafana --> Prom
@@ -116,6 +124,8 @@ graph TB
 | Gateway → Auth Service | gRPC | Token validation on every request |
 | Gateway → Services | REST | Routed API calls with trusted user identity |
 | Finance → Expense | gRPC | Ledger writes during pro-rata application |
+| Expense / Finance → FX Service | gRPC | Currency conversion and rate snapshots |
+| FX Service → Open Exchange Rates | HTTPS | Provider rate fetches |
 | Services → Databases | SQL / native client | Data persistence |
 | Prometheus → Services | HTTP `/metrics` | Metrics collection |
 

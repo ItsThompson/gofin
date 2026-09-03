@@ -25,8 +25,10 @@ Each service is independently testable with clear boundaries. The strategy prior
 # All tests (backend + frontend)
 just test
 
-# Backend only (Go tests across all services)
+# Backend only (auth, expense, finance, fx, and gateway)
 just test-backend
+
+Datarights tests run via its own module (`cd services/datarights && go test ./...`); CI runs every workspace module by iterating `go work edit -json`.
 
 # Frontend only (via Turborepo)
 just test-frontend
@@ -101,14 +103,15 @@ func TestExpenseRepository_Integration(t *testing.T) {
 | Expense: correction logic | High | Chain creation, atomic status updates, rejection of already-corrected entries |
 | Expense: materialization | High | Active-only filtering, correction chain resolution |
 | Finance: budget lifecycle | High | Period creation, missed months, E/D/S calculation, rounding |
-| Finance: pro-rata scheduling | High | Installment math, remainder handling, year rollover, application at period creation |
+| Finance: pro-rata scheduling | High | Installment math, remainder handling, year rollover, captured-FX-snapshot application at each target period, snapshot-missing/mismatched failure handling |
 | Auth: token lifecycle | High | Generation, validation, refresh rotation, blacklisting, `tokens_revoked_at` |
 | Auth: RBAC | High | Role checking, identity assumption, audit claims |
+| FX: converter | High | USD-base formula with target minor-unit rounding, captured-snapshot conversion without a provider call, provider-failure cache fallback, static rate-1 fallback when no app ID, gRPC error mapping |
 | Access registry + resolver (`services/access`) | High | Every `Registry` route resolves to its declared level; unique IDs; gin-priority matching (static > param > wildcard) on real overlaps; unknown/wrong-method paths fall to the deny-by-default fail-safe (403); `ProxyPrefixes` cross-checks the Registry (every classified route sits under a proxied prefix and every proxied prefix is classified) |
 | Gateway: `AccessControl` middleware | High | Per-level/per-role outcomes (pass/401/403), a `Deny` (unclassified) path 403s with no token read, direct admin vs assumed `role=user` on Personal routes, header stripping, `X-Assumed-By` forwarding |
 | Finance: aggregations | Medium | Category sums, tag spending, cumulative spend |
 | Auth: password handling | Medium | Hashing, verification, strength validation |
-| Service route coverage (registry-driven) | Medium | Each service registers routes from the `services/access` Registry; a per-service test asserts `engine.Routes()` matches the Registry both ways, so adding an unclassified route fails that service's own `go test` in CI |
+| Service route coverage (registry-driven) | Medium | Each gateway-facing service registers routes from the `services/access` Registry; a per-service test asserts `engine.Routes()` matches the Registry both ways, so adding an unclassified route fails that service's own `go test` in CI. The internal-only FX Service is excluded: it exposes no gateway-proxied routes. |
 
 ### Frontend
 

@@ -15,7 +15,7 @@ import (
 )
 
 // streamRowFixtures builds n expense rows for the stream in chronological order.
-// Every row carries a tag id and a complete version-1 identity snapshot so tag
+// Every row carries a tag id and a complete identity snapshot so tag
 // resolution and formatRow run on each one, exercising the same per-row work the
 // real consumer does.
 func streamRowFixtures(n int) []*expensepb.ExpenseData {
