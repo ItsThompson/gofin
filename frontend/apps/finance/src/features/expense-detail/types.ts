@@ -8,6 +8,14 @@ export interface CorrectionState {
   clearError: () => void;
 }
 
+/** Delete-related state, available only when expense data is loaded. */
+export interface DeleteState {
+  deleteExpense: () => void;
+  deleting: boolean;
+  error: string | null;
+  clearError: () => void;
+}
+
 /** Loading expense data. */
 export interface ExpenseDetailLoading {
   status: "loading";
@@ -21,6 +29,7 @@ export interface ExpenseDetailView {
   history: Expense[];
   proRataGroup: Expense[];
   correction: CorrectionState;
+  deletion: DeleteState;
   /** Transition to correction mode. */
   startCorrection: () => void;
   refresh: () => void;
@@ -33,6 +42,7 @@ export interface ExpenseDetailCorrect {
   history: Expense[];
   proRataGroup: Expense[];
   correction: CorrectionState;
+  deletion: DeleteState;
   /** Return to detail view. */
   cancelCorrection: () => void;
   refresh: () => void;
@@ -54,4 +64,6 @@ export type ExpenseDetailState =
 export interface UseExpenseDetailOptions {
   /** Called after a correction is successfully submitted. */
   onCorrectionSuccess?: () => void;
+  /** Called after an expense is successfully soft-deleted. */
+  onDeleteSuccess?: () => void;
 }

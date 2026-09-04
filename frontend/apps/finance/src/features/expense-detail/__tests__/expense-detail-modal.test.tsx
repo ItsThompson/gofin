@@ -153,6 +153,7 @@ const defaultProps = {
   currentMonth: 5,
   onClose: vi.fn(),
   onCorrected: vi.fn(),
+  onDeleted: vi.fn(),
 };
 
 function renderModal(expenseId: string | null = "exp-1") {
@@ -168,6 +169,7 @@ describe("ExpenseDetailModal", () => {
     mockFetch.mockReset();
     defaultProps.onClose.mockReset();
     defaultProps.onCorrected.mockReset();
+    defaultProps.onDeleted.mockReset();
   });
 
   describe("detail view", () => {

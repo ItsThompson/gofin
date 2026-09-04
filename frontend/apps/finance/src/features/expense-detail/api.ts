@@ -22,4 +22,9 @@ export const expenseDetailApi = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  deleteExpense: (expenseId: string) =>
+    apiClient<void>(`/api/expenses/${expenseId}`, {
+      method: "DELETE",
+    }),
 };

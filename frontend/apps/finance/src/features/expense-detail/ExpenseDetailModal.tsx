@@ -21,6 +21,8 @@ interface ExpenseDetailModalProps {
   onClose: () => void;
   /** Called after a successful correction so the parent can refresh data. */
   onCorrected: () => void;
+  /** Called after a successful delete so the parent can refresh data. */
+  onDeleted: () => void;
 }
 
 /**
@@ -38,9 +40,11 @@ export function ExpenseDetailModal({
   currentMonth,
   onClose,
   onCorrected,
+  onDeleted,
 }: ExpenseDetailModalProps) {
   const state = useExpenseDetail(expenseId, {
     onCorrectionSuccess: onCorrected,
+    onDeleteSuccess: onDeleted,
   });
 
   return (
@@ -81,6 +85,9 @@ export function ExpenseDetailModal({
             currentYear={currentYear}
             currentMonth={currentMonth}
             onCorrectClick={state.startCorrection}
+            onDeleteClick={state.deletion.deleteExpense}
+            deleting={state.deletion.deleting}
+            deleteError={state.deletion.error}
           />
         )}
 
