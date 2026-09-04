@@ -44,18 +44,47 @@ func TestGetExpenseByIdempotencyKey_ReturnsNilWhenNotFound(t *testing.T) {
 	assert.Nil(t, expense)
 }
 
+// userFilteredFakeClient wraps fakeImmudbClient but filters its canned result
+// rows by the user_id param, so a cross-user query returns no rows, modelling
+// the real database's WHERE user_id scope.
+type userFilteredFakeClient struct {
+	result *SQLResult
+	query  string
+	params map[string]interface{}
+}
+
+func (c *userFilteredFakeClient) SQLExec(context.Context, string, map[string]interface{}) (*SQLResult, error) {
+	return &SQLResult{}, nil
+}
+
+func (c *userFilteredFakeClient) SQLQuery(_ context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+	c.query = sql
+	c.params = params
+	userID, _ := params["user_id"].(string)
+	var filtered []SQLRow
+	for _, row := range c.result.Rows {
+		// Column 1 is user_id in expenseSelectColumns order.
+		if len(row.Values) > 1 && row.Values[1].GetString() == userID {
+			filtered = append(filtered, row)
+		}
+	}
+	return &SQLResult{Rows: filtered}, nil
+}
+
 func TestGetExpenseByIdempotencyKey_ScopedByUserID(t *testing.T) {
-	// The query must carry the user_id scope so another user's row with the same
-	// key is not returned. Assert the WHERE clause and params enforce the scope.
+	// Seed a user-1 row; querying as user-2 with the same key must return nil
+	// because the lookup is scoped by user_id.
 	seed := buildTestExpense("exp-1", "user-1", "2026-05-01T10:00:00Z")
-	client := &fakeImmudbClient{result: expensesToSQLResult([]*model.Expense{seed})}
+	seed.IdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
+	client := &userFilteredFakeClient{result: expensesToSQLResult([]*model.Expense{seed})}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	repo := NewImmudbExpenseRepository(client, logger)
 
-	_, err := repo.GetExpenseByIdempotencyKey(context.Background(), "user-2", "550e8400-e29b-41d4-a716-446655440000")
+	expense, err := repo.GetExpenseByIdempotencyKey(context.Background(), "user-2", "550e8400-e29b-41d4-a716-446655440000")
 	require.NoError(t, err)
-
+	assert.Nil(t, expense, "another user's expense must not be returned")
 	assert.Equal(t, "user-2", client.params["user_id"], "lookup must be scoped to the requesting user")
+	assert.Contains(t, client.query, "WHERE user_id = @user_id AND idempotency_key = @key")
 }
 
 // --- DeactivateExpense tests ---
