@@ -72,9 +72,7 @@ export function useNewExpenseForm(
   // One idempotency key per logical submit. Generated once on mount and reused
   // across retries of the same submit; reset to a fresh UUID only after a
   // successful save so a network retry returns the already-created expense.
-  const idempotencyKeyRef = useRef<string>(
-    typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "",
-  );
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   useEffect(() => {
     setTransactionCurrency(currency);
@@ -89,8 +87,7 @@ export function useNewExpenseForm(
     expenseFields.reset({ tagId: getDefaultTagId(tags) });
     setIsProRata(false);
     setProRataMonths("");
-    idempotencyKeyRef.current =
-      typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : "";
+    idempotencyKeyRef.current = crypto.randomUUID();
   };
 
   const mutation = useFormMutation<SubmittedExpenseKind>({
@@ -192,7 +189,7 @@ export function useNewExpenseForm(
         expenseDate: fields.expenseDate,
         periodYear,
         periodMonth,
-        idempotencyKey: idempotencyKeyRef.current || undefined,
+        idempotencyKey: idempotencyKeyRef.current,
       };
       await apiClient<ExpenseResponse>("/api/expenses", {
         method: "POST",
