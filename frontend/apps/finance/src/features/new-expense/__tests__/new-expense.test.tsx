@@ -163,6 +163,9 @@ describe("NewExpenseFeature", () => {
     expect(body.expenseType).toBe("desires");
     expect(body.transactionCurrency).toBe("USD");
     expect(body.currency).toBeUndefined();
+    // The form generates an idempotency key per logical submit for dedup.
+    expect(body.idempotencyKey).toEqual(expect.any(String));
+    expect(body.idempotencyKey).toHaveLength(36);
   });
 
   it("rejects JPY decimals and keeps the field error on amount", async () => {
