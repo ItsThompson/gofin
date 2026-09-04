@@ -394,7 +394,44 @@ func TestCreateExpense_ForeignCurrencyFxUnavailableDoesNotWrite(t *testing.T) {
 	fxClient.AssertExpectations(t)
 }
 
-// TestCreateExpense_ForeignCurrencyFxClientReturnsConversionUnavailableDoesNotWrite
+// TestCreateExpense_ForeignCurrencyInvalidSourceDoesNotWrite asserts that when
+// the FX Service returns a money snapshot with an exchange_rate_source outside
+// the valid set, the service rejects it with an internal error and does not
+// write a ledger row.
+func TestCreateExpense_ForeignCurrencyInvalidSourceDoesNotWrite(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	periodClient := new(mockPeriodContextClient)
+	fxClient := new(mockFxClient)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithFxClock(repo, periodClient, fxClient, now)
+
+	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&PeriodContext{
+		PeriodID:          "period-1",
+		UserID:            "user-1",
+		Year:              2026,
+		Month:             5,
+		ReportingCurrency: "USD",
+	}, nil)
+
+	fxResp := &FxConvertResponse{
+		ConvertedAmount: 1364,
+		ExchangeRate:    "1.0912",
+		RateTimestamp:   "2026-08-14T10:00:00Z",
+		Source:          "bogus_source",
+		ExpiresAt:       "2026-08-14T11:00:00Z",
+	}
+	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(fxResp, nil)
+
+	req := validCreateRequest()
+	req.TransactionCurrencyCode = "EUR"
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
 // asserts that when the injected FxClient returns a conversion-unavailable
 // error, the service maps it to the safe CONVERSION_UNAVAILABLE REST error and
 // does not write a ledger row.
