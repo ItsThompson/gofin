@@ -71,6 +71,7 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		exchange_rate_source    VARCHAR(40),
 		exchange_rate_timestamp VARCHAR(30),
 		exchange_rate_expires_at VARCHAR(30),
+		idempotency_key         VARCHAR(36),
 		PRIMARY KEY (id)
 	);`
 
@@ -93,6 +94,7 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		`ALTER TABLE expenses ADD COLUMN exchange_rate_source VARCHAR(40);`,
 		`ALTER TABLE expenses ADD COLUMN exchange_rate_timestamp VARCHAR(30);`,
 		`ALTER TABLE expenses ADD COLUMN exchange_rate_expires_at VARCHAR(30);`,
+		`ALTER TABLE expenses ADD COLUMN idempotency_key VARCHAR(36);`,
 	}
 	for _, stmt := range reconcileColumns {
 		if _, addErr := r.client.SQLExec(ctx, stmt, nil); addErr != nil {
@@ -133,6 +135,10 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		// included so the index matches the full ORDER BY created_at ASC, id ASC
 		// tuple and rows tied on created_at seek instead of scanning+sorting.
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_created_id ON expenses (user_id, created_at, id);`,
+		// Covers the idempotency-key lookup: (user_id, idempotency_key) seek before
+		// insert. A regular (non-unique) index because immudb 1.11.0 only supports
+		// unique index creation on empty tables; the prod table has data.
+		`CREATE INDEX IF NOT EXISTS idx_expenses_user_idem ON expenses (user_id, idempotency_key);`,
 	}
 
 	for _, idx := range indexes {
@@ -157,14 +163,14 @@ func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *mo
 		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at,
 		transaction_amount, transaction_currency,
 		reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
-		exchange_rate_timestamp, exchange_rate_expires_at
+		exchange_rate_timestamp, exchange_rate_expires_at, idempotency_key
 	) VALUES (
 		@id, @user_id, @name, @expense_type, @tag_id,
 		@expense_date, @period_year, @period_month, @status, @corrects_id,
 		@is_pro_rata, @pro_rata_group, @pro_rata_index, @pro_rata_total, @created_at,
 		@transaction_amount, @transaction_currency,
 		@reporting_amount, @reporting_currency, @exchange_rate, @exchange_rate_source,
-		@exchange_rate_timestamp, @exchange_rate_expires_at
+		@exchange_rate_timestamp, @exchange_rate_expires_at, @idempotency_key
 	);`
 
 	params := map[string]interface{}{
@@ -191,6 +197,7 @@ func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *mo
 		"exchange_rate_source":     expense.ExchangeRateSource,
 		"exchange_rate_timestamp":  expense.ExchangeRateTimestamp,
 		"exchange_rate_expires_at": expense.ExchangeRateExpiresAt,
+		"idempotency_key":          expense.IdempotencyKey,
 	}
 
 	_, err := r.client.SQLExec(ctx, query, params)
@@ -286,6 +293,49 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 	return expense, nil
 }
 
+// GetExpenseByIdempotencyKey returns the expense for the given user that was
+// created with the supplied idempotency key, or nil if no such expense exists.
+func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+	query := fmt.Sprintf(`SELECT %s
+		FROM expenses
+		WHERE user_id = @user_id AND idempotency_key = @key;`, expenseSelectColumns)
+
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{
+		"user_id": userID,
+		"key":     key,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("querying expense by idempotency key: %w", err)
+	}
+
+	if len(result.Rows) == 0 {
+		return nil, nil
+	}
+
+	expense, err := r.mapRow(result.Rows[0])
+	if err != nil {
+		return nil, fmt.Errorf("mapping expense row: %w", err)
+	}
+	return expense, nil
+}
+
+// DeactivateExpense soft-deletes an active expense by flipping its status to
+// "corrected" with no replacement row. Scoped to the user. immudb's SQLExec
+// does not expose a row count; the service layer's pre-check (fetch -> 404 if
+// nil -> reject if not active) guarantees the row exists and is active before
+// this call, so a successful exec means the UPDATE ran. Returns 1 on success.
+func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
+	query := `UPDATE expenses SET status = 'corrected' WHERE id = @id AND user_id = @user_id;`
+	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{
+		"id":      id,
+		"user_id": userID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("deactivating expense: %w", err)
+	}
+	return 1, nil
+}
+
 // CountExpensesByTag returns the count of active expenses referencing the given tag
 // for a specific user. Used by the finance service to check tag usage before deletion.
 func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
@@ -359,7 +409,7 @@ func (r *ImmudbExpenseRepository) mapRow(row SQLRow) (*model.Expense, error) {
 
 // expenseColumnCount is the number of columns rowToExpense expects in a result
 // row. It must match the expenseSelectColumns list and the ExpenseData schema.
-const expenseColumnCount = 23
+const expenseColumnCount = 24
 
 // rowToExpense maps a result row to an Expense. The column order must match the
 // SELECT clause in queries. It returns an error on a short/malformed row rather
@@ -397,6 +447,7 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		ExchangeRateSource:    values[20].GetString(),
 		ExchangeRateTimestamp: values[21].GetString(),
 		ExchangeRateExpiresAt: values[22].GetString(),
+		IdempotencyKey:        values[23].GetString(),
 	}
 
 	missing := make([]string, 0, 7)
@@ -477,7 +528,7 @@ const expenseSelectColumns = `id, user_id, name, expense_type, tag_id,
 		is_pro_rata, pro_rata_group, pro_rata_index, pro_rata_total, created_at,
 		transaction_amount, transaction_currency,
 		reporting_amount, reporting_currency, exchange_rate, exchange_rate_source,
-		exchange_rate_timestamp, exchange_rate_expires_at`
+		exchange_rate_timestamp, exchange_rate_expires_at, idempotency_key`
 
 // GetCorrectionHistory returns the full correction chain for an expense.
 // It finds the root of the chain (the original entry with no corrects_id),

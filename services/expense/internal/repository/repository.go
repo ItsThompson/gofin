@@ -36,6 +36,17 @@ type ExpenseRepository interface {
 	// scoped to a user.
 	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
 
+	// GetExpenseByIdempotencyKey returns the expense for the given user that was
+	// created with the supplied idempotency key, or nil if no such expense exists.
+	// Used by the check-then-insert idempotency path in CreateExpense.
+	GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error)
+
+	// DeactivateExpense soft-deletes an active expense by flipping its status to
+	// "corrected" with no replacement row. Scoped to the user. Returns 1 on a
+	// successful exec (immudb SQLExec does not expose a row count; the service
+	// layer's pre-check guarantees the row exists and is active).
+	DeactivateExpense(ctx context.Context, id string, userID string) (int64, error)
+
 	// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
 	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
 

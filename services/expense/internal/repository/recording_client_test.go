@@ -168,6 +168,7 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 			fakeSQLValue{stringValue: e.ExchangeRateSource},
 			fakeSQLValue{stringValue: e.ExchangeRateTimestamp},
 			fakeSQLValue{stringValue: e.ExchangeRateExpiresAt},
+			fakeSQLValue{stringValue: e.IdempotencyKey},
 		}})
 	}
 	return &SQLResult{Rows: rows}

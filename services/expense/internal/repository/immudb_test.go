@@ -95,10 +95,10 @@ func TestGetExpenseByID_ShortRowReturnsErrorNotPanic(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, expense)
-	assert.Contains(t, err.Error(), "expense row has 3 values, want 23")
+	assert.Contains(t, err.Error(), "expense row has 3 values, want 24")
 }
 
-// legacyRow builds a 23-value row in expenseSelectColumns order with empty
+// legacyRow builds a 24-value row in expenseSelectColumns order with empty
 // snapshot fields, simulating a pre-cutover legacy row.
 func legacyRow() SQLRow {
 	return SQLRow{Values: []SQLValue{
@@ -125,6 +125,7 @@ func legacyRow() SQLRow {
 		fakeSQLValue{stringValue: ""}, // exchange_rate_source
 		fakeSQLValue{stringValue: ""}, // exchange_rate_timestamp
 		fakeSQLValue{stringValue: ""}, // exchange_rate_expires_at
+		fakeSQLValue{stringValue: ""}, // idempotency_key
 	}}
 }
 
@@ -258,8 +259,8 @@ func TestInitSchema_ReconcilesSnapshotColumns(t *testing.T) {
 
 	require.NoError(t, repo.InitSchema(context.Background()))
 
-	assert.Equal(t, 8, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
-		"expected one ALTER per snapshot column")
+	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
+		"expected one ALTER per snapshot/idempotency column")
 	assert.Equal(t, 2, client.countQueriesContaining("ALTER TABLE EXPENSES DROP COLUMN"),
 		"expected one DROP per legacy column")
 }
@@ -295,8 +296,8 @@ func TestInitSchema_SwallowsColumnExistsError(t *testing.T) {
 
 	require.NoError(t, repo.InitSchema(context.Background()))
 
-	assert.Equal(t, 8, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
-		"expected all 8 ADD COLUMN statements to be issued even when they fail")
+	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
+		"expected all 9 ADD COLUMN statements to be issued even when they fail")
 	assert.Equal(t, 2, client.countQueriesContaining("ALTER TABLE EXPENSES DROP COLUMN"),
 		"expected both DROP COLUMN statements to be issued even when they fail")
 }
