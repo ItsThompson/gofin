@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,89 +13,6 @@ import (
 
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
-
-type fakeSQLValue struct {
-	stringValue string
-	intValue    int64
-	boolValue   bool
-}
-
-func (value fakeSQLValue) GetString() string { return value.stringValue }
-func (value fakeSQLValue) GetInt() int64     { return value.intValue }
-func (value fakeSQLValue) GetBool() bool     { return value.boolValue }
-
-type fakeImmudbClient struct {
-	query  string
-	params map[string]interface{}
-	result *SQLResult
-}
-
-func (client *fakeImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
-	return &SQLResult{}, nil
-}
-
-func (client *fakeImmudbClient) SQLQuery(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
-	client.query = sql
-	client.params = params
-	return client.result, nil
-}
-
-func TestGetActiveExpenseSuggestionInputs_ReadsActiveRowsForUserAndMapsFields(t *testing.T) {
-	client := &fakeImmudbClient{result: &SQLResult{Rows: []SQLRow{{Values: []SQLValue{
-		fakeSQLValue{stringValue: "exp-1"},
-		fakeSQLValue{stringValue: "Groceries"},
-		fakeSQLValue{intValue: 2500},
-		fakeSQLValue{stringValue: "USD"},
-		fakeSQLValue{stringValue: "essentials"},
-		fakeSQLValue{stringValue: "tag-food"},
-		fakeSQLValue{stringValue: "2026-05-31T10:00:00Z"},
-		fakeSQLValue{stringValue: "2026-05-31"},
-		fakeSQLValue{boolValue: true},
-		fakeSQLValue{stringValue: "group-1"},
-	}}}}}
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	repo := NewImmudbExpenseRepository(client, logger)
-
-	inputs, err := repo.GetActiveExpenseSuggestionInputs(context.Background(), "user-1")
-
-	require.NoError(t, err)
-	assert.Contains(t, client.query, "WHERE user_id = @user_id")
-	assert.Contains(t, client.query, "AND status = 'active'")
-	assert.Contains(t, client.query, "ORDER BY created_at DESC, id DESC")
-	assert.Contains(t, client.query, "LIMIT @limit")
-	assert.NotContains(t, strings.ToLower(client.query), "corrected")
-	assert.Equal(t, "user-1", client.params["user_id"])
-	assert.Equal(t, expenseSuggestionInputLimit, client.params["limit"])
-	require.Len(t, inputs, 1)
-	assert.Equal(t, "exp-1", inputs[0].ID)
-	assert.Equal(t, "Groceries", inputs[0].Name)
-	assert.Equal(t, int64(2500), inputs[0].TransactionAmount)
-	assert.Equal(t, "USD", inputs[0].TransactionCurrency)
-	assert.Equal(t, "essentials", inputs[0].ExpenseType)
-	assert.Equal(t, "tag-food", inputs[0].TagID)
-	assert.Equal(t, "2026-05-31T10:00:00Z", inputs[0].CreatedAt)
-	assert.Equal(t, "2026-05-31", inputs[0].ExpenseDate)
-	assert.True(t, inputs[0].IsProRata)
-	assert.Equal(t, "group-1", inputs[0].ProRataGroup)
-}
-
-func TestGetExpenseByID_ShortRowReturnsErrorNotPanic(t *testing.T) {
-	// A malformed/short row (fewer than the 23 selected columns) must produce a
-	// wrapped error rather than an index-out-of-range panic.
-	client := &fakeImmudbClient{result: &SQLResult{Rows: []SQLRow{{Values: []SQLValue{
-		fakeSQLValue{stringValue: "exp-1"},
-		fakeSQLValue{stringValue: "user-1"},
-		fakeSQLValue{stringValue: "Groceries"},
-	}}}}}
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	repo := NewImmudbExpenseRepository(client, logger)
-
-	expense, err := repo.GetExpenseByID(context.Background(), "exp-1", "user-1")
-
-	require.Error(t, err)
-	assert.Nil(t, expense)
-	assert.Contains(t, err.Error(), "expense row has 3 values, want 24")
-}
 
 // legacyRow builds a 24-value row in expenseSelectColumns order with empty
 // snapshot fields, simulating a pre-cutover legacy row.
@@ -127,6 +43,24 @@ func legacyRow() SQLRow {
 		fakeSQLValue{stringValue: ""}, // exchange_rate_expires_at
 		fakeSQLValue{stringValue: ""}, // idempotency_key
 	}}
+}
+
+func TestGetExpenseByID_ShortRowReturnsErrorNotPanic(t *testing.T) {
+	// A malformed/short row (fewer than the 23 selected columns) must produce a
+	// wrapped error rather than an index-out-of-range panic.
+	client := &fakeImmudbClient{result: &SQLResult{Rows: []SQLRow{{Values: []SQLValue{
+		fakeSQLValue{stringValue: "exp-1"},
+		fakeSQLValue{stringValue: "user-1"},
+		fakeSQLValue{stringValue: "Groceries"},
+	}}}}}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	expense, err := repo.GetExpenseByID(context.Background(), "exp-1", "user-1")
+
+	require.Error(t, err)
+	assert.Nil(t, expense)
+	assert.Contains(t, err.Error(), "expense row has 3 values, want 24")
 }
 
 // TestRowToExpense_MissingRequiredSnapshotFieldsErrors asserts a row with empty
@@ -246,48 +180,4 @@ func TestMapRow_LogsIntegrityErrorTelemetry(t *testing.T) {
 		"integrity log must carry the expense id")
 	assert.Contains(t, buf.String(), "missing_fields",
 		"integrity log must carry the missing field names")
-}
-
-// TestInitSchema_ReconcilesSnapshotColumns asserts InitSchema issues the ALTER
-// TABLE ADD COLUMN statements for the money snapshot columns and does not fail
-// when the columns already exist (the recording client returns errors that the
-// reconcile path swallows).
-func TestInitSchema_ReconcilesSnapshotColumns(t *testing.T) {
-	client := newRecordingImmudbClient()
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	repo := NewImmudbExpenseRepository(client, logger)
-
-	require.NoError(t, repo.InitSchema(context.Background()))
-
-	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
-		"expected one ALTER per snapshot/idempotency column")
-}
-
-// addColumnFailingImmudbClient wraps the recording client and fails every
-// ALTER TABLE ADD COLUMN SQLExec with "column already exists", modelling a
-// table that already has the snapshot columns.
-type addColumnFailingImmudbClient struct {
-	*recordingImmudbClient
-}
-
-func (c *addColumnFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
-	if strings.Contains(strings.ToUpper(sql), "ALTER TABLE") {
-		c.record(sql, params)
-		return nil, errors.New("column already exists")
-	}
-	return c.recordingImmudbClient.SQLExec(ctx, sql, params)
-}
-
-// TestInitSchema_SwallowsAddColumnExistsError asserts the reconcile ALTER path
-// is idempotent: when the snapshot columns already exist, InitSchema still
-// succeeds and issues all ADD COLUMN statements.
-func TestInitSchema_SwallowsAddColumnExistsError(t *testing.T) {
-	client := &addColumnFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	repo := NewImmudbExpenseRepository(client, logger)
-
-	require.NoError(t, repo.InitSchema(context.Background()))
-
-	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
-		"expected all 9 ADD COLUMN statements to be issued even when they fail")
 }
