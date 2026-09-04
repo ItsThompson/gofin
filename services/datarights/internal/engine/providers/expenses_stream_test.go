@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // streamRowFixtures builds n expense rows for the stream in chronological order.
@@ -37,7 +38,7 @@ func streamRowFixtures(n int) []*expensepb.ExpenseData {
 			ReportingAmount:       amount,
 			ReportingCurrency:     "USD",
 			ExchangeRate:          "1",
-			ExchangeRateSource:    "identity",
+			ExchangeRateSource:    exchangesource.Identity,
 			ExchangeRateTimestamp: fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
 		}
 	}

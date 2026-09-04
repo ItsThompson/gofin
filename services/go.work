@@ -18,5 +18,6 @@ use (
 	./pgutil
 	./serverkit
 	./shared/currency
+	./shared/exchangesource
 	./shared/validator
 )

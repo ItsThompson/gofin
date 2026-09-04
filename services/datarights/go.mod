@@ -15,6 +15,7 @@ require (
 	github.com/ItsThompson/gofin/services/pgutil v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
+	github.com/ItsThompson/gofin/services/shared/exchangesource v0.0.0-00010101000000-000000000000
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/prometheus/client_golang v1.22.0
@@ -54,6 +55,8 @@ replace github.com/ItsThompson/gofin/services/pgutil => ../pgutil
 replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
 
 replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
+
+replace github.com/ItsThompson/gofin/services/shared/exchangesource => ../shared/exchangesource
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect

@@ -1,11 +1,5 @@
 package model
 
-// Exchange rate snapshot sources.
-const (
-	ExchangeSourceIdentity          = "identity"
-	ExchangeSourceOpenExchangeRates = "open_exchange_rates"
-)
-
 // Expense represents an entry in the immutable expense ledger.
 type Expense struct {
 	ID                  string `json:"id"`

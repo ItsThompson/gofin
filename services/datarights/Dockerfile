@@ -22,6 +22,7 @@ COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY httpx/go.mod httpx/go.sum* ./httpx/
 COPY pgutil/go.mod pgutil/go.sum* ./pgutil/
 COPY shared/currency/go.mod ./shared/currency/
+COPY shared/exchangesource/go.mod ./shared/exchangesource/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd datarights && GOWORK=off go mod download
 
@@ -41,6 +42,7 @@ COPY errkit/ ./errkit/
 COPY httpx/ ./httpx/
 COPY pgutil/ ./pgutil/
 COPY shared/currency/ ./shared/currency/
+COPY shared/exchangesource/ ./shared/exchangesource/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

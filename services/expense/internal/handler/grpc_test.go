@@ -19,6 +19,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 func newTestGRPCHandler(repo *mockExpenseRepository) *GRPCHandler {
@@ -110,7 +111,7 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 		ReportingAmount:     1200,
 		ReportingCurrency:   "EUR",
 		ExchangeRate:        "1",
-		ExchangeRateSource:  model.ExchangeSourceIdentity,
+		ExchangeRateSource:  exchangesource.Identity,
 	}, nil)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
@@ -134,7 +135,7 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	assert.Equal(t, int64(1200), resp.GetExpense().GetReportingAmount())
 	assert.Equal(t, "EUR", resp.GetExpense().GetReportingCurrency())
 	assert.Equal(t, "1", resp.GetExpense().GetExchangeRate())
-	assert.Equal(t, model.ExchangeSourceIdentity, resp.GetExpense().GetExchangeRateSource())
+	assert.Equal(t, exchangesource.Identity, resp.GetExpense().GetExchangeRateSource())
 	repo.AssertExpectations(t)
 }
 
@@ -165,7 +166,7 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 		ReportingAmount:       500,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1",
-		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: "2026-05-01T10:00:00Z",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
@@ -275,7 +276,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		ConvertedAmount: 1364,
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}, nil)
 
@@ -294,7 +295,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
@@ -325,7 +326,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	assert.Equal(t, int64(1364), exp.GetReportingAmount())
 	assert.Equal(t, "USD", exp.GetReportingCurrency())
 	assert.Equal(t, "1.0912", exp.GetExchangeRate())
-	assert.Equal(t, "open_exchange_rates", exp.GetExchangeRateSource())
+	assert.Equal(t, exchangesource.OpenExchangeRates, exp.GetExchangeRateSource())
 	assert.Equal(t, "2026-08-14T10:00:00Z", exp.GetExchangeRateTimestamp())
 	assert.Equal(t, "2026-08-14T11:00:00Z", exp.GetExchangeRateExpiresAt())
 }

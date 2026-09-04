@@ -20,6 +20,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // mockExpenseRepository implements repository.ExpenseRepository for handler tests.
@@ -242,7 +243,7 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 		ReportingAmount:     450,
 		ReportingCurrency:   "EUR",
 		ExchangeRate:        "1",
-		ExchangeRateSource:  model.ExchangeSourceIdentity,
+		ExchangeRateSource:  exchangesource.Identity,
 	}, nil)
 
 	r := setupTestRouterWithPeriod(repo, periodClient)
@@ -269,7 +270,7 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	assert.Equal(t, int64(450), resp.Expense.ReportingAmount)
 	assert.Equal(t, "EUR", resp.Expense.ReportingCurrency)
 	assert.Equal(t, "1", resp.Expense.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceIdentity, resp.Expense.ExchangeRateSource)
+	assert.Equal(t, exchangesource.Identity, resp.Expense.ExchangeRateSource)
 	repo.AssertExpectations(t)
 }
 
@@ -300,7 +301,7 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 		ConvertedAmount: 1364,
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}, nil)
 
@@ -319,7 +320,7 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
@@ -347,7 +348,7 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 	assert.Equal(t, int64(1364), resp.Expense.ReportingAmount)
 	assert.Equal(t, "USD", resp.Expense.ReportingCurrency)
 	assert.Equal(t, "1.0912", resp.Expense.ExchangeRate)
-	assert.Equal(t, "open_exchange_rates", resp.Expense.ExchangeRateSource)
+	assert.Equal(t, exchangesource.OpenExchangeRates, resp.Expense.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", resp.Expense.ExchangeRateTimestamp)
 	assert.Equal(t, "2026-08-14T11:00:00Z", resp.Expense.ExchangeRateExpiresAt)
 }
@@ -688,7 +689,7 @@ func TestCorrectExpenseHandler_Success(t *testing.T) {
 		ReportingAmount:       500,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1",
-		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: "2026-05-01T10:00:00Z",
 	}
 

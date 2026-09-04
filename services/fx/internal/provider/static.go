@@ -5,6 +5,7 @@ import (
 	"time"
 
 	sharedcurrency "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
 )
@@ -29,7 +30,7 @@ func (p *StaticProvider) FetchLatest(_ context.Context, expiresAt time.Time) (*m
 
 	now := p.now().UTC()
 	return &model.ProviderSnapshot{
-		Source:        model.SourceOpenExchangeRates,
+		Source:        exchangesource.OpenExchangeRates,
 		BaseCurrency:  model.BaseCurrencyUSD,
 		RateTimestamp: now.Format(time.RFC3339),
 		CapturedAt:    now.Format(time.RFC3339),

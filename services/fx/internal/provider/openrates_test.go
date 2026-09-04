@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 func TestOpenRatesProvider_FetchLatestParsesUSDSnapshot(t *testing.T) {
@@ -28,7 +29,7 @@ func TestOpenRatesProvider_FetchLatestParsesUSDSnapshot(t *testing.T) {
 	snapshot, err := provider.FetchLatest(context.Background(), now.Add(time.Hour))
 
 	require.NoError(t, err)
-	assert.Equal(t, model.SourceOpenExchangeRates, snapshot.Source)
+	assert.Equal(t, exchangesource.OpenExchangeRates, snapshot.Source)
 	assert.Equal(t, model.BaseCurrencyUSD, snapshot.BaseCurrency)
 	assert.Equal(t, "2026-08-15T12:00:00Z", snapshot.CapturedAt)
 	assert.Equal(t, "2026-08-15T13:00:00Z", snapshot.ExpiresAt)

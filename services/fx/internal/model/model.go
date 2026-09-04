@@ -13,13 +13,11 @@ const (
 )
 
 const (
-	SourceOpenExchangeRates = "open_exchange_rates"
-	SourceIdentity          = "identity"
-	BaseCurrencyUSD         = "USD"
-	CacheStatusHit          = "hit"
-	CacheStatusMiss         = "miss"
-	CacheStatusProvided     = "provided_snapshot"
-	SnapshotVersion         = 1
+	BaseCurrencyUSD     = "USD"
+	CacheStatusHit      = "hit"
+	CacheStatusMiss     = "miss"
+	CacheStatusProvided = "provided_snapshot"
+	SnapshotVersion     = 1
 )
 
 type Error struct {

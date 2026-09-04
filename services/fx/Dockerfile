@@ -10,6 +10,7 @@ COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY healthcheck/go.mod ./healthcheck/
 COPY metrics/go.mod metrics/go.sum* ./metrics/
 COPY shared/currency/go.mod ./shared/currency/
+COPY shared/exchangesource/go.mod ./shared/exchangesource/
 COPY serverkit/go.mod serverkit/go.sum* ./serverkit/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd fx && GOWORK=off go mod download
@@ -21,6 +22,7 @@ COPY errkit/ ./errkit/
 COPY healthcheck/ ./healthcheck/
 COPY metrics/ ./metrics/
 COPY shared/currency/ ./shared/currency/
+COPY shared/exchangesource/ ./shared/exchangesource/
 COPY serverkit/ ./serverkit/
 
 RUN --mount=type=cache,target=/go/pkg/mod \

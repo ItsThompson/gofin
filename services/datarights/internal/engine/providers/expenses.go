@@ -9,22 +9,23 @@ import (
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // Compile-time check that ExpensesProvider implements DataProvider.
 var _ engine.DataProvider = (*ExpensesProvider)(nil)
+
+// migrationSource is the exchange_rate_source value on legacy rows imported
+// during data migration. It is a datarights-internal concern: the expense and
+// fx services never produce or interpret this value, so it does not belong in
+// the shared exchangesource contract.
+const migrationSource = "migration"
 
 // expensesPageSize is the server-side keyset page size requested from the
 // StreamAllUserExpenses RPC. It caps how many rows the server materializes per
 // page, so consuming the stream incrementally keeps peak memory at
 // O(expensesPageSize) instead of O(total rows).
 const expensesPageSize = 100
-
-const (
-	exchangeSourceIdentity          = "identity"
-	exchangeSourceOpenExchangeRates = "open_exchange_rates"
-	exchangeSourceMigration         = "migration"
-)
 
 // ExpensesProvider streams all user expenses with pagination and resolves tag
 // names from a tag map derived once from the shared per-job finance response.
@@ -205,12 +206,13 @@ type expenseSnapshot struct {
 // Identity and open_exchange_rates rows must carry a complete snapshot; a
 // missing required field fails the export rather than emitting incorrect money
 // facts. Legacy migration rows are normalized to the period's reporting
-// currency using the per-job period currency map.
+// currency using the per-job period currency map and emitted with
+// exchange_rate_source = identity.
 func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseSnapshot, error) {
 	source := exp.GetExchangeRateSource()
 
 	switch source {
-	case exchangeSourceIdentity, exchangeSourceOpenExchangeRates:
+	case exchangesource.Identity, exchangesource.OpenExchangeRates:
 		if exp.GetTransactionAmount() == 0 || exp.GetTransactionCurrency() == "" ||
 			exp.GetReportingAmount() == 0 || exp.GetReportingCurrency() == "" ||
 			exp.GetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
@@ -226,7 +228,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 
-	case exchangeSourceMigration:
+	case migrationSource:
 		currency := p.resolvePeriodCurrency(exp)
 		if currency == "" {
 			return expenseSnapshot{}, fmt.Errorf("expense %s legacy row has no resolvable period reporting currency", exp.GetId())
@@ -237,7 +239,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			reportingAmount:       exp.GetReportingAmount(),
 			reportingCurrency:     currency,
 			exchangeRate:          "1",
-			exchangeRateSource:    exchangeSourceMigration,
+			exchangeRateSource:    exchangesource.Identity,
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 

@@ -18,6 +18,7 @@ import (
 	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/serverkit"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -649,7 +650,7 @@ func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency,
 		ReportingAmount:       amount,
 		ReportingCurrency:     reportingCurrency,
 		ExchangeRate:          "1",
-		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: timestamp,
 	}
 }

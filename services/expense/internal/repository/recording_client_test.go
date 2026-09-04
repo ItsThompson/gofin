@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // recordedQuery captures a single SQL statement issued through the client, so
@@ -195,7 +196,7 @@ func buildTestExpense(id, userID, createdAt string) *model.Expense {
 		ReportingAmount:       1000,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1",
-		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: createdAt,
 	}
 }
