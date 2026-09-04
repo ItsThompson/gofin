@@ -130,9 +130,9 @@ func legacyRow() SQLRow {
 }
 
 // TestRowToExpense_MissingRequiredSnapshotFieldsErrors asserts a row with empty
-// snapshot fields is rejected as a data-integrity error. The mc/03 migration
-// backfilled every legacy row, so a row still missing a required field on read
-// must not be synthesized.
+// snapshot fields is rejected as a data-integrity error. Rows written after the
+// multi-currency cutover always populate them, so a row still missing a
+// required field on read must not be synthesized.
 func TestRowToExpense_MissingRequiredSnapshotFieldsErrors(t *testing.T) {
 	expense, err := rowToExpense(legacyRow())
 	require.Error(t, err)
@@ -261,36 +261,28 @@ func TestInitSchema_ReconcilesSnapshotColumns(t *testing.T) {
 
 	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
 		"expected one ALTER per snapshot/idempotency column")
-	assert.Equal(t, 2, client.countQueriesContaining("ALTER TABLE EXPENSES DROP COLUMN"),
-		"expected one DROP per legacy column")
 }
 
-// alterFailingImmudbClient wraps the recording client and fails every ALTER TABLE
-// SQLExec with the idempotent error for that statement kind: ADD COLUMN returns
-// "column already exists" and DROP COLUMN returns "column does not exist",
-// modelling a table that already has the snapshot columns and no longer has the
-// legacy columns.
-type alterFailingImmudbClient struct {
+// addColumnFailingImmudbClient wraps the recording client and fails every
+// ALTER TABLE ADD COLUMN SQLExec with "column already exists", modelling a
+// table that already has the snapshot columns.
+type addColumnFailingImmudbClient struct {
 	*recordingImmudbClient
 }
 
-func (c *alterFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+func (c *addColumnFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
 	if strings.Contains(strings.ToUpper(sql), "ALTER TABLE") {
 		c.record(sql, params)
-		if strings.Contains(strings.ToUpper(sql), "DROP COLUMN") {
-			return nil, errors.New("column does not exist")
-		}
 		return nil, errors.New("column already exists")
 	}
 	return c.recordingImmudbClient.SQLExec(ctx, sql, params)
 }
 
-// TestInitSchema_SwallowsColumnExistsError asserts the reconcile ALTER path is
-// idempotent: when the snapshot columns already exist and the legacy columns
-// are already dropped, InitSchema still succeeds and issues all ADD and DROP
-// statements.
-func TestInitSchema_SwallowsColumnExistsError(t *testing.T) {
-	client := &alterFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
+// TestInitSchema_SwallowsAddColumnExistsError asserts the reconcile ALTER path
+// is idempotent: when the snapshot columns already exist, InitSchema still
+// succeeds and issues all ADD COLUMN statements.
+func TestInitSchema_SwallowsAddColumnExistsError(t *testing.T) {
+	client := &addColumnFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	repo := NewImmudbExpenseRepository(client, logger)
 
@@ -298,34 +290,4 @@ func TestInitSchema_SwallowsColumnExistsError(t *testing.T) {
 
 	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
 		"expected all 9 ADD COLUMN statements to be issued even when they fail")
-	assert.Equal(t, 2, client.countQueriesContaining("ALTER TABLE EXPENSES DROP COLUMN"),
-		"expected both DROP COLUMN statements to be issued even when they fail")
-}
-
-// dropFailingImmudbClient wraps the recording client and fails DROP COLUMN
-// statements with a non-idempotent error, modelling a real DROP failure that
-// must not be swallowed.
-type dropFailingImmudbClient struct {
-	*recordingImmudbClient
-}
-
-func (c *dropFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
-	if strings.Contains(strings.ToUpper(sql), "DROP COLUMN") {
-		c.record(sql, params)
-		return nil, errors.New("permission denied")
-	}
-	return c.recordingImmudbClient.SQLExec(ctx, sql, params)
-}
-
-// TestInitSchema_DropColumnFailureFailsFast asserts a DROP COLUMN error other
-// than "column does not exist" is returned, not swallowed, so a real DROP
-// failure cannot leave the legacy NOT NULL columns in place.
-func TestInitSchema_DropColumnFailureFailsFast(t *testing.T) {
-	client := &dropFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	repo := NewImmudbExpenseRepository(client, logger)
-
-	err := repo.InitSchema(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "dropping legacy column")
 }

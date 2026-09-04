@@ -106,27 +106,6 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		}
 	}
 
-	// Drop the legacy amount/currency columns from tables created before the
-	// multi-currency cutover. This is temporary: remove it once prod has booted
-	// with the new schema and the pre-cutover tables have been migrated.
-	dropColumns := []string{
-		`ALTER TABLE expenses DROP COLUMN amount;`,
-		`ALTER TABLE expenses DROP COLUMN currency;`,
-	}
-	for _, stmt := range dropColumns {
-		if _, dropErr := r.client.SQLExec(ctx, stmt, nil); dropErr != nil {
-			if strings.Contains(strings.ToLower(dropErr.Error()), "does not exist") {
-				// Expected when the column was already dropped (idempotent drop).
-				r.logger.Debug("legacy column drop skipped (already dropped)",
-					slog.String("statement", stmt),
-					slog.String("error", dropErr.Error()),
-				)
-				continue
-			}
-			return fmt.Errorf("dropping legacy column: %w", dropErr)
-		}
-	}
-
 	indexes := []string{
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,
@@ -414,9 +393,9 @@ const expenseColumnCount = 24
 // SELECT clause in queries. It returns an error on a short/malformed row rather
 // than panicking on an out-of-range index.
 //
-// Every row must carry the required snapshot fields. The mc/03 migration
-// backfilled legacy rows, so a row still missing a required field on read is a
-// data-integrity error.
+// Every row must carry the required snapshot fields. Rows written after the
+// multi-currency cutover always populate them, so a row still missing a
+// required field on read is a data-integrity error.
 func rowToExpense(row SQLRow) (*model.Expense, error) {
 	values := row.Values
 	if len(values) < expenseColumnCount {

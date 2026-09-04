@@ -7,7 +7,7 @@ Reporting currency is period-scoped, not user-scoped. Each budget period stores 
 - **Period reporting currency**: chosen at period creation, immutable after creation.
 - **Default settings currency**: seeds future periods only. Changing it never mutates existing periods.
 - **Expense money snapshots**: each ledger row stores transaction money, reporting money, and the conversion facts that connect them.
-- **Legacy migration snapshots**: rows with `exchange_rate_source = migration` carry rate `1` and source `migration`. No code path writes migration snapshots; the datarights export normalizes these rows to the period reporting currency.
+- **Legacy identity-equivalent snapshots**: historical rows carry rate `1` with no provider conversion. No code path writes these snapshots; the datarights export normalizes them to the period reporting currency.
 - **Pro-rata captured snapshots**: schedules store a full USD-based provider rate map so future installments never re-rate against live rates.
 
 The shared currency catalog (`services/shared/currency/catalog.go`) is the source of truth for supported codes and minor-unit digits. The finance service serves it to the frontend through `GET /api/finance/currencies`. See [Architecture](architecture.md) for service boundaries.
@@ -135,7 +135,7 @@ The immutable expense ledger. Key design points:
 - **String dates**: immudb's SQL dialect has limited date type support, so dates are stored as ISO strings and parsed at the application layer.
 - **Tag by ID**: tags live in PostgreSQL (finance schema). The ledger stores the tag UUID, not the tag name, so tag renames do not affect historical data.
 - **Money snapshots**: every row carries `transaction_amount`, `transaction_currency`, `reporting_amount`, `reporting_currency`, `exchange_rate`, `exchange_rate_source`, `exchange_rate_timestamp`, and optional `exchange_rate_expires_at`.
-- **Legacy migration snapshots**: rows with `exchange_rate_source = migration` carry rate `1`. A row missing a required snapshot field fails the read with a `SnapshotIntegrityError` (logged as `expense_snapshot_integrity_error`); the read is not synthesized.
+- **Legacy identity-equivalent snapshots**: historical rows carry rate `1` with no provider conversion. A row missing a required snapshot field fails the read with a `SnapshotIntegrityError` (logged as `expense_snapshot_integrity_error`); the read is not synthesized.
 
 Snapshot sources:
 
@@ -143,7 +143,6 @@ Snapshot sources:
 |--------|---------|
 | `identity` | Same-currency write or correction; rate `1`, no provider call |
 | `open_exchange_rates` | Foreign-currency write or correction through FX Service |
-| `migration` | Legacy row with no provider conversion; rate `1`. No code path writes this source. The datarights export normalizes these rows to the period reporting currency. |
 
 ### Correction Chain
 
@@ -174,8 +173,8 @@ Currency has one reporting authority: the budget period. The shared catalog is t
 
 **PostgreSQL**: managed by [golang-migrate](https://github.com/golang-migrate/migrate). Files follow `000001_description.up.sql` / `.down.sql` naming. Each service runs its own migrations against its schema.
 
-**immudb**: no migration tool. The expense service creates tables and indexes at startup via `CREATE TABLE IF NOT EXISTS`. The startup schema reconcile adds the nullable money-snapshot columns to existing tables and drops the legacy `amount` and `currency` columns. Rows with `exchange_rate_source = migration` carry rate `1`; reads of rows missing required snapshot fields fail with a `SnapshotIntegrityError` instead of synthesizing values.
+**immudb**: no migration tool. The expense service creates tables and indexes at startup via `CREATE TABLE IF NOT EXISTS`. The startup schema reconcile adds the nullable money-snapshot columns to existing tables. Historical rows carry identity-equivalent snapshots with rate `1`; reads of rows missing required snapshot fields fail with a `SnapshotIntegrityError` instead of synthesizing values.
 
 ### Historical Migration Semantics
 
-Historical periods were backfilled by migration `000006_add_period_reporting_currency.up.sql`: `reporting_currency` was set with precedence `default_settings.currency` -> `auth.users.currency` -> `USD`, and audit rows were recorded in `finance.period_reporting_currency_migration_report` for the auth-fallback and USD-fallback cases. The column is `NOT NULL` with a `CHECK` limiting it to the ten catalog codes. Historical expenses carry `migration`/`identity` snapshots with rate `1`, so no provider conversion is performed; the datarights export normalizes legacy rows to the period reporting currency.
+Historical periods were backfilled by migration `000006_add_period_reporting_currency.up.sql`: `reporting_currency` was set with precedence `default_settings.currency` -> `auth.users.currency` -> `USD`, and audit rows were recorded in `finance.period_reporting_currency_migration_report` for the auth-fallback and USD-fallback cases. The column is `NOT NULL` with a `CHECK` limiting it to the ten catalog codes. Historical expenses carry identity-equivalent snapshots with rate `1`, so no provider conversion is performed; the datarights export normalizes legacy rows to the period reporting currency.
