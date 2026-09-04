@@ -47,7 +47,6 @@ export function DetailView({
     expense.periodYear === currentYear &&
     expense.periodMonth === currentMonth;
   const canCorrect = expense.status === "active" && isCurrentPeriod;
-  const canDelete = canCorrect;
   const hasCorrections = history.length > 1;
 
   const correctedBy =
@@ -223,7 +222,7 @@ export function DetailView({
         </div>
       )}
 
-      {canDelete && (
+      {canCorrect && (
         <div className="pt-2">
           <Button
             variant="destructive"
@@ -233,12 +232,6 @@ export function DetailView({
             <Trash2 className="size-4" />
             Delete
           </Button>
-        </div>
-      )}
-
-      {deleteError && (
-        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-          {deleteError}
         </div>
       )}
 
@@ -252,6 +245,11 @@ export function DetailView({
             <p className="text-sm text-muted-foreground">
               Are you sure you want to delete this expense? This cannot be undone from the UI.
             </p>
+            {deleteError && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                {deleteError}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
@@ -263,6 +261,7 @@ export function DetailView({
               <Button
                 variant="destructive"
                 onClick={() => {
+                  setConfirmDelete(false);
                   onDeleteClick();
                 }}
                 disabled={deleting}
