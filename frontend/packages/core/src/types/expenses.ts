@@ -39,6 +39,8 @@ export interface Expense {
   exchangeRateTimestamp?: string;
   /** Present for live provider snapshots with cache expiry metadata. */
   exchangeRateExpiresAt?: string;
+  /** Optional, client-generated UUID scoped by user_id for idempotent create. */
+  idempotencyKey?: string;
 }
 
 /** Response from POST /api/expenses. */
@@ -58,6 +60,8 @@ export interface CreateExpenseRequest {
   expenseDate: string;
   periodYear: number;
   periodMonth: number;
+  /** Optional, client-generated UUID scoped by user_id for idempotent create. */
+  idempotencyKey?: string;
 }
 
 /** Request body for POST /api/expenses/:id/correct. */

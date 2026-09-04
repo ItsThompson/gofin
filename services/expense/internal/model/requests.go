@@ -19,6 +19,11 @@ type CreateExpenseRequest struct {
 	ProRataGroup string `json:"proRataGroup,omitempty"`
 	ProRataIndex int32  `json:"proRataIndex,omitempty"`
 	ProRataTotal int32  `json:"proRataTotal,omitempty"`
+
+	// IdempotencyKey is an optional, client-generated UUID scoped by user_id.
+	// A retry with the same key returns the already-created expense instead of
+	// inserting a duplicate. Empty means "no idempotency" (current behavior).
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
 }
 
 // GetExpensesRequest holds the parsed query parameters for GET /api/expenses.

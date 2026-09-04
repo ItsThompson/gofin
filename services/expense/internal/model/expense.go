@@ -33,6 +33,11 @@ type Expense struct {
 	ExchangeRateSource    string `json:"exchangeRateSource"`
 	ExchangeRateTimestamp string `json:"exchangeRateTimestamp"`
 	ExchangeRateExpiresAt string `json:"exchangeRateExpiresAt,omitempty"`
+
+	// IdempotencyKey is an optional, client-generated UUID scoped by user_id.
+	// A retry with the same key returns the already-created expense instead of
+	// inserting a duplicate. Empty means "no idempotency" (current behavior).
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
 }
 
 // ValidExpenseTypes is the set of allowed expense_type values.
