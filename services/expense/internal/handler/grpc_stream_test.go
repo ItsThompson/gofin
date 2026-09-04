@@ -51,7 +51,7 @@ func streamRow(id, createdAt string) *model.Expense {
 		Name:        "Expense " + id,
 		ExpenseType: "essentials",
 		TagID:       "tag-1",
-		ExpenseDate: "2026-05-01",
+		ExpenseDateIso: "2026-05-01",
 		PeriodYear:  2026,
 		PeriodMonth: 5,
 		Status:      "active",

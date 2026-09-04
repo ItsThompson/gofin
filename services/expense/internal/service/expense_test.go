@@ -166,11 +166,11 @@ func requireAPIError(t *testing.T, err error) *apierr.Error {
 func validCreateRequest() *model.CreateExpenseRequest {
 	return &model.CreateExpenseRequest{
 		Name:                          "Grocery shopping",
-		Amount:                        2500,
-		TransactionCurrency:           "USD",
+		AmountInTransactionCurrencyMinorUnits:                        2500,
+		TransactionCurrencyCode:           "USD",
 		ExpenseType:                   "essentials",
 		TagID:                         "tag-food",
-		ExpenseDate:                   "2026-05-03",
+		ExpenseDateIso:                   "2026-05-03",
 		PeriodYear:                    2026,
 		PeriodMonth:                   5,
 		ClientGeneratedIdempotencyKey: validTestUUID,
@@ -185,11 +185,11 @@ func TestCreateExpense_Success(t *testing.T) {
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 		// Same-currency (USD/USD) create writes an identity snapshot.
-		return expense.TransactionCurrency == "USD" &&
-			expense.TransactionAmount == 2500 &&
-			expense.ReportingAmount == 2500 &&
-			expense.ReportingCurrency == "USD" &&
-			expense.ExchangeRate == "1" &&
+		return expense.TransactionCurrencyCode == "USD" &&
+			expense.OriginalTransactionAmountInMinorUnits == 2500 &&
+			expense.ReportingAmountInMinorUnits == 2500 &&
+			expense.ReportingCurrencyCode == "USD" &&
+			expense.SourceToTargetExchangeRate == "1" &&
 			expense.ExchangeRateSource == exchangesource.Identity
 	})).Return(&model.Expense{
 		ID:                 "exp-123",
@@ -197,14 +197,14 @@ func TestCreateExpense_Success(t *testing.T) {
 		Name:               "Grocery shopping",
 		ExpenseType:        "essentials",
 		TagID:              "tag-food",
-		ExpenseDate:        "2026-05-03",
+		ExpenseDateIso:        "2026-05-03",
 		PeriodYear:         2026,
 		PeriodMonth:        5,
 		Status:             "active",
-		TransactionAmount:  2500,
-		ReportingAmount:    2500,
-		ReportingCurrency:  "USD",
-		ExchangeRate:       "1",
+		OriginalTransactionAmountInMinorUnits:  2500,
+		ReportingAmountInMinorUnits:    2500,
+		ReportingCurrencyCode:  "USD",
+		SourceToTargetExchangeRate:       "1",
 		ExchangeRateSource: exchangesource.Identity,
 	}, nil)
 
@@ -213,7 +213,7 @@ func TestCreateExpense_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "exp-123", expense.ID)
 	assert.Equal(t, "user-1", expense.UserID)
-	assert.Equal(t, int64(2500), expense.TransactionAmount)
+	assert.Equal(t, int64(2500), expense.OriginalTransactionAmountInMinorUnits)
 	assert.Equal(t, "essentials", expense.ExpenseType)
 	assert.Equal(t, "active", expense.Status)
 }
@@ -306,25 +306,25 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		ID:                    "exp-fx-1",
 		UserID:                "user-1",
 		Name:                  "Grocery shopping",
-		TransactionCurrency:   "EUR",
+		TransactionCurrencyCode:   "EUR",
 		ExpenseType:           "essentials",
 		TagID:                 "tag-food",
-		ExpenseDate:           "2026-05-03",
+		ExpenseDateIso:           "2026-05-03",
 		PeriodYear:            2026,
 		PeriodMonth:           5,
 		Status:                "active",
-		TransactionAmount:     1250,
-		ReportingAmount:       1364,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1.0912",
+		OriginalTransactionAmountInMinorUnits:     1250,
+		ReportingAmountInMinorUnits:       1364,
+		ReportingCurrencyCode:     "USD",
+		SourceToTargetExchangeRate:          "1.0912",
 		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
-		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+		ExchangeRateCacheExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
 
 	req := validCreateRequest()
-	req.Amount = 1250
-	req.TransactionCurrency = "EUR"
+	req.AmountInTransactionCurrencyMinorUnits = 1250
+	req.TransactionCurrencyCode = "EUR"
 
 	resp, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -332,29 +332,29 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	require.NotNil(t, captured)
 
 	// The ledger row stores transaction amount/currency unchanged.
-	assert.Equal(t, int64(1250), captured.TransactionAmount)
-	assert.Equal(t, "EUR", captured.TransactionCurrency)
+	assert.Equal(t, int64(1250), captured.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "EUR", captured.TransactionCurrencyCode)
 
 	// The ledger row stores the FX-converted reporting amount/currency.
-	assert.Equal(t, int64(1364), captured.ReportingAmount)
-	assert.Equal(t, "USD", captured.ReportingCurrency)
+	assert.Equal(t, int64(1364), captured.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", captured.ReportingCurrencyCode)
 
 	// The ledger row stores the FX snapshot metadata.
-	assert.Equal(t, "1.0912", captured.ExchangeRate)
+	assert.Equal(t, "1.0912", captured.SourceToTargetExchangeRate)
 	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", captured.ExchangeRateTimestamp)
-	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateExpiresAt)
+	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateCacheExpiresAt)
 
 	// The response returns both transaction and reporting money fields plus
 	// snapshot metadata.
-	assert.Equal(t, int64(1250), resp.TransactionAmount)
-	assert.Equal(t, "EUR", resp.TransactionCurrency)
-	assert.Equal(t, int64(1364), resp.ReportingAmount)
-	assert.Equal(t, "USD", resp.ReportingCurrency)
-	assert.Equal(t, "1.0912", resp.ExchangeRate)
+	assert.Equal(t, int64(1250), resp.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "EUR", resp.TransactionCurrencyCode)
+	assert.Equal(t, int64(1364), resp.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", resp.ReportingCurrencyCode)
+	assert.Equal(t, "1.0912", resp.SourceToTargetExchangeRate)
 	assert.Equal(t, exchangesource.OpenExchangeRates, resp.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", resp.ExchangeRateTimestamp)
-	assert.Equal(t, "2026-08-14T11:00:00Z", resp.ExchangeRateExpiresAt)
+	assert.Equal(t, "2026-08-14T11:00:00Z", resp.ExchangeRateCacheExpiresAt)
 
 	fxClient.AssertExpectations(t)
 	repo.AssertExpectations(t)
@@ -383,7 +383,7 @@ func TestCreateExpense_ForeignCurrencyFxUnavailableDoesNotWrite(t *testing.T) {
 	})).Return(nil, conversionUnavailableError())
 
 	req := validCreateRequest()
-	req.TransactionCurrency = "EUR"
+	req.TransactionCurrencyCode = "EUR"
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -416,7 +416,7 @@ func TestCreateExpense_ForeignCurrencyFxClientReturnsConversionUnavailableDoesNo
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, conversionUnavailableError())
 
 	req := validCreateRequest()
-	req.TransactionCurrency = "GBP"
+	req.TransactionCurrencyCode = "GBP"
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -445,7 +445,7 @@ func TestCreateExpense_UnsupportedTransactionCurrencyDoesNotCallFx(t *testing.T)
 	}, nil)
 
 	req := validCreateRequest()
-	req.TransactionCurrency = "ZZZ"
+	req.TransactionCurrencyCode = "ZZZ"
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -477,7 +477,7 @@ func TestCreateExpense_UnsupportedReportingCurrencyDefaultsToInternal(t *testing
 	}, nil)
 
 	req := validCreateRequest()
-	req.TransactionCurrency = ""
+	req.TransactionCurrencyCode = ""
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -510,7 +510,7 @@ func TestCreateExpense_ForeignCurrencyFxServerFailureWrapsErrorWithCurrencyPair(
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, apierr.Internal("currency conversion failed internally"))
 
 	req := validCreateRequest()
-	req.TransactionCurrency = "EUR"
+	req.TransactionCurrencyCode = "EUR"
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -543,7 +543,7 @@ func TestCreateExpense_ForeignCurrencyFxClientRejectionReturnsUnwrapped(t *testi
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, apierr.Validation("The FX service rejected the conversion amount", nil))
 
 	req := validCreateRequest()
-	req.TransactionCurrency = "EUR"
+	req.TransactionCurrencyCode = "EUR"
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -597,17 +597,17 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 		ID:                  "exp-xyz",
 		UserID:              "user-1",
 		Name:                "Grocery shopping",
-		TransactionCurrency: "USD",
+		TransactionCurrencyCode: "USD",
 		ExpenseType:         "essentials",
 		TagID:               "tag-food",
-		ExpenseDate:         "2026-05-03",
+		ExpenseDateIso:         "2026-05-03",
 		PeriodYear:          2026,
 		PeriodMonth:         5,
 		Status:              "active",
-		TransactionAmount:   2500,
-		ReportingAmount:     2500,
-		ReportingCurrency:   "USD",
-		ExchangeRate:        "1",
+		OriginalTransactionAmountInMinorUnits:   2500,
+		ReportingAmountInMinorUnits:     2500,
+		ReportingCurrencyCode:   "USD",
+		SourceToTargetExchangeRate:        "1",
 		ExchangeRateSource:  exchangesource.Identity,
 	}
 	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
@@ -620,19 +620,19 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 	// The expense passed to the repository carries the full identity snapshot.
-	assert.Equal(t, int64(2500), captured.TransactionAmount)
-	assert.Equal(t, "USD", captured.TransactionCurrency)
-	assert.Equal(t, int64(2500), captured.ReportingAmount)
-	assert.Equal(t, "USD", captured.ReportingCurrency)
-	assert.Equal(t, "1", captured.ExchangeRate)
+	assert.Equal(t, int64(2500), captured.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "USD", captured.TransactionCurrencyCode)
+	assert.Equal(t, int64(2500), captured.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", captured.ReportingCurrencyCode)
+	assert.Equal(t, "1", captured.SourceToTargetExchangeRate)
 	assert.Equal(t, exchangesource.Identity, captured.ExchangeRateSource)
 	assert.NotEmpty(t, captured.ExchangeRateTimestamp)
-	assert.Empty(t, captured.ExchangeRateExpiresAt)
+	assert.Empty(t, captured.ExchangeRateCacheExpiresAt)
 	// Response carries the canonical transaction and reporting money fields.
-	assert.Equal(t, int64(2500), resp.ReportingAmount)
-	assert.Equal(t, "USD", resp.ReportingCurrency)
-	assert.Equal(t, int64(2500), resp.TransactionAmount)
-	assert.Equal(t, "USD", resp.TransactionCurrency)
+	assert.Equal(t, int64(2500), resp.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", resp.ReportingCurrencyCode)
+	assert.Equal(t, int64(2500), resp.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "USD", resp.TransactionCurrencyCode)
 }
 
 func TestCreateExpense_MissingPeriodDoesNotWrite(t *testing.T) {
@@ -704,17 +704,17 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 			if tt.expectRepositoryCall {
 				repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
 					// Identity snapshot for same-currency writes.
-					return expense.TransactionCurrency == tt.expectedCurrency &&
-						expense.TransactionAmount == int64(2500) &&
-						expense.ReportingAmount == int64(2500) &&
-						expense.ReportingCurrency == reportingCurrency &&
-						expense.ExchangeRate == "1" &&
+					return expense.TransactionCurrencyCode == tt.expectedCurrency &&
+						expense.OriginalTransactionAmountInMinorUnits == int64(2500) &&
+						expense.ReportingAmountInMinorUnits == int64(2500) &&
+						expense.ReportingCurrencyCode == reportingCurrency &&
+						expense.SourceToTargetExchangeRate == "1" &&
 						expense.ExchangeRateSource == exchangesource.Identity
-				})).Return(&model.Expense{ID: "exp-123", TransactionCurrency: tt.expectedCurrency, Status: "active"}, nil)
+				})).Return(&model.Expense{ID: "exp-123", TransactionCurrencyCode: tt.expectedCurrency, Status: "active"}, nil)
 			}
 
 			req := validCreateRequest()
-			req.TransactionCurrency = tt.transactionCurrency
+			req.TransactionCurrencyCode = tt.transactionCurrency
 
 			expense, err := svc.CreateExpense(context.Background(), "user-1", req)
 			if tt.expectedErrorCode != "" {
@@ -725,7 +725,7 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectedCurrency, expense.TransactionCurrency)
+			assert.Equal(t, tt.expectedCurrency, expense.TransactionCurrencyCode)
 			repo.AssertExpectations(t)
 		})
 	}
@@ -746,7 +746,7 @@ func TestCreateExpense_AmountMustBePositive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := validCreateRequest()
-			req.Amount = tt.amount
+			req.AmountInTransactionCurrencyMinorUnits = tt.amount
 
 			_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -765,7 +765,7 @@ func TestCreateExpense_RequiredFields(t *testing.T) {
 	}{
 		{"missing name", func(req *model.CreateExpenseRequest) { req.Name = "" }},
 		{"missing tagId", func(req *model.CreateExpenseRequest) { req.TagID = "" }},
-		{"missing expenseDate", func(req *model.CreateExpenseRequest) { req.ExpenseDate = "" }},
+		{"missing expenseDate", func(req *model.CreateExpenseRequest) { req.ExpenseDateIso = "" }},
 		{"zero periodYear", func(req *model.CreateExpenseRequest) { req.PeriodYear = 0 }},
 		{"zero periodMonth", func(req *model.CreateExpenseRequest) { req.PeriodMonth = 0 }},
 		{"periodMonth 13", func(req *model.CreateExpenseRequest) { req.PeriodMonth = 13 }},
@@ -843,7 +843,7 @@ func TestCreateExpense_InvalidDateFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := validCreateRequest()
-			req.ExpenseDate = tt.date
+			req.ExpenseDateIso = tt.date
 
 			_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -991,18 +991,18 @@ func activeExpenseInCurrentPeriod(now time.Time) *model.Expense {
 		ID:                    "exp-original",
 		UserID:                "user-1",
 		Name:                  "Coffee",
-		TransactionCurrency:   "USD",
+		TransactionCurrencyCode:   "USD",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
-		ExpenseDate:           now.Format("2006-01-02"),
+		ExpenseDateIso:           now.Format("2006-01-02"),
 		PeriodYear:            int32(now.Year()),
 		PeriodMonth:           int32(now.Month()),
 		Status:                "active",
 		CreatedAt:             now.Format(time.RFC3339),
-		TransactionAmount:     500,
-		ReportingAmount:       500,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1",
+		OriginalTransactionAmountInMinorUnits:     500,
+		ReportingAmountInMinorUnits:       500,
+		ReportingCurrencyCode:     "USD",
+		SourceToTargetExchangeRate:          "1",
 		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: now.Format(time.RFC3339),
 	}
@@ -1011,10 +1011,10 @@ func activeExpenseInCurrentPeriod(now time.Time) *model.Expense {
 func validCorrectRequest() *model.CorrectExpenseRequest {
 	return &model.CorrectExpenseRequest{
 		Name:        "Updated Coffee",
-		Amount:      600,
+		AmountInTransactionCurrencyMinorUnits:      600,
 		ExpenseType: "desires",
 		TagID:       "tag-food",
-		ExpenseDate: "2026-05-03",
+		ExpenseDateIso: "2026-05-03",
 	}
 }
 
@@ -1044,41 +1044,41 @@ func TestCorrectExpense_Success(t *testing.T) {
 			correction := args.Get(2).(*model.Expense)
 			// Verify correction fields
 			assert.Equal(t, "Updated Coffee", correction.Name)
-			assert.Equal(t, int64(600), correction.TransactionAmount)
+			assert.Equal(t, int64(600), correction.OriginalTransactionAmountInMinorUnits)
 			assert.Equal(t, "active", correction.Status)
 			assert.Equal(t, "exp-original", correction.CorrectsID)
-			assert.Equal(t, "USD", correction.TransactionCurrency)
+			assert.Equal(t, "USD", correction.TransactionCurrencyCode)
 			assert.Equal(t, original.PeriodYear, correction.PeriodYear)
 			assert.Equal(t, original.PeriodMonth, correction.PeriodMonth)
 			assert.NotEmpty(t, correction.ID)
 			assert.NotEqual(t, original.ID, correction.ID)
 			// The correction carries an identity snapshot in the inherited
 			// transaction currency (foreign-currency corrections are not supported).
-			assert.Equal(t, int64(600), correction.TransactionAmount)
-			assert.Equal(t, int64(600), correction.ReportingAmount)
-			assert.Equal(t, "USD", correction.ReportingCurrency)
-			assert.Equal(t, "1", correction.ExchangeRate)
+			assert.Equal(t, int64(600), correction.OriginalTransactionAmountInMinorUnits)
+			assert.Equal(t, int64(600), correction.ReportingAmountInMinorUnits)
+			assert.Equal(t, "USD", correction.ReportingCurrencyCode)
+			assert.Equal(t, "1", correction.SourceToTargetExchangeRate)
 			assert.Equal(t, exchangesource.Identity, correction.ExchangeRateSource)
 			assert.Equal(t, now.Format(time.RFC3339), correction.ExchangeRateTimestamp)
-			assert.Empty(t, correction.ExchangeRateExpiresAt)
+			assert.Empty(t, correction.ExchangeRateCacheExpiresAt)
 		}).
 		Return(&model.Expense{
 			ID:                  "exp-correction",
 			UserID:              "user-1",
 			Name:                "Updated Coffee",
-			TransactionCurrency: "USD",
+			TransactionCurrencyCode: "USD",
 			ExpenseType:         "desires",
 			TagID:               "tag-food",
-			ExpenseDate:         "2026-05-03",
+			ExpenseDateIso:         "2026-05-03",
 			PeriodYear:          2026,
 			PeriodMonth:         5,
 			Status:              "active",
 			CorrectsID:          "exp-original",
 			CreatedAt:           "2026-05-03T10:00:00Z",
-			TransactionAmount:   600,
-			ReportingAmount:     600,
-			ReportingCurrency:   "USD",
-			ExchangeRate:        "1",
+			OriginalTransactionAmountInMinorUnits:   600,
+			ReportingAmountInMinorUnits:     600,
+			ReportingCurrencyCode:   "USD",
+			SourceToTargetExchangeRate:        "1",
 			ExchangeRateSource:  exchangesource.Identity,
 		}, nil)
 
@@ -1088,10 +1088,10 @@ func TestCorrectExpense_Success(t *testing.T) {
 	assert.Equal(t, "exp-correction", result.ID)
 	assert.Equal(t, "active", result.Status)
 	assert.Equal(t, "exp-original", result.CorrectsID)
-	assert.Equal(t, int64(600), result.TransactionAmount)
-	assert.Equal(t, "USD", result.TransactionCurrency)
-	assert.Equal(t, int64(600), result.ReportingAmount)
-	assert.Equal(t, "USD", result.ReportingCurrency)
+	assert.Equal(t, int64(600), result.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "USD", result.TransactionCurrencyCode)
+	assert.Equal(t, int64(600), result.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", result.ReportingCurrencyCode)
 	repo.AssertExpectations(t)
 }
 
@@ -1125,7 +1125,7 @@ func TestCorrectExpense_PeriodLocked(t *testing.T) {
 		Name:        "Old Coffee",
 		ExpenseType: "desires",
 		TagID:       "tag-food",
-		ExpenseDate: "2026-04-15",
+		ExpenseDateIso: "2026-04-15",
 		PeriodYear:  2026,
 		PeriodMonth: 4, // Past period
 		Status:      "active",
@@ -1175,11 +1175,11 @@ func TestCorrectExpense_ValidationErrors(t *testing.T) {
 		field  string
 	}{
 		{"missing name", func(req *model.CorrectExpenseRequest) { req.Name = "" }, "name"},
-		{"zero amount", func(req *model.CorrectExpenseRequest) { req.Amount = 0 }, "amount"},
+		{"zero amount", func(req *model.CorrectExpenseRequest) { req.AmountInTransactionCurrencyMinorUnits = 0 }, "amountInTransactionCurrencyMinorUnits"},
 		{"invalid type", func(req *model.CorrectExpenseRequest) { req.ExpenseType = "luxury" }, "expenseType"},
 		{"missing tagId", func(req *model.CorrectExpenseRequest) { req.TagID = "" }, "tagId"},
-		{"missing date", func(req *model.CorrectExpenseRequest) { req.ExpenseDate = "" }, "expenseDate"},
-		{"invalid date format", func(req *model.CorrectExpenseRequest) { req.ExpenseDate = "05/03/2026" }, "expenseDate"},
+		{"missing date", func(req *model.CorrectExpenseRequest) { req.ExpenseDateIso = "" }, "expenseDateIso"},
+		{"invalid date format", func(req *model.CorrectExpenseRequest) { req.ExpenseDateIso = "05/03/2026" }, "expenseDateIso"},
 	}
 
 	for _, tt := range tests {
@@ -1247,43 +1247,43 @@ func TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t
 		ID:                    "exp-correction",
 		UserID:                "user-1",
 		Name:                  "Updated Coffee",
-		TransactionCurrency:   "EUR",
+		TransactionCurrencyCode:   "EUR",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
-		ExpenseDate:           "2026-05-03",
+		ExpenseDateIso:           "2026-05-03",
 		PeriodYear:            2026,
 		PeriodMonth:           5,
 		Status:                "active",
 		CorrectsID:            "exp-original",
 		CreatedAt:             requestedAt,
-		TransactionAmount:     600,
-		ReportingAmount:       655,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1.0912",
+		OriginalTransactionAmountInMinorUnits:     600,
+		ReportingAmountInMinorUnits:       655,
+		ReportingCurrencyCode:     "USD",
+		SourceToTargetExchangeRate:          "1.0912",
 		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
-		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+		ExchangeRateCacheExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
 
 	req := validCorrectRequest()
-	req.TransactionCurrency = "EUR"
+	req.TransactionCurrencyCode = "EUR"
 
 	resp, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", req)
 
 	require.NoError(t, err)
 	require.NotNil(t, captured)
 
-	assert.Equal(t, "EUR", captured.TransactionCurrency)
-	assert.Equal(t, "USD", captured.ReportingCurrency)
-	assert.Equal(t, int64(600), captured.TransactionAmount)
-	assert.Equal(t, int64(655), captured.ReportingAmount)
-	assert.Equal(t, "1.0912", captured.ExchangeRate)
+	assert.Equal(t, "EUR", captured.TransactionCurrencyCode)
+	assert.Equal(t, "USD", captured.ReportingCurrencyCode)
+	assert.Equal(t, int64(600), captured.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, int64(655), captured.ReportingAmountInMinorUnits)
+	assert.Equal(t, "1.0912", captured.SourceToTargetExchangeRate)
 	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", captured.ExchangeRateTimestamp)
-	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateExpiresAt)
+	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateCacheExpiresAt)
 
-	assert.Equal(t, int64(655), resp.ReportingAmount)
-	assert.Equal(t, "USD", resp.ReportingCurrency)
+	assert.Equal(t, int64(655), resp.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", resp.ReportingCurrencyCode)
 
 	fxClient.AssertExpectations(t)
 	repo.AssertExpectations(t)
@@ -1316,7 +1316,7 @@ func TestCorrectExpense_ForeignCurrencyFxUnavailableDoesNotCorrect(t *testing.T)
 	})).Return(nil, conversionUnavailableError())
 
 	req := validCorrectRequest()
-	req.TransactionCurrency = "EUR"
+	req.TransactionCurrencyCode = "EUR"
 
 	_, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", req)
 
@@ -1651,7 +1651,7 @@ func TestDeleteExpense_PeriodLocked(t *testing.T) {
 		Name:        "Old Coffee",
 		ExpenseType: "desires",
 		TagID:       "tag-food",
-		ExpenseDate: "2026-04-15",
+		ExpenseDateIso: "2026-04-15",
 		PeriodYear:  2026,
 		PeriodMonth: 4,
 		Status:      "active",

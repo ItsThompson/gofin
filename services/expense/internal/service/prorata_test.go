@@ -93,10 +93,10 @@ func TestCreateProRataInstallment_ForeignCurrencyUsesCapturedSnapshot(t *testing
 	assert.Equal(t, "group-1", captured.ProRataGroup)
 	assert.Equal(t, int32(1), captured.ProRataIndex)
 	assert.Equal(t, int32(3), captured.ProRataTotal)
-	assert.Equal(t, "EUR", captured.TransactionCurrency)
-	assert.Equal(t, int64(3334), captured.TransactionAmount)
-	assert.Equal(t, "USD", captured.ReportingCurrency)
-	assert.Equal(t, int64(3624), captured.ReportingAmount)
+	assert.Equal(t, "EUR", captured.TransactionCurrencyCode)
+	assert.Equal(t, int64(3334), captured.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "USD", captured.ReportingCurrencyCode)
+	assert.Equal(t, int64(3624), captured.ReportingAmountInMinorUnits)
 	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-05-15T10:00:00Z", captured.ExchangeRateTimestamp)
 
@@ -131,7 +131,7 @@ func TestCreateProRataInstallment_SameCurrencyStillUsesSnapshotSource(t *testing
 	require.NotNil(t, captured)
 	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-05-15T10:00:00Z", captured.ExchangeRateTimestamp)
-	assert.Equal(t, int64(3334), captured.ReportingAmount)
+	assert.Equal(t, int64(3334), captured.ReportingAmountInMinorUnits)
 }
 
 func TestCreateProRataInstallment_MismatchedContextUser(t *testing.T) {
@@ -321,11 +321,11 @@ func TestCreateProRataInstallment_DifferentTargetCurrencyUsesCapturedSnapshot(t 
 	require.NotNil(t, captured)
 	// The applied expense reports in the target period currency while the
 	// transaction currency (captured schedule context) is preserved.
-	assert.Equal(t, "USD", captured.TransactionCurrency)
-	assert.Equal(t, "EUR", captured.ReportingCurrency)
-	assert.Equal(t, int64(3334), captured.TransactionAmount)
-	assert.Equal(t, int64(3067), captured.ReportingAmount)
-	assert.Equal(t, "0.92", captured.ExchangeRate)
+	assert.Equal(t, "USD", captured.TransactionCurrencyCode)
+	assert.Equal(t, "EUR", captured.ReportingCurrencyCode)
+	assert.Equal(t, int64(3334), captured.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, int64(3067), captured.ReportingAmountInMinorUnits)
+	assert.Equal(t, "0.92", captured.SourceToTargetExchangeRate)
 }
 
 // TestCreateProRataInstallment_CapturedSnapshotMissingTargetCurrencyRejects

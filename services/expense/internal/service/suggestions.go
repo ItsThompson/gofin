@@ -81,8 +81,8 @@ func (s *ExpenseService) aggregateExpenseSuggestions(inputs []*model.ExpenseSugg
 		bucket, weight := recencyBucket(group.latest.CreatedAt, s.clock())
 		suggestions = append(suggestions, &model.ExpenseSuggestion{
 			Name:                name,
-			TransactionAmount:   group.latest.TransactionAmount,
-			TransactionCurrency: group.latest.TransactionCurrency,
+			OriginalTransactionAmountInMinorUnits:   group.latest.TransactionAmount,
+			TransactionCurrencyCode: group.latest.TransactionCurrency,
 			ExpenseType:         group.latest.ExpenseType,
 			TagID:               group.latest.TagID,
 			Frequency:           frequency,

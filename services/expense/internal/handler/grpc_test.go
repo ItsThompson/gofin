@@ -101,16 +101,16 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
-		return expense.TransactionCurrency == "EUR"
+		return expense.TransactionCurrencyCode == "EUR"
 	})).Return(&model.Expense{
 		ID:                  "exp-1",
 		UserID:              "user-1",
-		TransactionCurrency: "EUR",
+		TransactionCurrencyCode: "EUR",
 		Status:              "active",
-		TransactionAmount:   1200,
-		ReportingAmount:     1200,
-		ReportingCurrency:   "EUR",
-		ExchangeRate:        "1",
+		OriginalTransactionAmountInMinorUnits:   1200,
+		ReportingAmountInMinorUnits:     1200,
+		ReportingCurrencyCode:   "EUR",
+		SourceToTargetExchangeRate:        "1",
 		ExchangeRateSource:  exchangesource.Identity,
 	}, nil)
 
@@ -154,18 +154,18 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 		ID:                    "exp-original",
 		UserID:                "user-1",
 		Name:                  "Coffee",
-		TransactionCurrency:   "USD",
+		TransactionCurrencyCode:   "USD",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
-		ExpenseDate:           "2026-05-01",
+		ExpenseDateIso:           "2026-05-01",
 		PeriodYear:            2026,
 		PeriodMonth:           5,
 		Status:                "active",
 		CreatedAt:             "2026-05-01T10:00:00Z",
-		TransactionAmount:     500,
-		ReportingAmount:       500,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1",
+		OriginalTransactionAmountInMinorUnits:     500,
+		ReportingAmountInMinorUnits:       500,
+		ReportingCurrencyCode:     "USD",
+		SourceToTargetExchangeRate:          "1",
 		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: "2026-05-01T10:00:00Z",
 	}
@@ -179,15 +179,15 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 	}, nil)
 
 	repo.On("CorrectExpense", mock.Anything, original, mock.MatchedBy(func(correction *model.Expense) bool {
-		return correction.TransactionCurrency == "USD"
+		return correction.TransactionCurrencyCode == "USD"
 	})).Return(&model.Expense{
 		ID:                  "exp-correction",
 		UserID:              "user-1",
 		Name:                "Updated Coffee",
-		TransactionCurrency: "USD",
+		TransactionCurrencyCode: "USD",
 		ExpenseType:         "desires",
 		TagID:               "tag-food",
-		ExpenseDate:         "2026-05-01",
+		ExpenseDateIso:         "2026-05-01",
 		PeriodYear:          2026,
 		PeriodMonth:         5,
 		Status:              "active",
@@ -284,20 +284,20 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		ID:                    "exp-fx-1",
 		UserID:                "user-1",
 		Name:                  "Cafe",
-		TransactionCurrency:   "EUR",
+		TransactionCurrencyCode:   "EUR",
 		ExpenseType:           "desires",
 		TagID:                 "tag-food",
-		ExpenseDate:           "2026-05-03",
+		ExpenseDateIso:           "2026-05-03",
 		PeriodYear:            2026,
 		PeriodMonth:           5,
 		Status:                "active",
-		TransactionAmount:     1250,
-		ReportingAmount:       1364,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1.0912",
+		OriginalTransactionAmountInMinorUnits:     1250,
+		ReportingAmountInMinorUnits:       1364,
+		ReportingCurrencyCode:     "USD",
+		SourceToTargetExchangeRate:          "1.0912",
 		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
-		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+		ExchangeRateCacheExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

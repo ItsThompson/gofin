@@ -58,11 +58,11 @@ func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
 func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CreateExpense(ctx, req.GetUserId(), &model.CreateExpenseRequest{
 		Name:                          req.GetName(),
-		Amount:                        req.GetAmount(),
-		TransactionCurrency:           req.GetTransactionCurrency(),
+		AmountInTransactionCurrencyMinorUnits:                        req.GetAmount(),
+		TransactionCurrencyCode:           req.GetTransactionCurrency(),
 		ExpenseType:                   req.GetExpenseType(),
 		TagID:                         req.GetTagId(),
-		ExpenseDate:                   req.GetExpenseDate(),
+		ExpenseDateIso:                   req.GetExpenseDate(),
 		PeriodYear:                    req.GetPeriodYear(),
 		PeriodMonth:                   req.GetPeriodMonth(),
 		IsProRata:                     req.GetIsProRata(),
@@ -165,11 +165,11 @@ func (h *GRPCHandler) GetExpense(ctx context.Context, req *pb.GetExpenseRequest)
 func (h *GRPCHandler) CorrectExpense(ctx context.Context, req *pb.CorrectExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CorrectExpense(ctx, req.GetUserId(), req.GetExpenseId(), &model.CorrectExpenseRequest{
 		Name:                req.GetName(),
-		Amount:              req.GetAmount(),
-		TransactionCurrency: req.GetTransactionCurrency(),
+		AmountInTransactionCurrencyMinorUnits:              req.GetAmount(),
+		TransactionCurrencyCode: req.GetTransactionCurrency(),
 		ExpenseType:         req.GetExpenseType(),
 		TagID:               req.GetTagId(),
-		ExpenseDate:         req.GetExpenseDate(),
+		ExpenseDateIso:         req.GetExpenseDate(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCorrect, req.GetUserId())
@@ -244,10 +244,10 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 		Id:                    e.ID,
 		UserId:                e.UserID,
 		Name:                  e.Name,
-		TransactionCurrency:   e.TransactionCurrency,
+		TransactionCurrency:   e.TransactionCurrencyCode,
 		ExpenseType:           e.ExpenseType,
 		TagId:                 e.TagID,
-		ExpenseDate:           e.ExpenseDate,
+		ExpenseDate:           e.ExpenseDateIso,
 		PeriodYear:            e.PeriodYear,
 		PeriodMonth:           e.PeriodMonth,
 		Status:                e.Status,
@@ -257,13 +257,13 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 		ProRataIndex:          e.ProRataIndex,
 		ProRataTotal:          e.ProRataTotal,
 		CreatedAt:             e.CreatedAt,
-		TransactionAmount:     e.TransactionAmount,
-		ReportingAmount:       e.ReportingAmount,
-		ReportingCurrency:     e.ReportingCurrency,
-		ExchangeRate:          e.ExchangeRate,
+		TransactionAmount:     e.OriginalTransactionAmountInMinorUnits,
+		ReportingAmount:       e.ReportingAmountInMinorUnits,
+		ReportingCurrency:     e.ReportingCurrencyCode,
+		ExchangeRate:          e.SourceToTargetExchangeRate,
 		ExchangeRateSource:    e.ExchangeRateSource,
 		ExchangeRateTimestamp: e.ExchangeRateTimestamp,
-		ExchangeRateExpiresAt: e.ExchangeRateExpiresAt,
+		ExchangeRateExpiresAt: e.ExchangeRateCacheExpiresAt,
 	}
 }
 
