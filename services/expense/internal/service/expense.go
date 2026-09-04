@@ -65,20 +65,12 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
-	if req.ClientGeneratedIdempotencyKey != "" {
-		existing, idemErr := s.repo.GetExpenseByIdempotencyKey(ctx, userID, req.ClientGeneratedIdempotencyKey)
-		if idemErr != nil {
-			return nil, fmt.Errorf("checking idempotency key: %w", idemErr)
-		}
-		if existing != nil {
-			s.logger.Info("expense created (idempotent replay)",
-				slog.String("method", "CreateExpense"),
-				slog.String("user_id", userID),
-				slog.String("expense_id", existing.ID),
-				slog.Bool("replayed", true),
-			)
-			return existing, nil
-		}
+	replayed, err := s.lookupIdempotentReplay(ctx, userID, req.ClientGeneratedIdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	if replayed != nil {
+		return replayed, nil
 	}
 
 	period, err := s.periodClient.GetPeriodContext(ctx, userID, req.PeriodYear, req.PeriodMonth)
@@ -622,6 +614,30 @@ func (s *ExpenseService) handleFxConversionFailure(err error, transactionCurrenc
 		transactionCurrency: transactionCurrency,
 		reportingCurrency:   reportingCurrency,
 	}
+}
+
+// lookupIdempotentReplay returns the previously-stored expense when the client-
+// generated idempotency key matches an existing row, signalling an idempotent
+// replay. It returns (nil, nil) when the key is absent or no match exists, so the
+// caller proceeds with a fresh create.
+func (s *ExpenseService) lookupIdempotentReplay(ctx context.Context, userID, key string) (*model.Expense, error) {
+	if key == "" {
+		return nil, nil
+	}
+	existing, err := s.repo.GetExpenseByIdempotencyKey(ctx, userID, key)
+	if err != nil {
+		return nil, fmt.Errorf("checking idempotency key: %w", err)
+	}
+	if existing == nil {
+		return nil, nil
+	}
+	s.logger.Info("expense created (idempotent replay)",
+		slog.String("method", "CreateExpense"),
+		slog.String("user_id", userID),
+		slog.String("expense_id", existing.ID),
+		slog.Bool("replayed", true),
+	)
+	return existing, nil
 }
 
 // buildIdentitySnapshot builds the money snapshot for a same-currency expense:
