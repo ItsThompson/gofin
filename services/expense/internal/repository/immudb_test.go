@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 type fakeSQLValue struct {
@@ -146,13 +146,13 @@ func TestRowToExpense_MissingRequiredSnapshotFieldsErrors(t *testing.T) {
 func TestRowToExpense_IdentitySnapshotRowUsesExplicitFields(t *testing.T) {
 	row := legacyRow()
 	// Overwrite the snapshot columns with explicit identity values.
-	row.Values[15] = fakeSQLValue{intValue: 1250}                            // transaction_amount
-	row.Values[16] = fakeSQLValue{stringValue: "EUR"}                        // transaction_currency
-	row.Values[17] = fakeSQLValue{intValue: 1364}                            // reporting_amount
-	row.Values[18] = fakeSQLValue{stringValue: "USD"}                        // reporting_currency
-	row.Values[19] = fakeSQLValue{stringValue: "1.0912"}                     // exchange_rate
-	row.Values[20] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity} // exchange_rate_source
-	row.Values[21] = fakeSQLValue{stringValue: "2026-08-14T10:00:00Z"}       // exchange_rate_timestamp
+	row.Values[15] = fakeSQLValue{intValue: 1250}                       // transaction_amount
+	row.Values[16] = fakeSQLValue{stringValue: "EUR"}                   // transaction_currency
+	row.Values[17] = fakeSQLValue{intValue: 1364}                       // reporting_amount
+	row.Values[18] = fakeSQLValue{stringValue: "USD"}                   // reporting_currency
+	row.Values[19] = fakeSQLValue{stringValue: "1.0912"}                // exchange_rate
+	row.Values[20] = fakeSQLValue{stringValue: exchangesource.Identity} // exchange_rate_source
+	row.Values[21] = fakeSQLValue{stringValue: "2026-08-14T10:00:00Z"}  // exchange_rate_timestamp
 
 	expense, err := rowToExpense(row)
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestRowToExpense_IdentitySnapshotRowUsesExplicitFields(t *testing.T) {
 	assert.Equal(t, int64(1364), expense.ReportingAmount)
 	assert.Equal(t, "USD", expense.ReportingCurrency)
 	assert.Equal(t, "1.0912", expense.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceIdentity, expense.ExchangeRateSource)
+	assert.Equal(t, exchangesource.Identity, expense.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", expense.ExchangeRateTimestamp)
 }
 
@@ -191,7 +191,7 @@ func TestRowToExpense_MissingExchangeRateTimestampReturnsIntegrityError(t *testi
 	raw.Values[17] = fakeSQLValue{intValue: 2500}
 	raw.Values[18] = fakeSQLValue{stringValue: "USD"}
 	raw.Values[19] = fakeSQLValue{stringValue: "1"}
-	raw.Values[20] = fakeSQLValue{stringValue: model.ExchangeSourceIdentity}
+	raw.Values[20] = fakeSQLValue{stringValue: exchangesource.Identity}
 	raw.Values[21] = fakeSQLValue{stringValue: ""} // exchange_rate_timestamp missing
 
 	_, err := rowToExpense(raw)

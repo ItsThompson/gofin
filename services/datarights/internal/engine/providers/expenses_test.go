@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // buildExpenseSnapshot returns a complete identity expense snapshot,
@@ -29,7 +30,7 @@ func buildExpenseSnapshot(id string, amount int64, currency string, overrides ..
 		ReportingAmount:       amount,
 		ReportingCurrency:     currency,
 		ExchangeRate:          "1",
-		ExchangeRateSource:    "identity",
+		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: "2026-05-01T12:00:00Z",
 	}
 	for _, override := range overrides {
@@ -193,7 +194,7 @@ func TestExpensesProvider_Collect_ForeignCurrencyRow(t *testing.T) {
 				ReportingAmount:       1364,
 				ReportingCurrency:     "USD",
 				ExchangeRate:          "1.0912",
-				ExchangeRateSource:    "open_exchange_rates",
+				ExchangeRateSource:    exchangesource.OpenExchangeRates,
 				ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 			},
 		},
@@ -209,7 +210,7 @@ func TestExpensesProvider_Collect_ForeignCurrencyRow(t *testing.T) {
 	assert.Equal(t, "13.64", rows[0][4])  // reporting_amount in USD
 	assert.Equal(t, "USD", rows[0][5])    // reporting_currency
 	assert.Equal(t, "1.0912", rows[0][6]) // exchange_rate
-	assert.Equal(t, "open_exchange_rates", rows[0][7])
+	assert.Equal(t, exchangesource.OpenExchangeRates, rows[0][7])
 	assert.Equal(t, "2026-08-14T10:00:00Z", rows[0][8])
 }
 
@@ -254,7 +255,7 @@ func TestExpensesProvider_Collect_LegacyRowNormalizesToPeriodCurrency(t *testing
 				ReportingAmount:       4599,
 				ReportingCurrency:     "EUR",
 				ExchangeRate:          "1",
-				ExchangeRateSource:    "migration",
+				ExchangeRateSource:    exchangesource.Migration,
 				ExchangeRateTimestamp: "2026-05-01T12:00:00Z",
 			},
 		},
@@ -270,7 +271,7 @@ func TestExpensesProvider_Collect_LegacyRowNormalizesToPeriodCurrency(t *testing
 	assert.Equal(t, "45.99", rows[0][4])
 	assert.Equal(t, "USD", rows[0][5])
 	assert.Equal(t, "1", rows[0][6])
-	assert.Equal(t, "migration", rows[0][7])
+	assert.Equal(t, exchangesource.Migration, rows[0][7])
 	assert.Equal(t, "2026-05-01T12:00:00Z", rows[0][8])
 }
 
@@ -294,7 +295,7 @@ func TestExpensesProvider_Collect_LegacyRowFallsBackToStreamCurrency(t *testing.
 				ReportingAmount:       4599,
 				ReportingCurrency:     "USD",
 				ExchangeRate:          "1",
-				ExchangeRateSource:    "migration",
+				ExchangeRateSource:    exchangesource.Migration,
 				ExchangeRateTimestamp: "2026-05-01T12:00:00Z",
 			},
 		},
@@ -317,19 +318,19 @@ func TestExpensesProvider_Collect_IncompleteSnapshotFails(t *testing.T) {
 	expenseClient := &mockExpenseServiceClient{
 		streamRows: []*expensepb.ExpenseData{
 			{
-				Id:                   "exp-bad",
-				Name:                 "Broken",
-				ExpenseType:          "essentials",
-				TagId:                "tag-1",
-				PeriodYear:           2026,
-				PeriodMonth:          5,
-				Status:               "active",
-				TransactionCurrency:  "USD",
-				TransactionAmount:    4599,
-				ReportingAmount:      4599,
-				ReportingCurrency:    "USD",
-				ExchangeRate:         "1",
-				ExchangeRateSource:   "identity",
+				Id:                  "exp-bad",
+				Name:                "Broken",
+				ExpenseType:         "essentials",
+				TagId:               "tag-1",
+				PeriodYear:          2026,
+				PeriodMonth:         5,
+				Status:              "active",
+				TransactionCurrency: "USD",
+				TransactionAmount:   4599,
+				ReportingAmount:     4599,
+				ReportingCurrency:   "USD",
+				ExchangeRate:        "1",
+				ExchangeRateSource:  exchangesource.Identity,
 			},
 		},
 	}

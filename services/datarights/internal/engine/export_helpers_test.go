@@ -18,6 +18,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/perf"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // financeSpy is a finance client that records how many times each RPC is
@@ -167,17 +168,17 @@ func cannedExpensePages() []*expensepb.ExpenseListResponse {
 					Id: "exp-1", Name: "Groceries", TransactionAmount: 4599, TransactionCurrency: "USD",
 					ExpenseType: "essentials", TagId: "tag-1", ExpenseDate: "2026-05-01",
 					PeriodYear: 2026, PeriodMonth: 5, Status: "active",
-					CreatedAt:           "2026-05-01T12:00:00Z",
+					CreatedAt:       "2026-05-01T12:00:00Z",
 					ReportingAmount: 4599, ReportingCurrency: "USD",
-					ExchangeRate: "1", ExchangeRateSource: "identity", ExchangeRateTimestamp: "2026-05-01T12:00:00Z",
+					ExchangeRate: "1", ExchangeRateSource: exchangesource.Identity, ExchangeRateTimestamp: "2026-05-01T12:00:00Z",
 				},
 				{
 					Id: "exp-2", Name: "Bus pass", TransactionAmount: 3000, TransactionCurrency: "USD",
 					ExpenseType: "essentials", TagId: "tag-2", ExpenseDate: "2026-05-02",
 					PeriodYear: 2026, PeriodMonth: 5, Status: "active",
-					CreatedAt:           "2026-05-02T09:00:00Z",
+					CreatedAt:       "2026-05-02T09:00:00Z",
 					ReportingAmount: 3000, ReportingCurrency: "USD",
-					ExchangeRate: "1", ExchangeRateSource: "identity", ExchangeRateTimestamp: "2026-05-02T09:00:00Z",
+					ExchangeRate: "1", ExchangeRateSource: exchangesource.Identity, ExchangeRateTimestamp: "2026-05-02T09:00:00Z",
 				},
 			},
 			HasMore: false,

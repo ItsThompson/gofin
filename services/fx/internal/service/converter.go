@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sharedcurrency "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 
 	"github.com/ItsThompson/gofin/services/fx/internal/cache"
 	fxmetrics "github.com/ItsThompson/gofin/services/fx/internal/metrics"
@@ -73,7 +74,7 @@ func (c *Converter) convert(ctx context.Context, request model.ConvertRequest) (
 			TargetCurrency:  request.TargetCurrency,
 			ExchangeRate:    "1",
 			RateTimestamp:   fallbackTimestamp(request.RequestedAt, c.now()),
-			Source:          model.SourceIdentity,
+			Source:          exchangesource.Identity,
 			CacheStatus:     model.CacheStatusHit,
 		}, nil
 	}
@@ -81,7 +82,7 @@ func (c *Converter) convert(ctx context.Context, request model.ConvertRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return c.convertFromRates(request.Amount, source, target, snapshot.Rates, snapshot.RateTimestamp, snapshot.ExpiresAt, cacheStatus, model.SourceOpenExchangeRates)
+	return c.convertFromRates(request.Amount, source, target, snapshot.Rates, snapshot.RateTimestamp, snapshot.ExpiresAt, cacheStatus, exchangesource.OpenExchangeRates)
 }
 
 func (c *Converter) convertWithSnapshot(request model.ConvertWithSnapshotRequest) (*model.ConvertResponse, error) {
@@ -215,7 +216,7 @@ func (c *Converter) requireFullSupportedRates(rates map[string]string) error {
 }
 
 func validateSnapshot(snapshot model.CapturedRateSnapshot) error {
-	if snapshot.SnapshotVersion != model.SnapshotVersion || snapshot.Source != model.SourceOpenExchangeRates || snapshot.BaseCurrency != model.BaseCurrencyUSD {
+	if snapshot.SnapshotVersion != model.SnapshotVersion || snapshot.Source != exchangesource.OpenExchangeRates || snapshot.BaseCurrency != model.BaseCurrencyUSD {
 		return model.NewError(model.ErrorSnapshotIntegrityFailure, "snapshot", fmt.Errorf("invalid snapshot metadata"))
 	}
 	if snapshot.RateTimestamp == "" || snapshot.CapturedAt == "" || snapshot.ExpiresAt == "" || len(snapshot.RatesByCurrency) == 0 {

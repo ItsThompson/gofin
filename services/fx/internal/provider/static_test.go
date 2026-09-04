@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sharedcurrency "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
 )
@@ -20,7 +21,7 @@ func TestStaticProviderFetchLatestCoversSupportedCurrencies(t *testing.T) {
 	snapshot, err := provider.FetchLatest(context.Background(), now.Add(time.Hour))
 
 	require.NoError(t, err)
-	assert.Equal(t, model.SourceOpenExchangeRates, snapshot.Source)
+	assert.Equal(t, exchangesource.OpenExchangeRates, snapshot.Source)
 	assert.Equal(t, model.BaseCurrencyUSD, snapshot.BaseCurrency)
 	assert.NotEmpty(t, snapshot.RateTimestamp)
 	assert.NotEmpty(t, snapshot.CapturedAt)

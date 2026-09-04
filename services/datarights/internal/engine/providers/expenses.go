@@ -9,6 +9,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // Compile-time check that ExpensesProvider implements DataProvider.
@@ -19,12 +20,6 @@ var _ engine.DataProvider = (*ExpensesProvider)(nil)
 // page, so consuming the stream incrementally keeps peak memory at
 // O(expensesPageSize) instead of O(total rows).
 const expensesPageSize = 100
-
-const (
-	exchangeSourceIdentity          = "identity"
-	exchangeSourceOpenExchangeRates = "open_exchange_rates"
-	exchangeSourceMigration         = "migration"
-)
 
 // ExpensesProvider streams all user expenses with pagination and resolves tag
 // names from a tag map derived once from the shared per-job finance response.
@@ -210,7 +205,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 	source := exp.GetExchangeRateSource()
 
 	switch source {
-	case exchangeSourceIdentity, exchangeSourceOpenExchangeRates:
+	case exchangesource.Identity, exchangesource.OpenExchangeRates:
 		if exp.GetTransactionAmount() == 0 || exp.GetTransactionCurrency() == "" ||
 			exp.GetReportingAmount() == 0 || exp.GetReportingCurrency() == "" ||
 			exp.GetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
@@ -226,7 +221,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 
-	case exchangeSourceMigration:
+	case exchangesource.Migration:
 		currency := p.resolvePeriodCurrency(exp)
 		if currency == "" {
 			return expenseSnapshot{}, fmt.Errorf("expense %s legacy row has no resolvable period reporting currency", exp.GetId())
@@ -237,7 +232,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			reportingAmount:       exp.GetReportingAmount(),
 			reportingCurrency:     currency,
 			exchangeRate:          "1",
-			exchangeRateSource:    exchangeSourceMigration,
+			exchangeRateSource:    exchangesource.Migration,
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 

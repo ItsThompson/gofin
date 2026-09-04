@@ -16,6 +16,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 func newProRataTestHandler(repo *mockExpenseRepository, fx service.FxClient) *GRPCHandler {
@@ -33,7 +34,7 @@ func TestGRPC_CreateProRataInstallment_Success(t *testing.T) {
 		ConvertedAmount: 3334,
 		ExchangeRate:    "1",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-05-15T13:00:00Z",
 	}, nil)
 
@@ -61,7 +62,7 @@ func TestGRPC_CreateProRataInstallment_Success(t *testing.T) {
 		ProRataTotal:        3,
 		CapturedRateSnapshot: &pb.CapturedRateSnapshot{
 			SnapshotVersion: 1,
-			Source:          "open_exchange_rates",
+			Source:          exchangesource.OpenExchangeRates,
 			BaseCurrency:    "USD",
 			RateTimestamp:   "2026-05-15T10:00:00Z",
 			CapturedAt:      "2026-05-15T12:00:00Z",
@@ -101,7 +102,7 @@ func TestGRPC_CreateProRataInstallment_MissingSnapshotCoverage(t *testing.T) {
 		ProRataTotal:        3,
 		CapturedRateSnapshot: &pb.CapturedRateSnapshot{
 			SnapshotVersion: 1,
-			Source:          "open_exchange_rates",
+			Source:          exchangesource.OpenExchangeRates,
 			BaseCurrency:    "USD",
 			RateTimestamp:   "2026-05-15T10:00:00Z",
 			RatesByCurrency: map[string]string{"USD": "1"},

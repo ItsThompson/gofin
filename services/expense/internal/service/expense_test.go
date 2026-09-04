@@ -20,6 +20,7 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 // mockExpenseRepository implements repository.ExpenseRepository for tests.
@@ -189,7 +190,7 @@ func TestCreateExpense_Success(t *testing.T) {
 			expense.ReportingAmount == 2500 &&
 			expense.ReportingCurrency == "USD" &&
 			expense.ExchangeRate == "1" &&
-			expense.ExchangeRateSource == model.ExchangeSourceIdentity
+			expense.ExchangeRateSource == exchangesource.Identity
 	})).Return(&model.Expense{
 		ID:                 "exp-123",
 		UserID:             "user-1",
@@ -204,7 +205,7 @@ func TestCreateExpense_Success(t *testing.T) {
 		ReportingAmount:    2500,
 		ReportingCurrency:  "USD",
 		ExchangeRate:       "1",
-		ExchangeRateSource: model.ExchangeSourceIdentity,
+		ExchangeRateSource: exchangesource.Identity,
 	}, nil)
 
 	expense, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
@@ -286,7 +287,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		ConvertedAmount: 1364,
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}
 
@@ -316,7 +317,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		ReportingAmount:       1364,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
@@ -340,7 +341,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 
 	// The ledger row stores the FX snapshot metadata.
 	assert.Equal(t, "1.0912", captured.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", captured.ExchangeRateTimestamp)
 	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateExpiresAt)
 
@@ -351,7 +352,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 	assert.Equal(t, int64(1364), resp.ReportingAmount)
 	assert.Equal(t, "USD", resp.ReportingCurrency)
 	assert.Equal(t, "1.0912", resp.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, resp.ExchangeRateSource)
+	assert.Equal(t, exchangesource.OpenExchangeRates, resp.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", resp.ExchangeRateTimestamp)
 	assert.Equal(t, "2026-08-14T11:00:00Z", resp.ExchangeRateExpiresAt)
 
@@ -607,7 +608,7 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 		ReportingAmount:     2500,
 		ReportingCurrency:   "USD",
 		ExchangeRate:        "1",
-		ExchangeRateSource:  model.ExchangeSourceIdentity,
+		ExchangeRateSource:  exchangesource.Identity,
 	}
 	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
 		Run(func(args mock.Arguments) {
@@ -624,7 +625,7 @@ func TestCreateExpense_IdentitySnapshotBypassesFX(t *testing.T) {
 	assert.Equal(t, int64(2500), captured.ReportingAmount)
 	assert.Equal(t, "USD", captured.ReportingCurrency)
 	assert.Equal(t, "1", captured.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceIdentity, captured.ExchangeRateSource)
+	assert.Equal(t, exchangesource.Identity, captured.ExchangeRateSource)
 	assert.NotEmpty(t, captured.ExchangeRateTimestamp)
 	assert.Empty(t, captured.ExchangeRateExpiresAt)
 	// Response carries the canonical transaction and reporting money fields.
@@ -708,7 +709,7 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 						expense.ReportingAmount == int64(2500) &&
 						expense.ReportingCurrency == reportingCurrency &&
 						expense.ExchangeRate == "1" &&
-						expense.ExchangeRateSource == model.ExchangeSourceIdentity
+						expense.ExchangeRateSource == exchangesource.Identity
 				})).Return(&model.Expense{ID: "exp-123", TransactionCurrency: tt.expectedCurrency, Status: "active"}, nil)
 			}
 
@@ -1002,7 +1003,7 @@ func activeExpenseInCurrentPeriod(now time.Time) *model.Expense {
 		ReportingAmount:       500,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1",
-		ExchangeRateSource:    model.ExchangeSourceIdentity,
+		ExchangeRateSource:    exchangesource.Identity,
 		ExchangeRateTimestamp: now.Format(time.RFC3339),
 	}
 }
@@ -1057,7 +1058,7 @@ func TestCorrectExpense_Success(t *testing.T) {
 			assert.Equal(t, int64(600), correction.ReportingAmount)
 			assert.Equal(t, "USD", correction.ReportingCurrency)
 			assert.Equal(t, "1", correction.ExchangeRate)
-			assert.Equal(t, model.ExchangeSourceIdentity, correction.ExchangeRateSource)
+			assert.Equal(t, exchangesource.Identity, correction.ExchangeRateSource)
 			assert.Equal(t, now.Format(time.RFC3339), correction.ExchangeRateTimestamp)
 			assert.Empty(t, correction.ExchangeRateExpiresAt)
 		}).
@@ -1078,7 +1079,7 @@ func TestCorrectExpense_Success(t *testing.T) {
 			ReportingAmount:     600,
 			ReportingCurrency:   "USD",
 			ExchangeRate:        "1",
-			ExchangeRateSource:  model.ExchangeSourceIdentity,
+			ExchangeRateSource:  exchangesource.Identity,
 		}, nil)
 
 	result, err := svc.CorrectExpense(context.Background(), "user-1", "exp-original", validCorrectRequest())
@@ -1227,7 +1228,7 @@ func TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t
 		ConvertedAmount: 655,
 		ExchangeRate:    "1.0912",
 		RateTimestamp:   "2026-08-14T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-08-14T11:00:00Z",
 	}
 
@@ -1259,7 +1260,7 @@ func TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t
 		ReportingAmount:       655,
 		ReportingCurrency:     "USD",
 		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    model.ExchangeSourceOpenExchangeRates,
+		ExchangeRateSource:    exchangesource.OpenExchangeRates,
 		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
 		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
 	}, nil)
@@ -1277,7 +1278,7 @@ func TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t
 	assert.Equal(t, int64(600), captured.TransactionAmount)
 	assert.Equal(t, int64(655), captured.ReportingAmount)
 	assert.Equal(t, "1.0912", captured.ExchangeRate)
-	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", captured.ExchangeRateTimestamp)
 	assert.Equal(t, "2026-08-14T11:00:00Z", captured.ExchangeRateExpiresAt)
 

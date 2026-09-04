@@ -12,6 +12,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
 	pb "github.com/ItsThompson/gofin/services/fx/proto/fxpb"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 type stubConverter struct {
@@ -67,7 +68,7 @@ func TestGRPCHandler_MapsConvertResponse(t *testing.T) {
 		TargetCurrency:  "GBP",
 		ExchangeRate:    "0.625",
 		RateTimestamp:   "2026-08-15T10:00:00Z",
-		Source:          model.SourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		CacheStatus:     model.CacheStatusMiss,
 		ExpiresAt:       "2026-08-15T13:00:00Z",
 	}})
@@ -87,7 +88,7 @@ func TestGRPCHandler_MapsCaptureSnapshotResponse(t *testing.T) {
 		CacheStatus: model.CacheStatusHit,
 		Snapshot: model.CapturedRateSnapshot{
 			SnapshotVersion: model.SnapshotVersion,
-			Source:          model.SourceOpenExchangeRates,
+			Source:          exchangesource.OpenExchangeRates,
 			BaseCurrency:    model.BaseCurrencyUSD,
 			RateTimestamp:   "2026-08-15T10:00:00Z",
 			CapturedAt:      "2026-08-15T12:00:00Z",

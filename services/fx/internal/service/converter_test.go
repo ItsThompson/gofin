@@ -14,6 +14,7 @@ import (
 	"github.com/ItsThompson/gofin/services/fx/internal/cache"
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
 	sharedcurrency "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 type fakeProvider struct {
@@ -33,7 +34,7 @@ func (p *fakeProvider) FetchLatest(_ context.Context, expiresAt time.Time) (*mod
 		rates[code] = rate
 	}
 	return &model.ProviderSnapshot{
-		Source:        model.SourceOpenExchangeRates,
+		Source:        exchangesource.OpenExchangeRates,
 		BaseCurrency:  model.BaseCurrencyUSD,
 		RateTimestamp: "2026-08-15T10:00:00Z",
 		CapturedAt:    p.now.UTC().Format(time.RFC3339),
@@ -80,7 +81,7 @@ func TestConvert_IdentityDoesNotCallProvider(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1250), response.ConvertedAmount)
 	assert.Equal(t, "1", response.ExchangeRate)
-	assert.Equal(t, model.SourceIdentity, response.Source)
+	assert.Equal(t, exchangesource.Identity, response.Source)
 	assert.Equal(t, 0, provider.calls)
 }
 
@@ -213,7 +214,7 @@ func TestCaptureSnapshot_ReturnsFullSupportedRateMap(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.CacheStatusMiss, response.CacheStatus)
 	assert.Equal(t, int32(1), response.Snapshot.SnapshotVersion)
-	assert.Equal(t, model.SourceOpenExchangeRates, response.Snapshot.Source)
+	assert.Equal(t, exchangesource.OpenExchangeRates, response.Snapshot.Source)
 	assert.Equal(t, model.BaseCurrencyUSD, response.Snapshot.BaseCurrency)
 	assert.NotEmpty(t, response.Snapshot.RateTimestamp)
 	assert.NotEmpty(t, response.Snapshot.CapturedAt)
@@ -234,7 +235,7 @@ func TestConvertWithSnapshot_UsesProvidedSnapshotAndDoesNotCallProvider(t *testi
 		TargetCurrency: "GBP",
 		Snapshot: model.CapturedRateSnapshot{
 			SnapshotVersion: model.SnapshotVersion,
-			Source:          model.SourceOpenExchangeRates,
+			Source:          exchangesource.OpenExchangeRates,
 			BaseCurrency:    model.BaseCurrencyUSD,
 			RateTimestamp:   "2026-08-15T10:00:00Z",
 			CapturedAt:      "2026-08-15T12:00:00Z",

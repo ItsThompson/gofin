@@ -6,6 +6,7 @@ require (
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
+	github.com/ItsThompson/gofin/services/shared/exchangesource v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
@@ -82,5 +83,7 @@ replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
 replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
+
+replace github.com/ItsThompson/gofin/services/shared/exchangesource => ../shared/exchangesource
 
 replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit

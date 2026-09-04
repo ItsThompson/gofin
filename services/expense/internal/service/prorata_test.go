@@ -12,12 +12,13 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 func prorataSnapshot() *CapturedRateSnapshot {
 	return &CapturedRateSnapshot{
 		SnapshotVersion: 1,
-		Source:          "open_exchange_rates",
+		Source:          exchangesource.OpenExchangeRates,
 		BaseCurrency:    "USD",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
 		CapturedAt:      "2026-05-15T12:00:00Z",
@@ -70,7 +71,7 @@ func TestCreateProRataInstallment_ForeignCurrencyUsesCapturedSnapshot(t *testing
 		ConvertedAmount: 3624,
 		ExchangeRate:    "1.0872",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-05-15T13:00:00Z",
 	}, nil)
 
@@ -96,7 +97,7 @@ func TestCreateProRataInstallment_ForeignCurrencyUsesCapturedSnapshot(t *testing
 	assert.Equal(t, int64(3334), captured.TransactionAmount)
 	assert.Equal(t, "USD", captured.ReportingCurrency)
 	assert.Equal(t, int64(3624), captured.ReportingAmount)
-	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-05-15T10:00:00Z", captured.ExchangeRateTimestamp)
 
 	// Finance-originated writes must not call back into Finance for period context.
@@ -114,7 +115,7 @@ func TestCreateProRataInstallment_SameCurrencyStillUsesSnapshotSource(t *testing
 		ConvertedAmount: 3334,
 		ExchangeRate:    "1",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-05-15T13:00:00Z",
 	}, nil)
 
@@ -128,7 +129,7 @@ func TestCreateProRataInstallment_SameCurrencyStillUsesSnapshotSource(t *testing
 
 	require.NoError(t, err)
 	require.NotNil(t, captured)
-	assert.Equal(t, model.ExchangeSourceOpenExchangeRates, captured.ExchangeRateSource)
+	assert.Equal(t, exchangesource.OpenExchangeRates, captured.ExchangeRateSource)
 	assert.Equal(t, "2026-05-15T10:00:00Z", captured.ExchangeRateTimestamp)
 	assert.Equal(t, int64(3334), captured.ReportingAmount)
 }
@@ -290,7 +291,7 @@ func TestCreateProRataInstallment_DifferentTargetCurrencyUsesCapturedSnapshot(t 
 	// Snapshot covers both USD (transaction) and EUR (target reporting).
 	req.CapturedRateSnapshot = &CapturedRateSnapshot{
 		SnapshotVersion: 1,
-		Source:          "open_exchange_rates",
+		Source:          exchangesource.OpenExchangeRates,
 		BaseCurrency:    "USD",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
 		CapturedAt:      "2026-05-15T12:00:00Z",
@@ -304,7 +305,7 @@ func TestCreateProRataInstallment_DifferentTargetCurrencyUsesCapturedSnapshot(t 
 		ConvertedAmount: 3067,
 		ExchangeRate:    "0.92",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-05-15T13:00:00Z",
 	}, nil)
 
@@ -350,7 +351,7 @@ func TestCreateProRataInstallment_CapturedSnapshotMissingTargetCurrencyRejects(t
 	// Snapshot lacks JPY.
 	req.CapturedRateSnapshot = &CapturedRateSnapshot{
 		SnapshotVersion: 1,
-		Source:          "open_exchange_rates",
+		Source:          exchangesource.OpenExchangeRates,
 		BaseCurrency:    "USD",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
 		CapturedAt:      "2026-05-15T12:00:00Z",
@@ -384,7 +385,7 @@ func TestCreateProRataInstallment_ExpenseWriteFailureDoesNotLeavePartialRow(t *t
 		ConvertedAmount: 3624,
 		ExchangeRate:    "1.0872",
 		RateTimestamp:   "2026-05-15T10:00:00Z",
-		Source:          model.ExchangeSourceOpenExchangeRates,
+		Source:          exchangesource.OpenExchangeRates,
 		ExpiresAt:       "2026-05-15T13:00:00Z",
 	}, nil)
 

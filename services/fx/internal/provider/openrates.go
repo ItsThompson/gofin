@@ -14,6 +14,7 @@ import (
 
 	fxmetrics "github.com/ItsThompson/gofin/services/fx/internal/metrics"
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
 type OpenRatesProvider struct {
@@ -152,7 +153,7 @@ func decodeProviderResponse(body []byte, capturedAt time.Time, expiresAt time.Ti
 		rates[code] = rate
 	}
 	return &model.ProviderSnapshot{
-		Source:        model.SourceOpenExchangeRates,
+		Source:        exchangesource.OpenExchangeRates,
 		BaseCurrency:  payload.Base,
 		RateTimestamp: time.Unix(payload.Timestamp, 0).UTC().Format(time.RFC3339),
 		CapturedAt:    capturedAt.UTC().Format(time.RFC3339),
