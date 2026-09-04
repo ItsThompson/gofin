@@ -171,7 +171,7 @@ func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData) ([]string, erro
 		snapshot.exchangeRateTimestamp,
 		exp.GetExpenseType(),
 		tagName,
-		exp.GetExpenseDate(),
+		exp.GetExpenseDateIso(),
 		strconv.FormatInt(int64(exp.GetPeriodYear()), 10),
 		strconv.FormatInt(int64(exp.GetPeriodMonth()), 10),
 		exp.GetStatus(),
@@ -207,17 +207,17 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 
 	switch source {
 	case exchangesource.Identity, exchangesource.OpenExchangeRates:
-		if exp.GetTransactionAmount() == 0 || exp.GetTransactionCurrency() == "" ||
-			exp.GetReportingAmount() == 0 || exp.GetReportingCurrency() == "" ||
-			exp.GetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
+		if exp.GetOriginalTransactionAmountInMinorUnits() == 0 || exp.GetTransactionCurrencyCode() == "" ||
+			exp.GetReportingAmountInMinorUnits() == 0 || exp.GetReportingCurrencyCode() == "" ||
+			exp.GetSourceToTargetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
 			return expenseSnapshot{}, fmt.Errorf("expense %s has an incomplete money snapshot", exp.GetId())
 		}
 		return expenseSnapshot{
-			transactionAmount:     exp.GetTransactionAmount(),
-			transactionCurrency:   exp.GetTransactionCurrency(),
-			reportingAmount:       exp.GetReportingAmount(),
-			reportingCurrency:     exp.GetReportingCurrency(),
-			exchangeRate:          exp.GetExchangeRate(),
+			transactionAmount:     exp.GetOriginalTransactionAmountInMinorUnits(),
+			transactionCurrency:   exp.GetTransactionCurrencyCode(),
+			reportingAmount:       exp.GetReportingAmountInMinorUnits(),
+			reportingCurrency:     exp.GetReportingCurrencyCode(),
+			exchangeRate:          exp.GetSourceToTargetExchangeRate(),
 			exchangeRateSource:    source,
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
@@ -228,9 +228,9 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			return expenseSnapshot{}, fmt.Errorf("expense %s legacy row has no resolvable period reporting currency", exp.GetId())
 		}
 		return expenseSnapshot{
-			transactionAmount:     exp.GetTransactionAmount(),
+			transactionAmount:     exp.GetOriginalTransactionAmountInMinorUnits(),
 			transactionCurrency:   currency,
-			reportingAmount:       exp.GetReportingAmount(),
+			reportingAmount:       exp.GetReportingAmountInMinorUnits(),
 			reportingCurrency:     currency,
 			exchangeRate:          "1",
 			exchangeRateSource:    exchangesource.Identity,
@@ -249,5 +249,5 @@ func (p *ExpensesProvider) resolvePeriodCurrency(exp *expensepb.ExpenseData) str
 	if currency, ok := p.periodCurrencies[periodCurrencyKey(exp.GetPeriodYear(), exp.GetPeriodMonth())]; ok {
 		return currency
 	}
-	return exp.GetReportingCurrency()
+	return exp.GetReportingCurrencyCode()
 }

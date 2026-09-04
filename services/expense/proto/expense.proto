@@ -37,7 +37,7 @@ message ExpenseData {
   reserved 4, 5;
   string expense_type = 6;
   string tag_id = 7;
-  string expense_date = 8;
+  string expense_date_iso = 8;
   int32 period_year = 9;
   int32 period_month = 10;
   string status = 11;
@@ -47,15 +47,15 @@ message ExpenseData {
   int32 pro_rata_index = 15;
   int32 pro_rata_total = 16;
   string created_at = 17;
-  string transaction_currency = 18;
+  string transaction_currency_code = 18;
   // Money snapshot fields.
-  int64 transaction_amount = 20;
-  int64 reporting_amount = 21;
-  string reporting_currency = 22;
-  string exchange_rate = 23;
+  int64 original_transaction_amount_in_minor_units = 20;
+  int64 reporting_amount_in_minor_units = 21;
+  string reporting_currency_code = 22;
+  string source_to_target_exchange_rate = 23;
   string exchange_rate_source = 24;
   string exchange_rate_timestamp = 25;
-  string exchange_rate_expires_at = 26;
+  string exchange_rate_cache_expires_at = 26;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,18 +65,18 @@ message ExpenseData {
 message CreateExpenseRequest {
   string user_id = 1;
   string name = 2;
-  int64 amount = 3;
+  int64 amount_in_transaction_currency_minor_units = 3;
   reserved 4;
   string expense_type = 5;
   string tag_id = 6;
-  string expense_date = 7;
+  string expense_date_iso = 7;
   int32 period_year = 8;
   int32 period_month = 9;
   bool is_pro_rata = 10;
   string pro_rata_group = 11;
   int32 pro_rata_index = 12;
   int32 pro_rata_total = 13;
-  string transaction_currency = 14;
+  string transaction_currency_code = 14;
   // Client-generated idempotency key (RFC 4122 UUID). Required: a retry with
   // the same key returns the already-created expense instead of a duplicate.
   string client_generated_idempotency_key = 15;
@@ -117,11 +117,11 @@ message CreateProRataInstallmentRequest {
   string user_id = 1;
   TrustedPeriodContext period_context = 2;
   string name = 3;
-  int64 amount = 4;
-  string transaction_currency = 5;
+  int64 amount_in_transaction_currency_minor_units = 4;
+  string transaction_currency_code = 5;
   string expense_type = 6;
   string tag_id = 7;
-  string expense_date = 8;
+  string expense_date_iso = 8;
   string pro_rata_group = 9;
   int32 pro_rata_index = 10;
   int32 pro_rata_total = 11;
@@ -165,11 +165,11 @@ message CorrectExpenseRequest {
   string expense_id = 1;
   string user_id = 2;
   string name = 3;
-  int64 amount = 4;
+  int64 amount_in_transaction_currency_minor_units = 4;
   string expense_type = 5;
   string tag_id = 6;
-  string expense_date = 7;
-  string transaction_currency = 8;
+  string expense_date_iso = 7;
+  string transaction_currency_code = 8;
   string currency = 9; // Deprecated alias during rollout.
 }
 

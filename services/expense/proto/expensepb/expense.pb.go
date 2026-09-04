@@ -22,33 +22,33 @@ const (
 )
 
 type ExpenseData struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	Id                  string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name                string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	ExpenseType         string                 `protobuf:"bytes,6,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId               string                 `protobuf:"bytes,7,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate         string                 `protobuf:"bytes,8,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	PeriodYear          int32                  `protobuf:"varint,9,opt,name=period_year,json=periodYear,proto3" json:"period_year,omitempty"`
-	PeriodMonth         int32                  `protobuf:"varint,10,opt,name=period_month,json=periodMonth,proto3" json:"period_month,omitempty"`
-	Status              string                 `protobuf:"bytes,11,opt,name=status,proto3" json:"status,omitempty"`
-	CorrectsId          string                 `protobuf:"bytes,12,opt,name=corrects_id,json=correctsId,proto3" json:"corrects_id,omitempty"`
-	IsProRata           bool                   `protobuf:"varint,13,opt,name=is_pro_rata,json=isProRata,proto3" json:"is_pro_rata,omitempty"`
-	ProRataGroup        string                 `protobuf:"bytes,14,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
-	ProRataIndex        int32                  `protobuf:"varint,15,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
-	ProRataTotal        int32                  `protobuf:"varint,16,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
-	CreatedAt           string                 `protobuf:"bytes,17,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	TransactionCurrency string                 `protobuf:"bytes,18,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	Id                      string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId                  string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name                    string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	ExpenseType             string                 `protobuf:"bytes,6,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId                   string                 `protobuf:"bytes,7,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDateIso          string                 `protobuf:"bytes,8,opt,name=expense_date_iso,json=expenseDateIso,proto3" json:"expense_date_iso,omitempty"`
+	PeriodYear              int32                  `protobuf:"varint,9,opt,name=period_year,json=periodYear,proto3" json:"period_year,omitempty"`
+	PeriodMonth             int32                  `protobuf:"varint,10,opt,name=period_month,json=periodMonth,proto3" json:"period_month,omitempty"`
+	Status                  string                 `protobuf:"bytes,11,opt,name=status,proto3" json:"status,omitempty"`
+	CorrectsId              string                 `protobuf:"bytes,12,opt,name=corrects_id,json=correctsId,proto3" json:"corrects_id,omitempty"`
+	IsProRata               bool                   `protobuf:"varint,13,opt,name=is_pro_rata,json=isProRata,proto3" json:"is_pro_rata,omitempty"`
+	ProRataGroup            string                 `protobuf:"bytes,14,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
+	ProRataIndex            int32                  `protobuf:"varint,15,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
+	ProRataTotal            int32                  `protobuf:"varint,16,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
+	CreatedAt               string                 `protobuf:"bytes,17,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	TransactionCurrencyCode string                 `protobuf:"bytes,18,opt,name=transaction_currency_code,json=transactionCurrencyCode,proto3" json:"transaction_currency_code,omitempty"`
 	// Money snapshot fields.
-	TransactionAmount     int64  `protobuf:"varint,20,opt,name=transaction_amount,json=transactionAmount,proto3" json:"transaction_amount,omitempty"`
-	ReportingAmount       int64  `protobuf:"varint,21,opt,name=reporting_amount,json=reportingAmount,proto3" json:"reporting_amount,omitempty"`
-	ReportingCurrency     string `protobuf:"bytes,22,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
-	ExchangeRate          string `protobuf:"bytes,23,opt,name=exchange_rate,json=exchangeRate,proto3" json:"exchange_rate,omitempty"`
-	ExchangeRateSource    string `protobuf:"bytes,24,opt,name=exchange_rate_source,json=exchangeRateSource,proto3" json:"exchange_rate_source,omitempty"`
-	ExchangeRateTimestamp string `protobuf:"bytes,25,opt,name=exchange_rate_timestamp,json=exchangeRateTimestamp,proto3" json:"exchange_rate_timestamp,omitempty"`
-	ExchangeRateExpiresAt string `protobuf:"bytes,26,opt,name=exchange_rate_expires_at,json=exchangeRateExpiresAt,proto3" json:"exchange_rate_expires_at,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	OriginalTransactionAmountInMinorUnits int64  `protobuf:"varint,20,opt,name=original_transaction_amount_in_minor_units,json=originalTransactionAmountInMinorUnits,proto3" json:"original_transaction_amount_in_minor_units,omitempty"`
+	ReportingAmountInMinorUnits           int64  `protobuf:"varint,21,opt,name=reporting_amount_in_minor_units,json=reportingAmountInMinorUnits,proto3" json:"reporting_amount_in_minor_units,omitempty"`
+	ReportingCurrencyCode                 string `protobuf:"bytes,22,opt,name=reporting_currency_code,json=reportingCurrencyCode,proto3" json:"reporting_currency_code,omitempty"`
+	SourceToTargetExchangeRate            string `protobuf:"bytes,23,opt,name=source_to_target_exchange_rate,json=sourceToTargetExchangeRate,proto3" json:"source_to_target_exchange_rate,omitempty"`
+	ExchangeRateSource                    string `protobuf:"bytes,24,opt,name=exchange_rate_source,json=exchangeRateSource,proto3" json:"exchange_rate_source,omitempty"`
+	ExchangeRateTimestamp                 string `protobuf:"bytes,25,opt,name=exchange_rate_timestamp,json=exchangeRateTimestamp,proto3" json:"exchange_rate_timestamp,omitempty"`
+	ExchangeRateCacheExpiresAt            string `protobuf:"bytes,26,opt,name=exchange_rate_cache_expires_at,json=exchangeRateCacheExpiresAt,proto3" json:"exchange_rate_cache_expires_at,omitempty"`
+	unknownFields                         protoimpl.UnknownFields
+	sizeCache                             protoimpl.SizeCache
 }
 
 func (x *ExpenseData) Reset() {
@@ -116,9 +116,9 @@ func (x *ExpenseData) GetTagId() string {
 	return ""
 }
 
-func (x *ExpenseData) GetExpenseDate() string {
+func (x *ExpenseData) GetExpenseDateIso() string {
 	if x != nil {
-		return x.ExpenseDate
+		return x.ExpenseDateIso
 	}
 	return ""
 }
@@ -186,37 +186,37 @@ func (x *ExpenseData) GetCreatedAt() string {
 	return ""
 }
 
-func (x *ExpenseData) GetTransactionCurrency() string {
+func (x *ExpenseData) GetTransactionCurrencyCode() string {
 	if x != nil {
-		return x.TransactionCurrency
+		return x.TransactionCurrencyCode
 	}
 	return ""
 }
 
-func (x *ExpenseData) GetTransactionAmount() int64 {
+func (x *ExpenseData) GetOriginalTransactionAmountInMinorUnits() int64 {
 	if x != nil {
-		return x.TransactionAmount
+		return x.OriginalTransactionAmountInMinorUnits
 	}
 	return 0
 }
 
-func (x *ExpenseData) GetReportingAmount() int64 {
+func (x *ExpenseData) GetReportingAmountInMinorUnits() int64 {
 	if x != nil {
-		return x.ReportingAmount
+		return x.ReportingAmountInMinorUnits
 	}
 	return 0
 }
 
-func (x *ExpenseData) GetReportingCurrency() string {
+func (x *ExpenseData) GetReportingCurrencyCode() string {
 	if x != nil {
-		return x.ReportingCurrency
+		return x.ReportingCurrencyCode
 	}
 	return ""
 }
 
-func (x *ExpenseData) GetExchangeRate() string {
+func (x *ExpenseData) GetSourceToTargetExchangeRate() string {
 	if x != nil {
-		return x.ExchangeRate
+		return x.SourceToTargetExchangeRate
 	}
 	return ""
 }
@@ -235,28 +235,28 @@ func (x *ExpenseData) GetExchangeRateTimestamp() string {
 	return ""
 }
 
-func (x *ExpenseData) GetExchangeRateExpiresAt() string {
+func (x *ExpenseData) GetExchangeRateCacheExpiresAt() string {
 	if x != nil {
-		return x.ExchangeRateExpiresAt
+		return x.ExchangeRateCacheExpiresAt
 	}
 	return ""
 }
 
 type CreateExpenseRequest struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	UserId              string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Amount              int64                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	ExpenseType         string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId               string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate         string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	PeriodYear          int32                  `protobuf:"varint,8,opt,name=period_year,json=periodYear,proto3" json:"period_year,omitempty"`
-	PeriodMonth         int32                  `protobuf:"varint,9,opt,name=period_month,json=periodMonth,proto3" json:"period_month,omitempty"`
-	IsProRata           bool                   `protobuf:"varint,10,opt,name=is_pro_rata,json=isProRata,proto3" json:"is_pro_rata,omitempty"`
-	ProRataGroup        string                 `protobuf:"bytes,11,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
-	ProRataIndex        int32                  `protobuf:"varint,12,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
-	ProRataTotal        int32                  `protobuf:"varint,13,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
-	TransactionCurrency string                 `protobuf:"bytes,14,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
+	state                                 protoimpl.MessageState `protogen:"open.v1"`
+	UserId                                string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name                                  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	AmountInTransactionCurrencyMinorUnits int64                  `protobuf:"varint,3,opt,name=amount_in_transaction_currency_minor_units,json=amountInTransactionCurrencyMinorUnits,proto3" json:"amount_in_transaction_currency_minor_units,omitempty"`
+	ExpenseType                           string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId                                 string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDateIso                        string                 `protobuf:"bytes,7,opt,name=expense_date_iso,json=expenseDateIso,proto3" json:"expense_date_iso,omitempty"`
+	PeriodYear                            int32                  `protobuf:"varint,8,opt,name=period_year,json=periodYear,proto3" json:"period_year,omitempty"`
+	PeriodMonth                           int32                  `protobuf:"varint,9,opt,name=period_month,json=periodMonth,proto3" json:"period_month,omitempty"`
+	IsProRata                             bool                   `protobuf:"varint,10,opt,name=is_pro_rata,json=isProRata,proto3" json:"is_pro_rata,omitempty"`
+	ProRataGroup                          string                 `protobuf:"bytes,11,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
+	ProRataIndex                          int32                  `protobuf:"varint,12,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
+	ProRataTotal                          int32                  `protobuf:"varint,13,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
+	TransactionCurrencyCode               string                 `protobuf:"bytes,14,opt,name=transaction_currency_code,json=transactionCurrencyCode,proto3" json:"transaction_currency_code,omitempty"`
 	// Client-generated idempotency key (RFC 4122 UUID). Required: a retry with
 	// the same key returns the already-created expense instead of a duplicate.
 	ClientGeneratedIdempotencyKey string `protobuf:"bytes,15,opt,name=client_generated_idempotency_key,json=clientGeneratedIdempotencyKey,proto3" json:"client_generated_idempotency_key,omitempty"`
@@ -308,9 +308,9 @@ func (x *CreateExpenseRequest) GetName() string {
 	return ""
 }
 
-func (x *CreateExpenseRequest) GetAmount() int64 {
+func (x *CreateExpenseRequest) GetAmountInTransactionCurrencyMinorUnits() int64 {
 	if x != nil {
-		return x.Amount
+		return x.AmountInTransactionCurrencyMinorUnits
 	}
 	return 0
 }
@@ -329,9 +329,9 @@ func (x *CreateExpenseRequest) GetTagId() string {
 	return ""
 }
 
-func (x *CreateExpenseRequest) GetExpenseDate() string {
+func (x *CreateExpenseRequest) GetExpenseDateIso() string {
 	if x != nil {
-		return x.ExpenseDate
+		return x.ExpenseDateIso
 	}
 	return ""
 }
@@ -378,9 +378,9 @@ func (x *CreateExpenseRequest) GetProRataTotal() int32 {
 	return 0
 }
 
-func (x *CreateExpenseRequest) GetTransactionCurrency() string {
+func (x *CreateExpenseRequest) GetTransactionCurrencyCode() string {
 	if x != nil {
-		return x.TransactionCurrency
+		return x.TransactionCurrencyCode
 	}
 	return ""
 }
@@ -621,21 +621,21 @@ func (x *CapturedRateSnapshot) GetRatesByCurrency() map[string]string {
 // CreateProRataInstallmentRequest is the Finance-originated internal write
 // contract for the first (and future) pro-rata installments.
 type CreateProRataInstallmentRequest struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	UserId               string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	PeriodContext        *TrustedPeriodContext  `protobuf:"bytes,2,opt,name=period_context,json=periodContext,proto3" json:"period_context,omitempty"`
-	Name                 string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Amount               int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	TransactionCurrency  string                 `protobuf:"bytes,5,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
-	ExpenseType          string                 `protobuf:"bytes,6,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId                string                 `protobuf:"bytes,7,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate          string                 `protobuf:"bytes,8,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	ProRataGroup         string                 `protobuf:"bytes,9,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
-	ProRataIndex         int32                  `protobuf:"varint,10,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
-	ProRataTotal         int32                  `protobuf:"varint,11,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
-	CapturedRateSnapshot *CapturedRateSnapshot  `protobuf:"bytes,12,opt,name=captured_rate_snapshot,json=capturedRateSnapshot,proto3" json:"captured_rate_snapshot,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                                 protoimpl.MessageState `protogen:"open.v1"`
+	UserId                                string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	PeriodContext                         *TrustedPeriodContext  `protobuf:"bytes,2,opt,name=period_context,json=periodContext,proto3" json:"period_context,omitempty"`
+	Name                                  string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	AmountInTransactionCurrencyMinorUnits int64                  `protobuf:"varint,4,opt,name=amount_in_transaction_currency_minor_units,json=amountInTransactionCurrencyMinorUnits,proto3" json:"amount_in_transaction_currency_minor_units,omitempty"`
+	TransactionCurrencyCode               string                 `protobuf:"bytes,5,opt,name=transaction_currency_code,json=transactionCurrencyCode,proto3" json:"transaction_currency_code,omitempty"`
+	ExpenseType                           string                 `protobuf:"bytes,6,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId                                 string                 `protobuf:"bytes,7,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDateIso                        string                 `protobuf:"bytes,8,opt,name=expense_date_iso,json=expenseDateIso,proto3" json:"expense_date_iso,omitempty"`
+	ProRataGroup                          string                 `protobuf:"bytes,9,opt,name=pro_rata_group,json=proRataGroup,proto3" json:"pro_rata_group,omitempty"`
+	ProRataIndex                          int32                  `protobuf:"varint,10,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
+	ProRataTotal                          int32                  `protobuf:"varint,11,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
+	CapturedRateSnapshot                  *CapturedRateSnapshot  `protobuf:"bytes,12,opt,name=captured_rate_snapshot,json=capturedRateSnapshot,proto3" json:"captured_rate_snapshot,omitempty"`
+	unknownFields                         protoimpl.UnknownFields
+	sizeCache                             protoimpl.SizeCache
 }
 
 func (x *CreateProRataInstallmentRequest) Reset() {
@@ -689,16 +689,16 @@ func (x *CreateProRataInstallmentRequest) GetName() string {
 	return ""
 }
 
-func (x *CreateProRataInstallmentRequest) GetAmount() int64 {
+func (x *CreateProRataInstallmentRequest) GetAmountInTransactionCurrencyMinorUnits() int64 {
 	if x != nil {
-		return x.Amount
+		return x.AmountInTransactionCurrencyMinorUnits
 	}
 	return 0
 }
 
-func (x *CreateProRataInstallmentRequest) GetTransactionCurrency() string {
+func (x *CreateProRataInstallmentRequest) GetTransactionCurrencyCode() string {
 	if x != nil {
-		return x.TransactionCurrency
+		return x.TransactionCurrencyCode
 	}
 	return ""
 }
@@ -717,9 +717,9 @@ func (x *CreateProRataInstallmentRequest) GetTagId() string {
 	return ""
 }
 
-func (x *CreateProRataInstallmentRequest) GetExpenseDate() string {
+func (x *CreateProRataInstallmentRequest) GetExpenseDateIso() string {
 	if x != nil {
-		return x.ExpenseDate
+		return x.ExpenseDateIso
 	}
 	return ""
 }
@@ -957,18 +957,18 @@ func (x *GetExpenseRequest) GetUserId() string {
 }
 
 type CorrectExpenseRequest struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	ExpenseId           string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
-	UserId              string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Name                string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Amount              int64                  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	ExpenseType         string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
-	TagId               string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
-	ExpenseDate         string                 `protobuf:"bytes,7,opt,name=expense_date,json=expenseDate,proto3" json:"expense_date,omitempty"`
-	TransactionCurrency string                 `protobuf:"bytes,8,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
-	Currency            string                 `protobuf:"bytes,9,opt,name=currency,proto3" json:"currency,omitempty"` // Deprecated alias during rollout.
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                                 protoimpl.MessageState `protogen:"open.v1"`
+	ExpenseId                             string                 `protobuf:"bytes,1,opt,name=expense_id,json=expenseId,proto3" json:"expense_id,omitempty"`
+	UserId                                string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Name                                  string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	AmountInTransactionCurrencyMinorUnits int64                  `protobuf:"varint,4,opt,name=amount_in_transaction_currency_minor_units,json=amountInTransactionCurrencyMinorUnits,proto3" json:"amount_in_transaction_currency_minor_units,omitempty"`
+	ExpenseType                           string                 `protobuf:"bytes,5,opt,name=expense_type,json=expenseType,proto3" json:"expense_type,omitempty"`
+	TagId                                 string                 `protobuf:"bytes,6,opt,name=tag_id,json=tagId,proto3" json:"tag_id,omitempty"`
+	ExpenseDateIso                        string                 `protobuf:"bytes,7,opt,name=expense_date_iso,json=expenseDateIso,proto3" json:"expense_date_iso,omitempty"`
+	TransactionCurrencyCode               string                 `protobuf:"bytes,8,opt,name=transaction_currency_code,json=transactionCurrencyCode,proto3" json:"transaction_currency_code,omitempty"`
+	Currency                              string                 `protobuf:"bytes,9,opt,name=currency,proto3" json:"currency,omitempty"` // Deprecated alias during rollout.
+	unknownFields                         protoimpl.UnknownFields
+	sizeCache                             protoimpl.SizeCache
 }
 
 func (x *CorrectExpenseRequest) Reset() {
@@ -1022,9 +1022,9 @@ func (x *CorrectExpenseRequest) GetName() string {
 	return ""
 }
 
-func (x *CorrectExpenseRequest) GetAmount() int64 {
+func (x *CorrectExpenseRequest) GetAmountInTransactionCurrencyMinorUnits() int64 {
 	if x != nil {
-		return x.Amount
+		return x.AmountInTransactionCurrencyMinorUnits
 	}
 	return 0
 }
@@ -1043,16 +1043,16 @@ func (x *CorrectExpenseRequest) GetTagId() string {
 	return ""
 }
 
-func (x *CorrectExpenseRequest) GetExpenseDate() string {
+func (x *CorrectExpenseRequest) GetExpenseDateIso() string {
 	if x != nil {
-		return x.ExpenseDate
+		return x.ExpenseDateIso
 	}
 	return ""
 }
 
-func (x *CorrectExpenseRequest) GetTransactionCurrency() string {
+func (x *CorrectExpenseRequest) GetTransactionCurrencyCode() string {
 	if x != nil {
-		return x.TransactionCurrency
+		return x.TransactionCurrencyCode
 	}
 	return ""
 }
@@ -1428,14 +1428,14 @@ var File_proto_expense_proto protoreflect.FileDescriptor
 
 const file_proto_expense_proto_rawDesc = "" +
 	"\n" +
-	"\x13proto/expense.proto\x12\aexpense\"\xe5\x06\n" +
+	"\x13proto/expense.proto\x12\aexpense\"\xef\a\n" +
 	"\vExpenseData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12!\n" +
 	"\fexpense_type\x18\x06 \x01(\tR\vexpenseType\x12\x15\n" +
-	"\x06tag_id\x18\a \x01(\tR\x05tagId\x12!\n" +
-	"\fexpense_date\x18\b \x01(\tR\vexpenseDate\x12\x1f\n" +
+	"\x06tag_id\x18\a \x01(\tR\x05tagId\x12(\n" +
+	"\x10expense_date_iso\x18\b \x01(\tR\x0eexpenseDateIso\x12\x1f\n" +
 	"\vperiod_year\x18\t \x01(\x05R\n" +
 	"periodYear\x12!\n" +
 	"\fperiod_month\x18\n" +
@@ -1448,22 +1448,22 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_index\x18\x0f \x01(\x05R\fproRataIndex\x12$\n" +
 	"\x0epro_rata_total\x18\x10 \x01(\x05R\fproRataTotal\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x11 \x01(\tR\tcreatedAt\x121\n" +
-	"\x14transaction_currency\x18\x12 \x01(\tR\x13transactionCurrency\x12-\n" +
-	"\x12transaction_amount\x18\x14 \x01(\x03R\x11transactionAmount\x12)\n" +
-	"\x10reporting_amount\x18\x15 \x01(\x03R\x0freportingAmount\x12-\n" +
-	"\x12reporting_currency\x18\x16 \x01(\tR\x11reportingCurrency\x12#\n" +
-	"\rexchange_rate\x18\x17 \x01(\tR\fexchangeRate\x120\n" +
+	"created_at\x18\x11 \x01(\tR\tcreatedAt\x12:\n" +
+	"\x19transaction_currency_code\x18\x12 \x01(\tR\x17transactionCurrencyCode\x12Y\n" +
+	"*original_transaction_amount_in_minor_units\x18\x14 \x01(\x03R%originalTransactionAmountInMinorUnits\x12D\n" +
+	"\x1freporting_amount_in_minor_units\x18\x15 \x01(\x03R\x1breportingAmountInMinorUnits\x126\n" +
+	"\x17reporting_currency_code\x18\x16 \x01(\tR\x15reportingCurrencyCode\x12B\n" +
+	"\x1esource_to_target_exchange_rate\x18\x17 \x01(\tR\x1asourceToTargetExchangeRate\x120\n" +
 	"\x14exchange_rate_source\x18\x18 \x01(\tR\x12exchangeRateSource\x126\n" +
-	"\x17exchange_rate_timestamp\x18\x19 \x01(\tR\x15exchangeRateTimestamp\x127\n" +
-	"\x18exchange_rate_expires_at\x18\x1a \x01(\tR\x15exchangeRateExpiresAtJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\x90\x04\n" +
+	"\x17exchange_rate_timestamp\x18\x19 \x01(\tR\x15exchangeRateTimestamp\x12B\n" +
+	"\x1eexchange_rate_cache_expires_at\x18\x1a \x01(\tR\x1aexchangeRateCacheExpiresAtJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\xe3\x04\n" +
 	"\x14CreateExpenseRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
-	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12!\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12Y\n" +
+	"*amount_in_transaction_currency_minor_units\x18\x03 \x01(\x03R%amountInTransactionCurrencyMinorUnits\x12!\n" +
 	"\fexpense_type\x18\x05 \x01(\tR\vexpenseType\x12\x15\n" +
-	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12!\n" +
-	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\x12\x1f\n" +
+	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12(\n" +
+	"\x10expense_date_iso\x18\a \x01(\tR\x0eexpenseDateIso\x12\x1f\n" +
 	"\vperiod_year\x18\b \x01(\x05R\n" +
 	"periodYear\x12!\n" +
 	"\fperiod_month\x18\t \x01(\x05R\vperiodMonth\x12\x1e\n" +
@@ -1471,8 +1471,8 @@ const file_proto_expense_proto_rawDesc = "" +
 	" \x01(\bR\tisProRata\x12$\n" +
 	"\x0epro_rata_group\x18\v \x01(\tR\fproRataGroup\x12$\n" +
 	"\x0epro_rata_index\x18\f \x01(\x05R\fproRataIndex\x12$\n" +
-	"\x0epro_rata_total\x18\r \x01(\x05R\fproRataTotal\x121\n" +
-	"\x14transaction_currency\x18\x0e \x01(\tR\x13transactionCurrency\x12G\n" +
+	"\x0epro_rata_total\x18\r \x01(\x05R\fproRataTotal\x12:\n" +
+	"\x19transaction_currency_code\x18\x0e \x01(\tR\x17transactionCurrencyCode\x12G\n" +
 	" client_generated_idempotency_key\x18\x0f \x01(\tR\x1dclientGeneratedIdempotencyKeyJ\x04\b\x04\x10\x05\"A\n" +
 	"\x0fExpenseResponse\x12.\n" +
 	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\xbd\x01\n" +
@@ -1495,16 +1495,16 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x11rates_by_currency\x18\a \x03(\v22.expense.CapturedRateSnapshot.RatesByCurrencyEntryR\x0fratesByCurrency\x1aB\n" +
 	"\x14RatesByCurrencyEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x83\x04\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd6\x04\n" +
 	"\x1fCreateProRataInstallmentRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12D\n" +
 	"\x0eperiod_context\x18\x02 \x01(\v2\x1d.expense.TrustedPeriodContextR\rperiodContext\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x03R\x06amount\x121\n" +
-	"\x14transaction_currency\x18\x05 \x01(\tR\x13transactionCurrency\x12!\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12Y\n" +
+	"*amount_in_transaction_currency_minor_units\x18\x04 \x01(\x03R%amountInTransactionCurrencyMinorUnits\x12:\n" +
+	"\x19transaction_currency_code\x18\x05 \x01(\tR\x17transactionCurrencyCode\x12!\n" +
 	"\fexpense_type\x18\x06 \x01(\tR\vexpenseType\x12\x15\n" +
-	"\x06tag_id\x18\a \x01(\tR\x05tagId\x12!\n" +
-	"\fexpense_date\x18\b \x01(\tR\vexpenseDate\x12$\n" +
+	"\x06tag_id\x18\a \x01(\tR\x05tagId\x12(\n" +
+	"\x10expense_date_iso\x18\b \x01(\tR\x0eexpenseDateIso\x12$\n" +
 	"\x0epro_rata_group\x18\t \x01(\tR\fproRataGroup\x12$\n" +
 	"\x0epro_rata_index\x18\n" +
 	" \x01(\x05R\fproRataIndex\x12$\n" +
@@ -1524,17 +1524,17 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"<\n" +
 	"\x11GetExpenseRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xa7\x02\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xfa\x02\n" +
 	"\x15CorrectExpenseRequest\x12\x1d\n" +
 	"\n" +
 	"expense_id\x18\x01 \x01(\tR\texpenseId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12!\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12Y\n" +
+	"*amount_in_transaction_currency_minor_units\x18\x04 \x01(\x03R%amountInTransactionCurrencyMinorUnits\x12!\n" +
 	"\fexpense_type\x18\x05 \x01(\tR\vexpenseType\x12\x15\n" +
-	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12!\n" +
-	"\fexpense_date\x18\a \x01(\tR\vexpenseDate\x121\n" +
-	"\x14transaction_currency\x18\b \x01(\tR\x13transactionCurrency\x12\x1a\n" +
+	"\x06tag_id\x18\x06 \x01(\tR\x05tagId\x12(\n" +
+	"\x10expense_date_iso\x18\a \x01(\tR\x0eexpenseDateIso\x12:\n" +
+	"\x19transaction_currency_code\x18\b \x01(\tR\x17transactionCurrencyCode\x12\x1a\n" +
 	"\bcurrency\x18\t \x01(\tR\bcurrency\"<\n" +
 	"\x1bGetCorrectionHistoryRequest\x12\x1d\n" +
 	"\n" +
