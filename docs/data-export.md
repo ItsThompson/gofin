@@ -129,7 +129,7 @@ Amount columns use the shared currency catalog's `minorUnitDigits` to scale inte
 | Zero-digit currencies | Render as a plain integer (JPY gets no forced `.00`) |
 | Same-currency row | `exchange_rate = 1`, `exchange_rate_source = identity` |
 | Provider-converted row | Include provider rate and timestamp |
-| Legacy identity-equivalent row | rate `1`; both currency columns are set to the period reporting currency |
+| Legacy migration row | emitted as `exchange_rate_source = identity`, rate `1`; both currency columns are set to the period reporting currency |
 | Legacy stored-currency mismatch | Normalize both currency columns to the period reporting currency; when the period is unknown, fall back to the row's stored `reporting_currency` |
 | Incomplete snapshot | `identity` or `open_exchange_rates` rows missing any required money field fail the export |
 | Unsupported stored currency | `expenses` and `budget_periods` fail the export; `default_settings` renders `budget_amount` with two decimals and counts the fallback in `export_currency_formatting_fallback_total` |
