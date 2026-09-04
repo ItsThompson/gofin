@@ -57,18 +57,19 @@ func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
 
 func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CreateExpense(ctx, req.GetUserId(), &model.CreateExpenseRequest{
-		Name:                req.GetName(),
-		Amount:              req.GetAmount(),
-		TransactionCurrency: req.GetTransactionCurrency(),
-		ExpenseType:         req.GetExpenseType(),
-		TagID:               req.GetTagId(),
-		ExpenseDate:         req.GetExpenseDate(),
-		PeriodYear:          req.GetPeriodYear(),
-		PeriodMonth:         req.GetPeriodMonth(),
-		IsProRata:           req.GetIsProRata(),
-		ProRataGroup:        req.GetProRataGroup(),
-		ProRataIndex:        req.GetProRataIndex(),
-		ProRataTotal:        req.GetProRataTotal(),
+		Name:                          req.GetName(),
+		Amount:                        req.GetAmount(),
+		TransactionCurrency:           req.GetTransactionCurrency(),
+		ExpenseType:                   req.GetExpenseType(),
+		TagID:                         req.GetTagId(),
+		ExpenseDate:                   req.GetExpenseDate(),
+		PeriodYear:                    req.GetPeriodYear(),
+		PeriodMonth:                   req.GetPeriodMonth(),
+		IsProRata:                     req.GetIsProRata(),
+		ProRataGroup:                  req.GetProRataGroup(),
+		ProRataIndex:                  req.GetProRataIndex(),
+		ProRataTotal:                  req.GetProRataTotal(),
+		ClientGeneratedIdempotencyKey: req.GetClientGeneratedIdempotencyKey(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCreate, req.GetUserId())

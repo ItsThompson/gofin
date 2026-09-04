@@ -22,8 +22,8 @@ type CreateExpenseRequest struct {
 
 	// ClientGeneratedIdempotencyKey makes create idempotent: a retry with the
 	// same key returns the already-created expense instead of inserting a
-	// duplicate. Empty means "no idempotency" (current behavior).
-	ClientGeneratedIdempotencyKey string `json:"clientGeneratedIdempotencyKey,omitempty"`
+	// duplicate. Required (RFC 4122 UUID).
+	ClientGeneratedIdempotencyKey string `json:"clientGeneratedIdempotencyKey"`
 }
 
 // GetExpensesRequest holds the parsed query parameters for GET /api/expenses.

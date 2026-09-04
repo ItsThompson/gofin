@@ -77,6 +77,9 @@ message CreateExpenseRequest {
   int32 pro_rata_index = 12;
   int32 pro_rata_total = 13;
   string transaction_currency = 14;
+  // Client-generated idempotency key (RFC 4122 UUID). Required: a retry with
+  // the same key returns the already-created expense instead of a duplicate.
+  string client_generated_idempotency_key = 15;
 }
 
 message ExpenseResponse {

@@ -52,11 +52,20 @@ func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, u
 }
 
 func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
-	args := m.Called(ctx, userID, key)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+	// The key is now required, so every create performs a replay lookup. Most
+	// create tests exercise the fresh-insert path and don't care about replays:
+	// default to "no existing expense" unless a test registers an explicit
+	// expectation for this method.
+	for _, c := range m.ExpectedCalls {
+		if c.Method == "GetExpenseByIdempotencyKey" {
+			args := m.Called(ctx, userID, key)
+			if args.Get(0) == nil {
+				return nil, args.Error(1)
+			}
+			return args.Get(0).(*model.Expense), args.Error(1)
+		}
 	}
-	return args.Get(0).(*model.Expense), args.Error(1)
+	return nil, nil
 }
 
 func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
@@ -182,13 +191,14 @@ func TestCreateExpenseHandler_Success(t *testing.T) {
 	r := setupTestRouter(repo)
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
-		"name":        "Grocery shopping",
-		"amount":      2500,
-		"expenseType": "essentials",
-		"tagId":       "tag-food",
-		"expenseDate": "2026-05-03",
-		"periodYear":  2026,
-		"periodMonth": 5,
+		"name":                          "Grocery shopping",
+		"amount":                        2500,
+		"expenseType":                   "essentials",
+		"tagId":                         "tag-food",
+		"expenseDate":                   "2026-05-03",
+		"periodYear":                    2026,
+		"periodMonth":                   5,
+		"clientGeneratedIdempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -238,14 +248,15 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 	r := setupTestRouterWithPeriod(repo, periodClient)
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
-		"name":                "Coffee",
-		"amount":              450,
-		"transactionCurrency": "EUR",
-		"expenseType":         "desires",
-		"tagId":               "tag-food",
-		"expenseDate":         "2026-05-03",
-		"periodYear":          2026,
-		"periodMonth":         5,
+		"name":                          "Coffee",
+		"amount":                        450,
+		"transactionCurrency":           "EUR",
+		"expenseType":                   "desires",
+		"tagId":                         "tag-food",
+		"expenseDate":                   "2026-05-03",
+		"periodYear":                    2026,
+		"periodMonth":                   5,
+		"clientGeneratedIdempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -316,14 +327,15 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 	r := setupTestRouterWithFxClock(repo, periodClient, fxClient, func() time.Time { return now })
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
-		"name":                "Cafe",
-		"amount":              1250,
-		"transactionCurrency": "EUR",
-		"expenseType":         "desires",
-		"tagId":               "tag-food",
-		"expenseDate":         "2026-05-03",
-		"periodYear":          2026,
-		"periodMonth":         5,
+		"name":                          "Cafe",
+		"amount":                        1250,
+		"transactionCurrency":           "EUR",
+		"expenseType":                   "desires",
+		"tagId":                         "tag-food",
+		"expenseDate":                   "2026-05-03",
+		"periodYear":                    2026,
+		"periodMonth":                   5,
+		"clientGeneratedIdempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -364,14 +376,15 @@ func TestCreateExpenseHandler_ForeignCurrencyFxUnavailable(t *testing.T) {
 	r := setupTestRouterWithFx(repo, periodClient, fxClient)
 
 	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
-		"name":                "Cafe",
-		"amount":              1250,
-		"transactionCurrency": "EUR",
-		"expenseType":         "desires",
-		"tagId":               "tag-food",
-		"expenseDate":         "2026-05-03",
-		"periodYear":          2026,
-		"periodMonth":         5,
+		"name":                          "Cafe",
+		"amount":                        1250,
+		"transactionCurrency":           "EUR",
+		"expenseType":                   "desires",
+		"tagId":                         "tag-food",
+		"expenseDate":                   "2026-05-03",
+		"periodYear":                    2026,
+		"periodMonth":                   5,
+		"clientGeneratedIdempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
@@ -436,6 +449,33 @@ func TestCreateExpenseHandler_ValidationError(t *testing.T) {
 	assert.Equal(t, "validation failed", errResp.Message)
 	require.NotNil(t, errResp.Fields)
 	assert.Equal(t, "amount must be positive", errResp.Fields["amount"])
+}
+
+// TestCreateExpenseHandler_MissingIdempotencyKey asserts a create without the
+// required idempotency key is rejected with a 400 validation error before any
+// ledger lookup or insert.
+func TestCreateExpenseHandler_MissingIdempotencyKey(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	r := setupTestRouter(repo)
+
+	w := doJSONWithUserID(r, "POST", "/api/expenses", "user-1", map[string]interface{}{
+		"name":        "Coffee",
+		"amount":      2500,
+		"expenseType": "essentials",
+		"tagId":       "tag-food",
+		"expenseDate": "2026-05-03",
+		"periodYear":  2026,
+		"periodMonth": 5,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, apierr.CodeValidation, errResp.Code)
+	assert.Equal(t, "clientGeneratedIdempotencyKey is required", errResp.Message)
+	repo.AssertNotCalled(t, "GetExpenseByIdempotencyKey", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
 func TestCreateExpenseHandler_InvalidExpenseType(t *testing.T) {
@@ -809,7 +849,7 @@ func TestDeleteExpenseHandler_Success(t *testing.T) {
 	original := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
 		ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		TagID:       "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
@@ -830,7 +870,7 @@ func TestDeleteExpenseHandler_AlreadyCorrected(t *testing.T) {
 	corrected := &model.Expense{
 		ID: "exp-original", UserID: "user-1", Name: "Coffee",
 		ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		TagID:       "tag-food", ExpenseDate: "2026-05-01",
 		PeriodYear: 2026, PeriodMonth: 5, Status: "corrected",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(corrected, nil)
@@ -851,7 +891,7 @@ func TestDeleteExpenseHandler_PeriodLocked(t *testing.T) {
 	pastExpense := &model.Expense{
 		ID: "exp-past", UserID: "user-1", Name: "Old Coffee",
 		ExpenseType: "desires",
-		TagID: "tag-food", ExpenseDate: "2026-04-15",
+		TagID:       "tag-food", ExpenseDate: "2026-04-15",
 		PeriodYear: 2026, PeriodMonth: 4, Status: "active",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-past", "user-1").Return(pastExpense, nil)

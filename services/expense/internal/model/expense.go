@@ -36,8 +36,9 @@ type Expense struct {
 
 	// ClientGeneratedIdempotencyKey makes create idempotent: a retry with the
 	// same key returns the already-created expense instead of inserting a
-	// duplicate. Empty means "no idempotency" (current behavior).
-	ClientGeneratedIdempotencyKey string `json:"clientGeneratedIdempotencyKey,omitempty"`
+	// duplicate. Required on create (RFC 4122 UUID); empty for rows written
+	// before the idempotency migration.
+	ClientGeneratedIdempotencyKey string `json:"clientGeneratedIdempotencyKey"`
 }
 
 // ValidExpenseTypes is the set of allowed expense_type values.

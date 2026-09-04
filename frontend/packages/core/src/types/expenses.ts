@@ -55,7 +55,7 @@ export interface CreateExpenseRequest {
   expenseDate: string;
   periodYear: number;
   periodMonth: number;
-  clientGeneratedIdempotencyKey?: string;
+  clientGeneratedIdempotencyKey: string;
 }
 
 /** Request body for POST /api/expenses/:id/correct. */

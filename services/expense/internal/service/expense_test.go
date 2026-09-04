@@ -52,11 +52,20 @@ func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, u
 }
 
 func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
-	args := m.Called(ctx, userID, key)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+	// The key is now required, so every create performs a replay lookup. Most
+	// create tests exercise the fresh-insert path and don't care about replays:
+	// default to "no existing expense" unless a test registers an explicit
+	// expectation for this method (the idempotent-replay tests do).
+	for _, c := range m.ExpectedCalls {
+		if c.Method == "GetExpenseByIdempotencyKey" {
+			args := m.Called(ctx, userID, key)
+			if args.Get(0) == nil {
+				return nil, args.Error(1)
+			}
+			return args.Get(0).(*model.Expense), args.Error(1)
+		}
 	}
-	return args.Get(0).(*model.Expense), args.Error(1)
+	return nil, nil
 }
 
 func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
@@ -155,14 +164,15 @@ func requireAPIError(t *testing.T, err error) *apierr.Error {
 
 func validCreateRequest() *model.CreateExpenseRequest {
 	return &model.CreateExpenseRequest{
-		Name:                "Grocery shopping",
-		Amount:              2500,
-		TransactionCurrency: "USD",
-		ExpenseType:         "essentials",
-		TagID:               "tag-food",
-		ExpenseDate:         "2026-05-03",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
+		Name:                          "Grocery shopping",
+		Amount:                        2500,
+		TransactionCurrency:           "USD",
+		ExpenseType:                   "essentials",
+		TagID:                         "tag-food",
+		ExpenseDate:                   "2026-05-03",
+		PeriodYear:                    2026,
+		PeriodMonth:                   5,
+		ClientGeneratedIdempotencyKey: validTestUUID,
 	}
 }
 
@@ -1493,10 +1503,10 @@ func TestCreateExpense_IdempotentReplayReturnsExisting(t *testing.T) {
 	svc := newTestService(repo)
 
 	existing := &model.Expense{
-		ID:           "exp-existing",
-		UserID:       "user-1",
-		Name:         "Grocery shopping",
-		Status:       "active",
+		ID:                            "exp-existing",
+		UserID:                        "user-1",
+		Name:                          "Grocery shopping",
+		Status:                        "active",
 		ClientGeneratedIdempotencyKey: validTestUUID,
 	}
 	repo.On("GetExpenseByIdempotencyKey", mock.Anything, "user-1", validTestUUID).Return(existing, nil)
@@ -1523,9 +1533,9 @@ func TestCreateExpense_IdempotentKeyInsertsOnce(t *testing.T) {
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(e *model.Expense) bool {
 		return e.ClientGeneratedIdempotencyKey == validTestUUID
 	})).Return(&model.Expense{
-		ID:             "exp-123",
-		UserID:         "user-1",
-		Status:         "active",
+		ID:                            "exp-123",
+		UserID:                        "user-1",
+		Status:                        "active",
 		ClientGeneratedIdempotencyKey: validTestUUID,
 	}, nil)
 
@@ -1576,21 +1586,23 @@ func TestCreateExpense_OversizedIdempotencyKeyRejected(t *testing.T) {
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
-// TestCreateExpense_EmptyIdempotencyKeyPreservesBehavior asserts that an empty
-// key skips the lookup entirely and proceeds with the insert (current behavior).
-func TestCreateExpense_EmptyIdempotencyKeyPreservesBehavior(t *testing.T) {
+// TestCreateExpense_MissingIdempotencyKeyRejected asserts that an empty key is
+// rejected with a 400 validation error before any lookup or insert. The key is
+// required: every create must be idempotent.
+func TestCreateExpense_MissingIdempotencyKeyRejected(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
-		Return(&model.Expense{ID: "exp-123", UserID: "user-1", Status: "active"}, nil)
+	req := validCreateRequest()
+	req.ClientGeneratedIdempotencyKey = ""
 
-	resp, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
-	require.NoError(t, err)
-	assert.Equal(t, "exp-123", resp.ID)
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, 400, svcErr.Status)
 	repo.AssertNotCalled(t, "GetExpenseByIdempotencyKey", mock.Anything, mock.Anything, mock.Anything)
-	repo.AssertExpectations(t)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
 
 // --- DeleteExpense tests ---

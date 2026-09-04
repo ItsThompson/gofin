@@ -120,30 +120,30 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	}
 
 	expense := &model.Expense{
-		ID:                    uuid.New().String(),
-		UserID:                userID,
-		Name:                  req.Name,
-		TransactionCurrency:   transactionCurrency,
-		ExpenseType:           req.ExpenseType,
-		TagID:                 req.TagID,
-		ExpenseDate:           req.ExpenseDate,
-		PeriodYear:            req.PeriodYear,
-		PeriodMonth:           req.PeriodMonth,
-		Status:                "active",
-		CorrectsID:            "",
-		IsProRata:             req.IsProRata,
-		ProRataGroup:          req.ProRataGroup,
-		ProRataIndex:          req.ProRataIndex,
-		ProRataTotal:          req.ProRataTotal,
-		CreatedAt:             now,
-		TransactionAmount:     snapshot.TransactionAmount,
-		ReportingAmount:       snapshot.ReportingAmount,
-		ReportingCurrency:     snapshot.ReportingCurrency,
-		ExchangeRate:          snapshot.ExchangeRate,
-		ExchangeRateSource:    snapshot.ExchangeRateSource,
-		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
-		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
-		ClientGeneratedIdempotencyKey:        req.ClientGeneratedIdempotencyKey,
+		ID:                            uuid.New().String(),
+		UserID:                        userID,
+		Name:                          req.Name,
+		TransactionCurrency:           transactionCurrency,
+		ExpenseType:                   req.ExpenseType,
+		TagID:                         req.TagID,
+		ExpenseDate:                   req.ExpenseDate,
+		PeriodYear:                    req.PeriodYear,
+		PeriodMonth:                   req.PeriodMonth,
+		Status:                        "active",
+		CorrectsID:                    "",
+		IsProRata:                     req.IsProRata,
+		ProRataGroup:                  req.ProRataGroup,
+		ProRataIndex:                  req.ProRataIndex,
+		ProRataTotal:                  req.ProRataTotal,
+		CreatedAt:                     now,
+		TransactionAmount:             snapshot.TransactionAmount,
+		ReportingAmount:               snapshot.ReportingAmount,
+		ReportingCurrency:             snapshot.ReportingCurrency,
+		ExchangeRate:                  snapshot.ExchangeRate,
+		ExchangeRateSource:            snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp:         snapshot.ExchangeRateTimestamp,
+		ExchangeRateExpiresAt:         snapshot.ExchangeRateExpiresAt,
+		ClientGeneratedIdempotencyKey: req.ClientGeneratedIdempotencyKey,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)
@@ -618,12 +618,10 @@ func (s *ExpenseService) handleFxConversionFailure(err error, transactionCurrenc
 
 // lookupIdempotentReplay returns the previously-stored expense when the client-
 // generated idempotency key matches an existing row, signalling an idempotent
-// replay. It returns (nil, nil) when the key is absent or no match exists, so the
-// caller proceeds with a fresh create.
+// replay. It returns (nil, nil) when no match exists, so the caller proceeds
+// with a fresh create. Validation guarantees the key is non-empty before this
+// is called.
 func (s *ExpenseService) lookupIdempotentReplay(ctx context.Context, userID, key string) (*model.Expense, error) {
-	if key == "" {
-		return nil, nil
-	}
 	existing, err := s.repo.GetExpenseByIdempotencyKey(ctx, userID, key)
 	if err != nil {
 		return nil, fmt.Errorf("checking idempotency key: %w", err)
@@ -779,19 +777,20 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error
 	return nil
 }
 
-// validateIdempotencyKey returns nil for an empty key (backward compatible),
-// or an *apierr.Validation if the key is not a well-formed RFC 4122 UUID or
-// exceeds the 36-character column width. Called before any lookup or insert so
-// a malformed key is rejected without touching the ledger.
+// validateIdempotencyKey returns an *apierr.Validation if the key is empty,
+// not a well-formed RFC 4122 UUID, or exceeds the 36-character column width.
+// Called before any lookup or insert so a malformed or missing key is rejected
+// without touching the ledger. The key is required: every create must be
+// idempotent so a client retry returns the already-created expense.
 func validateIdempotencyKey(key string) *apierr.Error {
 	if key == "" {
-		return nil // optional, backward compatible
+		return apierr.Validation("clientGeneratedIdempotencyKey is required", nil)
 	}
 	if len(key) > 36 {
-		return apierr.Validation("idempotencyKey must be at most 36 characters", nil)
+		return apierr.Validation("clientGeneratedIdempotencyKey must be at most 36 characters", nil)
 	}
 	if _, err := uuid.Parse(key); err != nil {
-		return apierr.Validation("idempotencyKey must be a valid UUID", nil)
+		return apierr.Validation("clientGeneratedIdempotencyKey must be a valid UUID", nil)
 	}
 	return nil
 }
