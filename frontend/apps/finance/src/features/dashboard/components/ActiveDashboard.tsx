@@ -59,10 +59,6 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
     year: "numeric",
   });
 
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -106,6 +102,10 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
         </SectionErrorBoundary>
       )}
 
+      {loading ? (
+        <DashboardSkeleton />
+      ) : (
+        <>
       <div ref={dashboardContentRef} className="space-y-6">
         {/* Financial Health Score: first section, visible on mobile. */}
         {data.healthScore && (
@@ -243,6 +243,8 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
 
       {/* Dashboard Outline (TOC) - fixed positioned, renders on 2xl+ viewports */}
       <DashboardOutline rootRef={dashboardContentRef} />
+        </>
+      )}
     </div>
   );
 }
