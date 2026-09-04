@@ -109,11 +109,11 @@ test.describe("Expense autocomplete smoke", () => {
     const body = await response.json();
 
     const correctedSuggestion = body.data.find((suggestion: { name: string }) => suggestion.name === "Corrected Autocomplete");
-    expect(correctedSuggestion).toMatchObject({ transactionAmount: 3000, frequency: 1 });
+    expect(correctedSuggestion).toMatchObject({ originalTransactionAmountInMinorUnits: 3000, frequency: 1 });
 
     const proRataSuggestion = body.data.find((suggestion: { name: string }) => suggestion.name === "Autocomplete Subscription");
     expect(proRataSuggestion).toMatchObject({
-      transactionAmount: 10000,
+      originalTransactionAmountInMinorUnits: 10000,
       frequency: 1,
       expenseType: "essentials",
       tagId: defaultTag.id,

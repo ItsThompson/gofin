@@ -21,11 +21,11 @@ interface CreatePeriodParams {
 
 interface CreateExpenseParams {
   name: string;
-  amount: number;
-  currency?: string;
+  amountInTransactionCurrencyMinorUnits: number;
+  transactionCurrencyCode?: string;
   expenseType: "essentials" | "desires" | "savings";
   tagId: string;
-  expenseDate: string;
+  expenseDateIso: string;
   periodYear: number;
   periodMonth: number;
 }
@@ -71,11 +71,11 @@ export async function apiCreateExpense(
   const response = await request.post("/api/expenses", {
     data: {
       name: params.name,
-      amount: params.amount,
-      currency: params.currency ?? "USD",
+      amountInTransactionCurrencyMinorUnits: params.amountInTransactionCurrencyMinorUnits,
+      transactionCurrencyCode: params.transactionCurrencyCode ?? "USD",
       expenseType: params.expenseType,
       tagId: params.tagId,
-      expenseDate: params.expenseDate,
+      expenseDateIso: params.expenseDateIso,
       periodYear: params.periodYear,
       periodMonth: params.periodMonth,
       clientGeneratedIdempotencyKey: crypto.randomUUID(),
