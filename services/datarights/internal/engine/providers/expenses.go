@@ -200,7 +200,8 @@ type expenseSnapshot struct {
 // Identity and open_exchange_rates rows must carry a complete snapshot; a
 // missing required field fails the export rather than emitting incorrect money
 // facts. Legacy migration rows are normalized to the period's reporting
-// currency using the per-job period currency map.
+// currency using the per-job period currency map and emitted with
+// exchange_rate_source = identity.
 func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseSnapshot, error) {
 	source := exp.GetExchangeRateSource()
 
@@ -232,7 +233,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			reportingAmount:       exp.GetReportingAmount(),
 			reportingCurrency:     currency,
 			exchangeRate:          "1",
-			exchangeRateSource:    exchangesource.Migration,
+			exchangeRateSource:    exchangesource.Identity,
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 

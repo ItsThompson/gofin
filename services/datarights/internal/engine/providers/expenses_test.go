@@ -271,7 +271,7 @@ func TestExpensesProvider_Collect_LegacyRowNormalizesToPeriodCurrency(t *testing
 	assert.Equal(t, "45.99", rows[0][4])
 	assert.Equal(t, "USD", rows[0][5])
 	assert.Equal(t, "1", rows[0][6])
-	assert.Equal(t, exchangesource.Migration, rows[0][7])
+	assert.Equal(t, exchangesource.Identity, rows[0][7])
 	assert.Equal(t, "2026-05-01T12:00:00Z", rows[0][8])
 }
 
