@@ -129,7 +129,7 @@ function CorrectionFormContainer({
 
   return (
     <CorrectionForm
-      currency={state.transactionCurrency}
+      currency={state.transactionCurrencyCode}
       tags={tags}
       fields={state.fields}
       fieldErrors={state.fieldErrors}

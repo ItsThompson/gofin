@@ -16,11 +16,11 @@ import type { ExpenseSuggestion } from "../types";
 
 function formatSuggestionAmount(suggestion: ExpenseSuggestion): string {
   const major = toMajorUnits(
-    suggestion.transactionAmount,
-    suggestion.transactionCurrency,
+    suggestion.originalTransactionAmountInMinorUnits,
+    suggestion.transactionCurrencyCode,
   );
-  const symbol = getCurrencySymbol(suggestion.transactionCurrency);
-  const digits = getMinorUnitDigits(suggestion.transactionCurrency);
+  const symbol = getCurrencySymbol(suggestion.transactionCurrencyCode);
+  const digits = getMinorUnitDigits(suggestion.transactionCurrencyCode);
   return `${symbol}${major.toFixed(digits)}`;
 }
 
@@ -85,7 +85,7 @@ export function ExpenseNameCombobox({
               <div className="flex flex-col">
                 <span>{suggestion.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {formatSuggestionAmount(suggestion)} · {suggestion.transactionCurrency} · Frecency: {suggestion.frecencyScore}
+                  {formatSuggestionAmount(suggestion)} · {suggestion.transactionCurrencyCode} · Frecency: {suggestion.frecencyScore}
                 </span>
               </div>
             </ComboboxItem>

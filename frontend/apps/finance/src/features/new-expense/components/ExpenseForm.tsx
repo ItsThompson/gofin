@@ -81,9 +81,9 @@ export function ExpenseForm({
                 <Input
                   id="expense-amount"
                   type="number"
-                  min={getMinorUnitDigits(state.transactionCurrency) === 0 ? "1" : "0.01"}
-                  step={getCurrencyInputStep(state.transactionCurrency)}
-                  placeholder={getMinorUnitDigits(state.transactionCurrency) === 0 ? "0" : "0.00"}
+                  min={getMinorUnitDigits(state.transactionCurrencyCode) === 0 ? "1" : "0.01"}
+                  step={getCurrencyInputStep(state.transactionCurrencyCode)}
+                  placeholder={getMinorUnitDigits(state.transactionCurrencyCode) === 0 ? "0" : "0.00"}
                   value={state.fields.amountDollars}
                   onChange={(event) => {
                     actions.setField("amountDollars", event.target.value);
@@ -99,7 +99,7 @@ export function ExpenseForm({
               <FormLabel htmlFor="transaction-currency">Transaction Currency</FormLabel>
               <select
                 id="transaction-currency"
-                value={state.transactionCurrency}
+                value={state.transactionCurrencyCode}
                 onChange={(event) => actions.setTransactionCurrency(event.target.value)}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
@@ -166,13 +166,13 @@ export function ExpenseForm({
               <Input
                 id="expense-date"
                 type="date"
-                value={state.fields.expenseDate}
+                value={state.fields.expenseDateIso}
                 onChange={(event) => {
-                  actions.setField("expenseDate", event.target.value);
+                  actions.setField("expenseDateIso", event.target.value);
                 }}
-                aria-invalid={!!state.fieldErrors.expenseDate}
+                aria-invalid={!!state.fieldErrors.expenseDateIso}
               />
-              <FormMessage>{state.fieldErrors.expenseDate}</FormMessage>
+              <FormMessage>{state.fieldErrors.expenseDateIso}</FormMessage>
             </FormField>
 
             <FormField>

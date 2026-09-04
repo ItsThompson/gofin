@@ -21,7 +21,7 @@ describe("useExpenseFields", () => {
         amountDollars: "",
         expenseType: "essentials",
         tagId: "",
-        expenseDate: "2026-05-12",
+        expenseDateIso: "2026-05-12",
       });
       expect(result.current.fieldErrors).toEqual({});
       expect(result.current.amountCents).toBe(0);
@@ -34,7 +34,7 @@ describe("useExpenseFields", () => {
           amountDollars: "4.50",
           expenseType: "desires",
           tagId: "tag-1",
-          expenseDate: "2026-03-15",
+          expenseDateIso: "2026-03-15",
         }),
       );
 
@@ -43,13 +43,13 @@ describe("useExpenseFields", () => {
         amountDollars: "4.50",
         expenseType: "desires",
         tagId: "tag-1",
-        expenseDate: "2026-03-15",
+        expenseDateIso: "2026-03-15",
       });
     });
 
-    it("uses today's date as default expenseDate", () => {
+    it("uses today's date as default expenseDateIso", () => {
       const { result } = renderHook(() => useExpenseFields());
-      expect(result.current.fields.expenseDate).toBe("2026-05-12");
+      expect(result.current.fields.expenseDateIso).toBe("2026-05-12");
     });
   });
 
@@ -152,7 +152,7 @@ describe("useExpenseFields", () => {
           amountDollars: "4.50",
           expenseType: "essentials",
           tagId: "tag-1",
-          expenseDate: "2026-05-12",
+          expenseDateIso: "2026-05-12",
         }),
       );
 
@@ -183,7 +183,7 @@ describe("useExpenseFields", () => {
           name: "Annual sub",
           amountDollars: "120.00",
           tagId: "tag-1",
-          expenseDate: "2026-05-12",
+          expenseDateIso: "2026-05-12",
         }),
       );
 
@@ -201,7 +201,7 @@ describe("useExpenseFields", () => {
           name: "Annual sub",
           amountDollars: "120.00",
           tagId: "tag-1",
-          expenseDate: "2026-05-12",
+          expenseDateIso: "2026-05-12",
         }),
       );
 
@@ -219,7 +219,7 @@ describe("useExpenseFields", () => {
             name: "Ramen",
             amountDollars: "1200.50",
             tagId: "tag-1",
-            expenseDate: "2026-05-12",
+            expenseDateIso: "2026-05-12",
           },
           "JPY",
         ),
@@ -251,7 +251,7 @@ describe("useExpenseFields", () => {
 
       expect(result.current.fields.name).toBe("");
       expect(result.current.fields.amountDollars).toBe("");
-      expect(result.current.fields.expenseDate).toBe("2026-05-12");
+      expect(result.current.fields.expenseDateIso).toBe("2026-05-12");
       expect(result.current.fieldErrors).toEqual({});
     });
 

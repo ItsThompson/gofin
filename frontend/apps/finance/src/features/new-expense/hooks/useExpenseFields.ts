@@ -10,7 +10,7 @@ export interface ExpenseFieldsInit {
   amountDollars?: string;
   expenseType?: ExpenseFields["expenseType"];
   tagId?: string;
-  expenseDate?: string;
+  expenseDateIso?: string;
 }
 
 /** Return type of useExpenseFields. */
@@ -37,7 +37,7 @@ function buildInitialFields(init?: ExpenseFieldsInit): ExpenseFields {
     amountDollars: init?.amountDollars ?? "",
     expenseType: init?.expenseType ?? "essentials",
     tagId: init?.tagId ?? "",
-    expenseDate: init?.expenseDate ?? toLocalISODate(),
+    expenseDateIso: init?.expenseDateIso ?? toLocalISODate(),
   };
 }
 

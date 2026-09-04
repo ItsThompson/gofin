@@ -9,8 +9,8 @@ global.fetch = mockFetch;
 function buildSuggestion(overrides: Partial<ExpenseSuggestion> = {}): ExpenseSuggestion {
   return {
     name: "Groceries",
-    transactionAmount: 7423,
-    transactionCurrency: "USD",
+    originalTransactionAmountInMinorUnits: 7423,
+    transactionCurrencyCode: "USD",
     expenseType: "essentials",
     tagId: "tag-groceries",
     frequency: 12,
@@ -151,9 +151,9 @@ describe("useExpenseAutocomplete", () => {
   });
 
   it("dedupes candidates by exact name and keeps the first ranked record", async () => {
-    const firstGroceries = buildSuggestion({ name: "Groceries", transactionAmount: 1000, frecencyScore: 50 });
-    const duplicateGroceries = buildSuggestion({ name: "Groceries", transactionAmount: 2000, frecencyScore: 10 });
-    const coffee = buildSuggestion({ name: "Coffee", transactionAmount: 500, frecencyScore: 20 });
+    const firstGroceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 1000, frecencyScore: 50 });
+    const duplicateGroceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 2000, frecencyScore: 10 });
+    const coffee = buildSuggestion({ name: "Coffee", originalTransactionAmountInMinorUnits: 500, frecencyScore: 20 });
     mockApiResponse(buildResponse([firstGroceries, duplicateGroceries, coffee]));
 
     const { result } = renderHook(() => useExpenseAutocomplete());
@@ -166,9 +166,9 @@ describe("useExpenseAutocomplete", () => {
   });
 
   it("loads the next page and appends deduped candidates", async () => {
-    const groceries = buildSuggestion({ name: "Groceries", transactionAmount: 1000, frecencyScore: 50 });
-    const duplicateGroceries = buildSuggestion({ name: "Groceries", transactionAmount: 2000, frecencyScore: 10 });
-    const coffee = buildSuggestion({ name: "Coffee", transactionAmount: 500, frecencyScore: 20 });
+    const groceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 1000, frecencyScore: 50 });
+    const duplicateGroceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 2000, frecencyScore: 10 });
+    const coffee = buildSuggestion({ name: "Coffee", originalTransactionAmountInMinorUnits: 500, frecencyScore: 20 });
     mockApiResponse(buildResponse([groceries], { hasMore: true }));
     mockApiResponse(buildResponse([duplicateGroceries, coffee], { page: 2, hasMore: false }));
 

@@ -23,8 +23,8 @@ const mockTags: Tag[] = [
 
 const mockSuggestion: ExpenseSuggestion = {
   name: "Train Pass",
-  transactionAmount: 1234,
-  transactionCurrency: "USD",
+  originalTransactionAmountInMinorUnits: 1234,
+  transactionCurrencyCode: "USD",
   expenseType: "desires",
   tagId: "tag-transport",
   frequency: 4,
@@ -37,13 +37,13 @@ const mockExpense: Expense = {
   id: "exp-1",
   userId: "user-1",
   name: "Groceries",
-  transactionCurrency: "USD",
-  transactionAmount: 5000,
-  reportingAmount: 5000,
-  reportingCurrency: "USD",
+  transactionCurrencyCode: "USD",
+  originalTransactionAmountInMinorUnits: 5000,
+  reportingAmountInMinorUnits: 5000,
+  reportingCurrencyCode: "USD",
   expenseType: "essentials",
   tagId: "tag-food",
-  expenseDate: "2026-05-02",
+  expenseDateIso: "2026-05-02",
   periodYear: 2026,
   periodMonth: 5,
   status: "active",
@@ -68,7 +68,7 @@ describe("useCorrectionForm", () => {
         amountDollars: "50.00",
         expenseType: "essentials",
         tagId: "tag-food",
-        expenseDate: "2026-05-02",
+        expenseDateIso: "2026-05-02",
       });
     });
 
@@ -84,8 +84,8 @@ describe("useCorrectionForm", () => {
     it("derives amountDollars correctly from cents", () => {
       const expenseWithOddAmount: Expense = {
         ...mockExpense,
-        transactionAmount: 1299,
-        reportingAmount: 1299,
+        originalTransactionAmountInMinorUnits: 1299,
+        reportingAmountInMinorUnits: 1299,
       };
       const onSubmit = vi.fn();
       const { result } = renderHook(() =>
@@ -176,7 +176,7 @@ describe("useCorrectionForm", () => {
         amountDollars: "12.34",
         expenseType: "desires",
         tagId: "tag-transport",
-        expenseDate: "2026-05-02",
+        expenseDateIso: "2026-05-02",
       });
     });
 
@@ -227,11 +227,11 @@ describe("useCorrectionForm", () => {
 
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Groceries",
-        amount: 5000,
-        transactionCurrency: "USD",
+        amountInTransactionCurrencyMinorUnits: 5000,
+        transactionCurrencyCode: "USD",
         expenseType: "essentials",
         tagId: "tag-food",
-        expenseDate: "2026-05-02",
+        expenseDateIso: "2026-05-02",
       });
     });
 
@@ -320,7 +320,7 @@ describe("useCorrectionForm", () => {
       });
 
       expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({ amount: 1299 }),
+        expect.objectContaining({ amountInTransactionCurrencyMinorUnits: 1299 }),
       );
     });
 
@@ -350,14 +350,14 @@ describe("useCorrectionForm", () => {
       );
 
       act(() => {
-        result.current.actions.setField("expenseDate", "");
+        result.current.actions.setField("expenseDateIso", "");
       });
       act(() => {
         result.current.actions.handleSubmit(createFormEvent());
       });
 
       expect(onSubmit).not.toHaveBeenCalled();
-      expect(result.current.state.fieldErrors.expenseDate).toBe(
+      expect(result.current.state.fieldErrors.expenseDateIso).toBe(
         "Date is required",
       );
     });
@@ -381,7 +381,7 @@ describe("useCorrectionForm", () => {
         result.current.actions.setField("tagId", "tag-transport");
       });
       act(() => {
-        result.current.actions.setField("expenseDate", "2026-05-10");
+        result.current.actions.setField("expenseDateIso", "2026-05-10");
       });
       act(() => {
         result.current.actions.handleSubmit(createFormEvent());
@@ -389,11 +389,11 @@ describe("useCorrectionForm", () => {
 
       expect(onSubmit).toHaveBeenCalledWith({
         name: "Updated Name",
-        amount: 7550,
-        transactionCurrency: "USD",
+        amountInTransactionCurrencyMinorUnits: 7550,
+        transactionCurrencyCode: "USD",
         expenseType: "desires",
         tagId: "tag-transport",
-        expenseDate: "2026-05-10",
+        expenseDateIso: "2026-05-10",
       });
     });
 
@@ -410,7 +410,7 @@ describe("useCorrectionForm", () => {
         result.current.actions.setTransactionCurrency("JPY");
       });
 
-      expect(result.current.state.transactionCurrency).toBe("JPY");
+      expect(result.current.state.transactionCurrencyCode).toBe("JPY");
       expect(result.current.state.fieldErrors.amount).toBe("Amount must be a whole JPY amount");
     });
   });

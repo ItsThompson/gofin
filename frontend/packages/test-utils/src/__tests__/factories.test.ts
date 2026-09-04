@@ -50,7 +50,7 @@ describe("buildPeriod", () => {
     expect(period.year).toBe(2026);
     expect(period.month).toBe(1);
     expect(period.budgetAmount).toBe(300000);
-    expect(period.reportingCurrency).toBe("USD");
+    expect(period.reportingCurrencyCode).toBe("USD");
     expect(period.essentialsPercent).toBe(50);
     expect(period.desiresPercent).toBe(30);
     expect(period.savingsPercent).toBe(20);
@@ -82,11 +82,11 @@ describe("buildExpense", () => {
     expect(expense.id).toMatch(/^expense-\d+$/);
     expect(expense.userId).toBe("user-1");
     expect(expense.name).toBe("Test Expense");
-    expect(expense.transactionAmount).toBe(5000);
-    expect(expense.transactionCurrency).toBe("USD");
+    expect(expense.originalTransactionAmountInMinorUnits).toBe(5000);
+    expect(expense.transactionCurrencyCode).toBe("USD");
     expect(expense.expenseType).toBe("essentials");
     expect(expense.tagId).toBe("tag-1");
-    expect(expense.expenseDate).toBe("2026-01-15");
+    expect(expense.expenseDateIso).toBe("2026-01-15");
     expect(expense.periodYear).toBe(2026);
     expect(expense.periodMonth).toBe(1);
     expect(expense.status).toBe("active");
@@ -104,12 +104,12 @@ describe("buildExpense", () => {
   it("accepts partial overrides", () => {
     const expense = buildExpense({
       name: "Coffee",
-      transactionAmount: 450,
+      originalTransactionAmountInMinorUnits: 450,
       expenseType: "desires",
     });
 
     expect(expense.name).toBe("Coffee");
-    expect(expense.transactionAmount).toBe(450);
+    expect(expense.originalTransactionAmountInMinorUnits).toBe(450);
     expect(expense.expenseType).toBe("desires");
     expect(expense.userId).toBe("user-1");
   });
@@ -219,8 +219,8 @@ describe("buildProRataSchedule", () => {
     expect(schedule.userId).toBe("user-1");
     expect(schedule.proRataGroup).toBe("group-1");
     expect(schedule.name).toBe("Test Pro-Rata");
-    expect(schedule.amount).toBe(10000);
-    expect(schedule.transactionCurrency).toBe("USD");
+    expect(schedule.installmentAmountInMinorUnits).toBe(10000);
+    expect(schedule.transactionCurrencyCode).toBe("USD");
     expect(schedule.expenseType).toBe("essentials");
     expect(schedule.tagId).toBe("tag-1");
     expect(schedule.targetYear).toBe(2026);

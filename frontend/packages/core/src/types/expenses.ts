@@ -7,12 +7,10 @@ export interface Expense {
   id: string;
   userId: string;
   name: string;
-  /** Canonical transaction ISO 4217 currency code. */
-  transactionCurrency: string;
+  transactionCurrencyCode: string;
   expenseType: ExpenseType;
   tagId: string;
-  /** ISO date string (YYYY-MM-DD). */
-  expenseDate: string;
+  expenseDateIso: string;
   periodYear: number;
   periodMonth: number;
   status: ExpenseStatus;
@@ -23,20 +21,18 @@ export interface Expense {
   proRataTotal?: number;
   createdAt: string;
   // Money snapshot fields (backfilled for every row)
-  /** Original amount in transaction currency minor units. */
-  transactionAmount: number;
-  /** Converted amount in the period reporting currency minor units. */
-  reportingAmount: number;
-  reportingCurrency: string;
-  /** Source-to-target exchange rate. */
-  exchangeRate?: string;
-  /** "open_exchange_rates" | "identity" | "migration". */
-  exchangeRateSource?: string;
+  originalTransactionAmountInMinorUnits: number;
+  reportingAmountInMinorUnits: number;
+  reportingCurrencyCode: string;
+  sourceToTargetExchangeRate?: string;
+  exchangeRateSource?: ExchangeRateSource;
   exchangeRateTimestamp?: string;
   /** Present for live provider snapshots with cache expiry metadata. */
-  exchangeRateExpiresAt?: string;
+  exchangeRateCacheExpiresAt?: string;
   clientGeneratedIdempotencyKey?: string;
 }
+
+export type ExchangeRateSource = "open_exchange_rates" | "identity" | "migration";
 
 /** Response from POST /api/expenses. */
 export interface ExpenseResponse {
@@ -46,13 +42,11 @@ export interface ExpenseResponse {
 /** Request body for POST /api/expenses. */
 export interface CreateExpenseRequest {
   name: string;
-  /** Amount in transaction currency minor units. */
-  amount: number;
-  transactionCurrency: string;
+  amountInTransactionCurrencyMinorUnits: number;
+  transactionCurrencyCode: string;
   expenseType: ExpenseType;
   tagId: string;
-  /** ISO date string (YYYY-MM-DD). */
-  expenseDate: string;
+  expenseDateIso: string;
   periodYear: number;
   periodMonth: number;
   clientGeneratedIdempotencyKey: string;
@@ -61,14 +55,11 @@ export interface CreateExpenseRequest {
 /** Request body for POST /api/expenses/:id/correct. */
 export interface CorrectExpenseRequest {
   name: string;
-  /** Amount in transaction currency minor units. */
-  amount: number;
-  /** Canonical transaction currency for the correction. */
-  transactionCurrency?: string;
+  amountInTransactionCurrencyMinorUnits: number;
+  transactionCurrencyCode?: string;
   expenseType: ExpenseType;
   tagId: string;
-  /** ISO date string (YYYY-MM-DD). */
-  expenseDate: string;
+  expenseDateIso: string;
 }
 
 /** Response from GET /api/expenses/:id/history. */

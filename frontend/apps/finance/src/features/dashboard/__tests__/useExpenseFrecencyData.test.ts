@@ -6,8 +6,8 @@ import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 const suggestions = [
   {
     name: "Groceries",
-    transactionAmount: 50000,
-    transactionCurrency: "USD",
+    originalTransactionAmountInMinorUnits: 50000,
+    transactionCurrencyCode: "USD",
     expenseType: "essentials" as const,
     tagId: "tag-food",
     frequency: 114,
@@ -17,8 +17,8 @@ const suggestions = [
   },
   {
     name: "Coffee",
-    transactionAmount: 4500,
-    transactionCurrency: "USD",
+    originalTransactionAmountInMinorUnits: 4500,
+    transactionCurrencyCode: "USD",
     expenseType: "desires" as const,
     tagId: "tag-social",
     frequency: 42,
@@ -30,8 +30,8 @@ const suggestions = [
 
 const olderSuggestion = {
   name: "Old Bus Fare",
-  transactionAmount: 350,
-  transactionCurrency: "USD",
+  originalTransactionAmountInMinorUnits: 350,
+  transactionCurrencyCode: "USD",
   expenseType: "essentials" as const,
   tagId: "tag-transit",
   frequency: 20,

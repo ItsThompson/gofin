@@ -13,7 +13,7 @@ export interface CorrectionFormState {
   /** Expense field values pre-filled from the active expense. */
   fields: ExpenseFields;
   /** Selected transaction currency for the correction. */
-  transactionCurrency: string;
+  transactionCurrencyCode: string;
   /** Field-level validation errors. */
   fieldErrors: Record<string, string>;
 }
@@ -45,20 +45,20 @@ export function useCorrectionForm(
   onSubmit: (form: CorrectExpenseRequest) => void,
   tags: Tag[] = [],
 ): { state: CorrectionFormState; actions: CorrectionFormActions } {
-  const transactionAmount = expense.transactionAmount;
-  const initialTransactionCurrency = expense.transactionCurrency;
-  const [transactionCurrency, setTransactionCurrencyState] = useState(initialTransactionCurrency);
+  const originalTransactionAmountInMinorUnits = expense.originalTransactionAmountInMinorUnits;
+  const initialTransactionCurrency = expense.transactionCurrencyCode;
+  const [transactionCurrencyCode, setTransactionCurrencyState] = useState(initialTransactionCurrency);
   const expenseFields = useExpenseFields(
     {
       name: expense.name,
-      amountDollars: toMajorUnits(transactionAmount, initialTransactionCurrency).toFixed(
+      amountDollars: toMajorUnits(originalTransactionAmountInMinorUnits, initialTransactionCurrency).toFixed(
         getMinorUnitDigits(initialTransactionCurrency),
       ),
       expenseType: expense.expenseType,
       tagId: expense.tagId,
-      expenseDate: expense.expenseDate,
+      expenseDateIso: expense.expenseDateIso,
     },
-    transactionCurrency,
+    transactionCurrencyCode,
   );
 
   const applySuggestion = useCallback(
@@ -102,11 +102,11 @@ export function useCorrectionForm(
 
       const body: CorrectExpenseRequest = {
         name: fields.name.trim(),
-        amount: amountCents,
+        amountInTransactionCurrencyMinorUnits: amountCents,
         expenseType: fields.expenseType,
         tagId: fields.tagId,
-        expenseDate: fields.expenseDate,
-        transactionCurrency,
+        expenseDateIso: fields.expenseDateIso,
+        transactionCurrencyCode,
       };
 
       onSubmit(body);
@@ -117,14 +117,14 @@ export function useCorrectionForm(
       expenseFields.fields,
       expenseFields.amountCents,
       onSubmit,
-      transactionCurrency,
+      transactionCurrencyCode,
     ],
   );
 
   return {
     state: {
       fields: expenseFields.fields,
-      transactionCurrency,
+      transactionCurrencyCode,
       fieldErrors: expenseFields.fieldErrors,
     },
     actions: {

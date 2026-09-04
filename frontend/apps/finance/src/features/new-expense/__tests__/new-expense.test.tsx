@@ -91,7 +91,7 @@ describe("NewExpenseFeature", () => {
   });
 
   it("displays currency symbol from the resolved budget period", async () => {
-    renderNewExpense({ period: { ...mockPeriod, reportingCurrency: "EUR" } });
+    renderNewExpense({ period: { ...mockPeriod, reportingCurrencyCode: "EUR" } });
     await waitForFormBootstrap();
 
     expect(screen.getByText("€")).toBeInTheDocument();
@@ -158,10 +158,10 @@ describe("NewExpenseFeature", () => {
     const postCall = findExpensePostCall();
     expect(postCall).toBeDefined();
     const body = JSON.parse(postCall![1].body);
-    expect(body.amount).toBe(450);
+    expect(body.amountInTransactionCurrencyMinorUnits).toBe(450);
     expect(body.name).toBe("Coffee");
     expect(body.expenseType).toBe("desires");
-    expect(body.transactionCurrency).toBe("USD");
+    expect(body.transactionCurrencyCode).toBe("USD");
     expect(body.currency).toBeUndefined();
     // The form generates an idempotency key per logical submit for dedup.
     expect(body.clientGeneratedIdempotencyKey).toEqual(expect.any(String));
@@ -206,8 +206,8 @@ describe("NewExpenseFeature", () => {
     const postCall = findExpensePostCall();
     expect(postCall).toBeDefined();
     const body = JSON.parse(postCall![1].body);
-    expect(body.amount).toBe(1234);
-    expect(body.transactionCurrency).toBe("EUR");
+    expect(body.amountInTransactionCurrencyMinorUnits).toBe(1234);
+    expect(body.transactionCurrencyCode).toBe("EUR");
     expect(body.currency).toBeUndefined();
   });
 
@@ -350,7 +350,7 @@ describe("NewExpenseFeature", () => {
     expect(essentialsRadio.checked).toBe(false);
   });
 
-  it("submits foreign-currency payload with transactionCurrency and shows conversion-unavailable banner on FX failure", async () => {
+  it("submits foreign-currency payload with transactionCurrencyCode and shows conversion-unavailable banner on FX failure", async () => {
     const user = userEvent.setup();
     renderNewExpense();
 
@@ -376,11 +376,11 @@ describe("NewExpenseFeature", () => {
     await user.type(screen.getByLabelText("Amount"), "12.50");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    // The POST payload carries transactionCurrency (not legacy currency).
+    // The POST payload carries transactionCurrencyCode (not legacy currency).
     const postCall = findExpensePostCall();
     expect(postCall).toBeDefined();
     const body = JSON.parse(postCall![1].body);
-    expect(body.transactionCurrency).toBe("EUR");
+    expect(body.transactionCurrencyCode).toBe("EUR");
     expect(body.currency).toBeUndefined();
 
     // The conversion-unavailable guidance banner is shown.

@@ -165,7 +165,7 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const secondPageSuggestion = {
       ...mockSuggestions.data[0],
       name: "Custom Coffee Roaster",
-      transactionAmount: 2200,
+      originalTransactionAmountInMinorUnits: 2200,
       frecencyScore: 18,
     };
 
@@ -216,7 +216,7 @@ describe("NewExpenseFeature autocomplete integration", () => {
     const secondPageSuggestion = {
       ...mockSuggestions.data[0],
       name: "Coffee Cart",
-      transactionAmount: 900,
+      originalTransactionAmountInMinorUnits: 900,
       frecencyScore: 12,
     };
 
@@ -351,14 +351,14 @@ describe("NewExpenseFeature autocomplete integration", () => {
     expect(screen.queryByLabelText("Number of months")).not.toBeInTheDocument();
   });
 
-  it("keeps a foreign suggestion currency selected and submits transactionCurrency", async () => {
+  it("keeps a foreign suggestion currency selected and submits transactionCurrencyCode", async () => {
     const user = userEvent.setup();
     const eurSuggestion: ExpenseSuggestionsResponse = {
       data: [
         {
           name: "Hotel Berlin",
-          transactionAmount: 15000,
-          transactionCurrency: "EUR",
+          originalTransactionAmountInMinorUnits: 15000,
+          transactionCurrencyCode: "EUR",
           expenseType: "desires",
           tagId: "tag-food",
           frequency: 3,
@@ -391,8 +391,8 @@ describe("NewExpenseFeature autocomplete integration", () => {
     });
 
     const body = getSubmittedExpenseRequest();
-    expect(body.amount).toBe(15000);
-    expect(body.transactionCurrency).toBe("EUR");
+    expect(body.amountInTransactionCurrencyMinorUnits).toBe(15000);
+    expect(body.transactionCurrencyCode).toBe("EUR");
     expect(body.currency).toBeUndefined();
   });
 
@@ -501,10 +501,10 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     expect(getSubmittedExpenseRequest()).toMatchObject({
       name: "Edited Coffee",
-      amount: 625,
+      amountInTransactionCurrencyMinorUnits: 625,
       expenseType: "essentials",
       tagId: "tag-bills",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     });
   });
 

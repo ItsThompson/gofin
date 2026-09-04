@@ -31,11 +31,11 @@ export function BudgetSettingsEditor({
   onSaved,
   onCancel,
 }: BudgetSettingsEditorProps) {
-  const currencySymbol = getCurrencySymbol(period.reportingCurrency);
+  const currencySymbol = getCurrencySymbol(period.reportingCurrencyCode);
 
   const form = useBudgetSplitForm({
     initialBudgetCents: period.budgetAmount,
-    currency: period.reportingCurrency,
+    currency: period.reportingCurrencyCode,
     initialSplit: {
       essentials: period.essentialsPercent,
       desires: period.desiresPercent,
@@ -91,7 +91,7 @@ export function BudgetSettingsEditor({
                   id="edit-budget"
                   type="number"
                   min="0"
-                  step={getCurrencyInputStep(period.reportingCurrency)}
+                  step={getCurrencyInputStep(period.reportingCurrencyCode)}
                   value={form.fields.budgetDollars}
                   onChange={(event) => form.setField("budgetDollars", event.target.value)}
                   className="pl-6"
@@ -102,7 +102,7 @@ export function BudgetSettingsEditor({
               <FormLabel htmlFor="edit-reporting-currency">Reporting Currency</FormLabel>
               <Input
                 id="edit-reporting-currency"
-                value={period.reportingCurrency}
+                value={period.reportingCurrencyCode}
                 readOnly
                 aria-readonly="true"
               />

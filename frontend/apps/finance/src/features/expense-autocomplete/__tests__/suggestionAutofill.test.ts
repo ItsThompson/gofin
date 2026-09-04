@@ -15,8 +15,8 @@ const tags: Tag[] = [
 
 const suggestion: ExpenseSuggestion = {
   name: "Groceries",
-  transactionAmount: 1299,
-  transactionCurrency: "USD",
+  originalTransactionAmountInMinorUnits: 1299,
+  transactionCurrencyCode: "USD",
   expenseType: "essentials",
   tagId: "tag-food",
   frequency: 7,
@@ -53,7 +53,7 @@ describe("createExpenseSuggestionPatch", () => {
 
   it("formats zero-decimal suggestion amounts with their currency precision", () => {
     expect(
-      createExpenseSuggestionPatch({ ...suggestion, transactionAmount: 1299, transactionCurrency: "JPY" }, tags),
+      createExpenseSuggestionPatch({ ...suggestion, originalTransactionAmountInMinorUnits: 1299, transactionCurrencyCode: "JPY" }, tags),
     ).toEqual({
       name: "Groceries",
       amountDollars: "1299",

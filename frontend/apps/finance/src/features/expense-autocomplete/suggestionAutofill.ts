@@ -15,10 +15,10 @@ export function createExpenseSuggestionPatch(
   return {
     name: suggestion.name,
     amountDollars: formatMinorUnits(
-      suggestion.transactionAmount,
-      suggestion.transactionCurrency,
+      suggestion.originalTransactionAmountInMinorUnits,
+      suggestion.transactionCurrencyCode,
     ),
-    currency: suggestion.transactionCurrency,
+    currency: suggestion.transactionCurrencyCode,
     expenseType: suggestion.expenseType,
     tagId: hasValidTag ? suggestion.tagId : null,
   };

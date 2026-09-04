@@ -35,7 +35,7 @@ export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
       <CardContent>
         <div className="divide-y">
           {expenses.map((expense) => {
-            const reportingAmount = expense.reportingAmount;
+            const reportingAmountInMinorUnits = expense.reportingAmountInMinorUnits;
             return (
               <div
                 key={expense.id}
@@ -44,11 +44,11 @@ export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium">{expense.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {expense.expenseDate}
+                    {expense.expenseDateIso}
                   </span>
                 </div>
                 <span className="text-sm font-semibold">
-                  {formatCurrency(reportingAmount, currency)}
+                  {formatCurrency(reportingAmountInMinorUnits, currency)}
                 </span>
               </div>
             );

@@ -10,9 +10,8 @@ export interface ProRataSchedule {
   userId: string;
   proRataGroup: string;
   name: string;
-  /** Installment amount in minor units (cents). */
-  amount: number;
-  transactionCurrency: string;
+  installmentAmountInMinorUnits: number;
+  transactionCurrencyCode: string;
   expenseType: ExpenseType;
   tagId: string;
   targetYear: number;
@@ -27,17 +26,14 @@ export interface ProRataSchedule {
 /** Request body for POST /api/finance/prorata. */
 export interface CreateProRataRequest {
   name: string;
-  /** Total amount in minor units (cents). */
-  totalAmount: number;
-  transactionCurrency: string;
+  totalAmountInMinorUnits: number;
+  transactionCurrencyCode: string;
   expenseType: ExpenseType;
   periodYear: number;
   periodMonth: number;
   tagId: string;
-  /** ISO date string (YYYY-MM-DD). */
-  expenseDate: string;
-  /** Number of months to spread over (minimum 2). */
-  months: number;
+  expenseDateIso: string;
+  spreadOverMonths: number;
 }
 
 /** Response from POST /api/finance/prorata. */

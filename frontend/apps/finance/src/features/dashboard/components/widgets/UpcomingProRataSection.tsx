@@ -36,7 +36,7 @@ export function UpcomingProRataSection({ schedules, currency }: UpcomingProRataS
                 </span>
               </div>
               <span className="text-sm font-semibold">
-                {formatCurrency(schedule.amount, currency)}
+                {formatCurrency(schedule.installmentAmountInMinorUnits, currency)}
               </span>
             </div>
           ))}

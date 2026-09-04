@@ -10,7 +10,7 @@ interface PeriodRowProps {
 }
 
 export function PeriodRow({ row, onSelect }: PeriodRowProps) {
-  const reportingCurrency = row.period.reportingCurrency;
+  const reportingCurrencyCode = row.period.reportingCurrencyCode;
   const monthName = new Date(
     row.period.year,
     row.period.month - 1,
@@ -26,7 +26,7 @@ export function PeriodRow({ row, onSelect }: PeriodRowProps) {
         <div className="flex flex-col gap-0.5">
           <span className="font-medium">{monthName}</span>
           <span className="text-xs text-muted-foreground">
-            Budget: {formatCurrency(row.period.budgetAmount, reportingCurrency)}{" "}
+            Budget: {formatCurrency(row.period.budgetAmount, reportingCurrencyCode)}{" "}
             · E/D/S: {row.period.essentialsPercent}/{row.period.desiresPercent}/
             {row.period.savingsPercent}
           </span>
@@ -37,7 +37,7 @@ export function PeriodRow({ row, onSelect }: PeriodRowProps) {
               <PeriodSpendFigures
                 totalSpent={row.totalSpent}
                 surplus={row.surplus}
-                currency={reportingCurrency}
+                currency={reportingCurrencyCode}
                 delta={row.deltaFromPrevious}
               />
             ) : (

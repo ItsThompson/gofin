@@ -104,7 +104,7 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
           schedule: {
             id: "prorata-1",
             name: "Annual subscription",
-            totalAmount: 12000,
+            totalAmountInMinorUnits: 12000,
             months: 3,
           },
         }),
@@ -130,11 +130,11 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     const proRataCall = findProRataPostCall();
     expect(proRataCall).toBeDefined();
     const body = JSON.parse(proRataCall![1].body);
-    expect(body.totalAmount).toBe(12000);
-    expect(body.months).toBe(3);
+    expect(body.totalAmountInMinorUnits).toBe(12000);
+    expect(body.spreadOverMonths).toBe(3);
     expect(body.name).toBe("Annual subscription");
     expect(body.expenseType).toBe("savings");
-    expect(body.transactionCurrency).toBe("USD");
+    expect(body.transactionCurrencyCode).toBe("USD");
     expect(body.currency).toBeUndefined();
     expect(body.periodYear).toBe(2026);
     expect(body.periodMonth).toBe(5);
@@ -189,11 +189,11 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     const body = JSON.parse(proRataCall![1].body);
     expect(body).toMatchObject({
       name: "Annual subscription",
-      totalAmount: 12000,
-      transactionCurrency: "USD",
+      totalAmountInMinorUnits: 12000,
+      transactionCurrencyCode: "USD",
       periodYear: 2026,
       periodMonth: 5,
-      months: 3,
+      spreadOverMonths: 3,
     });
 
     await user.click(screen.getByLabelText("Spread across months"));

@@ -58,10 +58,10 @@ export function DetailView({
     ? history.find((entry) => entry.id === expense.correctsId)
     : null;
 
-  const transactionCurrency = expense.transactionCurrency;
-  const transactionAmount = expense.transactionAmount;
-  const reportingCurrency = expense.reportingCurrency;
-  const reportingAmount = expense.reportingAmount;
+  const transactionCurrencyCode = expense.transactionCurrencyCode;
+  const originalTransactionAmountInMinorUnits = expense.originalTransactionAmountInMinorUnits;
+  const reportingCurrencyCode = expense.reportingCurrencyCode;
+  const reportingAmountInMinorUnits = expense.reportingAmountInMinorUnits;
   const sameCurrency = hasSameCurrencySnapshot(expense);
 
   return (
@@ -70,8 +70,8 @@ export function DetailView({
         <div className="rounded-lg bg-yellow-100 p-3 text-sm text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
           This expense was corrected. See correction: {correctedBy.name} (
           {formatCurrency(
-            correctedBy.transactionAmount,
-            correctedBy.transactionCurrency,
+            correctedBy.originalTransactionAmountInMinorUnits,
+            correctedBy.transactionCurrencyCode,
           )}
           )
         </div>
@@ -81,8 +81,8 @@ export function DetailView({
         <div className="rounded-lg bg-blue-100 p-3 text-sm text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
           This corrects expense: {correctsEntry.name} (
           {formatCurrency(
-            correctsEntry.transactionAmount,
-            correctsEntry.transactionCurrency,
+            correctsEntry.originalTransactionAmountInMinorUnits,
+            correctsEntry.transactionCurrencyCode,
           )}
           )
         </div>
@@ -93,20 +93,20 @@ export function DetailView({
         {sameCurrency ? (
           <DetailField
             label="Period Amount"
-            value={formatCurrency(reportingAmount, reportingCurrency)}
+            value={formatCurrency(reportingAmountInMinorUnits, reportingCurrencyCode)}
           />
         ) : (
           <>
             <DetailField
               label="Transaction Amount"
-              value={formatCurrency(transactionAmount, transactionCurrency)}
+              value={formatCurrency(originalTransactionAmountInMinorUnits, transactionCurrencyCode)}
             />
             <DetailField
               label="Budget Impact"
-              value={formatCurrency(reportingAmount, reportingCurrency)}
+              value={formatCurrency(reportingAmountInMinorUnits, reportingCurrencyCode)}
             />
-            {expense.exchangeRate && (
-              <DetailField label="Exchange Rate" value={expense.exchangeRate} />
+            {expense.sourceToTargetExchangeRate && (
+              <DetailField label="Exchange Rate" value={expense.sourceToTargetExchangeRate} />
             )}
             {expense.exchangeRateTimestamp && (
               <DetailField
@@ -126,7 +126,7 @@ export function DetailView({
           label="Tag"
           value={tagMap.get(expense.tagId) ?? expense.tagId}
         />
-        <DetailField label="Date" value={expense.expenseDate} />
+        <DetailField label="Date" value={expense.expenseDateIso} />
         <DetailField
           label="Period"
           value={`${expense.periodYear}-${String(expense.periodMonth).padStart(2, "0")}`}
@@ -163,7 +163,7 @@ export function DetailView({
               <DetailField
                 label="Total Amount (all installments)"
                 value={formatCurrency(
-                  proRataGroup.reduce((sum, entry) => sum + entry.transactionAmount, 0),
+                  proRataGroup.reduce((sum, entry) => sum + entry.originalTransactionAmountInMinorUnits, 0),
                   currency,
                 )}
               />
@@ -187,7 +187,7 @@ export function DetailView({
                       {entry.id === expense.id && " (current)"}
                     </span>
                     <span className="text-muted-foreground">
-                      {formatCurrency(entry.transactionAmount, currency)} · {entry.expenseDate}
+                      {formatCurrency(entry.originalTransactionAmountInMinorUnits, currency)} · {entry.expenseDateIso}
                     </span>
                   </div>
                 ))}
