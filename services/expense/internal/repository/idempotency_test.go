@@ -17,7 +17,7 @@ import (
 
 func TestGetExpenseByIdempotencyKey_ReturnsMatchingRow(t *testing.T) {
 	seed := buildTestExpense("exp-1", "user-1", "2026-05-01T10:00:00Z")
-	seed.IdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
+	seed.ClientGeneratedIdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
 	client := &fakeImmudbClient{result: expensesToSQLResult([]*model.Expense{seed})}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	repo := NewImmudbExpenseRepository(client, logger)
@@ -27,7 +27,7 @@ func TestGetExpenseByIdempotencyKey_ReturnsMatchingRow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, expense)
 	assert.Equal(t, "exp-1", expense.ID)
-	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", expense.IdempotencyKey)
+	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", expense.ClientGeneratedIdempotencyKey)
 	assert.Contains(t, client.query, "WHERE user_id = @user_id AND idempotency_key = @key")
 	assert.Equal(t, "user-1", client.params["user_id"])
 	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", client.params["key"])
@@ -75,7 +75,7 @@ func TestGetExpenseByIdempotencyKey_ScopedByUserID(t *testing.T) {
 	// Seed a user-1 row; querying as user-2 with the same key must return nil
 	// because the lookup is scoped by user_id.
 	seed := buildTestExpense("exp-1", "user-1", "2026-05-01T10:00:00Z")
-	seed.IdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
+	seed.ClientGeneratedIdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
 	client := &userFilteredFakeClient{result: expensesToSQLResult([]*model.Expense{seed})}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	repo := NewImmudbExpenseRepository(client, logger)
@@ -115,7 +115,7 @@ func TestCreateExpense_IncludesIdempotencyKey(t *testing.T) {
 	repo := NewImmudbExpenseRepository(client, logger)
 
 	expense := buildTestExpense("exp-1", "user-1", "2026-05-01T10:00:00Z")
-	expense.IdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
+	expense.ClientGeneratedIdempotencyKey = "550e8400-e29b-41d4-a716-446655440000"
 
 	_, err := repo.CreateExpense(context.Background(), expense)
 	require.NoError(t, err)

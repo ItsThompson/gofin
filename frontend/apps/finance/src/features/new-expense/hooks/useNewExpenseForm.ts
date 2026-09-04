@@ -189,7 +189,7 @@ export function useNewExpenseForm(
         expenseDate: fields.expenseDate,
         periodYear,
         periodMonth,
-        idempotencyKey: idempotencyKeyRef.current,
+        clientGeneratedIdempotencyKey: idempotencyKeyRef.current,
       };
       await apiClient<ExpenseResponse>("/api/expenses", {
         method: "POST",

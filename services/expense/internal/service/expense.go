@@ -61,12 +61,12 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
-	if err := validateIdempotencyKey(req.IdempotencyKey); err != nil {
+	if err := validateIdempotencyKey(req.ClientGeneratedIdempotencyKey); err != nil {
 		return nil, err
 	}
 
-	if req.IdempotencyKey != "" {
-		existing, idemErr := s.repo.GetExpenseByIdempotencyKey(ctx, userID, req.IdempotencyKey)
+	if req.ClientGeneratedIdempotencyKey != "" {
+		existing, idemErr := s.repo.GetExpenseByIdempotencyKey(ctx, userID, req.ClientGeneratedIdempotencyKey)
 		if idemErr != nil {
 			return nil, fmt.Errorf("checking idempotency key: %w", idemErr)
 		}
@@ -151,7 +151,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		ExchangeRateSource:    snapshot.ExchangeRateSource,
 		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
 		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
-		IdempotencyKey:        req.IdempotencyKey,
+		ClientGeneratedIdempotencyKey:        req.ClientGeneratedIdempotencyKey,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)

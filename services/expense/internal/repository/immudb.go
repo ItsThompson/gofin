@@ -135,8 +135,7 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		// included so the index matches the full ORDER BY created_at ASC, id ASC
 		// tuple and rows tied on created_at seek instead of scanning+sorting.
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_created_id ON expenses (user_id, created_at, id);`,
-		// Covers the idempotency-key lookup: (user_id, idempotency_key) seek before
-		// insert. A regular (non-unique) index because immudb 1.11.0 only supports
+		// A regular (non-unique) index because immudb 1.11.0 only supports
 		// unique index creation on empty tables; the prod table has data.
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_idem ON expenses (user_id, idempotency_key);`,
 	}
@@ -197,7 +196,7 @@ func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *mo
 		"exchange_rate_source":     expense.ExchangeRateSource,
 		"exchange_rate_timestamp":  expense.ExchangeRateTimestamp,
 		"exchange_rate_expires_at": expense.ExchangeRateExpiresAt,
-		"idempotency_key":          expense.IdempotencyKey,
+		"idempotency_key":          expense.ClientGeneratedIdempotencyKey,
 	}
 
 	_, err := r.client.SQLExec(ctx, query, params)
@@ -424,30 +423,30 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		return nil, fmt.Errorf("expense row has %d values, want %d", len(values), expenseColumnCount)
 	}
 	exp := &model.Expense{
-		ID:                    values[0].GetString(),
-		UserID:                values[1].GetString(),
-		Name:                  values[2].GetString(),
-		ExpenseType:           values[3].GetString(),
-		TagID:                 values[4].GetString(),
-		ExpenseDate:           values[5].GetString(),
-		PeriodYear:            int32(values[6].GetInt()),
-		PeriodMonth:           int32(values[7].GetInt()),
-		Status:                values[8].GetString(),
-		CorrectsID:            values[9].GetString(),
-		IsProRata:             values[10].GetBool(),
-		ProRataGroup:          values[11].GetString(),
-		ProRataIndex:          int32(values[12].GetInt()),
-		ProRataTotal:          int32(values[13].GetInt()),
-		CreatedAt:             values[14].GetString(),
-		TransactionAmount:     values[15].GetInt(),
-		TransactionCurrency:   values[16].GetString(),
-		ReportingAmount:       values[17].GetInt(),
-		ReportingCurrency:     values[18].GetString(),
-		ExchangeRate:          values[19].GetString(),
-		ExchangeRateSource:    values[20].GetString(),
-		ExchangeRateTimestamp: values[21].GetString(),
-		ExchangeRateExpiresAt: values[22].GetString(),
-		IdempotencyKey:        values[23].GetString(),
+		ID:                            values[0].GetString(),
+		UserID:                        values[1].GetString(),
+		Name:                          values[2].GetString(),
+		ExpenseType:                   values[3].GetString(),
+		TagID:                         values[4].GetString(),
+		ExpenseDate:                   values[5].GetString(),
+		PeriodYear:                    int32(values[6].GetInt()),
+		PeriodMonth:                   int32(values[7].GetInt()),
+		Status:                        values[8].GetString(),
+		CorrectsID:                    values[9].GetString(),
+		IsProRata:                     values[10].GetBool(),
+		ProRataGroup:                  values[11].GetString(),
+		ProRataIndex:                  int32(values[12].GetInt()),
+		ProRataTotal:                  int32(values[13].GetInt()),
+		CreatedAt:                     values[14].GetString(),
+		TransactionAmount:             values[15].GetInt(),
+		TransactionCurrency:           values[16].GetString(),
+		ReportingAmount:               values[17].GetInt(),
+		ReportingCurrency:             values[18].GetString(),
+		ExchangeRate:                  values[19].GetString(),
+		ExchangeRateSource:            values[20].GetString(),
+		ExchangeRateTimestamp:         values[21].GetString(),
+		ExchangeRateExpiresAt:         values[22].GetString(),
+		ClientGeneratedIdempotencyKey: values[23].GetString(),
 	}
 
 	missing := make([]string, 0, 7)

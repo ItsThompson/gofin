@@ -1497,18 +1497,18 @@ func TestCreateExpense_IdempotentReplayReturnsExisting(t *testing.T) {
 		UserID:       "user-1",
 		Name:         "Grocery shopping",
 		Status:       "active",
-		IdempotencyKey: validTestUUID,
+		ClientGeneratedIdempotencyKey: validTestUUID,
 	}
 	repo.On("GetExpenseByIdempotencyKey", mock.Anything, "user-1", validTestUUID).Return(existing, nil)
 
 	req := validCreateRequest()
-	req.IdempotencyKey = validTestUUID
+	req.ClientGeneratedIdempotencyKey = validTestUUID
 
 	resp, err := svc.CreateExpense(context.Background(), "user-1", req)
 
 	require.NoError(t, err)
 	assert.Equal(t, "exp-existing", resp.ID)
-	assert.Equal(t, validTestUUID, resp.IdempotencyKey)
+	assert.Equal(t, validTestUUID, resp.ClientGeneratedIdempotencyKey)
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 	repo.AssertExpectations(t)
 }
@@ -1521,22 +1521,22 @@ func TestCreateExpense_IdempotentKeyInsertsOnce(t *testing.T) {
 
 	repo.On("GetExpenseByIdempotencyKey", mock.Anything, "user-1", validTestUUID).Return(nil, nil)
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(e *model.Expense) bool {
-		return e.IdempotencyKey == validTestUUID
+		return e.ClientGeneratedIdempotencyKey == validTestUUID
 	})).Return(&model.Expense{
 		ID:             "exp-123",
 		UserID:         "user-1",
 		Status:         "active",
-		IdempotencyKey: validTestUUID,
+		ClientGeneratedIdempotencyKey: validTestUUID,
 	}, nil)
 
 	req := validCreateRequest()
-	req.IdempotencyKey = validTestUUID
+	req.ClientGeneratedIdempotencyKey = validTestUUID
 
 	resp, err := svc.CreateExpense(context.Background(), "user-1", req)
 
 	require.NoError(t, err)
 	assert.Equal(t, "exp-123", resp.ID)
-	assert.Equal(t, validTestUUID, resp.IdempotencyKey)
+	assert.Equal(t, validTestUUID, resp.ClientGeneratedIdempotencyKey)
 	repo.AssertExpectations(t)
 }
 
@@ -1547,7 +1547,7 @@ func TestCreateExpense_MalformedIdempotencyKeyRejected(t *testing.T) {
 	svc := newTestService(repo)
 
 	req := validCreateRequest()
-	req.IdempotencyKey = "not-a-uuid"
+	req.ClientGeneratedIdempotencyKey = "not-a-uuid"
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
@@ -1565,7 +1565,7 @@ func TestCreateExpense_OversizedIdempotencyKeyRejected(t *testing.T) {
 	svc := newTestService(repo)
 
 	req := validCreateRequest()
-	req.IdempotencyKey = strings.Repeat("a", 37)
+	req.ClientGeneratedIdempotencyKey = strings.Repeat("a", 37)
 
 	_, err := svc.CreateExpense(context.Background(), "user-1", req)
 
