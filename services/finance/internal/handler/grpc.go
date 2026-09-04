@@ -477,12 +477,12 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 func (h *GRPCHandler) CreateProRataExpense(ctx context.Context, req *pb.CreateProRataExpenseRequest) (*pb.ProRataResponse, error) {
 	_, err := h.financeService.CreateProRataExpense(ctx, req.GetUserId(), &model.CreateProRataRequest{
 		Name:                req.GetName(),
-		TotalAmount:         req.GetTotalAmount(),
-		TransactionCurrency: req.GetTransactionCurrency(),
+		TotalAmountInMinorUnits:         req.GetTotalAmount(),
+		TransactionCurrencyCode: req.GetTransactionCurrency(),
 		ExpenseType:         req.GetExpenseType(),
 		TagID:               req.GetTagId(),
-		ExpenseDate:         req.GetExpenseDate(),
-		Months:              req.GetMonths(),
+		ExpenseDateIso:         req.GetExpenseDate(),
+		SpreadOverMonths:              req.GetMonths(),
 		PeriodYear:          req.GetPeriodYear(),
 		PeriodMonth:         req.GetPeriodMonth(),
 	})

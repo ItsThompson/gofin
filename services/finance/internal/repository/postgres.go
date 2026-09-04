@@ -318,7 +318,7 @@ func (r *PostgresFinanceRepository) CreateProRataSchedule(ctx context.Context, s
 		UserID:                    uid,
 		ProRataGroup:              groupID,
 		Name:                      schedule.Name,
-		Amount:                    schedule.Amount,
+		Amount:                    schedule.InstallmentAmountInMinorUnits,
 		Currency:                  schedule.Currency,
 		ExpenseType:               schedule.ExpenseType,
 		TagID:                     tagID,
@@ -326,8 +326,8 @@ func (r *PostgresFinanceRepository) CreateProRataSchedule(ctx context.Context, s
 		TargetMonth:               schedule.TargetMonth,
 		InstallmentIndex:          schedule.InstallmentIndex,
 		InstallmentTotal:          schedule.InstallmentTotal,
-		TransactionAmount:         pgtype.Int8{Int64: schedule.TransactionAmount, Valid: true},
-		TransactionCurrency:       pgtype.Text{String: schedule.TransactionCurrency, Valid: schedule.TransactionCurrency != ""},
+		TransactionAmount:         pgtype.Int8{Int64: schedule.OriginalTransactionAmountInMinorUnits, Valid: true},
+		TransactionCurrency:       pgtype.Text{String: schedule.TransactionCurrencyCode, Valid: schedule.TransactionCurrencyCode != ""},
 		CreationReportingCurrency: pgtype.Text{String: schedule.CreationReportingCurrency, Valid: schedule.CreationReportingCurrency != ""},
 		CapturedRateSnapshot:      snapl,
 		FailureReason:             pgtype.Text{String: schedule.FailureReason, Valid: schedule.FailureReason != ""},
@@ -554,7 +554,7 @@ func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
 		UserID:           uuid.UUID(s.UserID.Bytes).String(),
 		ProRataGroup:     uuid.UUID(s.ProRataGroup.Bytes).String(),
 		Name:             s.Name,
-		Amount:           s.Amount,
+		InstallmentAmountInMinorUnits:           s.Amount,
 		Currency:         s.Currency,
 		ExpenseType:      s.ExpenseType,
 		TagID:            uuid.UUID(s.TagID.Bytes).String(),
@@ -570,10 +570,10 @@ func dbScheduleToModel(s db.FinanceProRataSchedule) *model.ProRataSchedule {
 		result.AppliedAt = &appliedAt
 	}
 	if s.TransactionAmount.Valid {
-		result.TransactionAmount = s.TransactionAmount.Int64
+		result.OriginalTransactionAmountInMinorUnits = s.TransactionAmount.Int64
 	}
 	if s.TransactionCurrency.Valid {
-		result.TransactionCurrency = s.TransactionCurrency.String
+		result.TransactionCurrencyCode = s.TransactionCurrency.String
 	}
 	if s.CreationReportingCurrency.Valid {
 		result.CreationReportingCurrency = s.CreationReportingCurrency.String
