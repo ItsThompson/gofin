@@ -257,8 +257,11 @@ type CreateExpenseRequest struct {
 	ProRataIndex        int32                  `protobuf:"varint,12,opt,name=pro_rata_index,json=proRataIndex,proto3" json:"pro_rata_index,omitempty"`
 	ProRataTotal        int32                  `protobuf:"varint,13,opt,name=pro_rata_total,json=proRataTotal,proto3" json:"pro_rata_total,omitempty"`
 	TransactionCurrency string                 `protobuf:"bytes,14,opt,name=transaction_currency,json=transactionCurrency,proto3" json:"transaction_currency,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Client-generated idempotency key (RFC 4122 UUID). Required: a retry with
+	// the same key returns the already-created expense instead of a duplicate.
+	ClientGeneratedIdempotencyKey string `protobuf:"bytes,15,opt,name=client_generated_idempotency_key,json=clientGeneratedIdempotencyKey,proto3" json:"client_generated_idempotency_key,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *CreateExpenseRequest) Reset() {
@@ -378,6 +381,13 @@ func (x *CreateExpenseRequest) GetProRataTotal() int32 {
 func (x *CreateExpenseRequest) GetTransactionCurrency() string {
 	if x != nil {
 		return x.TransactionCurrency
+	}
+	return ""
+}
+
+func (x *CreateExpenseRequest) GetClientGeneratedIdempotencyKey() string {
+	if x != nil {
+		return x.ClientGeneratedIdempotencyKey
 	}
 	return ""
 }
@@ -1446,7 +1456,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\rexchange_rate\x18\x17 \x01(\tR\fexchangeRate\x120\n" +
 	"\x14exchange_rate_source\x18\x18 \x01(\tR\x12exchangeRateSource\x126\n" +
 	"\x17exchange_rate_timestamp\x18\x19 \x01(\tR\x15exchangeRateTimestamp\x127\n" +
-	"\x18exchange_rate_expires_at\x18\x1a \x01(\tR\x15exchangeRateExpiresAtJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\xc7\x03\n" +
+	"\x18exchange_rate_expires_at\x18\x1a \x01(\tR\x15exchangeRateExpiresAtJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\x90\x04\n" +
 	"\x14CreateExpenseRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x16\n" +
@@ -1462,7 +1472,8 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x0epro_rata_group\x18\v \x01(\tR\fproRataGroup\x12$\n" +
 	"\x0epro_rata_index\x18\f \x01(\x05R\fproRataIndex\x12$\n" +
 	"\x0epro_rata_total\x18\r \x01(\x05R\fproRataTotal\x121\n" +
-	"\x14transaction_currency\x18\x0e \x01(\tR\x13transactionCurrencyJ\x04\b\x04\x10\x05\"A\n" +
+	"\x14transaction_currency\x18\x0e \x01(\tR\x13transactionCurrency\x12G\n" +
+	" client_generated_idempotency_key\x18\x0f \x01(\tR\x1dclientGeneratedIdempotencyKeyJ\x04\b\x04\x10\x05\"A\n" +
 	"\x0fExpenseResponse\x12.\n" +
 	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\xbd\x01\n" +
 	"\x14TrustedPeriodContext\x12\x1b\n" +

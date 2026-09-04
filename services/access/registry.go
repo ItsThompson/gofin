@@ -77,6 +77,7 @@ var registry = []Route{
 	{ID: "expense.prorata.group", Service: "expense", Method: http.MethodGet, Path: "/api/expenses/prorata/:groupId", Access: Personal},
 	{ID: "expense.get", Service: "expense", Method: http.MethodGet, Path: "/api/expenses/:id", Access: Personal},
 	{ID: "expense.correct", Service: "expense", Method: http.MethodPost, Path: "/api/expenses/:id/correct", Access: Personal},
+	{ID: "expense.delete", Service: "expense", Method: http.MethodDelete, Path: "/api/expenses/:id", Access: Personal},
 	{ID: "expense.history", Service: "expense", Method: http.MethodGet, Path: "/api/expenses/:id/history", Access: Personal},
 
 	// --- datarights service ---

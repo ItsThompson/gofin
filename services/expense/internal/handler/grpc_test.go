@@ -114,15 +114,16 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	}, nil)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:              "user-1",
-		Name:                "Coffee",
-		Amount:              1200,
-		TransactionCurrency: "EUR",
-		ExpenseType:         "desires",
-		TagId:               "tag-food",
-		ExpenseDate:         "2026-05-03",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
+		UserId:                        "user-1",
+		Name:                          "Coffee",
+		Amount:                        1200,
+		TransactionCurrency:           "EUR",
+		ExpenseType:                   "desires",
+		TagId:                         "tag-food",
+		ExpenseDate:                   "2026-05-03",
+		PeriodYear:                    2026,
+		PeriodMonth:                   5,
+		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	require.NoError(t, err)
@@ -226,14 +227,15 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 		})
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:      "user-1",
-		Name:        "Coffee",
-		Amount:      450,
-		ExpenseType: "desires",
-		TagId:       "tag-food",
-		ExpenseDate: "2026-06-03",
-		PeriodYear:  2026,
-		PeriodMonth: 6,
+		UserId:                        "user-1",
+		Name:                          "Coffee",
+		Amount:                        450,
+		ExpenseType:                   "desires",
+		TagId:                         "tag-food",
+		ExpenseDate:                   "2026-06-03",
+		PeriodYear:                    2026,
+		PeriodMonth:                   6,
+		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Nil(t, resp)
@@ -302,15 +304,16 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:              "user-1",
-		Name:                "Cafe",
-		Amount:              1250,
-		TransactionCurrency: "EUR",
-		ExpenseType:         "desires",
-		TagId:               "tag-food",
-		ExpenseDate:         "2026-05-03",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
+		UserId:                        "user-1",
+		Name:                          "Cafe",
+		Amount:                        1250,
+		TransactionCurrency:           "EUR",
+		ExpenseType:                   "desires",
+		TagId:                         "tag-food",
+		ExpenseDate:                   "2026-05-03",
+		PeriodYear:                    2026,
+		PeriodMonth:                   5,
+		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	require.NoError(t, err)
@@ -353,15 +356,16 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:              "user-1",
-		Name:                "Cafe",
-		Amount:              1250,
-		TransactionCurrency: "EUR",
-		ExpenseType:         "desires",
-		TagId:               "tag-food",
-		ExpenseDate:         "2026-05-03",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
+		UserId:                        "user-1",
+		Name:                          "Cafe",
+		Amount:                        1250,
+		TransactionCurrency:           "EUR",
+		ExpenseType:                   "desires",
+		TagId:                         "tag-food",
+		ExpenseDate:                   "2026-05-03",
+		PeriodYear:                    2026,
+		PeriodMonth:                   5,
+		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Nil(t, resp)

@@ -8,7 +8,7 @@ import type {
   PaginatedResponse,
   ApiError,
 } from "@gofin/core";
-import { mockExpenses, currentMockUser } from "../data";
+import { mockExpenses, currentMockUser, currentYear, currentMonth } from "../data";
 import { simulateLatency } from "./latency";
 
 export const expensesHandlers = [
@@ -117,6 +117,37 @@ export const expensesHandlers = [
     async () => {
       await simulateLatency();
       return HttpResponse.json({ data: [], total: 0, page: 1, pageSize: 100, hasMore: false });
+    },
+  ),
+
+  http.delete<{ id: string }, never, ApiError | undefined>(
+    "/api/expenses/:id",
+    async ({ params }) => {
+      await simulateLatency();
+      const expense = mockExpenses.find((e) => e.id === params.id);
+      if (!expense) {
+        return HttpResponse.json(
+          { code: "NOT_FOUND", message: "Expense not found" },
+          { status: 404 },
+        );
+      }
+      if (expense.status !== "active") {
+        return HttpResponse.json(
+          { code: "ALREADY_CORRECTED", message: "This expense has already been corrected or deleted" },
+          { status: 409 },
+        );
+      }
+      if (
+        expense.periodYear !== currentYear ||
+        expense.periodMonth !== currentMonth
+      ) {
+        return HttpResponse.json(
+          { code: "PERIOD_LOCKED", message: "Cannot delete expenses from a past period" },
+          { status: 403 },
+        );
+      }
+      expense.status = "corrected";
+      return new HttpResponse(null, { status: 204 });
     },
   ),
 ];

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Expense, Tag } from "@gofin/core";
 import { DetailView } from "../components/DetailView";
 
@@ -45,6 +46,9 @@ function renderDetail(expense: Expense, history: Expense[] = [expense]) {
       currentYear={2026}
       currentMonth={5}
       onCorrectClick={vi.fn()}
+      onDeleteClick={vi.fn()}
+      deleting={false}
+      deleteError={null}
     />,
   );
 }
@@ -89,5 +93,33 @@ describe("DetailView money display", () => {
     expect(screen.getByText("1.0912")).toBeInTheDocument();
     expect(screen.getByText("Rate Timestamp")).toBeInTheDocument();
     expect(screen.getByText("2026-08-14T10:00:00Z")).toBeInTheDocument();
+  });
+});
+
+describe("DetailView delete button", () => {
+  it("shows a delete button for active, current-period expenses", () => {
+    renderDetail(buildExpense({ status: "active", periodYear: 2026, periodMonth: 5 }));
+    expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
+  });
+
+  it("hides the delete button for corrected expenses", () => {
+    renderDetail(buildExpense({ status: "corrected", periodYear: 2026, periodMonth: 5 }));
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the delete button for past-period expenses", () => {
+    renderDetail(buildExpense({ status: "active", periodYear: 2026, periodMonth: 4 }));
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+
+  it("opens a confirmation dialog when delete is clicked", async () => {
+    const user = userEvent.setup();
+    renderDetail(buildExpense());
+
+    await user.click(screen.getByRole("button", { name: /delete/i }));
+
+    expect(
+      screen.getByText(/are you sure you want to delete this expense/i),
+    ).toBeInTheDocument();
   });
 });

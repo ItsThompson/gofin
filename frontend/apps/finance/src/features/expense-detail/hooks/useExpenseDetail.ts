@@ -6,6 +6,7 @@ import type {
   ExpenseDetailState,
   UseExpenseDetailOptions,
   CorrectionState,
+  DeleteState,
 } from "../types";
 
 export type { ExpenseDetailState, UseExpenseDetailOptions } from "../types";
@@ -74,6 +75,12 @@ export function useExpenseDetail(
     },
   });
 
+  const deleteMutation = useFormMutation<void>({
+    onSuccess: () => {
+      optionsRef.current?.onDeleteSuccess?.();
+    },
+  });
+
   const submitCorrection = useCallback(
     (form: CorrectExpenseRequest) => {
       if (!expense) return;
@@ -84,6 +91,11 @@ export function useExpenseDetail(
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [expense, correctionMutation.submit],
   );
+
+  const deleteExpense = useCallback(() => {
+    if (!expense) return;
+    deleteMutation.submit(() => expenseDetailApi.deleteExpense(expense.id));
+  }, [expense, deleteMutation.submit]);
 
   const refresh = useCallback(() => {
     fetchExpenseData();
@@ -102,6 +114,13 @@ export function useExpenseDetail(
     submitting: correctionMutation.submitting,
     error: correctionMutation.error,
     clearError: correctionMutation.clearError,
+  };
+
+  const deletion: DeleteState = {
+    deleteExpense,
+    deleting: deleteMutation.submitting,
+    error: deleteMutation.error,
+    clearError: deleteMutation.clearError,
   };
 
   if (status === "loading") {
@@ -123,6 +142,7 @@ export function useExpenseDetail(
       history,
       proRataGroup,
       correction,
+      deletion,
       cancelCorrection,
       refresh,
     };
@@ -134,6 +154,7 @@ export function useExpenseDetail(
     history,
     proRataGroup,
     correction,
+    deletion,
     startCorrection,
     refresh,
   };

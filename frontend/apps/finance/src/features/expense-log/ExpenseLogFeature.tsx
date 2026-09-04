@@ -167,6 +167,10 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
         currentMonth={now.getMonth() + 1}
         onClose={() => setSelectedExpenseId(null)}
         onCorrected={() => data.refresh()}
+        onDeleted={() => {
+          setSelectedExpenseId(null);
+          data.refresh();
+        }}
       />
     </div>
   );

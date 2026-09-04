@@ -1,7 +1,15 @@
+import { useState } from "react";
 import { formatCurrency } from "@gofin/core";
 import type { Expense, Tag } from "@gofin/core";
-import { History, Pencil } from "lucide-react";
+import { History, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@gofin/ui/components/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@gofin/ui/components/dialog";
 import { CorrectionTimeline } from "./CorrectionTimeline";
 import { hasSameCurrencySnapshot } from "../utils/moneyFacts";
 
@@ -14,6 +22,9 @@ interface DetailViewProps {
   currentYear: number;
   currentMonth: number;
   onCorrectClick: () => void;
+  onDeleteClick: () => void;
+  deleting: boolean;
+  deleteError: string | null;
 }
 
 export function DetailView({
@@ -25,7 +36,11 @@ export function DetailView({
   currentYear,
   currentMonth,
   onCorrectClick,
+  onDeleteClick,
+  deleting,
+  deleteError,
 }: DetailViewProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
 
   const isCurrentPeriod =
@@ -205,6 +220,57 @@ export function DetailView({
             Correct This Expense
           </Button>
         </div>
+      )}
+
+      {canCorrect && (
+        <div className="pt-2">
+          <Button
+            variant="destructive"
+            className="w-full"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="size-4" />
+            Delete
+          </Button>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Expense</DialogTitle>
+              <DialogClose onClick={() => setConfirmDelete(false)} />
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this expense? This cannot be undone from the UI.
+            </p>
+            {deleteError && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setConfirmDelete(false);
+                  onDeleteClick();
+                }}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

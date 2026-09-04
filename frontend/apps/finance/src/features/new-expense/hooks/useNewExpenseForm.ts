@@ -1,4 +1,4 @@
-import { useState, useEffect, type SyntheticEvent } from "react";
+import { useState, useEffect, useRef, type SyntheticEvent } from "react";
 import { ApiRequestError, apiClient, useFormMutation } from "@gofin/api";
 import { toast } from "sonner";
 import { EXPENSE_TYPES, type ExpenseType } from "@gofin/core";
@@ -69,6 +69,11 @@ export function useNewExpenseForm(
   const [transactionCurrency, setTransactionCurrency] = useState(currency);
   const expenseFields = useExpenseFields(undefined, transactionCurrency);
 
+  // One idempotency key per logical submit. Generated once on mount and reused
+  // across retries of the same submit; reset to a fresh UUID only after a
+  // successful save so a network retry returns the already-created expense.
+  const idempotencyKeyRef = useRef(crypto.randomUUID());
+
   useEffect(() => {
     setTransactionCurrency(currency);
   }, [currency]);
@@ -82,6 +87,7 @@ export function useNewExpenseForm(
     expenseFields.reset({ tagId: getDefaultTagId(tags) });
     setIsProRata(false);
     setProRataMonths("");
+    idempotencyKeyRef.current = crypto.randomUUID();
   };
 
   const mutation = useFormMutation<SubmittedExpenseKind>({
@@ -183,6 +189,7 @@ export function useNewExpenseForm(
         expenseDate: fields.expenseDate,
         periodYear,
         periodMonth,
+        clientGeneratedIdempotencyKey: idempotencyKeyRef.current,
       };
       await apiClient<ExpenseResponse>("/api/expenses", {
         method: "POST",

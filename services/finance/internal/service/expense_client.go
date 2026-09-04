@@ -68,6 +68,7 @@ type CreateExpenseInput struct {
 	ProRataGroup        string
 	ProRataIndex        int32
 	ProRataTotal        int32
+	ClientGeneratedIdempotencyKey string
 }
 
 // CreatedExpenseData is the data returned after creating an expense.

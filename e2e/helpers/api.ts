@@ -78,6 +78,7 @@ export async function apiCreateExpense(
       expenseDate: params.expenseDate,
       periodYear: params.periodYear,
       periodMonth: params.periodMonth,
+      clientGeneratedIdempotencyKey: crypto.randomUUID(),
     },
   });
 

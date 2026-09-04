@@ -1,6 +1,5 @@
 import type { ExpenseType } from "../constants";
 
-/** Lifecycle status of a ledger expense. */
 export type ExpenseStatus = "active" | "corrected";
 
 /** Expense entry from the immutable ledger. */
@@ -10,7 +9,6 @@ export interface Expense {
   name: string;
   /** Canonical transaction ISO 4217 currency code. */
   transactionCurrency: string;
-  /** One of: "essentials", "desires", "savings". */
   expenseType: ExpenseType;
   tagId: string;
   /** ISO date string (YYYY-MM-DD). */
@@ -24,21 +22,20 @@ export interface Expense {
   proRataIndex?: number;
   proRataTotal?: number;
   createdAt: string;
-  // --- Money snapshot fields (backfilled for every row) ---
+  // Money snapshot fields (backfilled for every row)
   /** Original amount in transaction currency minor units. */
   transactionAmount: number;
   /** Converted amount in the period reporting currency minor units. */
   reportingAmount: number;
-  /** Budget period reporting currency. */
   reportingCurrency: string;
   /** Source-to-target exchange rate. */
   exchangeRate?: string;
   /** "open_exchange_rates" | "identity" | "migration". */
   exchangeRateSource?: string;
-  /** Provider, identity, or migration timestamp. */
   exchangeRateTimestamp?: string;
   /** Present for live provider snapshots with cache expiry metadata. */
   exchangeRateExpiresAt?: string;
+  clientGeneratedIdempotencyKey?: string;
 }
 
 /** Response from POST /api/expenses. */
@@ -58,6 +55,7 @@ export interface CreateExpenseRequest {
   expenseDate: string;
   periodYear: number;
   periodMonth: number;
+  clientGeneratedIdempotencyKey: string;
 }
 
 /** Request body for POST /api/expenses/:id/correct. */

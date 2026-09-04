@@ -7,9 +7,7 @@ import (
 )
 
 // ExpenseRepository defines the data access contract for expense operations.
-// Implementations can be backed by immudb (production) or mocks (tests).
 type ExpenseRepository interface {
-	// CreateExpense inserts a new expense entry into the ledger.
 	CreateExpense(ctx context.Context, expense *model.Expense) (*model.Expense, error)
 
 	// GetExpensesForPeriod returns materialized (status=active only) expenses
@@ -17,11 +15,10 @@ type ExpenseRepository interface {
 	// Returns the matching expenses and the total count for pagination.
 	GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error)
 
-	// GetExpenseByID returns a single expense by ID, scoped to the given user.
 	// Returns nil if the expense doesn't exist or belongs to a different user.
 	GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error)
 
-	// CountExpensesByTag returns the number of active expenses referencing the given tag.
+	// CountExpensesByTag counts only active expenses referencing tagID.
 	CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error)
 
 	// CorrectExpense atomically marks the original expense as "corrected" and
@@ -32,11 +29,19 @@ type ExpenseRepository interface {
 	// ordered chronologically (original first, latest correction last).
 	GetCorrectionHistory(ctx context.Context, expenseID string, userID string) ([]*model.Expense, error)
 
-	// GetProRataGroup returns all expenses belonging to a pro-rata group,
-	// scoped to a user.
 	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
 
-	// GetActiveExpenseSuggestionInputs returns active expense rows for suggestion ranking.
+	// GetExpenseByIdempotencyKey returns the expense for the given user that was
+	// created with the supplied idempotency key, or nil if no such expense exists.
+	// Used by the check-then-insert idempotency path in CreateExpense.
+	GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error)
+
+	// DeactivateExpense soft-deletes an active expense by flipping its status to
+	// "corrected" with no replacement row. Scoped to the user. Returns 1 on a
+	// successful exec (immudb SQLExec does not expose a row count; the service
+	// layer's pre-check guarantees the row exists and is active).
+	DeactivateExpense(ctx context.Context, id string, userID string) (int64, error)
+
 	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
 
 	// GetExpensesByUserAfter returns one keyset page of expenses (active +
@@ -69,18 +74,16 @@ type ExpenseCursor struct {
 // non-positive page size (e.g. StreamAllUserExpensesRequest.page_size == 0).
 const DefaultStreamPageSize int32 = 100
 
-// SQLResult represents the result of an SQL query row.
 type SQLResult struct {
 	Rows []SQLRow
 }
 
-// SQLRow represents a single row from an SQL query result.
 type SQLRow struct {
 	Values []SQLValue
 }
 
-// SQLValue represents a single value in a row. The immudb client returns
-// typed values; this interface abstracts over them for testability.
+// The immudb client returns typed values; this interface abstracts over
+// them for testability.
 type SQLValue interface {
 	GetString() string
 	GetInt() int64

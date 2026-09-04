@@ -33,6 +33,12 @@ type Expense struct {
 	ExchangeRateSource    string `json:"exchangeRateSource"`
 	ExchangeRateTimestamp string `json:"exchangeRateTimestamp"`
 	ExchangeRateExpiresAt string `json:"exchangeRateExpiresAt,omitempty"`
+
+	// ClientGeneratedIdempotencyKey makes create idempotent: a retry with the
+	// same key returns the already-created expense instead of inserting a
+	// duplicate. Required on create (RFC 4122 UUID); empty for rows written
+	// before the idempotency migration.
+	ClientGeneratedIdempotencyKey string `json:"clientGeneratedIdempotencyKey"`
 }
 
 // ValidExpenseTypes is the set of allowed expense_type values.
