@@ -52,7 +52,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
 
   const totalSpent = data.summary?.totalSpent ?? 0;
   const remaining = data.summary?.remaining ?? currentPeriod.budgetAmount;
-  const reportingCurrencyCode = currentPeriod.reportingCurrencyCode;
+  const reportingCurrency = currentPeriod.reportingCurrency;
 
   const monthName = new Date(currentPeriod.year, currentPeriod.month - 1).toLocaleString("en-US", {
     month: "long",
@@ -131,14 +131,14 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                             new Date().getDate(),
                         )
                   }
-                  currency={reportingCurrencyCode}
+                  currency={reportingCurrency}
                 />
               </SectionErrorBoundary>
 
               {data.summary && (
                 <section id="budget-allocations" data-outline-title="Budget Allocations">
                   <SectionErrorBoundary sectionName="Category Gauges">
-                    <CategoryGauges summary={data.summary} currency={reportingCurrencyCode} />
+                    <CategoryGauges summary={data.summary} currency={reportingCurrency} />
                   </SectionErrorBoundary>
                 </section>
               )}
@@ -149,7 +149,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                   {data.summary && (
                     <section id="spending-pace" data-outline-title="Spending Pace">
                       <SectionErrorBoundary sectionName="Spending Pace">
-                        <PacingIndicator summary={data.summary} currency={reportingCurrencyCode} />
+                        <PacingIndicator summary={data.summary} currency={reportingCurrency} />
                       </SectionErrorBoundary>
                     </section>
                   )}
@@ -158,7 +158,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                       <SectionErrorBoundary sectionName="Historical Comparison">
                         <HistoricalComparisonWidget
                           comparison={data.comparison}
-                          currency={reportingCurrencyCode}
+                          currency={reportingCurrency}
                         />
                       </SectionErrorBoundary>
                     </section>
@@ -172,7 +172,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                 <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
                   <UpcomingProRataSection
                     schedules={data.upcomingProRata}
-                    currency={reportingCurrencyCode}
+                    currency={reportingCurrency}
                   />
                 </section>
               )}
@@ -187,7 +187,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                       trendData={data.trendData}
                       trendMonths={trendMonths}
                       onToggle={setTrendMonths}
-                      currency={reportingCurrencyCode}
+                      currency={reportingCurrency}
                     />
                   </SectionErrorBoundary>
                 </section>
@@ -198,7 +198,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                   <BreakdownSection
                     tagSpending={data.tagSpending}
                     expenseFrecencyData={expenseFrecencyData}
-                    currency={reportingCurrencyCode}
+                    currency={reportingCurrency}
                   />
                 </SectionErrorBoundary>
               </section>
@@ -208,7 +208,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                   <SectionErrorBoundary sectionName="Cumulative Spending">
                     <CumulativeSpendChart
                       data={data.cumulativeData}
-                      currency={reportingCurrencyCode}
+                      currency={reportingCurrency}
                     />
                   </SectionErrorBoundary>
                 </section>
@@ -237,7 +237,7 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
                       </CardContent>
                     </Card>
                   ) : (
-                    <RecentExpenses expenses={data.recentExpenses} currency={reportingCurrencyCode} />
+                    <RecentExpenses expenses={data.recentExpenses} currency={reportingCurrency} />
                   )}
                 </SectionErrorBoundary>
               </section>

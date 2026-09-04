@@ -201,7 +201,7 @@ describe("DashboardFeature", () => {
       const jpyPeriod = buildPeriod({
         ...testPeriod,
         budgetAmount: 300000,
-        reportingCurrencyCode: "JPY",
+        reportingCurrency: "JPY",
       });
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: jpyPeriod } },

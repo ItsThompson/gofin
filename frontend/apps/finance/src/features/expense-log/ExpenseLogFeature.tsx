@@ -79,7 +79,7 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
     );
   }
 
-  const { expenses, tags, periods, reportingCurrencyCode } = data.state;
+  const { expenses, tags, periods, reportingCurrency } = data.state;
 
   return (
     <div className="space-y-4">
@@ -161,7 +161,7 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
 
       <ExpenseDetailModal
         expenseId={selectedExpenseId}
-        currency={reportingCurrencyCode}
+        currency={reportingCurrency}
         tags={tags}
         currentYear={now.getFullYear()}
         currentMonth={now.getMonth() + 1}

@@ -55,7 +55,7 @@ export function useHistoryData(): HistoryDataResult {
           const prev = rows[i + 1];
           if (prev && prev.status === "loaded") {
             const comparable =
-              row.period.reportingCurrencyCode === prev.period.reportingCurrencyCode;
+              row.period.reportingCurrency === prev.period.reportingCurrency;
             const delta: PeriodDelta = {
               amount: row.totalSpent - prev.totalSpent,
               comparable,

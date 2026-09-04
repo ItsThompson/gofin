@@ -72,7 +72,7 @@ const mockPeriods: BudgetPeriod[] = [
     year: 2026,
     month: 5,
     budgetAmount: 300000,
-    reportingCurrencyCode: "USD",
+    reportingCurrency: "USD",
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
@@ -144,7 +144,7 @@ describe("useExpenseLogData", () => {
       expect(result.current.state.periods).toEqual(mockPeriods);
       expect(result.current.state.expenses).toHaveLength(1);
       expect(result.current.state.expenses[0].name).toBe("Groceries");
-      expect(result.current.state.reportingCurrencyCode).toBe("USD");
+      expect(result.current.state.reportingCurrency).toBe("USD");
     });
   });
 

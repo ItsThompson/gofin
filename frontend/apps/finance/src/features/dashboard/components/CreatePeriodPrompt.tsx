@@ -46,16 +46,16 @@ export function CreatePeriodPrompt({
   createError,
 }: CreatePeriodPromptProps) {
   const isZeroBudget = !defaults || defaults.budgetAmount === 0;
-  const [reportingCurrencyCode, setReportingCurrency] = useState(() =>
+  const [reportingCurrency, setReportingCurrency] = useState(() =>
     initialReportingCurrency(defaults, user),
   );
   const [currencyError, setCurrencyError] = useState<string | null>(null);
-  const currencySymbol = getCurrencySymbol(reportingCurrencyCode);
+  const currencySymbol = getCurrencySymbol(reportingCurrency);
   const currencyOptions = useSupportedCurrencyOptions();
 
   const form = useBudgetSplitForm({
     initialBudgetCents: defaults?.budgetAmount || undefined,
-    currency: reportingCurrencyCode,
+    currency: reportingCurrency,
     initialSplit: defaults
       ? {
           essentials: defaults.essentialsPercent,
@@ -72,7 +72,7 @@ export function CreatePeriodPrompt({
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!reportingCurrencyCode) {
+    if (!reportingCurrency) {
       setCurrencyError("Reporting currency is required");
       return;
     }
@@ -88,7 +88,7 @@ export function CreatePeriodPrompt({
       essentialsPercent: payload.essentialsPercent,
       desiresPercent: payload.desiresPercent,
       savingsPercent: payload.savingsPercent,
-      reportingCurrencyCode,
+      reportingCurrency,
     };
 
     onCreatePeriod(body);
@@ -128,8 +128,8 @@ export function CreatePeriodPrompt({
                   id="budget"
                   type="number"
                   min="0"
-                  step={getCurrencyInputStep(reportingCurrencyCode)}
-                  placeholder={getMinorUnitDigits(reportingCurrencyCode) === 0 ? "0" : "0.00"}
+                  step={getCurrencyInputStep(reportingCurrency)}
+                  placeholder={getMinorUnitDigits(reportingCurrency) === 0 ? "0" : "0.00"}
                   value={form.fields.budgetDollars}
                   onChange={(event) => form.setField("budgetDollars", event.target.value)}
                   className="pl-6"
@@ -141,7 +141,7 @@ export function CreatePeriodPrompt({
               <FormLabel htmlFor="reporting-currency">Reporting Currency</FormLabel>
               <select
                 id="reporting-currency"
-                value={reportingCurrencyCode}
+                value={reportingCurrency}
                 onChange={(event) => {
                   setReportingCurrency(event.target.value);
                   setCurrencyError(null);
@@ -149,7 +149,7 @@ export function CreatePeriodPrompt({
                 aria-invalid={!!currencyError}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                {!reportingCurrencyCode && <option value="">Select a currency</option>}
+                {!reportingCurrency && <option value="">Select a currency</option>}
                 {currencyOptions.map((option) => (
                   <option key={option.code} value={option.code}>
                     {option.label}

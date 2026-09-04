@@ -217,7 +217,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
-          reportingCurrencyCode: "USD",
+          reportingCurrency: "USD",
         });
       });
 
@@ -272,7 +272,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
-          reportingCurrencyCode: "USD",
+          reportingCurrency: "USD",
         });
       });
 
@@ -321,7 +321,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
-          reportingCurrencyCode: "USD",
+          reportingCurrency: "USD",
         });
       });
 
@@ -362,7 +362,7 @@ describe("usePeriodState", () => {
           essentialsPercent: 50,
           desiresPercent: 30,
           savingsPercent: 20,
-          reportingCurrencyCode: "USD",
+          reportingCurrency: "USD",
         });
       });
 

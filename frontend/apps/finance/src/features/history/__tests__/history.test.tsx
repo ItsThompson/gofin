@@ -14,7 +14,7 @@ const mockPeriods = [
     year: 2026,
     month: 3,
     budgetAmount: 300000,
-    reportingCurrencyCode: "USD",
+    reportingCurrency: "USD",
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
@@ -27,7 +27,7 @@ const mockPeriods = [
     year: 2026,
     month: 2,
     budgetAmount: 250000,
-    reportingCurrencyCode: "USD",
+    reportingCurrency: "USD",
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
@@ -259,7 +259,7 @@ describe("HistoryFeature", () => {
         ...mockPeriods[0],
         id: "p3-jpy",
         budgetAmount: 30000,
-        reportingCurrencyCode: "JPY",
+        reportingCurrency: "JPY",
       },
     ];
     mockFetch.mockResolvedValueOnce({
@@ -285,12 +285,12 @@ describe("HistoryFeature", () => {
       {
         ...mockPeriods[0],
         id: "p3-usd",
-        reportingCurrencyCode: "USD",
+        reportingCurrency: "USD",
       },
       {
         ...mockPeriods[1],
         id: "p2-eur",
-        reportingCurrencyCode: "EUR",
+        reportingCurrency: "EUR",
       },
     ];
     mockFetch.mockResolvedValueOnce({

@@ -89,7 +89,7 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     const yenPeriod = buildPeriod({
       ...testPeriod,
       budgetAmount: 300000,
-      reportingCurrencyCode: "JPY",
+      reportingCurrency: "JPY",
     });
 
     global.fetch = createMockApi({

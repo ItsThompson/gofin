@@ -46,7 +46,7 @@ export interface HealthScore {
   provisional: boolean;
   formulaVersion: number;
   /** The scored period's immutable reporting currency. */
-  reportingCurrencyCode: string;
+  reportingCurrency: string;
   components: HealthComponent[];
   insight: HealthInsight;
 }
@@ -73,7 +73,7 @@ export interface HealthScoreTrendPoint {
   provisional: boolean;
   formulaVersion: number;
   /** The scored period's immutable reporting currency. */
-  reportingCurrencyCode: string;
+  reportingCurrency: string;
 }
 
 /** Response from GET /api/finance/health-score/trend. */
