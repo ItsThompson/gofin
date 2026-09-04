@@ -15,6 +15,12 @@ import (
 // Compile-time check that ExpensesProvider implements DataProvider.
 var _ engine.DataProvider = (*ExpensesProvider)(nil)
 
+// migrationSource is the exchange_rate_source value on legacy rows imported
+// during data migration. It is a datarights-internal concern: the expense and
+// fx services never produce or interpret this value, so it does not belong in
+// the shared exchangesource contract.
+const migrationSource = "migration"
+
 // expensesPageSize is the server-side keyset page size requested from the
 // StreamAllUserExpenses RPC. It caps how many rows the server materializes per
 // page, so consuming the stream incrementally keeps peak memory at
@@ -222,7 +228,7 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 
-	case exchangesource.Migration:
+	case migrationSource:
 		currency := p.resolvePeriodCurrency(exp)
 		if currency == "" {
 			return expenseSnapshot{}, fmt.Errorf("expense %s legacy row has no resolvable period reporting currency", exp.GetId())
