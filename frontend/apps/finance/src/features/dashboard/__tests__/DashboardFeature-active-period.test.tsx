@@ -19,9 +19,38 @@ describe("DashboardFeature", () => {
 
     const skeletons = document.querySelectorAll('[data-slot="skeleton"]');
     expect(skeletons.length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-testid="health-score-skeleton"]')).not.toBeNull();
   });
 
   describe("active period exists", () => {
+    it("shows the Log Expense link while dashboard data is loading", async () => {
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/api/finance/periods/current")) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ period: testPeriod }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        return new Promise(() => {});
+      }) as unknown as typeof fetch;
+      renderDashboard();
+
+      // The period fetch resolves on a microtask after renderDashboard()
+      // returns, so the header assertions must wait for ActiveDashboard to
+      // mount (same pattern as the other period-dependent tests below).
+      await waitFor(() => {
+        expect(screen.getByRole("link", { name: "Log Expense" })).toHaveAttribute(
+          "href",
+          "/expenses/new",
+        );
+      });
+      // Data routes never resolve, so the content area is still loading.
+      expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+    });
+
     it("renders summary bar with budget values", async () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
@@ -30,10 +59,9 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+        expect(screen.getByText("Total Budget")).toBeInTheDocument();
       });
 
-      expect(screen.getByText("Total Budget")).toBeInTheDocument();
       await waitFor(() => {
         expect(screen.getAllByText("$3,000.00")).toHaveLength(2);
       });
@@ -200,7 +228,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+        expect(screen.getAllByText("$3,000.00").length).toBeGreaterThan(0);
       });
 
       const amounts = screen.getAllByText("$3,000.00");
@@ -240,7 +268,7 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+        expect(screen.getAllByText("$0.00").length).toBeGreaterThan(0);
       });
 
       const zeroAmounts = screen.getAllByText("$0.00");
