@@ -51,6 +51,19 @@ func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, u
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
+func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+	args := m.Called(ctx, userID, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Expense), args.Error(1)
+}
+
+func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
+	args := m.Called(ctx, id, userID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 func (m *mockExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
 	args := m.Called(ctx, userID, tagID)
 	return args.Get(0).(int64), args.Error(1)
@@ -784,5 +797,92 @@ func TestGetProRataGroupHandler_MissingUserID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	r := setupTestRouter(repo)
 	w := doJSONWithUserID(r, "GET", "/api/expenses/prorata/group-1", "", nil)
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// --- DeleteExpense Handler Tests ---
+
+func TestDeleteExpenseHandler_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	original := &model.Expense{
+		ID: "exp-original", UserID: "user-1", Name: "Coffee",
+		ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
+	repo.On("DeactivateExpense", mock.Anything, "exp-original", "user-1").Return(int64(1), nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "DELETE", "/api/expenses/exp-original", "user-1", nil)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+	assert.Empty(t, w.Body.Bytes())
+	repo.AssertExpectations(t)
+}
+
+func TestDeleteExpenseHandler_AlreadyCorrected(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	corrected := &model.Expense{
+		ID: "exp-original", UserID: "user-1", Name: "Coffee",
+		ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-05-01",
+		PeriodYear: 2026, PeriodMonth: 5, Status: "corrected",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(corrected, nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "DELETE", "/api/expenses/exp-original", "user-1", nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrAlreadyCorrected, errResp.Code)
+}
+
+func TestDeleteExpenseHandler_PeriodLocked(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	pastExpense := &model.Expense{
+		ID: "exp-past", UserID: "user-1", Name: "Old Coffee",
+		ExpenseType: "desires",
+		TagID: "tag-food", ExpenseDate: "2026-04-15",
+		PeriodYear: 2026, PeriodMonth: 4, Status: "active",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-past", "user-1").Return(pastExpense, nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "DELETE", "/api/expenses/exp-past", "user-1", nil)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, model.ErrPeriodLocked, errResp.Code)
+}
+
+func TestDeleteExpenseHandler_NotFound(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-missing", "user-1").Return(nil, nil)
+
+	r := setupTestRouterWithClock(repo, now)
+	w := doJSONWithUserID(r, "DELETE", "/api/expenses/exp-missing", "user-1", nil)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	var errResp apierr.APIError
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, apierr.CodeNotFound, errResp.Code)
+}
+
+func TestDeleteExpenseHandler_MissingUserID(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	r := setupTestRouter(repo)
+	w := doJSONWithUserID(r, "DELETE", "/api/expenses/exp-1", "", nil)
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }

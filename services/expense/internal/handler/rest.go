@@ -47,6 +47,7 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 		"expense.prorata.group": h.GetProRataGroup,
 		"expense.get":           h.GetExpense,
 		"expense.correct":       h.CorrectExpense,
+		"expense.delete":       h.DeleteExpense,
 		"expense.history":       h.GetCorrectionHistory,
 	}
 }
@@ -226,6 +227,22 @@ func (h *RESTHandler) CorrectExpense(c *gin.Context) {
 	c.JSON(http.StatusCreated, model.ExpenseResponse{
 		Expense: expense,
 	})
+}
+
+// DeleteExpense handles DELETE /api/expenses/:id.
+func (h *RESTHandler) DeleteExpense(c *gin.Context) {
+	userID, ok := httpx.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	expenseID := c.Param("id")
+	if err := h.expenseService.DeleteExpense(c.Request.Context(), userID, expenseID); err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }
 
 // GetCorrectionHistory handles GET /api/expenses/:id/history.
