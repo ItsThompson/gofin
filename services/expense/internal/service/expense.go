@@ -61,6 +61,26 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		return nil, err
 	}
 
+	if err := validateIdempotencyKey(req.IdempotencyKey); err != nil {
+		return nil, err
+	}
+
+	if req.IdempotencyKey != "" {
+		existing, idemErr := s.repo.GetExpenseByIdempotencyKey(ctx, userID, req.IdempotencyKey)
+		if idemErr != nil {
+			return nil, fmt.Errorf("checking idempotency key: %w", idemErr)
+		}
+		if existing != nil {
+			s.logger.Info("expense created (idempotent replay)",
+				slog.String("method", "CreateExpense"),
+				slog.String("user_id", userID),
+				slog.String("expense_id", existing.ID),
+				slog.Bool("replayed", true),
+			)
+			return existing, nil
+		}
+	}
+
 	period, err := s.periodClient.GetPeriodContext(ctx, userID, req.PeriodYear, req.PeriodMonth)
 	if err != nil {
 		return nil, err
@@ -131,6 +151,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		ExchangeRateSource:    snapshot.ExchangeRateSource,
 		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
 		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
+		IdempotencyKey:        req.IdempotencyKey,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)
@@ -336,6 +357,54 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 	metrics.CorrectionsTotal.Inc()
 
 	return created, nil
+}
+
+// DeleteExpense soft-deletes an active expense by flipping it to "corrected"
+// with no replacement row. Mirrors CorrectExpense's period-lock and error
+// patterns but creates no correction entry. Past-period expenses cannot be
+// deleted, preventing alteration of closed financial periods.
+func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expenseID string) error {
+	if expenseID == "" {
+		return apierr.Validation("expense ID is required", nil)
+	}
+
+	expense, err := s.repo.GetExpenseByID(ctx, expenseID, userID)
+	if err != nil {
+		return fmt.Errorf("fetching expense for deletion: %w", err)
+	}
+	if expense == nil {
+		return apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
+	}
+
+	if expense.Status != "active" {
+		return apierr.Conflict(model.ErrAlreadyCorrected, "this expense has already been corrected or deleted")
+	}
+
+	// Period-lock: same rule as CorrectExpense.
+	now := s.clock()
+	currentYear := int32(now.Year())
+	currentMonth := int32(now.Month())
+	if expense.PeriodYear != currentYear || expense.PeriodMonth != currentMonth {
+		return &apierr.Error{
+			Code:    model.ErrPeriodLocked,
+			Message: "cannot delete expenses from a past period",
+			Status:  http.StatusForbidden,
+		}
+	}
+
+	if _, err := s.repo.DeactivateExpense(ctx, expenseID, userID); err != nil {
+		return fmt.Errorf("deleting expense: %w", err)
+	}
+
+	s.logger.Info("expense deleted",
+		slog.String("method", "DeleteExpense"),
+		slog.String("user_id", userID),
+		slog.String("expense_id", expenseID),
+	)
+
+	metrics.ExpenseDeletesTotal.Inc()
+
+	return nil
 }
 
 // GetCorrectionHistory returns the full correction chain for an expense,
@@ -690,6 +759,23 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error
 
 	if len(fields) > 0 {
 		return apierr.Validation("validation failed", fields)
+	}
+	return nil
+}
+
+// validateIdempotencyKey returns nil for an empty key (backward compatible),
+// or an *apierr.Validation if the key is not a well-formed RFC 4122 UUID or
+// exceeds the 36-character column width. Called before any lookup or insert so
+// a malformed key is rejected without touching the ledger.
+func validateIdempotencyKey(key string) *apierr.Error {
+	if key == "" {
+		return nil // optional, backward compatible
+	}
+	if len(key) > 36 {
+		return apierr.Validation("idempotencyKey must be at most 36 characters", nil)
+	}
+	if _, err := uuid.Parse(key); err != nil {
+		return apierr.Validation("idempotencyKey must be a valid UUID", nil)
 	}
 	return nil
 }

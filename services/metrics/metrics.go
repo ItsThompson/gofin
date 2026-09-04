@@ -102,6 +102,15 @@ var (
 		},
 	)
 
+	// ExpenseDeletesTotal counts expense entries soft-deleted (status flipped
+	// to "corrected" with no replacement row).
+	ExpenseDeletesTotal = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "expense_deletes_total",
+			Help: "Total number of expense entries soft-deleted",
+		},
+	)
+
 	// TokenRefreshTotal counts token refresh attempts by outcome.
 	TokenRefreshTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{

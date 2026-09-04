@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,19 @@ func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, u
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*model.Expense), args.Error(1)
+}
+
+func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+	args := m.Called(ctx, userID, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.Expense), args.Error(1)
+}
+
+func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
+	args := m.Called(ctx, id, userID)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *mockExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
@@ -1464,4 +1478,204 @@ func TestAnonymizeAllUserExpenses_DatabaseFailure(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "anonymizing user expenses")
+}
+
+// --- Idempotent Create tests ---
+
+// validTestUUID is a well-formed RFC 4122 UUID used across idempotency tests.
+const validTestUUID = "550e8400-e29b-41d4-a716-446655440000"
+
+// TestCreateExpense_IdempotentReplayReturnsExisting asserts that a second call
+// with the same idempotency key returns the already-created expense and does
+// not insert a new row.
+func TestCreateExpense_IdempotentReplayReturnsExisting(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	existing := &model.Expense{
+		ID:           "exp-existing",
+		UserID:       "user-1",
+		Name:         "Grocery shopping",
+		Status:       "active",
+		IdempotencyKey: validTestUUID,
+	}
+	repo.On("GetExpenseByIdempotencyKey", mock.Anything, "user-1", validTestUUID).Return(existing, nil)
+
+	req := validCreateRequest()
+	req.IdempotencyKey = validTestUUID
+
+	resp, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "exp-existing", resp.ID)
+	assert.Equal(t, validTestUUID, resp.IdempotencyKey)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
+}
+
+// TestCreateExpense_IdempotentKeyInsertsOnce asserts that the first call with a
+// key (no existing row) inserts a new expense carrying the key on the row.
+func TestCreateExpense_IdempotentKeyInsertsOnce(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("GetExpenseByIdempotencyKey", mock.Anything, "user-1", validTestUUID).Return(nil, nil)
+	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(e *model.Expense) bool {
+		return e.IdempotencyKey == validTestUUID
+	})).Return(&model.Expense{
+		ID:             "exp-123",
+		UserID:         "user-1",
+		Status:         "active",
+		IdempotencyKey: validTestUUID,
+	}, nil)
+
+	req := validCreateRequest()
+	req.IdempotencyKey = validTestUUID
+
+	resp, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	require.NoError(t, err)
+	assert.Equal(t, "exp-123", resp.ID)
+	assert.Equal(t, validTestUUID, resp.IdempotencyKey)
+	repo.AssertExpectations(t)
+}
+
+// TestCreateExpense_MalformedIdempotencyKeyRejected asserts a non-UUID key is
+// rejected with a 400 validation error before any lookup or insert.
+func TestCreateExpense_MalformedIdempotencyKeyRejected(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	req := validCreateRequest()
+	req.IdempotencyKey = "not-a-uuid"
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, 400, svcErr.Status)
+	repo.AssertNotCalled(t, "GetExpenseByIdempotencyKey", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+// TestCreateExpense_OversizedIdempotencyKeyRejected asserts a key longer than
+// 36 characters is rejected with a 400 validation error.
+func TestCreateExpense_OversizedIdempotencyKeyRejected(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	req := validCreateRequest()
+	req.IdempotencyKey = strings.Repeat("a", 37)
+
+	_, err := svc.CreateExpense(context.Background(), "user-1", req)
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, 400, svcErr.Status)
+	repo.AssertNotCalled(t, "GetExpenseByIdempotencyKey", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
+}
+
+// TestCreateExpense_EmptyIdempotencyKeyPreservesBehavior asserts that an empty
+// key skips the lookup entirely and proceeds with the insert (current behavior).
+func TestCreateExpense_EmptyIdempotencyKeyPreservesBehavior(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	repo.On("CreateExpense", mock.Anything, mock.AnythingOfType("*model.Expense")).
+		Return(&model.Expense{ID: "exp-123", UserID: "user-1", Status: "active"}, nil)
+
+	resp, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
+
+	require.NoError(t, err)
+	assert.Equal(t, "exp-123", resp.ID)
+	repo.AssertNotCalled(t, "GetExpenseByIdempotencyKey", mock.Anything, mock.Anything, mock.Anything)
+	repo.AssertExpectations(t)
+}
+
+// --- DeleteExpense tests ---
+
+func TestDeleteExpense_Success(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithClock(repo, now)
+
+	original := activeExpenseInCurrentPeriod(now)
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
+	repo.On("DeactivateExpense", mock.Anything, "exp-original", "user-1").Return(int64(1), nil)
+
+	err := svc.DeleteExpense(context.Background(), "user-1", "exp-original")
+
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func TestDeleteExpense_AlreadyCorrected(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithClock(repo, now)
+
+	corrected := activeExpenseInCurrentPeriod(now)
+	corrected.Status = "corrected"
+	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(corrected, nil)
+
+	err := svc.DeleteExpense(context.Background(), "user-1", "exp-original")
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrAlreadyCorrected, svcErr.Code)
+	assert.Equal(t, 409, svcErr.Status)
+	repo.AssertNotCalled(t, "DeactivateExpense", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeleteExpense_PeriodLocked(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithClock(repo, now)
+
+	pastExpense := &model.Expense{
+		ID:          "exp-past",
+		UserID:      "user-1",
+		Name:        "Old Coffee",
+		ExpenseType: "desires",
+		TagID:       "tag-food",
+		ExpenseDate: "2026-04-15",
+		PeriodYear:  2026,
+		PeriodMonth: 4,
+		Status:      "active",
+	}
+	repo.On("GetExpenseByID", mock.Anything, "exp-past", "user-1").Return(pastExpense, nil)
+
+	err := svc.DeleteExpense(context.Background(), "user-1", "exp-past")
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, model.ErrPeriodLocked, svcErr.Code)
+	assert.Equal(t, 403, svcErr.Status)
+	repo.AssertNotCalled(t, "DeactivateExpense", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeleteExpense_NotFound(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	now := time.Date(2026, 5, 3, 10, 0, 0, 0, time.UTC)
+	svc := newTestServiceWithClock(repo, now)
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-missing", "user-1").Return(nil, nil)
+
+	err := svc.DeleteExpense(context.Background(), "user-1", "exp-missing")
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeNotFound, svcErr.Code)
+	assert.Equal(t, 404, svcErr.Status)
+	repo.AssertNotCalled(t, "DeactivateExpense", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestDeleteExpense_EmptyID(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	svc := newTestService(repo)
+
+	err := svc.DeleteExpense(context.Background(), "user-1", "")
+
+	svcErr := requireAPIError(t, err)
+	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
+	assert.Equal(t, 400, svcErr.Status)
+	repo.AssertNotCalled(t, "GetExpenseByID", mock.Anything, mock.Anything, mock.Anything)
 }
