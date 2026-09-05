@@ -186,10 +186,6 @@ message CorrectionHistoryResponse {
   repeated ExpenseData entries = 1;
 }
 
-message GetProRataGroupRequest {
-  string group_id = 1;
-}
-
 // ---------------------------------------------------------------------------
 // StreamAllUserExpenses (data export, server-streaming)
 // ---------------------------------------------------------------------------

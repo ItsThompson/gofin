@@ -79,9 +79,6 @@ func (m *mockExpenseServiceClient) CreateProRataInstallment(_ context.Context, _
 func (m *mockExpenseServiceClient) GetCorrectionHistory(_ context.Context, _ *expensepb.GetCorrectionHistoryRequest, _ ...grpc.CallOption) (*expensepb.CorrectionHistoryResponse, error) {
 	return nil, nil
 }
-func (m *mockExpenseServiceClient) GetProRataGroup(_ context.Context, _ *expensepb.GetProRataGroupRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	return nil, nil
-}
 func (m *mockExpenseServiceClient) AnonymizeAllUserExpenses(_ context.Context, _ *expensepb.AnonymizeRequest, _ ...grpc.CallOption) (*expensepb.AnonymizeResponse, error) {
 	return nil, nil
 }
