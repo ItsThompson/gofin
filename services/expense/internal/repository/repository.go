@@ -10,13 +10,12 @@ import (
 type ExpenseRepository interface {
 	CreateExpense(ctx context.Context, expense *model.Expense) (*model.Expense, error)
 
-	// GetExpensesForPeriod returns materialized (status=active only) expenses
-	// for the given user and period, ordered by expense_date DESC, created_at DESC.
-	// Returns the matching expenses and the total count for pagination.
-	GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error)
+	// GetActiveExpensesForPeriod returns materialized expenses for the given user
+	// and period, ordered by expense_date DESC, created_at DESC.
+	GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) (expenses []*model.Expense, totalCount int64, err error)
 
 	// Returns nil if the expense doesn't exist or belongs to a different user.
-	GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error)
+	GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error)
 
 	// CountExpensesByTag counts only active expenses referencing tagID.
 	CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error)
@@ -29,18 +28,14 @@ type ExpenseRepository interface {
 	// ordered chronologically (original first, latest correction last).
 	GetCorrectionHistory(ctx context.Context, expenseID string, userID string) ([]*model.Expense, error)
 
-	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
+	GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
 
 	// GetExpenseByIdempotencyKey returns the expense for the given user that was
 	// created with the supplied idempotency key, or nil if no such expense exists.
 	// Used by the check-then-insert idempotency path in CreateExpense.
-	GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error)
+	GetExpenseByIdempotencyKey(ctx context.Context, userID string, idempotencyKey string) (*model.Expense, error)
 
-	// DeactivateExpense soft-deletes an active expense by flipping its status to
-	// "corrected" with no replacement row. Scoped to the user. Returns 1 on a
-	// successful exec (immudb SQLExec does not expose a row count; the service
-	// layer's pre-check guarantees the row exists and is active).
-	DeactivateExpense(ctx context.Context, id string, userID string) (int64, error)
+	DeactivateExpense(ctx context.Context, expenseID string, userID string) error
 
 	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
 

@@ -21,7 +21,7 @@ func (s *FinanceService) GetPeriodSummary(ctx context.Context, userID string, ye
 		return nil, err
 	}
 
-	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, year, month)
+	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
 	if err != nil {
 		return nil, fmt.Errorf("fetching expenses: %w", err)
 	}
@@ -36,7 +36,7 @@ func (s *FinanceService) GetSpendingByTag(ctx context.Context, userID string, ye
 		return nil, err
 	}
 
-	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, year, month)
+	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
 	if err != nil {
 		return nil, fmt.Errorf("fetching expenses: %w", err)
 	}
@@ -61,7 +61,7 @@ func (s *FinanceService) GetCumulativeSpend(ctx context.Context, userID string, 
 		return nil, err
 	}
 
-	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, year, month)
+	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
 	if err != nil {
 		return nil, fmt.Errorf("fetching expenses: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, y
 			continue // no read for missing periods; slot stays empty
 		}
 		g.Go(s.guardFanout(gctx, "spending trends expense read", userID, func() error {
-			exps, err := s.expenseClient.GetExpensesForPeriod(gctx, userID, ym.year, ym.month)
+			exps, err := s.expenseClient.GetActiveExpensesForPeriod(gctx, userID, ym.year, ym.month)
 			if err != nil {
 				return fmt.Errorf("fetching expenses for %d-%02d: %w", ym.year, ym.month, err)
 			}
@@ -303,7 +303,7 @@ func (s *FinanceService) computeHistoricalComparison(
 
 // getTotalSpentForPeriod fetches expenses for a period and returns the total spent.
 func (s *FinanceService) getTotalSpentForPeriod(ctx context.Context, userID string, period *model.BudgetPeriod) (int64, error) {
-	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, period.Year, period.Month)
+	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, period.Year, period.Month)
 	if err != nil {
 		return 0, fmt.Errorf("fetching expenses for %d-%02d: %w", period.Year, period.Month, err)
 	}

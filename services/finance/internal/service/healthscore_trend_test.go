@@ -50,7 +50,7 @@ func TestGetHealthScoreTrend_AllStoredAscending(t *testing.T) {
 	// All stored at the current version: scalar read only, no JSONB read, no
 	// compute, no upsert.
 	repo.AssertNotCalled(t, "GetHealthScore", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-	expClient.AssertNotCalled(t, "GetExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "GetActiveExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "UpsertHealthScore", mock.Anything, mock.Anything, mock.Anything)
 }
 
@@ -70,7 +70,7 @@ func TestGetHealthScoreTrend_ProvisionalLast(t *testing.T) {
 		scalarPoint(2026, 5, 65), scalarPoint(2026, 4, 60),
 	}, nil)
 	for month := int32(4); month <= 6; month++ {
-		expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), month).
+		expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), month).
 			Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 	}
 
@@ -125,7 +125,7 @@ func TestGetHealthScoreTrend_StaleScalarRecomputes(t *testing.T) {
 	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
 	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{staleMay}, nil)
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 	repo.On("UpsertHealthScore", mock.Anything, "user-1", mock.Anything).Return(nil, nil)
 

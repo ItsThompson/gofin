@@ -1089,7 +1089,7 @@ func TestApplyProRata_DashboardExcludesPendingAndFailed(t *testing.T) {
 	svc := newTagTestService(repo, txBeg, expClient)
 
 	// A pending schedule that stays pending (write fails) contributes no
-	// expense to the period. The dashboard reads GetExpensesForPeriod, which
+	// expense to the period. The dashboard reads GetActiveExpensesForPeriod, which
 	// returns only written ledger rows.
 	snap := snapshotFixture()
 	pending := []*model.ProRataSchedule{{
@@ -1111,7 +1111,7 @@ func TestApplyProRata_DashboardExcludesPendingAndFailed(t *testing.T) {
 
 	// The dashboard reads only applied ledger rows. A pending/failed schedule
 	// produced no row, so the expense client returns an empty set.
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(12)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(12)).
 		Return([]ExpenseData{}, nil)
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(12)).
 		Return(makePeriod("p-target", 2026, 12), nil)

@@ -16,11 +16,11 @@ import (
 // on the nil embedded interface, which is fine for these focused mapping tests.
 type stubExpenseClient struct {
 	expensepb.ExpenseServiceClient
-	getExpensesForPeriod func(ctx context.Context, in *expensepb.GetExpensesForPeriodRequest, opts ...grpc.CallOption) (*expensepb.ExpenseListResponse, error)
+	getActiveExpensesForPeriod func(ctx context.Context, in *expensepb.GetActiveExpensesForPeriodRequest, opts ...grpc.CallOption) (*expensepb.ExpenseListResponse, error)
 }
 
-func (s *stubExpenseClient) GetExpensesForPeriod(ctx context.Context, in *expensepb.GetExpensesForPeriodRequest, opts ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
-	return s.getExpensesForPeriod(ctx, in, opts...)
+func (s *stubExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, in *expensepb.GetActiveExpensesForPeriodRequest, opts ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
+	return s.getActiveExpensesForPeriod(ctx, in, opts...)
 }
 
 // TestGRPCExpenseClient_ReadsReportingAmountAndCurrency asserts the Finance gRPC
@@ -28,7 +28,7 @@ func (s *stubExpenseClient) GetExpensesForPeriod(ctx context.Context, in *expens
 // row, so dashboard totals aggregate in the period reporting currency.
 func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	stub := &stubExpenseClient{
-		getExpensesForPeriod: func(_ context.Context, _ *expensepb.GetExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
+		getActiveExpensesForPeriod: func(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
 			return &expensepb.ExpenseListResponse{
 				Data: []*expensepb.ExpenseData{
 					{
@@ -54,7 +54,7 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 
 	client := NewGRPCExpenseClient(stub)
 
-	expenses, err := client.GetExpensesForPeriod(context.Background(), "user-1", 2025, 1)
+	expenses, err := client.GetActiveExpensesForPeriod(context.Background(), "user-1", 2025, 1)
 	require.NoError(t, err)
 	require.Len(t, expenses, 2)
 

@@ -44,7 +44,7 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 		"expense.create":        h.CreateExpense,
 		"expense.list":          h.GetExpenses,
 		"expense.suggestions":   h.GetExpenseSuggestions,
-		"expense.prorata.group": h.GetProRataGroup,
+		"expense.prorata.group": h.GetExpensesInProRataGroup,
 		"expense.get":           h.GetExpense,
 		"expense.correct":       h.CorrectExpense,
 		"expense.delete":       h.DeleteExpense,
@@ -117,7 +117,7 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 		}
 	}
 
-	result, svcErr := h.expenseService.GetExpensesForPeriod(c.Request.Context(), &model.GetExpensesRequest{
+	result, svcErr := h.expenseService.GetActiveExpensesForPeriod(c.Request.Context(), &model.GetExpensesRequest{
 		UserID:   userID,
 		Year:     int32(year),
 		Month:    int32(month),
@@ -265,8 +265,8 @@ func (h *RESTHandler) GetCorrectionHistory(c *gin.Context) {
 	})
 }
 
-// GetProRataGroup handles GET /api/expenses/prorata/:groupId.
-func (h *RESTHandler) GetProRataGroup(c *gin.Context) {
+// GetExpensesInProRataGroup handles GET /api/expenses/prorata/:groupId.
+func (h *RESTHandler) GetExpensesInProRataGroup(c *gin.Context) {
 	userID, ok := httpx.RequireUserID(c)
 	if !ok {
 		return
@@ -274,7 +274,7 @@ func (h *RESTHandler) GetProRataGroup(c *gin.Context) {
 
 	groupID := c.Param("groupId")
 
-	expenses, err := h.expenseService.GetProRataGroup(c.Request.Context(), userID, groupID)
+	expenses, err := h.expenseService.GetExpensesInProRataGroup(c.Request.Context(), userID, groupID)
 	if err != nil {
 		h.respondError(c, err)
 		return

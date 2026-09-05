@@ -62,7 +62,7 @@ func (c *countingExpenseClient) failOn(year, month int32, err error) {
 	c.errs[periodKey(year, month)] = err
 }
 
-func (c *countingExpenseClient) GetExpensesForPeriod(ctx context.Context, _ string, year, month int32) ([]ExpenseData, error) {
+func (c *countingExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, _ string, year, month int32) ([]ExpenseData, error) {
 	// Check cancellation before recording: a read launched after a sibling has
 	// already failed (and cancelled the errgroup's derived context) returns
 	// without recording, so tests can assert siblings were cancelled via the

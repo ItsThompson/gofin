@@ -61,9 +61,9 @@ func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *mo
 	return expense, nil
 }
 
-// GetExpensesForPeriod returns materialized (active-only) expenses for the given
-// user and period, with pagination. Also returns the total count.
-func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
+// GetActiveExpensesForPeriod returns materialized expenses for the given
+// user and period, with pagination.
+func (r *ImmudbExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
 	// Count query for pagination
 	countQuery := `SELECT COUNT(*) FROM expenses
 		WHERE user_id = @user_id
@@ -125,12 +125,12 @@ func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, user
 
 // GetExpenseByID returns a single expense by ID, scoped to the given user.
 // Returns nil if not found or if the expense belongs to a different user.
-func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
+func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error) {
 	query := fmt.Sprintf(`SELECT %s
 		FROM expenses
 		WHERE id = @id AND user_id = @user_id;`, expenseSelectColumns)
 
-	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": id, "user_id": userID})
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": expenseID, "user_id": userID})
 	if err != nil {
 		return nil, fmt.Errorf("querying expense by ID: %w", err)
 	}
@@ -148,14 +148,14 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 
 // GetExpenseByIdempotencyKey returns the expense for the given user that was
 // created with the supplied idempotency key, or nil if no such expense exists.
-func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, idempotencyKey string) (*model.Expense, error) {
 	query := fmt.Sprintf(`SELECT %s
 		FROM expenses
 		WHERE user_id = @user_id AND idempotency_key = @key;`, expenseSelectColumns)
 
 	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{
 		"user_id": userID,
-		"key":     key,
+		"key":     idempotencyKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("querying expense by idempotency key: %w", err)
@@ -172,21 +172,16 @@ func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context
 	return expense, nil
 }
 
-// DeactivateExpense soft-deletes an active expense by flipping its status to
-// "corrected" with no replacement row. Scoped to the user. immudb's SQLExec
-// does not expose a row count; the service layer's pre-check (fetch -> 404 if
-// nil -> reject if not active) guarantees the row exists and is active before
-// this call, so a successful exec means the UPDATE ran. Returns 1 on success.
-func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
+func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, expenseID string, userID string) error {
 	query := `UPDATE expenses SET status = 'corrected' WHERE id = @id AND user_id = @user_id;`
 	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{
-		"id":      id,
+		"id":      expenseID,
 		"user_id": userID,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("deactivating expense: %w", err)
+		return fmt.Errorf("deactivating expense: %w", err)
 	}
-	return 1, nil
+	return nil
 }
 
 // CountExpensesByTag returns the count of active expenses referencing the given tag
@@ -212,9 +207,9 @@ func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID
 	return 0, nil
 }
 
-// GetProRataGroup returns all expenses in a pro-rata group for a user,
+// GetExpensesInProRataGroup returns all expenses in a pro-rata group for a user,
 // ordered by installment index.
-func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
+func (r *ImmudbExpenseRepository) GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
 	query := fmt.Sprintf(`SELECT %s FROM expenses
 		WHERE pro_rata_group = @group_id AND user_id = @user_id
 		ORDER BY pro_rata_index;`, expenseSelectColumns)

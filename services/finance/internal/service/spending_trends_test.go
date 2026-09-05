@@ -298,7 +298,7 @@ func TestGetSpendingTrends_FanOutWrapsError(t *testing.T) {
 // derived gctx is cancelled, so reads not yet started return early (via the
 // entry-time context check) instead of every period being read to completion.
 // If the production goroutines passed the parent ctx (not gctx) to
-// GetExpensesForPeriod, the siblings would not observe the cancellation and all
+// GetActiveExpensesForPeriod, the siblings would not observe the cancellation and all
 // twelve reads would complete, failing this assertion.
 func TestGetSpendingTrends_FanOutCancelsSiblings(t *testing.T) {
 	const window = 12

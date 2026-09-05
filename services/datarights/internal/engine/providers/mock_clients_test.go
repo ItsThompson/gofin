@@ -61,7 +61,7 @@ func (m *mockExpenseServiceClient) StreamAllUserExpenses(_ context.Context, req 
 func (m *mockExpenseServiceClient) CreateExpense(_ context.Context, _ *expensepb.CreateExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil
 }
-func (m *mockExpenseServiceClient) GetExpensesForPeriod(_ context.Context, _ *expensepb.GetExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
+func (m *mockExpenseServiceClient) GetActiveExpensesForPeriod(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
 	return nil, nil
 }
 func (m *mockExpenseServiceClient) GetExpense(_ context.Context, _ *expensepb.GetExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
@@ -77,9 +77,6 @@ func (m *mockExpenseServiceClient) CreateProRataInstallment(_ context.Context, _
 	return nil, nil
 }
 func (m *mockExpenseServiceClient) GetCorrectionHistory(_ context.Context, _ *expensepb.GetCorrectionHistoryRequest, _ ...grpc.CallOption) (*expensepb.CorrectionHistoryResponse, error) {
-	return nil, nil
-}
-func (m *mockExpenseServiceClient) GetProRataGroup(_ context.Context, _ *expensepb.GetProRataGroupRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
 	return nil, nil
 }
 func (m *mockExpenseServiceClient) AnonymizeAllUserExpenses(_ context.Context, _ *expensepb.AnonymizeRequest, _ ...grpc.CallOption) (*expensepb.AnonymizeResponse, error) {

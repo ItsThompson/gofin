@@ -169,8 +169,8 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	return created, nil
 }
 
-// GetExpensesForPeriod returns materialized expenses for a period with pagination.
-func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
+// GetActiveExpensesForPeriod returns materialized expenses for a period with pagination.
+func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
 	if req.Year < 1 {
 		return nil, apierr.Validation("year must be positive", nil)
 	}
@@ -187,7 +187,7 @@ func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.Ge
 		pageSize = 50
 	}
 
-	expenses, total, err := s.repo.GetExpensesForPeriod(ctx, req.UserID, req.Year, req.Month, page, pageSize)
+	expenses, total, err := s.repo.GetActiveExpensesForPeriod(ctx, req.UserID, req.Year, req.Month, page, pageSize)
 	if err != nil {
 		return nil, fmt.Errorf("getting expenses for period: %w", err)
 	}
@@ -393,7 +393,7 @@ func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expen
 		}
 	}
 
-	if _, err := s.repo.DeactivateExpense(ctx, expenseID, userID); err != nil {
+	if err := s.repo.DeactivateExpense(ctx, expenseID, userID); err != nil {
 		return fmt.Errorf("deleting expense: %w", err)
 	}
 
@@ -426,13 +426,13 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 	return chain, nil
 }
 
-// GetProRataGroup returns all expenses belonging to a pro-rata group.
-func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
+// GetExpensesInProRataGroup returns all expenses belonging to a pro-rata group.
+func (s *ExpenseService) GetExpensesInProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
 	if groupID == "" {
 		return nil, apierr.Validation("group ID is required", nil)
 	}
 
-	expenses, err := s.repo.GetProRataGroup(ctx, groupID, userID)
+	expenses, err := s.repo.GetExpensesInProRataGroup(ctx, groupID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting pro-rata group: %w", err)
 	}

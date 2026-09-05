@@ -7,7 +7,7 @@ option go_package = "github.com/ItsThompson/gofin/services/expense/proto/expense
 service ExpenseService {
   rpc CreateExpense(CreateExpenseRequest) returns (ExpenseResponse);
   rpc CreateProRataInstallment(CreateProRataInstallmentRequest) returns (ExpenseResponse);
-  rpc GetExpensesForPeriod(GetExpensesForPeriodRequest) returns (ExpenseListResponse);
+  rpc GetActiveExpensesForPeriod(GetActiveExpensesForPeriodRequest) returns (ExpenseListResponse);
   rpc GetExpense(GetExpenseRequest) returns (ExpenseResponse);
 
   // Tag usage check (called by finance service during tag deletion)
@@ -129,10 +129,10 @@ message CreateProRataInstallmentRequest {
 }
 
 // ---------------------------------------------------------------------------
-// GetExpensesForPeriod
+// GetActiveExpensesForPeriod
 // ---------------------------------------------------------------------------
 
-message GetExpensesForPeriodRequest {
+message GetActiveExpensesForPeriodRequest {
   string user_id = 1;
   int32 year = 2;
   int32 month = 3;
@@ -184,10 +184,6 @@ message GetCorrectionHistoryRequest {
 
 message CorrectionHistoryResponse {
   repeated ExpenseData entries = 1;
-}
-
-message GetProRataGroupRequest {
-  string group_id = 1;
 }
 
 // ---------------------------------------------------------------------------

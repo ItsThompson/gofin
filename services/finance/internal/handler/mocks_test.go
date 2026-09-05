@@ -227,7 +227,7 @@ type mockExpenseClient struct {
 	mock.Mock
 }
 
-func (m *mockExpenseClient) GetExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]service.ExpenseData, error) {
+func (m *mockExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]service.ExpenseData, error) {
 	args := m.Called(ctx, userID, year, month)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)

@@ -19,8 +19,8 @@ func NewGRPCExpenseClient(client expensepb.ExpenseServiceClient) *GRPCExpenseCli
 	return &GRPCExpenseClient{client: client}
 }
 
-func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
-	resp, err := c.client.GetExpensesForPeriod(ctx, &expensepb.GetExpensesForPeriodRequest{
+func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
+	resp, err := c.client.GetActiveExpensesForPeriod(ctx, &expensepb.GetActiveExpensesForPeriodRequest{
 		UserId:   userID,
 		Year:     year,
 		Month:    month,
@@ -28,7 +28,7 @@ func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 		PageSize: 10000,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("gRPC GetExpensesForPeriod: %w", err)
+		return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriod: %w", err)
 	}
 
 	expenses := make([]ExpenseData, len(resp.GetData()))

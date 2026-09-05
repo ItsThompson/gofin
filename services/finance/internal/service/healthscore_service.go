@@ -79,7 +79,7 @@ func (s *FinanceService) computeHealthScore(ctx context.Context, userID string, 
 		currency = defaultCurrency
 	}
 
-	expenses, err := s.expenseClient.GetExpensesForPeriod(ctx, userID, year, month)
+	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
 	if err != nil {
 		return nil, fmt.Errorf("fetching expenses: %w", err)
 	}
@@ -125,7 +125,7 @@ func (s *FinanceService) buildDesiresWindow(ctx context.Context, userID string, 
 	for i, period := range selected {
 		i, period := i, period
 		g.Go(s.guardFanout(gctx, "health score desires window", userID, func() error {
-			expenses, err := s.expenseClient.GetExpensesForPeriod(gctx, userID, period.Year, period.Month)
+			expenses, err := s.expenseClient.GetActiveExpensesForPeriod(gctx, userID, period.Year, period.Month)
 			if err != nil {
 				return fmt.Errorf("fetching desires for %d-%02d: %w", period.Year, period.Month, err)
 			}

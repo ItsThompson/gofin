@@ -33,7 +33,7 @@ type operation struct {
 var (
 	opCreate             = operation{name: "expense.create", rpc: "CreateExpense"}
 	opProRataInstallment = operation{name: "expense.create_pro_rata_installment", rpc: "CreateProRataInstallment"}
-	opList               = operation{name: "expense.list", rpc: "GetExpensesForPeriod"}
+	opList               = operation{name: "expense.list", rpc: "GetActiveExpensesForPeriod"}
 	opGet                = operation{name: "expense.get", rpc: "GetExpense"}
 	opCorrect            = operation{name: "expense.correct", rpc: "CorrectExpense"}
 	opCountByTag         = operation{name: "expense.count_by_tag", rpc: "CountExpensesByTag"}
@@ -125,8 +125,8 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 	}, nil
 }
 
-func (h *GRPCHandler) GetExpensesForPeriod(ctx context.Context, req *pb.GetExpensesForPeriodRequest) (*pb.ExpenseListResponse, error) {
-	result, err := h.expenseService.GetExpensesForPeriod(ctx, &model.GetExpensesRequest{
+func (h *GRPCHandler) GetActiveExpensesForPeriod(ctx context.Context, req *pb.GetActiveExpensesForPeriodRequest) (*pb.ExpenseListResponse, error) {
+	result, err := h.expenseService.GetActiveExpensesForPeriod(ctx, &model.GetExpensesRequest{
 		UserID:   req.GetUserId(),
 		Year:     req.GetYear(),
 		Month:    req.GetMonth(),

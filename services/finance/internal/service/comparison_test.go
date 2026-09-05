@@ -34,13 +34,13 @@ func TestGetHistoricalComparison_WithThreePriorPeriods(t *testing.T) {
 	repo.On("ListPeriods", mock.Anything, "user-1").Return(periods, nil)
 
 	// Expense totals: current=80000, prev=70000, p3=60000, p2=50000
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{{ReportingAmount: 80000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(4)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(4)).
 		Return([]ExpenseData{{ReportingAmount: 70000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(3)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(3)).
 		Return([]ExpenseData{{ReportingAmount: 60000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
 		Return([]ExpenseData{{ReportingAmount: 50000}}, nil)
 
 	result, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 5)
@@ -71,9 +71,9 @@ func TestGetHistoricalComparison_WithTwoPriorPeriods(t *testing.T) {
 	}
 	repo.On("ListPeriods", mock.Anything, "user-1").Return(periods, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(3)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(3)).
 		Return([]ExpenseData{{ReportingAmount: 50000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
 		Return([]ExpenseData{{ReportingAmount: 40000}}, nil)
 
 	result, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 3)
@@ -101,7 +101,7 @@ func TestGetHistoricalComparison_OnlyOnePeriod(t *testing.T) {
 	}
 	repo.On("ListPeriods", mock.Anything, "user-1").Return(periods, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(1)).
 		Return([]ExpenseData{{ReportingAmount: 30000}}, nil)
 
 	result, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 1)
@@ -128,9 +128,9 @@ func TestGetHistoricalComparison_PreviousZeroSpentCurrentPositive(t *testing.T) 
 	}
 	repo.On("ListPeriods", mock.Anything, "user-1").Return(periods, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
 		Return([]ExpenseData{{ReportingAmount: 50000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(1)).
 		Return([]ExpenseData{}, nil) // zero spent
 
 	result, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 2)
@@ -159,9 +159,9 @@ func TestGetHistoricalComparison_DecreaseFromPrevious(t *testing.T) {
 	}
 	repo.On("ListPeriods", mock.Anything, "user-1").Return(periods, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(2)).
 		Return([]ExpenseData{{ReportingAmount: 30000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(1)).
 		Return([]ExpenseData{{ReportingAmount: 60000}}, nil)
 
 	result, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 2)

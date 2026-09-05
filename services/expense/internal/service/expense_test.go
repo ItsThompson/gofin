@@ -36,7 +36,7 @@ func (m *mockExpenseRepository) CreateExpense(ctx context.Context, expense *mode
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
+func (m *mockExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
 	args := m.Called(ctx, userID, year, month, page, pageSize)
 	if args.Get(0) == nil {
 		return nil, args.Get(1).(int64), args.Error(2)
@@ -44,22 +44,22 @@ func (m *mockExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
-	args := m.Called(ctx, id, userID)
+func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error) {
+	args := m.Called(ctx, expenseID, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, idempotencyKey string) (*model.Expense, error) {
 	// The key is now required, so every create performs a replay lookup. Most
 	// create tests exercise the fresh-insert path and don't care about replays:
 	// default to "no existing expense" unless a test registers an explicit
 	// expectation for this method (the idempotent-replay tests do).
 	for _, c := range m.ExpectedCalls {
 		if c.Method == "GetExpenseByIdempotencyKey" {
-			args := m.Called(ctx, userID, key)
+			args := m.Called(ctx, userID, idempotencyKey)
 			if args.Get(0) == nil {
 				return nil, args.Error(1)
 			}
@@ -69,9 +69,9 @@ func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, 
 	return nil, nil
 }
 
-func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
-	args := m.Called(ctx, id, userID)
-	return args.Get(0).(int64), args.Error(1)
+func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, expenseID string, userID string) error {
+	args := m.Called(ctx, expenseID, userID)
+	return args.Error(0)
 }
 
 func (m *mockExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
@@ -95,7 +95,7 @@ func (m *mockExpenseRepository) GetCorrectionHistory(ctx context.Context, expens
 	return args.Get(0).([]*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
+func (m *mockExpenseRepository) GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
 	args := m.Called(ctx, groupID, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -891,9 +891,9 @@ func TestCreateExpense_InvalidDateFormat(t *testing.T) {
 	}
 }
 
-// --- GetExpensesForPeriod tests ---
+// --- GetActiveExpensesForPeriod tests ---
 
-func TestGetExpensesForPeriod_Success(t *testing.T) {
+func TestGetActiveExpensesForPeriod_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
@@ -902,10 +902,10 @@ func TestGetExpensesForPeriod_Success(t *testing.T) {
 		{ID: "exp-2", Name: "Coffee", Status: "active"},
 	}
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
 		Return(expenses, int64(2), nil)
 
-	result, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	result, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID:   "user-1",
 		Year:     2026,
 		Month:    5,
@@ -921,7 +921,7 @@ func TestGetExpensesForPeriod_Success(t *testing.T) {
 	assert.False(t, result.HasMore)
 }
 
-func TestGetExpensesForPeriod_HasMore(t *testing.T) {
+func TestGetActiveExpensesForPeriod_HasMore(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
@@ -929,10 +929,10 @@ func TestGetExpensesForPeriod_HasMore(t *testing.T) {
 		{ID: "exp-1", Name: "Groceries"},
 	}
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(1)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(1)).
 		Return(expenses, int64(5), nil)
 
-	result, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	result, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID:   "user-1",
 		Year:     2026,
 		Month:    5,
@@ -945,15 +945,15 @@ func TestGetExpensesForPeriod_HasMore(t *testing.T) {
 	assert.Equal(t, int64(5), result.Total)
 }
 
-func TestGetExpensesForPeriod_DefaultsPagination(t *testing.T) {
+func TestGetActiveExpensesForPeriod_DefaultsPagination(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
 		Return([]*model.Expense{}, int64(0), nil)
 
 	// page=0 and pageSize=0 should be defaulted
-	result, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	result, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID:   "user-1",
 		Year:     2026,
 		Month:    5,
@@ -966,11 +966,11 @@ func TestGetExpensesForPeriod_DefaultsPagination(t *testing.T) {
 	assert.Equal(t, int32(50), result.PageSize)
 }
 
-func TestGetExpensesForPeriod_InvalidMonth(t *testing.T) {
+func TestGetActiveExpensesForPeriod_InvalidMonth(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	_, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	_, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID: "user-1",
 		Year:   2026,
 		Month:  13,
@@ -1430,9 +1430,9 @@ func TestGetCorrectionHistory_EmptyID(t *testing.T) {
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
-// --- GetProRataGroup tests ---
+// --- GetExpensesInProRataGroup tests ---
 
-func TestGetProRataGroup_Success(t *testing.T) {
+func TestGetExpensesInProRataGroup_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
@@ -1441,19 +1441,19 @@ func TestGetProRataGroup_Success(t *testing.T) {
 		{ID: "exp-2", ProRataIndex: 2, ProRataTotal: 3},
 	}
 
-	repo.On("GetProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
+	repo.On("GetExpensesInProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
 
-	result, err := svc.GetProRataGroup(context.Background(), "user-1", "group-1")
+	result, err := svc.GetExpensesInProRataGroup(context.Background(), "user-1", "group-1")
 
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
 }
 
-func TestGetProRataGroup_EmptyGroupID(t *testing.T) {
+func TestGetExpensesInProRataGroup_EmptyGroupID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	_, err := svc.GetProRataGroup(context.Background(), "user-1", "")
+	_, err := svc.GetExpensesInProRataGroup(context.Background(), "user-1", "")
 
 	require.Error(t, err)
 	svcErr := requireAPIError(t, err)
@@ -1652,7 +1652,7 @@ func TestDeleteExpense_Success(t *testing.T) {
 
 	original := activeExpenseInCurrentPeriod(now)
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
-	repo.On("DeactivateExpense", mock.Anything, "exp-original", "user-1").Return(int64(1), nil)
+	repo.On("DeactivateExpense", mock.Anything, "exp-original", "user-1").Return(nil)
 
 	err := svc.DeleteExpense(context.Background(), "user-1", "exp-original")
 

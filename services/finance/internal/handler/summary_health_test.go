@@ -34,7 +34,7 @@ func TestGetPeriodSummaryHandler_Success(t *testing.T) {
 			SavingsPercent:    20,
 		}, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{
 			{ID: "e1", ReportingAmount: 50000, ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
 			{ID: "e2", ReportingAmount: 20000, ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-10"},
@@ -126,7 +126,7 @@ func TestGetHealthScoreHandler_Success(t *testing.T) {
 		Return(&model.DefaultSettings{UserID: "user-123", Currency: "USD"}, nil)
 	// Only the current period exists, so the stability window is empty.
 	repo.On("ListPeriods", mock.Anything, "user-123").Return([]*model.BudgetPeriod{period}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
 		Return([]service.ExpenseData{
 			{ID: "e1", ReportingAmount: 140000, ExpenseType: "essentials", ExpenseDate: "2026-05-05"},
 			{ID: "e2", ReportingAmount: 80000, ExpenseType: "desires", ExpenseDate: "2026-05-06"},
@@ -305,9 +305,9 @@ func TestGetHistoricalComparisonHandler_Success(t *testing.T) {
 		{ID: "p4", UserID: "user-123", Year: 2026, Month: 4, BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20},
 	}, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
 		Return([]service.ExpenseData{{ReportingAmount: 80000}}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(4)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2026), int32(4)).
 		Return([]service.ExpenseData{{ReportingAmount: 60000}}, nil)
 
 	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
