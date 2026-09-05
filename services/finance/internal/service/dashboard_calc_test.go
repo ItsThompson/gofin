@@ -410,8 +410,8 @@ func TestComputePeriodSummary_SumsReportingAmountNotLegacyAmount(t *testing.T) {
 	// Two foreign-currency rows converted into the period reporting currency.
 	// The dashboard must sum ReportingAmount (200000).
 	expenses := []ExpenseData{
-		{ID: "e1", ReportingAmount: 90000, ReportingCurrency: "USD", ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
-		{ID: "e2", ReportingAmount: 110000, ReportingCurrency: "USD", ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-06"},
+		{ID: "e1", ReportingAmount: 90000, ReportingCurrencyCode: "USD", ExpenseType: "essentials", TagID: "t1", ExpenseDate: "2025-01-05"},
+		{ID: "e2", ReportingAmount: 110000, ReportingCurrencyCode: "USD", ExpenseType: "desires", TagID: "t2", ExpenseDate: "2025-01-06"},
 	}
 
 	summary := ComputePeriodSummary(period, expenses, 2025, 1, historicalNow)

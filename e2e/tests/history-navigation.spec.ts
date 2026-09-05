@@ -40,20 +40,20 @@ test.describe("History Route", () => {
 
     await apiCreateExpense(page.request, {
       name: "Past Rent",
-      amount: 80_000, // $800
+      amountInTransactionCurrencyMinorUnits: 80_000, // $800
       expenseType: "essentials",
       tagId: firstTag.id,
-      expenseDate: pastDateISO,
+      expenseDateIso: pastDateISO,
       periodYear: pastYear,
       periodMonth: pastMonth,
     });
 
     await apiCreateExpense(page.request, {
       name: "Past Dining",
-      amount: 20_000, // $200
+      amountInTransactionCurrencyMinorUnits: 20_000, // $200
       expenseType: "desires",
       tagId: firstTag.id,
-      expenseDate: pastDateISO,
+      expenseDateIso: pastDateISO,
       periodYear: pastYear,
       periodMonth: pastMonth,
     });

@@ -148,7 +148,7 @@ func TestGetHealthScoreTrend_ReportingCurrencyPerPoint(t *testing.T) {
 	// Two stored months with different reporting currencies.
 	usdPeriod := healthPeriodMonth(2026, 5)
 	jpyPeriod := healthPeriodMonth(2026, 4)
-	jpyPeriod.ReportingCurrency = "JPY"
+	jpyPeriod.ReportingCurrencyCode = "JPY"
 	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{
 		usdPeriod, jpyPeriod,
 	}, nil)
@@ -160,8 +160,8 @@ func TestGetHealthScoreTrend_ReportingCurrencyPerPoint(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, points, 2)
-	assert.Equal(t, "JPY", points[0].ReportingCurrency, "first point gets period reporting currency")
-	assert.Equal(t, "USD", points[1].ReportingCurrency, "second point gets period reporting currency")
+	assert.Equal(t, "JPY", points[0].ReportingCurrencyCode, "first point gets period reporting currency")
+	assert.Equal(t, "USD", points[1].ReportingCurrencyCode, "second point gets period reporting currency")
 }
 
 func TestGetHealthScoreTrend_ClampsMonths(t *testing.T) {

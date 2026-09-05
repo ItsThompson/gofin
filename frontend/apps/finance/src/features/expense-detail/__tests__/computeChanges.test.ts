@@ -11,13 +11,13 @@ const baseExpense: Expense = {
   id: "exp-1",
   userId: "user-1",
   name: "Groceries",
-  transactionCurrency: "USD",
-  transactionAmount: 5000,
-  reportingAmount: 5000,
-  reportingCurrency: "USD",
+  transactionCurrencyCode: "USD",
+  originalTransactionAmountInMinorUnits: 5000,
+  reportingAmountInMinorUnits: 5000,
+  reportingCurrencyCode: "USD",
   expenseType: "essentials",
   tagId: "tag-food",
-  expenseDate: "2026-05-02",
+  expenseDateIso: "2026-05-02",
   periodYear: 2026,
   periodMonth: 5,
   status: "active",
@@ -29,10 +29,10 @@ describe("computeChanges", () => {
   it("returns empty array when nothing changed", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 5000,
+      originalTransactionAmountInMinorUnits: 5000,
       expenseType: "essentials" as const,
       tagId: "tag-food",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -42,10 +42,10 @@ describe("computeChanges", () => {
   it("detects name change", () => {
     const corrected = {
       name: "Weekly Groceries",
-      transactionAmount: 5000,
+      originalTransactionAmountInMinorUnits: 5000,
       expenseType: "essentials" as const,
       tagId: "tag-food",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -57,10 +57,10 @@ describe("computeChanges", () => {
   it("detects amount change with formatted currency diff", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 7500,
+      originalTransactionAmountInMinorUnits: 7500,
       expenseType: "essentials" as const,
       tagId: "tag-food",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -72,10 +72,10 @@ describe("computeChanges", () => {
   it("detects expense type change", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 5000,
+      originalTransactionAmountInMinorUnits: 5000,
       expenseType: "desires" as const,
       tagId: "tag-food",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -87,10 +87,10 @@ describe("computeChanges", () => {
   it("detects tag change and resolves tag names", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 5000,
+      originalTransactionAmountInMinorUnits: 5000,
       expenseType: "essentials" as const,
       tagId: "tag-transport",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -102,10 +102,10 @@ describe("computeChanges", () => {
   it("falls back to tag ID when tag name is not found", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 5000,
+      originalTransactionAmountInMinorUnits: 5000,
       expenseType: "essentials" as const,
       tagId: "tag-unknown",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -117,10 +117,10 @@ describe("computeChanges", () => {
   it("detects date change", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 5000,
+      originalTransactionAmountInMinorUnits: 5000,
       expenseType: "essentials" as const,
       tagId: "tag-food",
-      expenseDate: "2026-05-10",
+      expenseDateIso: "2026-05-10",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -132,10 +132,10 @@ describe("computeChanges", () => {
   it("detects multiple changes at once", () => {
     const corrected = {
       name: "Updated Groceries",
-      transactionAmount: 7500,
+      originalTransactionAmountInMinorUnits: 7500,
       expenseType: "desires" as const,
       tagId: "tag-transport",
-      expenseDate: "2026-05-10",
+      expenseDateIso: "2026-05-10",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
@@ -150,10 +150,10 @@ describe("computeChanges", () => {
   it("works with different currency formatting", () => {
     const corrected = {
       name: "Groceries",
-      transactionAmount: 7500,
+      originalTransactionAmountInMinorUnits: 7500,
       expenseType: "essentials" as const,
       tagId: "tag-food",
-      expenseDate: "2026-05-02",
+      expenseDateIso: "2026-05-02",
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "EUR");
@@ -168,8 +168,8 @@ describe("computeChanges", () => {
       ...baseExpense,
       id: "exp-2",
       name: "Updated Groceries",
-      transactionAmount: 6000,
-      reportingAmount: 6000,
+      originalTransactionAmountInMinorUnits: 6000,
+      reportingAmountInMinorUnits: 6000,
       correctsId: "exp-1",
     };
 

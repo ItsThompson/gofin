@@ -21,7 +21,7 @@ func healthPeriodMonth(year, month int32) *model.BudgetPeriod {
 	return &model.BudgetPeriod{
 		ID: "p", UserID: "user-1", Year: year, Month: month,
 		BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}
 }
 
@@ -33,7 +33,7 @@ func TestGetHealthScore_ConfigureBudget(t *testing.T) {
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
-		Return(&model.BudgetPeriod{ID: "p0", UserID: "user-1", Year: 2026, Month: 5, BudgetAmount: 0, ReportingCurrency: "USD"}, nil)
+		Return(&model.BudgetPeriod{ID: "p0", UserID: "user-1", Year: 2026, Month: 5, BudgetAmount: 0, ReportingCurrencyCode: "USD"}, nil)
 
 	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
 
@@ -42,7 +42,7 @@ func TestGetHealthScore_ConfigureBudget(t *testing.T) {
 	assert.Empty(t, score.Components)
 	assert.Equal(t, int32(2026), score.Year)
 	assert.Equal(t, int32(5), score.Month)
-	assert.Equal(t, "USD", score.ReportingCurrency)
+	assert.Equal(t, "USD", score.ReportingCurrencyCode)
 	// Must not read defaults, expenses, or storage when there is no budget.
 	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "GetHealthScore", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
@@ -56,7 +56,7 @@ func TestGetHealthScore_Success_UsesPeriodReportingCurrency(t *testing.T) {
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
 
 	eurPeriod := healthPeriod(300000, 50, 30, 20)
-	eurPeriod.ReportingCurrency = "EUR"
+	eurPeriod.ReportingCurrencyCode = "EUR"
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(eurPeriod, nil)
 	// Only the current (provisional) period exists, so the stability window is
@@ -76,7 +76,7 @@ func TestGetHealthScore_Success_UsesPeriodReportingCurrency(t *testing.T) {
 	assert.Equal(t, int32(79), score.Total)
 	assert.Equal(t, model.HealthKeySavings, score.Insight.Driver)
 	// Currency comes from the period's reporting currency, not default settings.
-	assert.Equal(t, "EUR", score.ReportingCurrency)
+	assert.Equal(t, "EUR", score.ReportingCurrencyCode)
 	assert.Contains(t, score.Insight.Nudge, "€300")
 	// Must not read defaults: the period reporting currency is authoritative.
 	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
@@ -93,7 +93,7 @@ func TestGetHealthScore_EmptyReportingCurrencyFallback(t *testing.T) {
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return currentMonthNow })
 
 	period := healthPeriod(300000, 50, 30, 20)
-	period.ReportingCurrency = ""
+	period.ReportingCurrencyCode = ""
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(period, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
@@ -109,7 +109,7 @@ func TestGetHealthScore_EmptyReportingCurrencyFallback(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, score.Insight.Nudge, "$300")
-	assert.Equal(t, "USD", score.ReportingCurrency)
+	assert.Equal(t, "USD", score.ReportingCurrencyCode)
 }
 
 func TestGetHealthScore_PeriodNotFound(t *testing.T) {
@@ -183,7 +183,7 @@ func TestGetHealthScore_ClosedStoredBackfillsReportingCurrency(t *testing.T) {
 	svc := newTagTestServiceNow(repo, txBeg, expClient, func() time.Time { return nowJuly })
 
 	stored := storedScore(model.FormulaVersion)
-	stored.ReportingCurrency = "" // persisted before the field existed
+	stored.ReportingCurrencyCode = "" // persisted before the field existed
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(healthPeriod(300000, 50, 30, 20), nil)
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -192,7 +192,7 @@ func TestGetHealthScore_ClosedStoredBackfillsReportingCurrency(t *testing.T) {
 	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
 
 	require.NoError(t, err)
-	assert.Equal(t, "USD", score.ReportingCurrency, "backfilled from period reporting currency")
+	assert.Equal(t, "USD", score.ReportingCurrencyCode, "backfilled from period reporting currency")
 }
 
 func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
@@ -215,7 +215,7 @@ func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.FormulaVersion, score.FormulaVersion)
 	assert.False(t, score.Provisional, "a closed month is not provisional")
-	assert.Equal(t, "USD", score.ReportingCurrency)
+	assert.Equal(t, "USD", score.ReportingCurrencyCode)
 	repo.AssertCalled(t, "UpsertHealthScore", mock.Anything, "user-1", mock.Anything)
 }
 
@@ -333,7 +333,7 @@ func TestGetHealthScore_StableAfterDefaultCurrencyChange(t *testing.T) {
 	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
 
 	require.NoError(t, err)
-	assert.Equal(t, "USD", score.ReportingCurrency)
+	assert.Equal(t, "USD", score.ReportingCurrencyCode)
 	assert.Contains(t, score.Insight.Nudge, "$300")
 	// Default settings are never read for currency resolution.
 	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)

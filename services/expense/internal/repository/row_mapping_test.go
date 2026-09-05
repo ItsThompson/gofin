@@ -90,11 +90,11 @@ func TestRowToExpense_IdentitySnapshotRowUsesExplicitFields(t *testing.T) {
 
 	expense, err := rowToExpense(row)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1250), expense.TransactionAmount)
-	assert.Equal(t, "EUR", expense.TransactionCurrency)
-	assert.Equal(t, int64(1364), expense.ReportingAmount)
-	assert.Equal(t, "USD", expense.ReportingCurrency)
-	assert.Equal(t, "1.0912", expense.ExchangeRate)
+	assert.Equal(t, int64(1250), expense.OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "EUR", expense.TransactionCurrencyCode)
+	assert.Equal(t, int64(1364), expense.ReportingAmountInMinorUnits)
+	assert.Equal(t, "USD", expense.ReportingCurrencyCode)
+	assert.Equal(t, "1.0912", expense.SourceToTargetExchangeRate)
 	assert.Equal(t, exchangesource.Identity, expense.ExchangeRateSource)
 	assert.Equal(t, "2026-08-14T10:00:00Z", expense.ExchangeRateTimestamp)
 }

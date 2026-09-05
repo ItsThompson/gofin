@@ -63,12 +63,12 @@ func monthLabel(year int32, month int32) string {
 func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string, req *model.CreateProRataRequest) (*model.ProRataResponse, error) {
 	v := validator.New()
 	v.Check(strings.TrimSpace(req.Name) != "", "name", "required")
-	v.Check(req.TotalAmount > 0, "totalAmount", "must be positive")
-	v.Check(req.Months >= 2, "months", "must be at least 2")
+	v.Check(req.TotalAmountInMinorUnits > 0, "totalAmountInMinorUnits", "must be positive")
+	v.Check(req.SpreadOverMonths >= 2, "spreadOverMonths", "must be at least 2")
 	validTypes := map[string]bool{"essentials": true, "desires": true, "savings": true}
 	v.Check(validTypes[req.ExpenseType], "expenseType", "must be essentials, desires, or savings")
 	v.Check(strings.TrimSpace(req.TagID) != "", "tagId", "required")
-	v.Check(strings.TrimSpace(req.ExpenseDate) != "", "expenseDate", "required")
+	v.Check(strings.TrimSpace(req.ExpenseDateIso) != "", "expenseDateIso", "required")
 	v.Check(req.PeriodYear >= 1, "periodYear", "required")
 	v.Check(req.PeriodMonth >= 1 && req.PeriodMonth <= 12, "periodMonth", "must be between 1 and 12")
 	if v.HasErrors() {
@@ -81,7 +81,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	if err != nil {
 		return nil, err
 	}
-	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if !currencycatalog.IsSupported(reportingCurrency) {
 		return nil, apierr.Internal("creation period reporting currency is not supported")
 	}
@@ -91,8 +91,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		return nil, err
 	}
 
-
-	installments := CalculateInstallments(req.TotalAmount, req.Months)
+	installments := CalculateInstallments(req.TotalAmountInMinorUnits, req.SpreadOverMonths)
 	proRataGroup := uuid.New().String()
 	now := s.nowFunc().UTC().Format(time.RFC3339)
 
@@ -126,7 +125,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 			UserID:            period.UserID,
 			Year:              period.Year,
 			Month:             period.Month,
-			ReportingCurrency: reportingCurrency,
+			ReportingCurrencyCode: reportingCurrency,
 			Source:            "finance_service",
 		},
 		Name:                 req.Name,
@@ -134,37 +133,37 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		Currency:             transactionCurrency,
 		ExpenseType:          req.ExpenseType,
 		TagID:                req.TagID,
-		ExpenseDate:          req.ExpenseDate,
+		ExpenseDate:          req.ExpenseDateIso,
 		ProRataGroup:         proRataGroup,
 		ProRataIndex:         1,
-		ProRataTotal:         req.Months,
+		ProRataTotal:         req.SpreadOverMonths,
 		CapturedRateSnapshot: snapshot,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating first installment via expense service: %w", err)
 	}
 
-	schedules := make([]*model.ProRataSchedule, 0, req.Months-1)
+	schedules := make([]*model.ProRataSchedule, 0, req.SpreadOverMonths-1)
 	targetYear, targetMonth := req.PeriodYear, req.PeriodMonth
-	for i := int32(2); i <= req.Months; i++ {
+	for i := int32(2); i <= req.SpreadOverMonths; i++ {
 		targetYear, targetMonth = AdvanceMonth(targetYear, targetMonth)
 
 		schedule, err := s.repo.CreateProRataSchedule(ctx, &model.ProRataSchedule{
-			UserID:                    userID,
-			ProRataGroup:              proRataGroup,
-			Name:                      req.Name,
-			Amount:                    installments[i-1],
-			Currency:                  transactionCurrency,
-			ExpenseType:               req.ExpenseType,
-			TagID:                     req.TagID,
-			TargetYear:                targetYear,
-			TargetMonth:               targetMonth,
-			InstallmentIndex:          i,
-			InstallmentTotal:          req.Months,
-			TransactionAmount:         installments[i-1],
-			TransactionCurrency:       transactionCurrency,
-			CreationReportingCurrency: reportingCurrency,
-			CapturedRateSnapshot:      snapshot,
+			UserID:                                userID,
+			ProRataGroup:                          proRataGroup,
+			Name:                                  req.Name,
+			InstallmentAmountInMinorUnits:         installments[i-1],
+			Currency:                              transactionCurrency,
+			ExpenseType:                           req.ExpenseType,
+			TagID:                                 req.TagID,
+			TargetYear:                            targetYear,
+			TargetMonth:                           targetMonth,
+			InstallmentIndex:                      i,
+			InstallmentTotal:                      req.SpreadOverMonths,
+			OriginalTransactionAmountInMinorUnits: installments[i-1],
+			TransactionCurrencyCode:               transactionCurrency,
+			CreationReportingCurrency:             reportingCurrency,
+			CapturedRateSnapshot:                  snapshot,
 		})
 		if err != nil {
 			// Log the inconsistency and return an error (the first installment is already written).
@@ -184,28 +183,28 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		slog.String("method", "CreateProRataExpense"),
 		slog.String("user_id", userID),
 		slog.String("pro_rata_group", proRataGroup),
-		slog.Int("months", int(req.Months)),
-		slog.Int64("total_amount", req.TotalAmount),
+		slog.Int("spreadOverMonths", int(req.SpreadOverMonths)),
+		slog.Int64("total_amount", req.TotalAmountInMinorUnits),
 		slog.String("snapshot_rate_timestamp", snapshot.RateTimestamp),
 	)
 
 	return &model.ProRataResponse{
 		Expense: &model.CreatedExpense{
-			ID:                  created.ID,
-			Name:                req.Name,
-			Amount:              installments[0],
-			TransactionCurrency: transactionCurrency,
-			Currency:            transactionCurrency,
-			ExpenseType:         req.ExpenseType,
-			TagID:               req.TagID,
-			ExpenseDate:         req.ExpenseDate,
-			PeriodYear:          req.PeriodYear,
-			PeriodMonth:         req.PeriodMonth,
-			IsProRata:           true,
-			ProRataGroup:        proRataGroup,
-			ProRataIndex:        1,
-			ProRataTotal:        req.Months,
-			CreatedAt:           created.CreatedAt,
+			ID:                            created.ID,
+			Name:                          req.Name,
+			InstallmentAmountInMinorUnits: installments[0],
+			TransactionCurrencyCode:       transactionCurrency,
+			Currency:                      transactionCurrency,
+			ExpenseType:                   req.ExpenseType,
+			TagID:                         req.TagID,
+			ExpenseDateIso:                req.ExpenseDateIso,
+			PeriodYear:                    req.PeriodYear,
+			PeriodMonth:                   req.PeriodMonth,
+			IsProRata:                     true,
+			ProRataGroup:                  proRataGroup,
+			ProRataIndex:                  1,
+			ProRataTotal:                  req.SpreadOverMonths,
+			CreatedAt:                     created.CreatedAt,
 		},
 		Schedules: schedules,
 	}, nil
@@ -214,12 +213,12 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 // resolveProRataTransactionCurrency resolves the transaction currency from the
 // request. When absent, it defaults to the creation period reporting currency.
 func (s *FinanceService) resolveProRataTransactionCurrency(period *model.BudgetPeriod, req *model.CreateProRataRequest) (string, error) {
-	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrencyCode)
 	if transactionCurrency != "" {
 		return s.validateProRataTransactionCurrency(transactionCurrency)
 	}
 
-	defaultCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	defaultCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	s.logger.Info("transaction currency defaulted",
 		slog.String("event", "transaction_currency_defaulted"),
 		slog.String("reporting_currency", defaultCurrency),
@@ -255,13 +254,13 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 		return nil, nil
 	}
 
-	targetReportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	targetReportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	trustedCtx := TrustedPeriodContext{
 		PeriodID:          period.ID,
 		UserID:            period.UserID,
 		Year:              period.Year,
 		Month:             period.Month,
-		ReportingCurrency: targetReportingCurrency,
+		ReportingCurrencyCode: targetReportingCurrency,
 		Source:            "finance_service",
 	}
 
@@ -295,7 +294,7 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID string, schedule *model.ProRataSchedule, targetReportingCurrency string, trustedCtx TrustedPeriodContext) *model.ProRataSchedule {
 	expenseDate := fmt.Sprintf("%04d-%02d-01", schedule.TargetYear, schedule.TargetMonth)
 
-	transactionCurrency := normalizeCurrencyCode(schedule.TransactionCurrency)
+	transactionCurrency := normalizeCurrencyCode(schedule.TransactionCurrencyCode)
 
 	if schedule.CapturedRateSnapshot == nil {
 		s.markProRataFailed(ctx, schedule, model.ErrSnapshotCurrencyMissing)
@@ -313,7 +312,7 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 		UserID:               userID,
 		PeriodContext:        trustedCtx,
 		Name:                 schedule.Name,
-		Amount:               schedule.Amount,
+		Amount:               schedule.InstallmentAmountInMinorUnits,
 		Currency:             transactionCurrency,
 		ExpenseType:          schedule.ExpenseType,
 		TagID:                schedule.TagID,
@@ -435,8 +434,8 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		return nil, budgetAmountError()
 	}
 
-	reportingCurrency := normalizeCurrencyCode(req.ReportingCurrency)
-	if verr := validateSupportedCurrency("reportingCurrency", reportingCurrency); verr != nil {
+	reportingCurrency := normalizeCurrencyCode(req.ReportingCurrencyCode)
+	if verr := validateSupportedCurrency("reportingCurrencyCode", reportingCurrency); verr != nil {
 		return nil, verr
 	}
 
@@ -451,14 +450,14 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	}
 
 	period, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
-		UserID:            userID,
-		Year:              req.Year,
-		Month:             req.Month,
-		BudgetAmount:      budgetAmount,
-		ReportingCurrency: reportingCurrency,
-		EssentialsPercent: req.EssentialsPercent,
-		DesiresPercent:    req.DesiresPercent,
-		SavingsPercent:    req.SavingsPercent,
+		UserID:                userID,
+		Year:                  req.Year,
+		Month:                 req.Month,
+		BudgetAmount:          budgetAmount,
+		ReportingCurrencyCode: reportingCurrency,
+		EssentialsPercent:     req.EssentialsPercent,
+		DesiresPercent:        req.DesiresPercent,
+		SavingsPercent:        req.SavingsPercent,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating period: %w", err)
@@ -522,14 +521,14 @@ func (s *FinanceService) createMissedPeriods(
 	var allApplied []*model.ProRataSchedule
 	for _, missed := range missedMonths {
 		autoPeriod, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
-			UserID:            userID,
-			Year:              missed.year,
-			Month:             missed.month,
-			BudgetAmount:      defaults.BudgetAmount,
-			ReportingCurrency: defaults.Currency,
-			EssentialsPercent: defaults.EssentialsPercent,
-			DesiresPercent:    defaults.DesiresPercent,
-			SavingsPercent:    defaults.SavingsPercent,
+			UserID:                userID,
+			Year:                  missed.year,
+			Month:                 missed.month,
+			BudgetAmount:          defaults.BudgetAmount,
+			ReportingCurrencyCode: defaults.Currency,
+			EssentialsPercent:     defaults.EssentialsPercent,
+			DesiresPercent:        defaults.DesiresPercent,
+			SavingsPercent:        defaults.SavingsPercent,
 		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("auto-creating period for %d-%02d: %w", missed.year, missed.month, err)

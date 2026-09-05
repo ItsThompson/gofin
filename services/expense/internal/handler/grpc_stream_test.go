@@ -46,16 +46,16 @@ func (f *fakeStreamServer) Send(e *pb.ExpenseData) error {
 
 func streamRow(id, createdAt string) *model.Expense {
 	return &model.Expense{
-		ID:          id,
-		UserID:      "user-1",
-		Name:        "Expense " + id,
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-01",
-		PeriodYear:  2026,
-		PeriodMonth: 5,
-		Status:      "active",
-		CreatedAt:   createdAt,
+		ID:             id,
+		UserID:         "user-1",
+		Name:           "Expense " + id,
+		ExpenseType:    "essentials",
+		TagID:          "tag-1",
+		ExpenseDateIso: "2026-05-01",
+		PeriodYear:     2026,
+		PeriodMonth:    5,
+		Status:         "active",
+		CreatedAt:      createdAt,
 	}
 }
 

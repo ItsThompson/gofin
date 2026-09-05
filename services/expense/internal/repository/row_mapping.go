@@ -61,7 +61,7 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		Name:                          values[2].GetString(),
 		ExpenseType:                   values[3].GetString(),
 		TagID:                         values[4].GetString(),
-		ExpenseDate:                   values[5].GetString(),
+		ExpenseDateIso:                   values[5].GetString(),
 		PeriodYear:                    int32(values[6].GetInt()),
 		PeriodMonth:                   int32(values[7].GetInt()),
 		Status:                        values[8].GetString(),
@@ -71,31 +71,31 @@ func rowToExpense(row SQLRow) (*model.Expense, error) {
 		ProRataIndex:                  int32(values[12].GetInt()),
 		ProRataTotal:                  int32(values[13].GetInt()),
 		CreatedAt:                     values[14].GetString(),
-		TransactionAmount:             values[15].GetInt(),
-		TransactionCurrency:           values[16].GetString(),
-		ReportingAmount:               values[17].GetInt(),
-		ReportingCurrency:             values[18].GetString(),
-		ExchangeRate:                  values[19].GetString(),
+		OriginalTransactionAmountInMinorUnits:             values[15].GetInt(),
+		TransactionCurrencyCode:           values[16].GetString(),
+		ReportingAmountInMinorUnits:               values[17].GetInt(),
+		ReportingCurrencyCode:             values[18].GetString(),
+		SourceToTargetExchangeRate:                  values[19].GetString(),
 		ExchangeRateSource:            values[20].GetString(),
 		ExchangeRateTimestamp:         values[21].GetString(),
-		ExchangeRateExpiresAt:         values[22].GetString(),
+		ExchangeRateCacheExpiresAt:         values[22].GetString(),
 		ClientGeneratedIdempotencyKey: values[23].GetString(),
 	}
 
 	missing := make([]string, 0, 7)
-	if exp.TransactionAmount == 0 {
+	if exp.OriginalTransactionAmountInMinorUnits == 0 {
 		missing = append(missing, "transaction_amount")
 	}
-	if exp.TransactionCurrency == "" {
+	if exp.TransactionCurrencyCode == "" {
 		missing = append(missing, "transaction_currency")
 	}
-	if exp.ReportingAmount == 0 {
+	if exp.ReportingAmountInMinorUnits == 0 {
 		missing = append(missing, "reporting_amount")
 	}
-	if exp.ReportingCurrency == "" {
+	if exp.ReportingCurrencyCode == "" {
 		missing = append(missing, "reporting_currency")
 	}
-	if exp.ExchangeRate == "" {
+	if exp.SourceToTargetExchangeRate == "" {
 		missing = append(missing, "exchange_rate")
 	}
 	if exp.ExchangeRateSource == "" {

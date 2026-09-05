@@ -5,14 +5,14 @@ package model
 // service layer's validateCreateExpenseRequest, which returns field-level error
 // details in the error response.
 type CreateExpenseRequest struct {
-	Name                string `json:"name"`
-	Amount              int64  `json:"amount"`
-	TransactionCurrency string `json:"transactionCurrency"`
-	ExpenseType         string `json:"expenseType"`
-	TagID               string `json:"tagId"`
-	ExpenseDate         string `json:"expenseDate"`
-	PeriodYear          int32  `json:"periodYear"`
-	PeriodMonth         int32  `json:"periodMonth"`
+	Name                                  string `json:"name"`
+	AmountInTransactionCurrencyMinorUnits int64  `json:"amountInTransactionCurrencyMinorUnits"`
+	TransactionCurrencyCode               string `json:"transactionCurrencyCode"`
+	ExpenseType                           string `json:"expenseType"`
+	TagID                                 string `json:"tagId"`
+	ExpenseDateIso                        string `json:"expenseDateIso"`
+	PeriodYear                            int32  `json:"periodYear"`
+	PeriodMonth                           int32  `json:"periodMonth"`
 
 	// Pro-rata fields (optional for standard expenses)
 	IsProRata    bool   `json:"isProRata,omitempty"`
@@ -54,12 +54,12 @@ type ExpenseListResponse struct {
 
 // CorrectExpenseRequest is the input for POST /api/expenses/:id/correct.
 type CorrectExpenseRequest struct {
-	Name                string `json:"name"`
-	Amount              int64  `json:"amount"`
-	TransactionCurrency string `json:"transactionCurrency"`
-	ExpenseType         string `json:"expenseType"`
-	TagID               string `json:"tagId"`
-	ExpenseDate         string `json:"expenseDate"`
+	Name                                  string `json:"name"`
+	AmountInTransactionCurrencyMinorUnits int64  `json:"amountInTransactionCurrencyMinorUnits"`
+	TransactionCurrencyCode               string `json:"transactionCurrencyCode"`
+	ExpenseType                           string `json:"expenseType"`
+	TagID                                 string `json:"tagId"`
+	ExpenseDateIso                        string `json:"expenseDateIso"`
 }
 
 // CorrectionHistoryResponse is the response for GET /api/expenses/:id/history.

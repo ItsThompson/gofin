@@ -7,13 +7,13 @@ function buildExpense(overrides: Partial<Expense> = {}): Expense {
     id: "exp-1",
     userId: "user-1",
     name: "Groceries",
-    transactionCurrency: "USD",
-    transactionAmount: 5000,
-    reportingAmount: 5000,
-    reportingCurrency: "USD",
+    transactionCurrencyCode: "USD",
+    originalTransactionAmountInMinorUnits: 5000,
+    reportingAmountInMinorUnits: 5000,
+    reportingCurrencyCode: "USD",
     expenseType: "essentials",
     tagId: "tag-food",
-    expenseDate: "2026-05-02",
+    expenseDateIso: "2026-05-02",
     periodYear: 2026,
     periodMonth: 5,
     status: "active",
@@ -26,8 +26,8 @@ function buildExpense(overrides: Partial<Expense> = {}): Expense {
 describe("moneyFacts", () => {
   it("detects same-currency snapshots", () => {
     const expense = buildExpense({
-      transactionCurrency: "USD",
-      reportingCurrency: "USD",
+      transactionCurrencyCode: "USD",
+      reportingCurrencyCode: "USD",
     });
 
     expect(hasSameCurrencySnapshot(expense)).toBe(true);
@@ -35,8 +35,8 @@ describe("moneyFacts", () => {
 
   it("detects foreign-currency snapshots", () => {
     const expense = buildExpense({
-      transactionCurrency: "EUR",
-      reportingCurrency: "USD",
+      transactionCurrencyCode: "EUR",
+      reportingCurrencyCode: "USD",
     });
 
     expect(hasSameCurrencySnapshot(expense)).toBe(false);

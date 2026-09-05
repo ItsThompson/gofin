@@ -22,15 +22,15 @@ func TestGetCurrentPeriodHandler_Success(t *testing.T) {
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2026), int32(5)).
 		Return(&model.BudgetPeriod{
-			ID:                "period-abc",
-			UserID:            "user-123",
-			Year:              2026,
-			Month:             5,
-			BudgetAmount:      300000,
-			ReportingCurrency: "USD",
-			EssentialsPercent: 50,
-			DesiresPercent:    30,
-			SavingsPercent:    20,
+			ID:                    "period-abc",
+			UserID:                "user-123",
+			Year:                  2026,
+			Month:                 5,
+			BudgetAmount:          300000,
+			ReportingCurrencyCode: "USD",
+			EssentialsPercent:     50,
+			DesiresPercent:        30,
+			SavingsPercent:        20,
 		}, nil)
 
 	r := setupTestRouter(repo, txBeginner)
@@ -45,7 +45,7 @@ func TestGetCurrentPeriodHandler_Success(t *testing.T) {
 	assert.Equal(t, int32(2026), resp.Period.Year)
 	assert.Equal(t, int32(5), resp.Period.Month)
 	assert.Equal(t, int64(300000), resp.Period.BudgetAmount)
-	assert.Equal(t, "USD", resp.Period.ReportingCurrency)
+	assert.Equal(t, "USD", resp.Period.ReportingCurrencyCode)
 }
 
 func TestGetCurrentPeriodHandler_PeriodNotFound(t *testing.T) {
@@ -119,15 +119,15 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 	repo.On("GetLatestPeriod", mock.Anything, "user-123").Return(nil, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).
 		Return(&model.BudgetPeriod{
-			ID:                "period-new",
-			UserID:            "user-123",
-			Year:              2026,
-			Month:             5,
-			BudgetAmount:      300000,
-			ReportingCurrency: "EUR",
-			EssentialsPercent: 50,
-			DesiresPercent:    30,
-			SavingsPercent:    20,
+			ID:                    "period-new",
+			UserID:                "user-123",
+			Year:                  2026,
+			Month:                 5,
+			BudgetAmount:          300000,
+			ReportingCurrencyCode: "EUR",
+			EssentialsPercent:     50,
+			DesiresPercent:        30,
+			SavingsPercent:        20,
 		}, nil)
 	repo.On("GetPendingProRata", mock.Anything, "user-123", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{}, nil)
@@ -135,13 +135,13 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             5,
-		"budgetAmount":      300000,
-		"reportingCurrency": "EUR",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    20,
+		"year":                  2026,
+		"month":                 5,
+		"budgetAmount":          300000,
+		"reportingCurrencyCode": "EUR",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        20,
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -152,7 +152,7 @@ func TestCreatePeriodHandler_Success(t *testing.T) {
 	assert.Equal(t, int32(2026), resp.Period.Year)
 	assert.Equal(t, int32(5), resp.Period.Month)
 	assert.Equal(t, int64(300000), resp.Period.BudgetAmount)
-	assert.Equal(t, "EUR", resp.Period.ReportingCurrency)
+	assert.Equal(t, "EUR", resp.Period.ReportingCurrencyCode)
 }
 
 func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
@@ -162,15 +162,15 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 	repo.On("GetLatestPeriod", mock.Anything, "user-123").Return(nil, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).
 		Return(&model.BudgetPeriod{
-			ID:                "period-zero",
-			UserID:            "user-123",
-			Year:              2026,
-			Month:             5,
-			BudgetAmount:      0,
-			ReportingCurrency: "USD",
-			EssentialsPercent: 50,
-			DesiresPercent:    30,
-			SavingsPercent:    20,
+			ID:                    "period-zero",
+			UserID:                "user-123",
+			Year:                  2026,
+			Month:                 5,
+			BudgetAmount:          0,
+			ReportingCurrencyCode: "USD",
+			EssentialsPercent:     50,
+			DesiresPercent:        30,
+			SavingsPercent:        20,
 		}, nil)
 	repo.On("GetPendingProRata", mock.Anything, "user-123", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{}, nil)
@@ -178,13 +178,13 @@ func TestCreatePeriodHandler_ZeroBudget(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             5,
-		"budgetAmount":      0,
-		"reportingCurrency": "USD",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    20,
+		"year":                  2026,
+		"month":                 5,
+		"budgetAmount":          0,
+		"reportingCurrencyCode": "USD",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        20,
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -200,13 +200,13 @@ func TestCreatePeriodHandler_InvalidSplit(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             5,
-		"budgetAmount":      300000,
-		"reportingCurrency": "USD",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    19,
+		"year":                  2026,
+		"month":                 5,
+		"budgetAmount":          300000,
+		"reportingCurrencyCode": "USD",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        19,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -223,13 +223,13 @@ func TestCreatePeriodHandler_InvalidMonth(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             13,
-		"budgetAmount":      300000,
-		"reportingCurrency": "USD",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    20,
+		"year":                  2026,
+		"month":                 13,
+		"budgetAmount":          300000,
+		"reportingCurrencyCode": "USD",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        20,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -241,13 +241,13 @@ func TestCreatePeriodHandler_UnsupportedReportingCurrency(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             5,
-		"budgetAmount":      300000,
-		"reportingCurrency": "XYZ",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    20,
+		"year":                  2026,
+		"month":                 5,
+		"budgetAmount":          300000,
+		"reportingCurrencyCode": "XYZ",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        20,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -255,7 +255,7 @@ func TestCreatePeriodHandler_UnsupportedReportingCurrency(t *testing.T) {
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, model.ErrUnsupportedCurrency, errResp.Code)
-	assert.Equal(t, "unsupported currency", errResp.Fields["reportingCurrency"])
+	assert.Equal(t, "unsupported currency", errResp.Fields["reportingCurrencyCode"])
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
@@ -277,7 +277,7 @@ func TestCreatePeriodHandler_MissingReportingCurrency(t *testing.T) {
 
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, "required", errResp.Fields["ReportingCurrency"])
+	assert.Equal(t, "required", errResp.Fields["ReportingCurrencyCode"])
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
@@ -287,20 +287,20 @@ func TestCreatePeriodHandler_EmptyReportingCurrency(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             5,
-		"budgetAmount":      300000,
-		"reportingCurrency": "",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    20,
+		"year":                  2026,
+		"month":                 5,
+		"budgetAmount":          300000,
+		"reportingCurrencyCode": "",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        20,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, "required", errResp.Fields["ReportingCurrency"])
+	assert.Equal(t, "required", errResp.Fields["ReportingCurrencyCode"])
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
@@ -310,12 +310,12 @@ func TestCreatePeriodHandler_MissingBudgetAmount(t *testing.T) {
 	r := setupTestRouter(repo, txBeginner)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/periods", "user-123", map[string]interface{}{
-		"year":              2026,
-		"month":             5,
-		"reportingCurrency": "USD",
-		"essentialsPercent": 50,
-		"desiresPercent":    30,
-		"savingsPercent":    20,
+		"year":                  2026,
+		"month":                 5,
+		"reportingCurrencyCode": "USD",
+		"essentialsPercent":     50,
+		"desiresPercent":        30,
+		"savingsPercent":        20,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -385,8 +385,8 @@ func TestUpdatePeriodHandler_RejectsReportingCurrencyUpdate(t *testing.T) {
 		name  string
 		field string
 	}{
-		{name: "camel case", field: "reportingCurrency"},
-		{name: "snake case", field: "reporting_currency"},
+		{name: "camel case", field: "reportingCurrencyCode"},
+		{name: "snake case", field: "reporting_currency_code"},
 	}
 
 	for _, tt := range tests {

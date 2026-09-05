@@ -30,7 +30,7 @@ const mockPeriods: BudgetPeriod[] = [
     year: 2026,
     month: 5,
     budgetAmount: 300000,
-    reportingCurrency: "USD",
+    reportingCurrencyCode: "USD",
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,
@@ -44,16 +44,16 @@ const sameCurrencyExpense: Expense = {
   id: "exp-same",
   userId: "user-1",
   name: "Groceries",
-  transactionCurrency: "USD",
-  transactionAmount: 5000,
-  reportingAmount: 5000,
-  reportingCurrency: "USD",
-  exchangeRate: "1",
+  transactionCurrencyCode: "USD",
+  originalTransactionAmountInMinorUnits: 5000,
+  reportingAmountInMinorUnits: 5000,
+  reportingCurrencyCode: "USD",
+  sourceToTargetExchangeRate: "1",
   exchangeRateSource: "identity",
   exchangeRateTimestamp: "2026-05-02T10:00:00Z",
   expenseType: "essentials",
   tagId: "tag-food",
-  expenseDate: "2026-05-02",
+  expenseDateIso: "2026-05-02",
   periodYear: 2026,
   periodMonth: 5,
   status: "active",
@@ -66,16 +66,16 @@ const foreignCurrencyExpense: Expense = {
   id: "exp-foreign",
   userId: "user-1",
   name: "Hotel",
-  transactionCurrency: "EUR",
-  transactionAmount: 15000,
-  reportingAmount: 16200,
-  reportingCurrency: "USD",
-  exchangeRate: "1.08",
+  transactionCurrencyCode: "EUR",
+  originalTransactionAmountInMinorUnits: 15000,
+  reportingAmountInMinorUnits: 16200,
+  reportingCurrencyCode: "USD",
+  sourceToTargetExchangeRate: "1.08",
   exchangeRateSource: "open_exchange_rates",
   exchangeRateTimestamp: "2026-05-01T10:00:00Z",
   expenseType: "desires",
   tagId: "tag-travel",
-  expenseDate: "2026-05-01",
+  expenseDateIso: "2026-05-01",
   periodYear: 2026,
   periodMonth: 5,
   status: "active",
@@ -88,16 +88,16 @@ const jpyExpense: Expense = {
   id: "exp-jpy",
   userId: "user-1",
   name: "Tokyo Lunch",
-  transactionCurrency: "JPY",
-  transactionAmount: 2000,
-  reportingAmount: 1350,
-  reportingCurrency: "USD",
-  exchangeRate: "0.00675",
+  transactionCurrencyCode: "JPY",
+  originalTransactionAmountInMinorUnits: 2000,
+  reportingAmountInMinorUnits: 1350,
+  reportingCurrencyCode: "USD",
+  sourceToTargetExchangeRate: "0.00675",
   exchangeRateSource: "open_exchange_rates",
   exchangeRateTimestamp: "2026-05-03T10:00:00Z",
   expenseType: "essentials",
   tagId: "tag-food",
-  expenseDate: "2026-05-03",
+  expenseDateIso: "2026-05-03",
   periodYear: 2026,
   periodMonth: 5,
   status: "active",
@@ -190,9 +190,9 @@ describe("ExpenseLogFeature mixed-currency", () => {
   });
 
   it("sorts by reporting amount when clicking Amount header", async () => {
-    // exp-foreign has reportingAmount 16200, exp-same has reportingAmount 5000.
+    // exp-foreign has reportingAmountInMinorUnits 16200, exp-same has reportingAmountInMinorUnits 5000.
     // Data order is [foreign, same] = [Hotel, Groceries].
-    // After ascending sort by reportingAmount, same (5000) should come before foreign (16200).
+    // After ascending sort by reportingAmountInMinorUnits, same (5000) should come before foreign (16200).
     mockAllDataSuccess([foreignCurrencyExpense, sameCurrencyExpense]);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderExpenseLog();
@@ -207,7 +207,7 @@ describe("ExpenseLogFeature mixed-currency", () => {
 
     const tableElement = document.querySelector("table")!;
     let tableRows = tableElement.querySelectorAll("tbody tr");
-    // Ascending by reportingAmount: Groceries (5000) before Hotel (16200)
+    // Ascending by reportingAmountInMinorUnits: Groceries (5000) before Hotel (16200)
     await waitFor(() => {
       tableRows = tableElement.querySelectorAll("tbody tr");
       expect(tableRows[0].textContent).toContain("Groceries");

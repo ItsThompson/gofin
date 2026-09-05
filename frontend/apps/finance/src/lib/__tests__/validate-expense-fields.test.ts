@@ -11,7 +11,7 @@ function buildFields(overrides?: Partial<ExpenseFields>): ExpenseFields {
     amountDollars: "50.00",
     expenseType: "essentials",
     tagId: "tag-1",
-    expenseDate: "2026-05-12",
+    expenseDateIso: "2026-05-12",
     ...overrides,
   };
 }
@@ -48,8 +48,8 @@ describe("validateExpenseFields", () => {
   });
 
   it("returns error when date is missing", () => {
-    const result = validateExpenseFields(buildFields({ expenseDate: "" }));
-    expect(result.expenseDate).toBe("Date is required");
+    const result = validateExpenseFields(buildFields({ expenseDateIso: "" }));
+    expect(result.expenseDateIso).toBe("Date is required");
   });
 
   it("returns error when tag is missing", () => {

@@ -168,8 +168,8 @@ func TestComputeSpendingTrends_SingleMonth(t *testing.T) {
 
 func TestComputeSpendingTrends_ReportingCurrencyPerPoint(t *testing.T) {
 	periods := []*model.BudgetPeriod{
-		{BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrency: "USD"},
-		{BudgetAmount: 30000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrency: "JPY"},
+		{BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrencyCode: "USD"},
+		{BudgetAmount: 30000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20, ReportingCurrencyCode: "JPY"},
 		nil, // gap month
 	}
 	expensesByMonth := [][]ExpenseData{
@@ -182,9 +182,9 @@ func TestComputeSpendingTrends_ReportingCurrencyPerPoint(t *testing.T) {
 
 	result := ComputeSpendingTrends(periods, expensesByMonth, years, monthSlice)
 
-	assert.Equal(t, "USD", result[0].ReportingCurrency)
-	assert.Equal(t, "JPY", result[1].ReportingCurrency)
-	assert.Equal(t, "", result[2].ReportingCurrency, "nil period yields empty reporting currency")
+	assert.Equal(t, "USD", result[0].ReportingCurrencyCode)
+	assert.Equal(t, "JPY", result[1].ReportingCurrencyCode)
+	assert.Equal(t, "", result[2].ReportingCurrencyCode, "nil period yields empty reporting currency")
 }
 
 func TestComputeSpendingTrends_NilPeriodReturnsZeros(t *testing.T) {

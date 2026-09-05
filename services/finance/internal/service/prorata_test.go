@@ -213,47 +213,47 @@ func TestCreateProRataExpense_Success(t *testing.T) {
 			req.PeriodContext.UserID == "user-1" &&
 			req.PeriodContext.Year == 2026 &&
 			req.PeriodContext.Month == 5 &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.PeriodContext.Source == "finance_service" &&
 			req.CapturedRateSnapshot == snapshot
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
 		return s.InstallmentIndex == 2 && s.TargetYear == 2026 && s.TargetMonth == 6 &&
-			s.TransactionAmount == 3333 && s.TransactionCurrency == "USD" &&
+			s.OriginalTransactionAmountInMinorUnits == 3333 && s.TransactionCurrencyCode == "USD" &&
 			s.CreationReportingCurrency == "USD" &&
 			s.CapturedRateSnapshot.RateTimestamp == snapshot.RateTimestamp &&
 			s.CapturedRateSnapshot.Source == snapshot.Source
 	})).Return(&model.ProRataSchedule{
-		ID: "sched-1", InstallmentIndex: 2, TargetYear: 2026, TargetMonth: 6, Amount: 3333, Status: "pending",
+		ID: "sched-1", InstallmentIndex: 2, TargetYear: 2026, TargetMonth: 6, InstallmentAmountInMinorUnits: 3333, Status: "pending",
 	}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
 		return s.InstallmentIndex == 3 && s.TargetYear == 2026 && s.TargetMonth == 7 &&
-			s.TransactionAmount == 3333 && s.TransactionCurrency == "USD" &&
+			s.OriginalTransactionAmountInMinorUnits == 3333 && s.TransactionCurrencyCode == "USD" &&
 			s.CreationReportingCurrency == "USD" &&
 			s.CapturedRateSnapshot.RateTimestamp == snapshot.RateTimestamp &&
 			s.CapturedRateSnapshot.Source == snapshot.Source
 	})).Return(&model.ProRataSchedule{
-		ID: "sched-2", InstallmentIndex: 3, TargetYear: 2026, TargetMonth: 7, Amount: 3333, Status: "pending",
+		ID: "sched-2", InstallmentIndex: 3, TargetYear: 2026, TargetMonth: 7, InstallmentAmountInMinorUnits: 3333, Status: "pending",
 	}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:        "Annual subscription",
-		TotalAmount: 10000,
-		TransactionCurrency: "USD",
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-15",
-		Months:      3,
-		PeriodYear:  2026,
-		PeriodMonth: 5,
+		Name:                    "Annual subscription",
+		TotalAmountInMinorUnits: 10000,
+		TransactionCurrencyCode: "USD",
+		ExpenseType:             "essentials",
+		TagID:                   "tag-1",
+		ExpenseDateIso:          "2026-05-15",
+		SpreadOverMonths:        3,
+		PeriodYear:              2026,
+		PeriodMonth:             5,
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "exp-1", result.Expense.ID)
-	assert.Equal(t, int64(3334), result.Expense.Amount)
+	assert.Equal(t, int64(3334), result.Expense.InstallmentAmountInMinorUnits)
 	assert.Len(t, result.Schedules, 2)
 	assert.Equal(t, int32(6), result.Schedules[0].TargetMonth)
 	assert.Equal(t, int32(7), result.Schedules[1].TargetMonth)
@@ -283,8 +283,8 @@ func TestCreateProRataExpense_YearRollover(t *testing.T) {
 	})).Return(&model.ProRataSchedule{ID: "s-2", TargetYear: 2027, TargetMonth: 1, Status: "pending"}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-11-01", Months: 3, PeriodYear: 2026, PeriodMonth: 11,
+		Name: "Insurance", TotalAmountInMinorUnits: 6000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDateIso: "2026-11-01", SpreadOverMonths: 3, PeriodYear: 2026, PeriodMonth: 11,
 	})
 
 	require.NoError(t, err)
@@ -309,25 +309,25 @@ func TestCreateProRataExpense_TransactionCurrencyOnly(t *testing.T) {
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
-		return s.TransactionCurrency == "EUR"
+		return s.TransactionCurrencyCode == "EUR"
 	})).Return(&model.ProRataSchedule{
 		ID: "sched-1", Status: "pending",
 	}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:                "Annual subscription",
-		TotalAmount:         6000,
-		TransactionCurrency: "EUR",
-		ExpenseType:         "essentials",
-		TagID:               "tag-1",
-		ExpenseDate:         "2026-05-15",
-		Months:              2,
-		PeriodYear:          2026,
-		PeriodMonth:         5,
+		Name:                    "Annual subscription",
+		TotalAmountInMinorUnits: 6000,
+		TransactionCurrencyCode: "EUR",
+		ExpenseType:             "essentials",
+		TagID:                   "tag-1",
+		ExpenseDateIso:          "2026-05-15",
+		SpreadOverMonths:        2,
+		PeriodYear:              2026,
+		PeriodMonth:             5,
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "EUR", result.Expense.TransactionCurrency)
+	assert.Equal(t, "EUR", result.Expense.TransactionCurrencyCode)
 	expClient.AssertExpectations(t)
 	repo.AssertExpectations(t)
 }
@@ -349,18 +349,18 @@ func TestCreateProRataExpense_MissingCurrencyDefaultsToPeriodReportingCurrency(t
 		Return(&model.ProRataSchedule{ID: "sched-1", Status: "pending"}, nil)
 
 	result, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name:        "Insurance",
-		TotalAmount: 6000,
-		ExpenseType: "essentials",
-		TagID:       "tag-1",
-		ExpenseDate: "2026-05-15",
-		Months:      2,
-		PeriodYear:  2026,
-		PeriodMonth: 5,
+		Name:                    "Insurance",
+		TotalAmountInMinorUnits: 6000,
+		ExpenseType:             "essentials",
+		TagID:                   "tag-1",
+		ExpenseDateIso:          "2026-05-15",
+		SpreadOverMonths:        2,
+		PeriodYear:              2026,
+		PeriodMonth:             5,
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, "USD", result.Expense.TransactionCurrency)
+	assert.Equal(t, "USD", result.Expense.TransactionCurrencyCode)
 }
 
 func TestCreateProRataExpense_MissingPeriodFields(t *testing.T) {
@@ -371,8 +371,8 @@ func TestCreateProRataExpense_MissingPeriodFields(t *testing.T) {
 	svc := newProRataTestService(repo, txBeg, expClient, fxClient, fixedNow(2026, 5, 15))
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2,
+		Name: "Insurance", TotalAmountInMinorUnits: 6000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDateIso: "2026-05-15", SpreadOverMonths: 2,
 	})
 
 	svcErr := requireAPIError(t, err)
@@ -394,8 +394,8 @@ func TestCreateProRataExpense_MissingCreationPeriod(t *testing.T) {
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(6)).Return(nil, nil)
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2, PeriodYear: 2026, PeriodMonth: 6,
+		Name: "Insurance", TotalAmountInMinorUnits: 6000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDateIso: "2026-05-15", SpreadOverMonths: 2, PeriodYear: 2026, PeriodMonth: 6,
 	})
 
 	svcErr := requireAPIError(t, err)
@@ -417,8 +417,8 @@ func TestCreateProRataExpense_FxCaptureFailure(t *testing.T) {
 		Return(nil, &apierr.Error{Code: model.ErrConversionUnavailable, Message: "conversion unavailable", Status: 503})
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Insurance", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2, PeriodYear: 2026, PeriodMonth: 5,
+		Name: "Insurance", TotalAmountInMinorUnits: 6000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDateIso: "2026-05-15", SpreadOverMonths: 2, PeriodYear: 2026, PeriodMonth: 5,
 	})
 
 	svcErr := requireAPIError(t, err)
@@ -439,10 +439,10 @@ func TestCreateProRataExpense_Validation(t *testing.T) {
 		field string
 		msg   string
 	}{
-		{"empty name", &model.CreateProRataRequest{TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "name", "required"},
-		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmount: 0, Months: 2, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "totalAmount", "must be positive"},
-		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 1, TransactionCurrency: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "months", "must be at least 2"},
-		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmount: 100, Months: 2, TransactionCurrency: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDate: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "expenseType", "must be essentials, desires, or savings"},
+		{"empty name", &model.CreateProRataRequest{TotalAmountInMinorUnits: 100, SpreadOverMonths: 2, TransactionCurrencyCode: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDateIso: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "name", "required"},
+		{"zero amount", &model.CreateProRataRequest{Name: "X", TotalAmountInMinorUnits: 0, SpreadOverMonths: 2, TransactionCurrencyCode: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDateIso: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "totalAmountInMinorUnits", "must be positive"},
+		{"one month", &model.CreateProRataRequest{Name: "X", TotalAmountInMinorUnits: 100, SpreadOverMonths: 1, TransactionCurrencyCode: "USD", ExpenseType: "essentials", TagID: "t", ExpenseDateIso: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "spreadOverMonths", "must be at least 2"},
+		{"bad type", &model.CreateProRataRequest{Name: "X", TotalAmountInMinorUnits: 100, SpreadOverMonths: 2, TransactionCurrencyCode: "USD", ExpenseType: "invalid", TagID: "t", ExpenseDateIso: "2026-05-01", PeriodYear: 2026, PeriodMonth: 5}, "expenseType", "must be essentials, desires, or savings"},
 	}
 
 	for _, tt := range tests {
@@ -464,8 +464,8 @@ func TestCreateProRataExpense_ValidationAggregatesAllErrors(t *testing.T) {
 	svc := newProRataTestService(repo, txBeg, nil, fxClient, fixedNow(2026, 5, 15))
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "  ", TotalAmount: 0, Months: 1, TransactionCurrency: "USD",
-		ExpenseType: "invalid", TagID: " ", ExpenseDate: " ", PeriodYear: 0, PeriodMonth: 0,
+		Name: "  ", TotalAmountInMinorUnits: 0, SpreadOverMonths: 1, TransactionCurrencyCode: "USD",
+		ExpenseType: "invalid", TagID: " ", ExpenseDateIso: " ", PeriodYear: 0, PeriodMonth: 0,
 	})
 
 	require.Error(t, err)
@@ -473,14 +473,14 @@ func TestCreateProRataExpense_ValidationAggregatesAllErrors(t *testing.T) {
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 	assert.Equal(t, "validation failed", svcErr.Message)
 	assert.Equal(t, map[string]string{
-		"name":        "required",
-		"totalAmount": "must be positive",
-		"months":      "must be at least 2",
-		"expenseType": "must be essentials, desires, or savings",
-		"tagId":       "required",
-		"expenseDate": "required",
-		"periodYear":  "required",
-		"periodMonth": "must be between 1 and 12",
+		"name":                    "required",
+		"totalAmountInMinorUnits": "must be positive",
+		"spreadOverMonths":        "must be at least 2",
+		"expenseType":             "must be essentials, desires, or savings",
+		"tagId":                   "required",
+		"expenseDateIso":          "required",
+		"periodYear":              "required",
+		"periodMonth":             "must be between 1 and 12",
 	}, svcErr.Fields)
 }
 
@@ -500,8 +500,8 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 		Return(nil, fmt.Errorf("db error"))
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
-		Name: "Test", TotalAmount: 6000, TransactionCurrency: "USD", ExpenseType: "essentials",
-		TagID: "tag-1", ExpenseDate: "2026-05-15", Months: 2, PeriodYear: 2026, PeriodMonth: 5,
+		Name: "Test", TotalAmountInMinorUnits: 6000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDateIso: "2026-05-15", SpreadOverMonths: 2, PeriodYear: 2026, PeriodMonth: 5,
 	})
 
 	require.Error(t, err)
@@ -528,7 +528,7 @@ func TestCreatePeriodWithProRata_NoPriorPeriod(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -553,10 +553,10 @@ func TestCreatePeriodWithProRata_AutoCreatedPeriodsUseDefaultCurrency(t *testing
 		Currency:          "EUR",
 	}, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
-		return p.Year == 2026 && p.Month == 4 && p.ReportingCurrency == "EUR"
+		return p.Year == 2026 && p.Month == 4 && p.ReportingCurrencyCode == "EUR"
 	})).Return(makePeriod("p-apr", 2026, 4), nil)
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
-		return p.Year == 2026 && p.Month == 5 && p.ReportingCurrency == "JPY"
+		return p.Year == 2026 && p.Month == 5 && p.ReportingCurrencyCode == "JPY"
 	})).Return(makePeriod("p-may", 2026, 5), nil)
 	repo.On("GetPendingProRata", mock.Anything, "user-1", mock.Anything, mock.Anything).
 		Return([]*model.ProRataSchedule{}, nil)
@@ -564,7 +564,7 @@ func TestCreatePeriodWithProRata_AutoCreatedPeriodsUseDefaultCurrency(t *testing
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "JPY",
+		ReportingCurrencyCode: "JPY",
 	})
 
 	require.NoError(t, err)
@@ -580,14 +580,14 @@ func TestCreatePeriodWithProRata_RejectsUnsupportedReportingCurrency(t *testing.
 	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "XYZ",
+		ReportingCurrencyCode: "XYZ",
 	})
 
 	require.Error(t, err)
 	var svcErr *apierr.Error
 	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrUnsupportedCurrency, svcErr.Code)
-	assert.Equal(t, "unsupported currency", svcErr.Fields["reportingCurrency"])
+	assert.Equal(t, "unsupported currency", svcErr.Fields["reportingCurrencyCode"])
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
@@ -605,17 +605,17 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 
 	pendingSchedule := &model.ProRataSchedule{
 		ID: "sched-1", UserID: "user-1", ProRataGroup: "group-1",
-		Name: "Insurance", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Insurance", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 5, InstallmentIndex: 2,
 		InstallmentTotal: 3, Status: "pending",
-		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
+		TransactionCurrencyCode: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]*model.ProRataSchedule{pendingSchedule}, nil)
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		return req.Name == "Insurance" && req.Amount == 3333 && req.ProRataIndex == 2 &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.Currency == "USD" && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "exp-applied", CreatedAt: "2026-05-01T00:00:00Z"}, nil)
 
@@ -624,7 +624,7 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -670,7 +670,7 @@ func TestCreatePeriodWithProRata_MissedMonths(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -707,10 +707,10 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 	// April has a pending pro-rata
 	aprSchedule := &model.ProRataSchedule{
 		ID: "s-apr", UserID: "user-1", ProRataGroup: "g1",
-		Name: "Subscription", Amount: 5000, Currency: "USD", ExpenseType: "desires",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 5000, Currency: "USD", ExpenseType: "desires",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 4, InstallmentIndex: 2,
 		InstallmentTotal: 3, Status: "pending",
-		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
+		TransactionCurrencyCode: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(4)).
 		Return([]*model.ProRataSchedule{aprSchedule}, nil)
@@ -728,7 +728,7 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -743,8 +743,8 @@ func TestGetUpcomingProRata_Success(t *testing.T) {
 	svc := newTagTestService(repo, txBeg, nil)
 
 	schedules := []*model.ProRataSchedule{
-		{ID: "s-1", Name: "Insurance", Amount: 5000, InstallmentIndex: 2, InstallmentTotal: 4, TargetYear: 2026, TargetMonth: 6},
-		{ID: "s-2", Name: "Gym", Amount: 2500, InstallmentIndex: 3, InstallmentTotal: 6, TargetYear: 2026, TargetMonth: 6},
+		{ID: "s-1", Name: "Insurance", InstallmentAmountInMinorUnits: 5000, InstallmentIndex: 2, InstallmentTotal: 4, TargetYear: 2026, TargetMonth: 6},
+		{ID: "s-2", Name: "Gym", InstallmentAmountInMinorUnits: 2500, InstallmentIndex: 3, InstallmentTotal: 6, TargetYear: 2026, TargetMonth: 6},
 	}
 	repo.On("GetUpcomingProRata", mock.Anything, "user-1").Return(schedules, nil)
 
@@ -771,10 +771,10 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 
 	schedule := &model.ProRataSchedule{
 		ID: "s-1", UserID: "user-1", Status: "pending",
-		Name: "Test", Amount: 1000, Currency: "USD", ExpenseType: "essentials",
+		Name: "Test", InstallmentAmountInMinorUnits: 1000, Currency: "USD", ExpenseType: "essentials",
 		TagID: "t-1", TargetYear: 2026, TargetMonth: 5,
 		InstallmentIndex: 2, InstallmentTotal: 3, ProRataGroup: "g-1",
-		TransactionCurrency: "USD", CapturedRateSnapshot: snapshotFixture(),
+		TransactionCurrencyCode: "USD", CapturedRateSnapshot: snapshotFixture(),
 	}
 
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).
@@ -789,7 +789,7 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -822,7 +822,7 @@ func TestCreatePeriodWithProRata_NilDefaultsReturnsError(t *testing.T) {
 	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.Error(t, err)
@@ -846,7 +846,7 @@ func setupPeriodCreationMocks(repo *mockRepo, pending []*model.ProRataSchedule, 
 	repo.On("GetLatestPeriod", mock.Anything, "user-1").
 		Return(makePeriod("p-prev", targetYear, targetMonth-1), nil)
 	targetPeriod := makePeriod("p-target", targetYear, targetMonth)
-	targetPeriod.ReportingCurrency = reportingCurrency
+	targetPeriod.ReportingCurrencyCode = reportingCurrency
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
 		return p.Year == targetYear && p.Month == targetMonth
 	})).Return(targetPeriod, nil)
@@ -858,7 +858,7 @@ func createPeriodRequest(year, month int32, reportingCurrency string) *model.Cre
 	return &model.CreatePeriodRequest{
 		Year: year, Month: month, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: reportingCurrency,
+		ReportingCurrencyCode: reportingCurrency,
 	}
 }
 
@@ -875,17 +875,17 @@ func TestApplyProRata_CapturedSnapshotSameTargetCurrencyAppliesWithSnapshot(t *t
 	snap := snapshotFixture()
 	pending := []*model.ProRataSchedule{{
 		ID: "s-1", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 6,
 		InstallmentIndex: 2, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "USD",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "USD",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 6, "USD")
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		return req.Currency == "USD" &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.CapturedRateSnapshot == snap && req.Amount == 3333
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-06-01T00:00:00Z"}, nil)
 	repo.On("MarkProRataApplied", mock.Anything, "s-1").Return(nil)
@@ -912,10 +912,10 @@ func TestApplyProRata_CapturedSnapshotDifferentTargetCurrencyAppliesInTargetCurr
 	snap := snapshotFixture() // covers USD, EUR, GBP, JPY
 	pending := []*model.ProRataSchedule{{
 		ID: "s-2", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 7,
 		InstallmentIndex: 3, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "USD",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "USD",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 7, "EUR")
@@ -924,7 +924,7 @@ func TestApplyProRata_CapturedSnapshotDifferentTargetCurrencyAppliesInTargetCurr
 		// Target period reports in EUR; the transaction currency (captured
 		// schedule context) stays USD and the snapshot is forwarded.
 		return req.Currency == "USD" &&
-			req.PeriodContext.ReportingCurrency == "EUR" &&
+			req.PeriodContext.ReportingCurrencyCode == "EUR" &&
 			req.CapturedRateSnapshot == snap
 	})).Return(&CreatedExpenseData{ID: "exp-2", CreatedAt: "2026-07-01T00:00:00Z"}, nil)
 	repo.On("MarkProRataApplied", mock.Anything, "s-2").Return(nil)
@@ -952,10 +952,10 @@ func TestApplyProRata_CapturedSnapshotMissingTargetCurrencyMarksFailed(t *testin
 	}
 	pending := []*model.ProRataSchedule{{
 		ID: "s-3", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 8,
 		InstallmentIndex: 2, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "USD",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "USD",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 8, "JPY")
@@ -982,10 +982,10 @@ func TestApplyProRata_NilSnapshotMarksFailed(t *testing.T) {
 	// TransactionCurrency is set, so this is a corrupted row, not a legacy one.
 	pending := []*model.ProRataSchedule{{
 		ID: "s-nil", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 10,
 		InstallmentIndex: 2, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "USD",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "USD",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: nil,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 10, "USD")
@@ -1012,10 +1012,10 @@ func TestApplyProRata_ExpenseWriteFailureLeavesSchedulePending(t *testing.T) {
 	snap := snapshotFixture()
 	pending := []*model.ProRataSchedule{{
 		ID: "s-4", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 9,
 		InstallmentIndex: 2, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "USD",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "USD",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 9, "USD")
@@ -1094,10 +1094,10 @@ func TestApplyProRata_DashboardExcludesPendingAndFailed(t *testing.T) {
 	snap := snapshotFixture()
 	pending := []*model.ProRataSchedule{{
 		ID: "s-pending", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "USD", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "USD", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 12,
 		InstallmentIndex: 2, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "USD",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "USD",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 12, "USD")
@@ -1143,10 +1143,10 @@ func TestApplyProRata_ExpenseSnapshotCurrencyMissingMarksFailed(t *testing.T) {
 	}
 	pending := []*model.ProRataSchedule{{
 		ID: "s-snap", UserID: "user-1", ProRataGroup: "g-1", Status: "pending",
-		Name: "Subscription", Amount: 3333, Currency: "EUR", ExpenseType: "essentials",
+		Name: "Subscription", InstallmentAmountInMinorUnits: 3333, Currency: "EUR", ExpenseType: "essentials",
 		TagID: "tag-1", TargetYear: 2026, TargetMonth: 12,
 		InstallmentIndex: 2, InstallmentTotal: 3,
-		TransactionAmount: 3333, TransactionCurrency: "EUR",
+		OriginalTransactionAmountInMinorUnits: 3333, TransactionCurrencyCode: "EUR",
 		CreationReportingCurrency: "USD", CapturedRateSnapshot: snap,
 	}}
 	setupPeriodCreationMocks(repo, pending, 2026, 12, "USD")

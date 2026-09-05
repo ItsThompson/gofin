@@ -16,7 +16,7 @@ const columnHelper = createColumnHelper<ExpenseRow>();
 
 export function buildExpenseColumns() {
   return [
-    columnHelper.accessor("expenseDate", {
+    columnHelper.accessor("expenseDateIso", {
       header: "Date",
       cell: (info) => info.getValue(),
       sortingFn: "alphanumeric",
@@ -107,10 +107,10 @@ export function resolveTagNames(
 ): ExpenseRow[] {
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
   return expenses.map((expense) => {
-    const transactionAmountEffective = expense.transactionAmount;
-    const transactionCurrencyEffective = expense.transactionCurrency;
-    const reportingAmountEffective = expense.reportingAmount;
-    const reportingCurrencyEffective = expense.reportingCurrency;
+    const transactionAmountEffective = expense.originalTransactionAmountInMinorUnits;
+    const transactionCurrencyEffective = expense.transactionCurrencyCode;
+    const reportingAmountEffective = expense.reportingAmountInMinorUnits;
+    const reportingCurrencyEffective = expense.reportingCurrencyCode;
     const showReportingAmount =
       transactionCurrencyEffective !== reportingCurrencyEffective;
 

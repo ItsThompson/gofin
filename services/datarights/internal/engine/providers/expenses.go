@@ -15,12 +15,6 @@ import (
 // Compile-time check that ExpensesProvider implements DataProvider.
 var _ engine.DataProvider = (*ExpensesProvider)(nil)
 
-// migrationSource is the exchange_rate_source value on legacy rows imported
-// during data migration. It is a datarights-internal concern: the expense and
-// fx services never produce or interpret this value, so it does not belong in
-// the shared exchangesource contract.
-const migrationSource = "migration"
-
 // expensesPageSize is the server-side keyset page size requested from the
 // StreamAllUserExpenses RPC. It caps how many rows the server materializes per
 // page, so consuming the stream incrementally keeps peak memory at
@@ -177,7 +171,7 @@ func (p *ExpensesProvider) formatRow(exp *expensepb.ExpenseData) ([]string, erro
 		snapshot.exchangeRateTimestamp,
 		exp.GetExpenseType(),
 		tagName,
-		exp.GetExpenseDate(),
+		exp.GetExpenseDateIso(),
 		strconv.FormatInt(int64(exp.GetPeriodYear()), 10),
 		strconv.FormatInt(int64(exp.GetPeriodMonth()), 10),
 		exp.GetStatus(),
@@ -213,30 +207,30 @@ func (p *ExpensesProvider) resolveSnapshot(exp *expensepb.ExpenseData) (expenseS
 
 	switch source {
 	case exchangesource.Identity, exchangesource.OpenExchangeRates:
-		if exp.GetTransactionAmount() == 0 || exp.GetTransactionCurrency() == "" ||
-			exp.GetReportingAmount() == 0 || exp.GetReportingCurrency() == "" ||
-			exp.GetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
+		if exp.GetOriginalTransactionAmountInMinorUnits() == 0 || exp.GetTransactionCurrencyCode() == "" ||
+			exp.GetReportingAmountInMinorUnits() == 0 || exp.GetReportingCurrencyCode() == "" ||
+			exp.GetSourceToTargetExchangeRate() == "" || exp.GetExchangeRateTimestamp() == "" {
 			return expenseSnapshot{}, fmt.Errorf("expense %s has an incomplete money snapshot", exp.GetId())
 		}
 		return expenseSnapshot{
-			transactionAmount:     exp.GetTransactionAmount(),
-			transactionCurrency:   exp.GetTransactionCurrency(),
-			reportingAmount:       exp.GetReportingAmount(),
-			reportingCurrency:     exp.GetReportingCurrency(),
-			exchangeRate:          exp.GetExchangeRate(),
+			transactionAmount:     exp.GetOriginalTransactionAmountInMinorUnits(),
+			transactionCurrency:   exp.GetTransactionCurrencyCode(),
+			reportingAmount:       exp.GetReportingAmountInMinorUnits(),
+			reportingCurrency:     exp.GetReportingCurrencyCode(),
+			exchangeRate:          exp.GetSourceToTargetExchangeRate(),
 			exchangeRateSource:    source,
 			exchangeRateTimestamp: exp.GetExchangeRateTimestamp(),
 		}, nil
 
-	case migrationSource:
+	case exchangesource.Migration:
 		currency := p.resolvePeriodCurrency(exp)
 		if currency == "" {
 			return expenseSnapshot{}, fmt.Errorf("expense %s legacy row has no resolvable period reporting currency", exp.GetId())
 		}
 		return expenseSnapshot{
-			transactionAmount:     exp.GetTransactionAmount(),
+			transactionAmount:     exp.GetOriginalTransactionAmountInMinorUnits(),
 			transactionCurrency:   currency,
-			reportingAmount:       exp.GetReportingAmount(),
+			reportingAmount:       exp.GetReportingAmountInMinorUnits(),
 			reportingCurrency:     currency,
 			exchangeRate:          "1",
 			exchangeRateSource:    exchangesource.Identity,
@@ -255,5 +249,5 @@ func (p *ExpensesProvider) resolvePeriodCurrency(exp *expensepb.ExpenseData) str
 	if currency, ok := p.periodCurrencies[periodCurrencyKey(exp.GetPeriodYear(), exp.GetPeriodMonth())]; ok {
 		return currency
 	}
-	return exp.GetReportingCurrency()
+	return exp.GetReportingCurrencyCode()
 }

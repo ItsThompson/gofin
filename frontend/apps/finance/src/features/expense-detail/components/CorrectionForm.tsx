@@ -150,13 +150,13 @@ export function CorrectionForm({
         <Input
           id="correct-date"
           type="date"
-          value={fields.expenseDate}
+          value={fields.expenseDateIso}
           onChange={(event) =>
-            onFieldChange("expenseDate", event.target.value)
+            onFieldChange("expenseDateIso", event.target.value)
           }
-          aria-invalid={!!fieldErrors.expenseDate}
+          aria-invalid={!!fieldErrors.expenseDateIso}
         />
-        <FormMessage>{fieldErrors.expenseDate}</FormMessage>
+        <FormMessage>{fieldErrors.expenseDateIso}</FormMessage>
       </FormField>
 
       {submitError && <FormMessage>{submitError}</FormMessage>}

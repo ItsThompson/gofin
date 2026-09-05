@@ -32,8 +32,8 @@ export function ExpenseFrecencyChart({
     frequency: suggestion.frequency,
     recencyBucket: suggestion.recencyBucket,
     lastUsedAt: suggestion.lastUsedAt,
-    amount: suggestion.transactionAmount,
-    currency: suggestion.transactionCurrency,
+    amount: suggestion.originalTransactionAmountInMinorUnits,
+    currency: suggestion.transactionCurrencyCode,
     expenseType: suggestion.expenseType,
   }));
 

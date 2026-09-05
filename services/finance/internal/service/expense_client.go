@@ -10,7 +10,7 @@ import (
 type ExpenseData struct {
 	ID                string
 	ReportingAmount   int64  // Converted amount in the period reporting currency minor units.
-	ReportingCurrency string // Budget period reporting currency for this row.
+	ReportingCurrencyCode string // Budget period reporting currency for this row.
 	ExpenseType       string // "essentials", "desires", "savings"
 	TagID             string
 	ExpenseDate       string // "YYYY-MM-DD"
@@ -33,7 +33,7 @@ type TrustedPeriodContext struct {
 	UserID            string
 	Year              int32
 	Month             int32
-	ReportingCurrency string
+	ReportingCurrencyCode string
 	Source            string
 }
 

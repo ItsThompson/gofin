@@ -39,20 +39,20 @@ test.describe("Budget Period Transition", () => {
 
     await apiCreateExpense(page.request, {
       name: "Past Rent",
-      amount: 80_000, // $800
+      amountInTransactionCurrencyMinorUnits: 80_000, // $800
       expenseType: "essentials",
       tagId: firstTag.id,
-      expenseDate: pastDateISO,
+      expenseDateIso: pastDateISO,
       periodYear: pastYear,
       periodMonth: pastMonth,
     });
 
     await apiCreateExpense(page.request, {
       name: "Past Groceries",
-      amount: 15_000, // $150
+      amountInTransactionCurrencyMinorUnits: 15_000, // $150
       expenseType: "essentials",
       tagId: firstTag.id,
-      expenseDate: pastDateISO,
+      expenseDateIso: pastDateISO,
       periodYear: pastYear,
       periodMonth: pastMonth,
     });

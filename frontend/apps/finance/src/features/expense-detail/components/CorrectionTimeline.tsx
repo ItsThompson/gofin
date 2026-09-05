@@ -57,15 +57,15 @@ export function CorrectionTimeline({
             <div className="text-muted-foreground">
               {entry.name} ·{" "}
               {formatCurrency(
-                entry.transactionAmount,
-                entry.transactionCurrency,
+                entry.originalTransactionAmountInMinorUnits,
+                entry.transactionCurrencyCode,
               )}
               {!hasSameCurrencySnapshot(entry) && (
                 <span className="text-muted-foreground/80">
                   {" "}
                   ({formatCurrency(
-                    entry.reportingAmount,
-                    entry.reportingCurrency,
+                    entry.reportingAmountInMinorUnits,
+                    entry.reportingCurrencyCode,
                   )})
                 </span>
               )}{" "}

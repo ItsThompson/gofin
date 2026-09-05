@@ -44,8 +44,8 @@ func TestGetExpenseSuggestionsHandler_DefaultsPaginationAndReturnsShape(t *testi
 	assert.False(t, response.HasMore)
 	require.Len(t, response.Data, 1)
 	assert.Equal(t, "Groceries", response.Data[0].Name)
-	assert.Equal(t, int64(2500), response.Data[0].TransactionAmount)
-	assert.Equal(t, "USD", response.Data[0].TransactionCurrency)
+	assert.Equal(t, int64(2500), response.Data[0].OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "USD", response.Data[0].TransactionCurrencyCode)
 }
 
 func TestGetExpenseSuggestionsHandler_RejectsInvalidPagination(t *testing.T) {

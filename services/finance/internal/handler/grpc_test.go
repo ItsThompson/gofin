@@ -79,11 +79,11 @@ func TestGetPeriodContextGrpc_Success(t *testing.T) {
 	handler := NewGRPCHandler(financeSvc)
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return(&model.BudgetPeriod{
-		ID:                "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		ReportingCurrency: "JPY",
+		ID:                    "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
+		ReportingCurrencyCode: "JPY",
 	}, nil)
 
 	resp, err := handler.GetPeriodContext(context.Background(), &pb.GetPeriodContextRequest{
@@ -97,7 +97,7 @@ func TestGetPeriodContextGrpc_Success(t *testing.T) {
 	assert.Equal(t, "user-1", resp.UserId)
 	assert.Equal(t, int32(2026), resp.Year)
 	assert.Equal(t, int32(5), resp.Month)
-	assert.Equal(t, "JPY", resp.ReportingCurrency)
+	assert.Equal(t, "JPY", resp.ReportingCurrencyCode)
 	assert.False(t, resp.IsLocked)
 }
 
@@ -136,7 +136,7 @@ func TestGetAllUserData_Success(t *testing.T) {
 	periods := []*model.BudgetPeriod{
 		{
 			ID: "period-1", UserID: "user-1", Year: 2026, Month: 3,
-			BudgetAmount: 500000, ReportingCurrency: "GBP", EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+			BudgetAmount: 500000, ReportingCurrencyCode: "GBP", EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 			CreatedAt: createdAt,
 		},
 	}
@@ -169,7 +169,7 @@ func TestGetAllUserData_Success(t *testing.T) {
 	assert.Equal(t, int32(2026), resp.Periods[0].Year)
 	assert.Equal(t, int32(3), resp.Periods[0].Month)
 	assert.Equal(t, int64(500000), resp.Periods[0].BudgetAmount)
-	assert.Equal(t, "GBP", resp.Periods[0].ReportingCurrency)
+	assert.Equal(t, "GBP", resp.Periods[0].ReportingCurrencyCode)
 	assert.Equal(t, "2026-03-15T10:30:00Z", resp.Periods[0].CreatedAt)
 
 	require.NotNil(t, resp.Defaults)
@@ -183,35 +183,35 @@ func TestCreatePeriodGrpc_UsesReportingCurrency(t *testing.T) {
 	handler := setupGRPCHandler(repo)
 	repo.On("GetLatestPeriod", mock.Anything, "user-1").Return(nil, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(period *model.BudgetPeriod) bool {
-		return period.ReportingCurrency == "CHF"
+		return period.ReportingCurrencyCode == "CHF"
 	})).Return(&model.BudgetPeriod{
-		ID:                "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      500000,
-		ReportingCurrency: "CHF",
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		CreatedAt:         time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		ID:                    "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
+		BudgetAmount:          500000,
+		ReportingCurrencyCode: "CHF",
+		EssentialsPercent:     50,
+		DesiresPercent:        30,
+		SavingsPercent:        20,
+		CreatedAt:             time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
 	}, nil)
 	repo.On("GetPendingProRata", mock.Anything, "user-1", int32(2026), int32(5)).Return([]*model.ProRataSchedule{}, nil)
 
 	resp, err := handler.CreatePeriod(context.Background(), &pb.CreatePeriodRequest{
-		UserId:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      500000,
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		ReportingCurrency: "CHF",
+		UserId:                "user-1",
+		Year:                  2026,
+		Month:                 5,
+		BudgetAmount:          500000,
+		EssentialsPercent:     50,
+		DesiresPercent:        30,
+		SavingsPercent:        20,
+		ReportingCurrencyCode: "CHF",
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp.Period)
-	assert.Equal(t, "CHF", resp.Period.ReportingCurrency)
+	assert.Equal(t, "CHF", resp.Period.ReportingCurrencyCode)
 }
 
 func TestCreatePeriodGrpc_UnsupportedReportingCurrency(t *testing.T) {
@@ -219,14 +219,14 @@ func TestCreatePeriodGrpc_UnsupportedReportingCurrency(t *testing.T) {
 	handler := setupGRPCHandler(repo)
 
 	resp, err := handler.CreatePeriod(context.Background(), &pb.CreatePeriodRequest{
-		UserId:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      500000,
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		ReportingCurrency: "XYZ",
+		UserId:                "user-1",
+		Year:                  2026,
+		Month:                 5,
+		BudgetAmount:          500000,
+		EssentialsPercent:     50,
+		DesiresPercent:        30,
+		SavingsPercent:        20,
+		ReportingCurrencyCode: "XYZ",
 	})
 
 	assert.Nil(t, resp)

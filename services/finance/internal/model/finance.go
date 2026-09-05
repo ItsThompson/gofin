@@ -16,27 +16,27 @@ type DefaultSettings struct {
 
 // BudgetPeriod represents a single monthly budget period.
 type BudgetPeriod struct {
-	ID                string    `json:"id"`
-	UserID            string    `json:"userId"`
-	Year              int32     `json:"year"`
-	Month             int32     `json:"month"`
-	BudgetAmount      int64     `json:"budgetAmount"`
-	ReportingCurrency string    `json:"reportingCurrency"`
-	EssentialsPercent int32     `json:"essentialsPercent"`
-	DesiresPercent    int32     `json:"desiresPercent"`
-	SavingsPercent    int32     `json:"savingsPercent"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                    string    `json:"id"`
+	UserID                string    `json:"userId"`
+	Year                  int32     `json:"year"`
+	Month                 int32     `json:"month"`
+	BudgetAmount          int64     `json:"budgetAmount"`
+	ReportingCurrencyCode string    `json:"reportingCurrencyCode"`
+	EssentialsPercent     int32     `json:"essentialsPercent"`
+	DesiresPercent        int32     `json:"desiresPercent"`
+	SavingsPercent        int32     `json:"savingsPercent"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 // PeriodContext is the read-only period state needed before expense writes.
 type PeriodContext struct {
-	PeriodID          string
-	UserID            string
-	Year              int32
-	Month             int32
-	ReportingCurrency string
-	IsLocked          bool
+	PeriodID              string
+	UserID                string
+	Year                  int32
+	Month                 int32
+	ReportingCurrencyCode string
+	IsLocked              bool
 }
 
 // Tag represents a user-owned expense tag.

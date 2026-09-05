@@ -33,8 +33,8 @@ func TestGetExpenseSuggestions_AggregatesActiveInputsAndPaginates(t *testing.T) 
 	assert.True(t, result.HasMore)
 	require.Len(t, result.Data, 1)
 	assert.Equal(t, "Groceries", result.Data[0].Name)
-	assert.Equal(t, int64(1250), result.Data[0].TransactionAmount)
-	assert.Equal(t, "USD", result.Data[0].TransactionCurrency)
+	assert.Equal(t, int64(1250), result.Data[0].OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "USD", result.Data[0].TransactionCurrencyCode)
 	assert.Equal(t, "tag-new", result.Data[0].TagID)
 	assert.Equal(t, int32(2), result.Data[0].Frequency)
 	assert.Equal(t, "last_7_days", result.Data[0].RecencyBucket)
@@ -55,8 +55,8 @@ func TestGetExpenseSuggestions_PreservesForeignTransactionCurrency(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, result.Data, 1)
 	// The latest active matching expense determines the suggestion values.
-	assert.Equal(t, int64(16000), result.Data[0].TransactionAmount)
-	assert.Equal(t, "EUR", result.Data[0].TransactionCurrency)
+	assert.Equal(t, int64(16000), result.Data[0].OriginalTransactionAmountInMinorUnits)
+	assert.Equal(t, "EUR", result.Data[0].TransactionCurrencyCode)
 }
 
 func TestGetExpenseSuggestions_CountsProRataGroupOnce(t *testing.T) {
@@ -109,7 +109,7 @@ func TestGetExpenseSuggestions_UsesIDTieBreakerForLatestValues(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, result.Data, 1)
-	assert.Equal(t, int64(1500), result.Data[0].TransactionAmount)
+	assert.Equal(t, int64(1500), result.Data[0].OriginalTransactionAmountInMinorUnits)
 	assert.Equal(t, "essentials", result.Data[0].ExpenseType)
 	assert.Equal(t, "tag-new", result.Data[0].TagID)
 }

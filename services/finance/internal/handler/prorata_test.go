@@ -34,7 +34,7 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(&model.BudgetPeriod{
-			ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrency: "USD",
+			ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrencyCode: "USD",
 		}, nil)
 
 	snapshot := &model.CapturedRateSnapshot{
@@ -54,12 +54,12 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 		return req.Currency == "EUR" &&
 			req.PeriodContext.Year == 2026 &&
 			req.PeriodContext.Month == 5 &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.CapturedRateSnapshot == snapshot
 	})).Return(&service.CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
 	repo.On("CreateProRataSchedule", mock.Anything, mock.MatchedBy(func(s *model.ProRataSchedule) bool {
-		return s.TransactionCurrency == "EUR" &&
+		return s.TransactionCurrencyCode == "EUR" &&
 			s.CreationReportingCurrency == "USD" &&
 			s.CapturedRateSnapshot.RateTimestamp == snapshot.RateTimestamp
 	})).Return(&model.ProRataSchedule{
@@ -67,15 +67,15 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 	}, nil)
 
 	w := doJSONWithUserID(r, "POST", "/api/finance/prorata", "user-1", map[string]interface{}{
-		"name":                "Annual subscription",
-		"totalAmount":         6000,
-		"transactionCurrency": "EUR",
-		"expenseType":         "essentials",
-		"tagId":               "tag-1",
-		"expenseDate":         "2026-05-15",
-		"months":              2,
-		"periodYear":          2026,
-		"periodMonth":         5,
+		"name":                    "Annual subscription",
+		"totalAmountInMinorUnits": 6000,
+		"transactionCurrencyCode": "EUR",
+		"expenseType":             "essentials",
+		"tagId":                   "tag-1",
+		"expenseDateIso":          "2026-05-15",
+		"spreadOverMonths":        2,
+		"periodYear":              2026,
+		"periodMonth":             5,
 	})
 
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -83,7 +83,7 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 	var resp model.ProRataResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "exp-1", resp.Expense.ID)
-	assert.Equal(t, "EUR", resp.Expense.TransactionCurrency)
+	assert.Equal(t, "EUR", resp.Expense.TransactionCurrencyCode)
 	expClient.AssertExpectations(t)
 	fxClient.AssertExpectations(t)
 }

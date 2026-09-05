@@ -32,7 +32,7 @@ func TestGRPC_CreateProRataExpense_Success(t *testing.T) {
 	handler := setupProRataGRPCHandler(repo, exp, fx)
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
-		Return(&model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrency: "USD"}, nil)
+		Return(&model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrencyCode: "USD"}, nil)
 
 	snapshot := &model.CapturedRateSnapshot{
 		SnapshotVersion: 1,

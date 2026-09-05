@@ -94,47 +94,47 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "EUR",
+		ReportingCurrencyCode: "EUR",
 	}, nil)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
 	handler := NewGRPCHandler(expenseSvc)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
-		return expense.TransactionCurrency == "EUR"
+		return expense.TransactionCurrencyCode == "EUR"
 	})).Return(&model.Expense{
-		ID:                  "exp-1",
-		UserID:              "user-1",
-		TransactionCurrency: "EUR",
-		Status:              "active",
-		TransactionAmount:   1200,
-		ReportingAmount:     1200,
-		ReportingCurrency:   "EUR",
-		ExchangeRate:        "1",
-		ExchangeRateSource:  exchangesource.Identity,
+		ID:                                    "exp-1",
+		UserID:                                "user-1",
+		TransactionCurrencyCode:               "EUR",
+		Status:                                "active",
+		OriginalTransactionAmountInMinorUnits: 1200,
+		ReportingAmountInMinorUnits:           1200,
+		ReportingCurrencyCode:                 "EUR",
+		SourceToTargetExchangeRate:            "1",
+		ExchangeRateSource:                    exchangesource.Identity,
 	}, nil)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:                        "user-1",
-		Name:                          "Coffee",
-		Amount:                        1200,
-		TransactionCurrency:           "EUR",
-		ExpenseType:                   "desires",
-		TagId:                         "tag-food",
-		ExpenseDate:                   "2026-05-03",
-		PeriodYear:                    2026,
-		PeriodMonth:                   5,
-		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+		UserId:                                "user-1",
+		Name:                                  "Coffee",
+		AmountInTransactionCurrencyMinorUnits: 1200,
+		TransactionCurrencyCode:               "EUR",
+		ExpenseType:                           "desires",
+		TagId:                                 "tag-food",
+		ExpenseDateIso:                        "2026-05-03",
+		PeriodYear:                            2026,
+		PeriodMonth:                           5,
+		ClientGeneratedIdempotencyKey:         "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp.GetExpense())
-	assert.Equal(t, "EUR", resp.GetExpense().GetTransactionCurrency())
+	assert.Equal(t, "EUR", resp.GetExpense().GetTransactionCurrencyCode())
 	// Canonical transaction and reporting money fields are present in the response.
-	assert.Equal(t, int64(1200), resp.GetExpense().GetTransactionAmount())
-	assert.Equal(t, int64(1200), resp.GetExpense().GetReportingAmount())
-	assert.Equal(t, "EUR", resp.GetExpense().GetReportingCurrency())
-	assert.Equal(t, "1", resp.GetExpense().GetExchangeRate())
+	assert.Equal(t, int64(1200), resp.GetExpense().GetOriginalTransactionAmountInMinorUnits())
+	assert.Equal(t, int64(1200), resp.GetExpense().GetReportingAmountInMinorUnits())
+	assert.Equal(t, "EUR", resp.GetExpense().GetReportingCurrencyCode())
+	assert.Equal(t, "1", resp.GetExpense().GetSourceToTargetExchangeRate())
 	assert.Equal(t, exchangesource.Identity, resp.GetExpense().GetExchangeRateSource())
 	repo.AssertExpectations(t)
 }
@@ -151,23 +151,23 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	original := &model.Expense{
-		ID:                    "exp-original",
-		UserID:                "user-1",
-		Name:                  "Coffee",
-		TransactionCurrency:   "USD",
-		ExpenseType:           "desires",
-		TagID:                 "tag-food",
-		ExpenseDate:           "2026-05-01",
-		PeriodYear:            2026,
-		PeriodMonth:           5,
-		Status:                "active",
-		CreatedAt:             "2026-05-01T10:00:00Z",
-		TransactionAmount:     500,
-		ReportingAmount:       500,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1",
-		ExchangeRateSource:    exchangesource.Identity,
-		ExchangeRateTimestamp: "2026-05-01T10:00:00Z",
+		ID:                                    "exp-original",
+		UserID:                                "user-1",
+		Name:                                  "Coffee",
+		TransactionCurrencyCode:               "USD",
+		ExpenseType:                           "desires",
+		TagID:                                 "tag-food",
+		ExpenseDateIso:                        "2026-05-01",
+		PeriodYear:                            2026,
+		PeriodMonth:                           5,
+		Status:                                "active",
+		CreatedAt:                             "2026-05-01T10:00:00Z",
+		OriginalTransactionAmountInMinorUnits: 500,
+		ReportingAmountInMinorUnits:           500,
+		ReportingCurrencyCode:                 "USD",
+		SourceToTargetExchangeRate:            "1",
+		ExchangeRateSource:                    exchangesource.Identity,
+		ExchangeRateTimestamp:                 "2026-05-01T10:00:00Z",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
@@ -175,40 +175,40 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	repo.On("CorrectExpense", mock.Anything, original, mock.MatchedBy(func(correction *model.Expense) bool {
-		return correction.TransactionCurrency == "USD"
+		return correction.TransactionCurrencyCode == "USD"
 	})).Return(&model.Expense{
-		ID:                  "exp-correction",
-		UserID:              "user-1",
-		Name:                "Updated Coffee",
-		TransactionCurrency: "USD",
-		ExpenseType:         "desires",
-		TagID:               "tag-food",
-		ExpenseDate:         "2026-05-01",
-		PeriodYear:          2026,
-		PeriodMonth:         5,
-		Status:              "active",
-		CorrectsID:          "exp-original",
-		CreatedAt:           "2026-05-03T10:00:00Z",
+		ID:                      "exp-correction",
+		UserID:                  "user-1",
+		Name:                    "Updated Coffee",
+		TransactionCurrencyCode: "USD",
+		ExpenseType:             "desires",
+		TagID:                   "tag-food",
+		ExpenseDateIso:          "2026-05-01",
+		PeriodYear:              2026,
+		PeriodMonth:             5,
+		Status:                  "active",
+		CorrectsID:              "exp-original",
+		CreatedAt:               "2026-05-03T10:00:00Z",
 	}, nil)
 
 	resp, err := handler.CorrectExpense(context.Background(), &pb.CorrectExpenseRequest{
-		ExpenseId:           "exp-original",
-		UserId:              "user-1",
-		Name:                "Updated Coffee",
-		Amount:              600,
-		TransactionCurrency: "USD",
-		ExpenseType:         "desires",
-		TagId:               "tag-food",
-		ExpenseDate:         "2026-05-01",
+		ExpenseId:                             "exp-original",
+		UserId:                                "user-1",
+		Name:                                  "Updated Coffee",
+		AmountInTransactionCurrencyMinorUnits: 600,
+		TransactionCurrencyCode:               "USD",
+		ExpenseType:                           "desires",
+		TagId:                                 "tag-food",
+		ExpenseDateIso:                        "2026-05-01",
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	assert.Equal(t, "USD", resp.GetExpense().GetTransactionCurrency())
+	assert.Equal(t, "USD", resp.GetExpense().GetTransactionCurrencyCode())
 	repo.AssertExpectations(t)
 }
 
@@ -228,15 +228,15 @@ func TestGRPC_CreateExpense_MissingPeriodReturnsNotFoundWithYearMonth(t *testing
 		})
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:                        "user-1",
-		Name:                          "Coffee",
-		Amount:                        450,
-		ExpenseType:                   "desires",
-		TagId:                         "tag-food",
-		ExpenseDate:                   "2026-06-03",
-		PeriodYear:                    2026,
-		PeriodMonth:                   6,
-		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+		UserId:                                "user-1",
+		Name:                                  "Coffee",
+		AmountInTransactionCurrencyMinorUnits: 450,
+		ExpenseType:                           "desires",
+		TagId:                                 "tag-food",
+		ExpenseDateIso:                        "2026-06-03",
+		PeriodYear:                            2026,
+		PeriodMonth:                           6,
+		ClientGeneratedIdempotencyKey:         "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Nil(t, resp)
@@ -264,7 +264,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
@@ -281,23 +281,23 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	}, nil)
 
 	repo.On("CreateExpense", mock.Anything, mock.Anything).Return(&model.Expense{
-		ID:                    "exp-fx-1",
-		UserID:                "user-1",
-		Name:                  "Cafe",
-		TransactionCurrency:   "EUR",
-		ExpenseType:           "desires",
-		TagID:                 "tag-food",
-		ExpenseDate:           "2026-05-03",
-		PeriodYear:            2026,
-		PeriodMonth:           5,
-		Status:                "active",
-		TransactionAmount:     1250,
-		ReportingAmount:       1364,
-		ReportingCurrency:     "USD",
-		ExchangeRate:          "1.0912",
-		ExchangeRateSource:    exchangesource.OpenExchangeRates,
-		ExchangeRateTimestamp: "2026-08-14T10:00:00Z",
-		ExchangeRateExpiresAt: "2026-08-14T11:00:00Z",
+		ID:                                    "exp-fx-1",
+		UserID:                                "user-1",
+		Name:                                  "Cafe",
+		TransactionCurrencyCode:               "EUR",
+		ExpenseType:                           "desires",
+		TagID:                                 "tag-food",
+		ExpenseDateIso:                        "2026-05-03",
+		PeriodYear:                            2026,
+		PeriodMonth:                           5,
+		Status:                                "active",
+		OriginalTransactionAmountInMinorUnits: 1250,
+		ReportingAmountInMinorUnits:           1364,
+		ReportingCurrencyCode:                 "USD",
+		SourceToTargetExchangeRate:            "1.0912",
+		ExchangeRateSource:                    exchangesource.OpenExchangeRates,
+		ExchangeRateTimestamp:                 "2026-08-14T10:00:00Z",
+		ExchangeRateCacheExpiresAt:            "2026-08-14T11:00:00Z",
 	}, nil)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -305,30 +305,30 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:                        "user-1",
-		Name:                          "Cafe",
-		Amount:                        1250,
-		TransactionCurrency:           "EUR",
-		ExpenseType:                   "desires",
-		TagId:                         "tag-food",
-		ExpenseDate:                   "2026-05-03",
-		PeriodYear:                    2026,
-		PeriodMonth:                   5,
-		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+		UserId:                                "user-1",
+		Name:                                  "Cafe",
+		AmountInTransactionCurrencyMinorUnits: 1250,
+		TransactionCurrencyCode:               "EUR",
+		ExpenseType:                           "desires",
+		TagId:                                 "tag-food",
+		ExpenseDateIso:                        "2026-05-03",
+		PeriodYear:                            2026,
+		PeriodMonth:                           5,
+		ClientGeneratedIdempotencyKey:         "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
 	exp := resp.GetExpense()
-	assert.Equal(t, int64(1250), exp.GetTransactionAmount())
-	assert.Equal(t, "EUR", exp.GetTransactionCurrency())
-	assert.Equal(t, int64(1364), exp.GetReportingAmount())
-	assert.Equal(t, "USD", exp.GetReportingCurrency())
-	assert.Equal(t, "1.0912", exp.GetExchangeRate())
+	assert.Equal(t, int64(1250), exp.GetOriginalTransactionAmountInMinorUnits())
+	assert.Equal(t, "EUR", exp.GetTransactionCurrencyCode())
+	assert.Equal(t, int64(1364), exp.GetReportingAmountInMinorUnits())
+	assert.Equal(t, "USD", exp.GetReportingCurrencyCode())
+	assert.Equal(t, "1.0912", exp.GetSourceToTargetExchangeRate())
 	assert.Equal(t, exchangesource.OpenExchangeRates, exp.GetExchangeRateSource())
 	assert.Equal(t, "2026-08-14T10:00:00Z", exp.GetExchangeRateTimestamp())
-	assert.Equal(t, "2026-08-14T11:00:00Z", exp.GetExchangeRateExpiresAt())
+	assert.Equal(t, "2026-08-14T11:00:00Z", exp.GetExchangeRateCacheExpiresAt())
 }
 
 // TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable asserts a foreign-currency
@@ -343,7 +343,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, &apierr.Error{
@@ -357,16 +357,16 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable(t *testing.T) {
 	handler := NewGRPCHandler(expenseSvc)
 
 	resp, err := handler.CreateExpense(context.Background(), &pb.CreateExpenseRequest{
-		UserId:                        "user-1",
-		Name:                          "Cafe",
-		Amount:                        1250,
-		TransactionCurrency:           "EUR",
-		ExpenseType:                   "desires",
-		TagId:                         "tag-food",
-		ExpenseDate:                   "2026-05-03",
-		PeriodYear:                    2026,
-		PeriodMonth:                   5,
-		ClientGeneratedIdempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+		UserId:                                "user-1",
+		Name:                                  "Cafe",
+		AmountInTransactionCurrencyMinorUnits: 1250,
+		TransactionCurrencyCode:               "EUR",
+		ExpenseType:                           "desires",
+		TagId:                                 "tag-food",
+		ExpenseDateIso:                        "2026-05-03",
+		PeriodYear:                            2026,
+		PeriodMonth:                           5,
+		ClientGeneratedIdempotencyKey:         "550e8400-e29b-41d4-a716-446655440000",
 	})
 
 	assert.Nil(t, resp)

@@ -14,7 +14,7 @@ func BuildPeriodCurrencyMap(data *financepb.AllUserDataResponse) map[string]stri
 	periods := data.GetPeriods()
 	periodCurrencies := make(map[string]string, len(periods))
 	for _, period := range periods {
-		periodCurrencies[periodCurrencyKey(period.GetYear(), period.GetMonth())] = period.GetReportingCurrency()
+		periodCurrencies[periodCurrencyKey(period.GetYear(), period.GetMonth())] = period.GetReportingCurrencyCode()
 	}
 	return periodCurrencies
 }

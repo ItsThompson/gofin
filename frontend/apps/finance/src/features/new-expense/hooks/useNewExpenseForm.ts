@@ -39,7 +39,7 @@ export interface NewExpenseFormState {
   proRataMonths: string;
   error: string | null;
   submitting: boolean;
-  transactionCurrency: string;
+  transactionCurrencyCode: string;
 }
 
 export interface NewExpenseFormActions {
@@ -66,8 +66,8 @@ export function useNewExpenseForm(
   state: NewExpenseFormState;
   actions: NewExpenseFormActions;
 } {
-  const [transactionCurrency, setTransactionCurrency] = useState(currency);
-  const expenseFields = useExpenseFields(undefined, transactionCurrency);
+  const [transactionCurrencyCode, setTransactionCurrency] = useState(currency);
+  const expenseFields = useExpenseFields(undefined, transactionCurrencyCode);
 
   // One idempotency key per logical submit. Generated once on mount and reused
   // across retries of the same submit; reset to a fresh UUID only after a
@@ -164,14 +164,14 @@ export function useNewExpenseForm(
       if (isProRata) {
         const body: CreateProRataRequest = {
           name: fields.name.trim(),
-          totalAmount: amountCents,
-          transactionCurrency,
+          totalAmountInMinorUnits: amountCents,
+          transactionCurrencyCode,
           expenseType: fields.expenseType,
           tagId: fields.tagId,
-          expenseDate: fields.expenseDate,
+          expenseDateIso: fields.expenseDateIso,
           periodYear,
           periodMonth,
-          months: parseInt(proRataMonths, 10),
+          spreadOverMonths: parseInt(proRataMonths, 10),
         };
         await apiClient<ProRataResponse>("/api/finance/prorata", {
           method: "POST",
@@ -182,11 +182,11 @@ export function useNewExpenseForm(
 
       const body: CreateExpenseRequest = {
         name: fields.name.trim(),
-        amount: amountCents,
-        transactionCurrency,
+        amountInTransactionCurrencyMinorUnits: amountCents,
+        transactionCurrencyCode,
         expenseType: fields.expenseType,
         tagId: fields.tagId,
-        expenseDate: fields.expenseDate,
+        expenseDateIso: fields.expenseDateIso,
         periodYear,
         periodMonth,
         clientGeneratedIdempotencyKey: idempotencyKeyRef.current,
@@ -209,7 +209,7 @@ export function useNewExpenseForm(
       proRataMonths,
       error: mutation.error,
       submitting: mutation.submitting,
-      transactionCurrency,
+      transactionCurrencyCode,
     },
     actions: {
       setField: expenseFields.setField,

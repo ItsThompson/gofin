@@ -19,13 +19,13 @@ function buildExpense(overrides: Partial<Expense> = {}): Expense {
     id: "exp-1",
     userId: "user-1",
     name: "Groceries",
-    transactionCurrency: "USD",
-    transactionAmount: 5000,
-    reportingAmount: 5000,
-    reportingCurrency: "USD",
+    transactionCurrencyCode: "USD",
+    originalTransactionAmountInMinorUnits: 5000,
+    reportingAmountInMinorUnits: 5000,
+    reportingCurrencyCode: "USD",
     expenseType: "essentials",
     tagId: "tag-food",
-    expenseDate: "2026-05-02",
+    expenseDateIso: "2026-05-02",
     periodYear: 2026,
     periodMonth: 5,
     status: "active",
@@ -57,11 +57,11 @@ describe("DetailView money display", () => {
   it("labels same-currency amounts as the period amount without duplicate rows", () => {
     renderDetail(
       buildExpense({
-        transactionCurrency: "USD",
-        transactionAmount: 5000,
-        reportingCurrency: "USD",
-        reportingAmount: 5000,
-        exchangeRate: "1",
+        transactionCurrencyCode: "USD",
+        originalTransactionAmountInMinorUnits: 5000,
+        reportingCurrencyCode: "USD",
+        reportingAmountInMinorUnits: 5000,
+        sourceToTargetExchangeRate: "1",
         exchangeRateSource: "identity",
       }),
     );
@@ -75,11 +75,11 @@ describe("DetailView money display", () => {
   it("shows transaction, budget impact, rate, and timestamp for foreign currency", () => {
     renderDetail(
       buildExpense({
-        transactionCurrency: "EUR",
-        transactionAmount: 1250,
-        reportingCurrency: "USD",
-        reportingAmount: 1364,
-        exchangeRate: "1.0912",
+        transactionCurrencyCode: "EUR",
+        originalTransactionAmountInMinorUnits: 1250,
+        reportingCurrencyCode: "USD",
+        reportingAmountInMinorUnits: 1364,
+        sourceToTargetExchangeRate: "1.0912",
         exchangeRateSource: "open_exchange_rates",
         exchangeRateTimestamp: "2026-08-14T10:00:00Z",
       }),

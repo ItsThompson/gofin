@@ -85,7 +85,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	// must surface as a 500, not a 400 transaction-currency error from the
 	// defaulting branch. Normalization keeps casing/whitespace drift from
 	// routing a same-currency write to FX or persisting mismatched casing.
-	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		s.logger.Error("unsupported reporting currency from period context",
 			slog.String("event", "unsupported_reporting_currency"),
@@ -106,10 +106,10 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	// conversion calls the FX Service ConvertAmount RPC before writing the row.
 	var snapshot model.Expense
 	if transactionCurrency == reportingCurrency {
-		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, reportingCurrency, now)
+		snapshot = buildIdentitySnapshot(req.AmountInTransactionCurrencyMinorUnits, transactionCurrency, reportingCurrency, now)
 	} else {
 		fxResp, convErr := s.fxClient.ConvertAmount(ctx, FxConvertRequest{
-			Amount:         req.Amount,
+			Amount:         req.AmountInTransactionCurrencyMinorUnits,
 			SourceCurrency: transactionCurrency,
 			TargetCurrency: reportingCurrency,
 			RequestedAt:    now,
@@ -117,34 +117,38 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		if convErr != nil {
 			return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 		}
-		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+		snap, invErr := buildProviderSnapshot(req.AmountInTransactionCurrencyMinorUnits, transactionCurrency, reportingCurrency, fxResp)
+		if invErr != nil {
+			return nil, invErr
+		}
+		snapshot = snap
 	}
 
 	expense := &model.Expense{
-		ID:                            uuid.New().String(),
-		UserID:                        userID,
-		Name:                          req.Name,
-		TransactionCurrency:           transactionCurrency,
-		ExpenseType:                   req.ExpenseType,
-		TagID:                         req.TagID,
-		ExpenseDate:                   req.ExpenseDate,
-		PeriodYear:                    req.PeriodYear,
-		PeriodMonth:                   req.PeriodMonth,
-		Status:                        "active",
-		CorrectsID:                    "",
-		IsProRata:                     req.IsProRata,
-		ProRataGroup:                  req.ProRataGroup,
-		ProRataIndex:                  req.ProRataIndex,
-		ProRataTotal:                  req.ProRataTotal,
-		CreatedAt:                     now,
-		TransactionAmount:             snapshot.TransactionAmount,
-		ReportingAmount:               snapshot.ReportingAmount,
-		ReportingCurrency:             snapshot.ReportingCurrency,
-		ExchangeRate:                  snapshot.ExchangeRate,
-		ExchangeRateSource:            snapshot.ExchangeRateSource,
-		ExchangeRateTimestamp:         snapshot.ExchangeRateTimestamp,
-		ExchangeRateExpiresAt:         snapshot.ExchangeRateExpiresAt,
-		ClientGeneratedIdempotencyKey: req.ClientGeneratedIdempotencyKey,
+		ID:                                    uuid.New().String(),
+		UserID:                                userID,
+		Name:                                  req.Name,
+		TransactionCurrencyCode:               transactionCurrency,
+		ExpenseType:                           req.ExpenseType,
+		TagID:                                 req.TagID,
+		ExpenseDateIso:                        req.ExpenseDateIso,
+		PeriodYear:                            req.PeriodYear,
+		PeriodMonth:                           req.PeriodMonth,
+		Status:                                "active",
+		CorrectsID:                            "",
+		IsProRata:                             req.IsProRata,
+		ProRataGroup:                          req.ProRataGroup,
+		ProRataIndex:                          req.ProRataIndex,
+		ProRataTotal:                          req.ProRataTotal,
+		CreatedAt:                             now,
+		OriginalTransactionAmountInMinorUnits: snapshot.OriginalTransactionAmountInMinorUnits,
+		ReportingAmountInMinorUnits:           snapshot.ReportingAmountInMinorUnits,
+		ReportingCurrencyCode:                 snapshot.ReportingCurrencyCode,
+		SourceToTargetExchangeRate:            snapshot.SourceToTargetExchangeRate,
+		ExchangeRateSource:                    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp:                 snapshot.ExchangeRateTimestamp,
+		ExchangeRateCacheExpiresAt:            snapshot.ExchangeRateCacheExpiresAt,
+		ClientGeneratedIdempotencyKey:         req.ClientGeneratedIdempotencyKey,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)
@@ -156,7 +160,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		slog.String("method", "CreateExpense"),
 		slog.String("user_id", userID),
 		slog.String("expense_id", created.ID),
-		slog.Int64("amount", created.TransactionAmount),
+		slog.Int64("amount", created.OriginalTransactionAmountInMinorUnits),
 		slog.String("expense_type", created.ExpenseType),
 	)
 
@@ -274,7 +278,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		return nil, err
 	}
 
-	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		s.logger.Error("unsupported reporting currency from period context",
 			slog.String("event", "unsupported_reporting_currency"),
@@ -295,10 +299,10 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 	// and no correction row is appended.
 	var snapshot model.Expense
 	if transactionCurrency == reportingCurrency {
-		snapshot = buildIdentitySnapshot(req.Amount, transactionCurrency, reportingCurrency, nowTS)
+		snapshot = buildIdentitySnapshot(req.AmountInTransactionCurrencyMinorUnits, transactionCurrency, reportingCurrency, nowTS)
 	} else {
 		fxResp, convErr := s.fxClient.ConvertAmount(ctx, FxConvertRequest{
-			Amount:         req.Amount,
+			Amount:         req.AmountInTransactionCurrencyMinorUnits,
 			SourceCurrency: transactionCurrency,
 			TargetCurrency: reportingCurrency,
 			RequestedAt:    nowTS,
@@ -306,33 +310,37 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		if convErr != nil {
 			return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 		}
-		snapshot = buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+		snap, invErr := buildProviderSnapshot(req.AmountInTransactionCurrencyMinorUnits, transactionCurrency, reportingCurrency, fxResp)
+		if invErr != nil {
+			return nil, invErr
+		}
+		snapshot = snap
 	}
 
 	correction := &model.Expense{
-		ID:                    uuid.New().String(),
-		UserID:                userID,
-		Name:                  req.Name,
-		TransactionCurrency:   transactionCurrency,
-		ExpenseType:           req.ExpenseType,
-		TagID:                 req.TagID,
-		ExpenseDate:           req.ExpenseDate,
-		PeriodYear:            original.PeriodYear,
-		PeriodMonth:           original.PeriodMonth,
-		Status:                "active",
-		CorrectsID:            original.ID,
-		IsProRata:             original.IsProRata,
-		ProRataGroup:          original.ProRataGroup,
-		ProRataIndex:          original.ProRataIndex,
-		ProRataTotal:          original.ProRataTotal,
-		CreatedAt:             nowTS,
-		TransactionAmount:     snapshot.TransactionAmount,
-		ReportingAmount:       snapshot.ReportingAmount,
-		ReportingCurrency:     snapshot.ReportingCurrency,
-		ExchangeRate:          snapshot.ExchangeRate,
-		ExchangeRateSource:    snapshot.ExchangeRateSource,
-		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
-		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
+		ID:                                    uuid.New().String(),
+		UserID:                                userID,
+		Name:                                  req.Name,
+		TransactionCurrencyCode:               transactionCurrency,
+		ExpenseType:                           req.ExpenseType,
+		TagID:                                 req.TagID,
+		ExpenseDateIso:                        req.ExpenseDateIso,
+		PeriodYear:                            original.PeriodYear,
+		PeriodMonth:                           original.PeriodMonth,
+		Status:                                "active",
+		CorrectsID:                            original.ID,
+		IsProRata:                             original.IsProRata,
+		ProRataGroup:                          original.ProRataGroup,
+		ProRataIndex:                          original.ProRataIndex,
+		ProRataTotal:                          original.ProRataTotal,
+		CreatedAt:                             nowTS,
+		OriginalTransactionAmountInMinorUnits: snapshot.OriginalTransactionAmountInMinorUnits,
+		ReportingAmountInMinorUnits:           snapshot.ReportingAmountInMinorUnits,
+		ReportingCurrencyCode:                 snapshot.ReportingCurrencyCode,
+		SourceToTargetExchangeRate:            snapshot.SourceToTargetExchangeRate,
+		ExchangeRateSource:                    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp:                 snapshot.ExchangeRateTimestamp,
+		ExchangeRateCacheExpiresAt:            snapshot.ExchangeRateCacheExpiresAt,
 	}
 
 	created, err := s.repo.CorrectExpense(ctx, original, correction)
@@ -645,13 +653,13 @@ func (s *ExpenseService) lookupIdempotentReplay(ctx context.Context, userID, key
 // Identity snapshots have no cache expiry.
 func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency, timestamp string) model.Expense {
 	return model.Expense{
-		TransactionAmount:     amount,
-		TransactionCurrency:   transactionCurrency,
-		ReportingAmount:       amount,
-		ReportingCurrency:     reportingCurrency,
-		ExchangeRate:          "1",
-		ExchangeRateSource:    exchangesource.Identity,
-		ExchangeRateTimestamp: timestamp,
+		OriginalTransactionAmountInMinorUnits: amount,
+		TransactionCurrencyCode:               transactionCurrency,
+		ReportingAmountInMinorUnits:           amount,
+		ReportingCurrencyCode:                 reportingCurrency,
+		SourceToTargetExchangeRate:            "1",
+		ExchangeRateSource:                    exchangesource.Identity,
+		ExchangeRateTimestamp:                 timestamp,
 	}
 }
 
@@ -660,17 +668,23 @@ func buildIdentitySnapshot(amount int64, transactionCurrency, reportingCurrency,
 // currency are the user's original input (unchanged); the reporting amount is
 // the FX-converted amount; and the exchange rate, source, timestamp, and expiry
 // are the provider facts returned by FX.
-func buildProviderSnapshot(transactionAmount int64, transactionCurrency, reportingCurrency string, fx *FxConvertResponse) model.Expense {
-	return model.Expense{
-		TransactionAmount:     transactionAmount,
-		TransactionCurrency:   transactionCurrency,
-		ReportingAmount:       fx.ConvertedAmount,
-		ReportingCurrency:     reportingCurrency,
-		ExchangeRate:          fx.ExchangeRate,
-		ExchangeRateSource:    fx.Source,
-		ExchangeRateTimestamp: fx.RateTimestamp,
-		ExchangeRateExpiresAt: fx.ExpiresAt,
+//
+// The source is validated as a write-path invariant: a source outside the
+// valid set is an internal error and nothing is written to the ledger.
+func buildProviderSnapshot(transactionAmount int64, transactionCurrency, reportingCurrency string, fx *FxConvertResponse) (model.Expense, *apierr.Error) {
+	if !exchangesource.IsValid(fx.Source) {
+		return model.Expense{}, apierr.Internal(fmt.Sprintf("invalid exchange rate source: %q", fx.Source))
 	}
+	return model.Expense{
+		OriginalTransactionAmountInMinorUnits: transactionAmount,
+		TransactionCurrencyCode:               transactionCurrency,
+		ReportingAmountInMinorUnits:           fx.ConvertedAmount,
+		ReportingCurrencyCode:                 reportingCurrency,
+		SourceToTargetExchangeRate:            fx.ExchangeRate,
+		ExchangeRateSource:                    fx.Source,
+		ExchangeRateTimestamp:                 fx.RateTimestamp,
+		ExchangeRateCacheExpiresAt:            fx.ExpiresAt,
+	}, nil
 }
 
 // validateReportingCurrency checks that the period reporting currency is in the
@@ -686,9 +700,9 @@ func validateReportingCurrency(reportingCurrency string) *apierr.Error {
 }
 
 func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext, req *model.CreateExpenseRequest) (string, error) {
-	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrencyCode)
 	if transactionCurrency == "" {
-		transactionCurrency = normalizeCurrencyCode(period.ReportingCurrency)
+		transactionCurrency = normalizeCurrencyCode(period.ReportingCurrencyCode)
 		s.logger.Info("transaction currency defaulted",
 			slog.String("event", "transaction_currency_defaulted"),
 			slog.String("reporting_currency", transactionCurrency),
@@ -698,9 +712,9 @@ func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext,
 }
 
 func (s *ExpenseService) resolveCorrectionTransactionCurrency(original *model.Expense, req *model.CorrectExpenseRequest) (string, error) {
-	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrency)
+	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrencyCode)
 	if transactionCurrency == "" {
-		transactionCurrency = normalizeCurrencyCode(original.TransactionCurrency)
+		transactionCurrency = normalizeCurrencyCode(original.TransactionCurrencyCode)
 		s.logger.Info("correction currency preserved",
 			slog.String("event", "correction_currency_preserved"),
 			slog.String("transaction_currency", transactionCurrency),
@@ -723,8 +737,8 @@ func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *apierr.Err
 	if req.Name == "" {
 		fields["name"] = "name is required"
 	}
-	if req.Amount <= 0 {
-		fields["amount"] = "amount must be positive"
+	if req.AmountInTransactionCurrencyMinorUnits <= 0 {
+		fields["amountInTransactionCurrencyMinorUnits"] = "amount must be positive"
 	}
 	if !model.ValidExpenseTypes[req.ExpenseType] {
 		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"
@@ -732,10 +746,10 @@ func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *apierr.Err
 	if req.TagID == "" {
 		fields["tagId"] = "tag_id is required"
 	}
-	if req.ExpenseDate == "" {
-		fields["expenseDate"] = "expense_date is required"
-	} else if !isoDateRegex.MatchString(req.ExpenseDate) {
-		fields["expenseDate"] = "expense_date must be in ISO format (YYYY-MM-DD)"
+	if req.ExpenseDateIso == "" {
+		fields["expenseDateIso"] = "expense_date is required"
+	} else if !isoDateRegex.MatchString(req.ExpenseDateIso) {
+		fields["expenseDateIso"] = "expense_date must be in ISO format (YYYY-MM-DD)"
 	}
 
 	if len(fields) > 0 {
@@ -751,8 +765,8 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error
 	if req.Name == "" {
 		fields["name"] = "name is required"
 	}
-	if req.Amount <= 0 {
-		fields["amount"] = "amount must be positive"
+	if req.AmountInTransactionCurrencyMinorUnits <= 0 {
+		fields["amountInTransactionCurrencyMinorUnits"] = "amount must be positive"
 	}
 	if !model.ValidExpenseTypes[req.ExpenseType] {
 		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"
@@ -760,10 +774,10 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error
 	if req.TagID == "" {
 		fields["tagId"] = "tag_id is required"
 	}
-	if req.ExpenseDate == "" {
-		fields["expenseDate"] = "expense_date is required"
-	} else if !isoDateRegex.MatchString(req.ExpenseDate) {
-		fields["expenseDate"] = "expense_date must be in ISO format (YYYY-MM-DD)"
+	if req.ExpenseDateIso == "" {
+		fields["expenseDateIso"] = "expense_date is required"
+	} else if !isoDateRegex.MatchString(req.ExpenseDateIso) {
+		fields["expenseDateIso"] = "expense_date must be in ISO format (YYYY-MM-DD)"
 	}
 	if req.PeriodYear < 1 {
 		fields["periodYear"] = "period_year must be positive"

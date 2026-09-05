@@ -15,7 +15,7 @@ export const mockPeriod: BudgetPeriod = {
   year: 2026,
   month: 5,
   budgetAmount: 500000,
-  reportingCurrency: "USD",
+  reportingCurrencyCode: "USD",
   essentialsPercent: 50,
   desiresPercent: 30,
   savingsPercent: 20,
@@ -32,8 +32,8 @@ export const mockSuggestions: ExpenseSuggestionsResponse = {
   data: [
     {
       name: "Coffee Shop",
-      transactionAmount: 450,
-      transactionCurrency: "USD",
+      originalTransactionAmountInMinorUnits: 450,
+      transactionCurrencyCode: "USD",
       expenseType: "desires",
       tagId: "tag-food",
       frequency: 4,
@@ -43,8 +43,8 @@ export const mockSuggestions: ExpenseSuggestionsResponse = {
     },
     {
       name: "Coffee Beans",
-      transactionAmount: 1200,
-      transactionCurrency: "USD",
+      originalTransactionAmountInMinorUnits: 1200,
+      transactionCurrencyCode: "USD",
       expenseType: "essentials",
       tagId: "tag-food",
       frequency: 2,

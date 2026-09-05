@@ -23,7 +23,7 @@ export type ExpenseLogDataState =
       expenses: ExpenseRow[];
       tags: Tag[];
       periods: BudgetPeriod[];
-      reportingCurrency: string;
+      reportingCurrencyCode: string;
     };
 
 export interface ExpenseLogData {
@@ -110,10 +110,10 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       if (filters.selectedTags.size > 0 && !filters.selectedTags.has(row.tagId)) {
         return false;
       }
-      if (filters.dateFrom && row.expenseDate < filters.dateFrom) {
+      if (filters.dateFrom && row.expenseDateIso < filters.dateFrom) {
         return false;
       }
-      if (filters.dateTo && row.expenseDate > filters.dateTo) {
+      if (filters.dateTo && row.expenseDateIso > filters.dateTo) {
         return false;
       }
       if (filters.selectedTransactionCurrencies.size > 0 && !filters.selectedTransactionCurrencies.has(row.transactionCurrencyEffective)) {
@@ -138,7 +138,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       expenses,
       tags: fetchResult.tags,
       periods: fetchResult.periods,
-      reportingCurrency: selected.reportingCurrency,
+      reportingCurrencyCode: selected.reportingCurrencyCode,
     };
   }, [loading, error, fetchResult, selectedYear, selectedMonth, expenses]);
 

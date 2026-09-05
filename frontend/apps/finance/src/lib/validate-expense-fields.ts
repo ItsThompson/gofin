@@ -11,8 +11,7 @@ export interface ExpenseFields {
   expenseType: ExpenseType;
   /** Selected tag ID. */
   tagId: string;
-  /** ISO date string (YYYY-MM-DD). */
-  expenseDate: string;
+  expenseDateIso: string;
 }
 
 /** Options for validation behavior. */
@@ -59,8 +58,8 @@ export function validateExpenseFields(
     }
   }
 
-  if (!fields.expenseDate) {
-    errors.expenseDate = "Date is required";
+  if (!fields.expenseDateIso) {
+    errors.expenseDateIso = "Date is required";
   }
 
   if (!fields.tagId) {

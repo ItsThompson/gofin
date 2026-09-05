@@ -4,28 +4,28 @@ import "time"
 
 // ProRataSchedule represents a scheduled pro-rata installment in PostgreSQL.
 type ProRataSchedule struct {
-	ID               string     `json:"id"`
-	UserID           string     `json:"userId"`
-	ProRataGroup     string     `json:"proRataGroup"`
-	Name             string     `json:"name"`
-	Amount           int64      `json:"amount"`
-	Currency         string     `json:"currency"`
-	ExpenseType      string     `json:"expenseType"`
-	TagID            string     `json:"tagId"`
-	TargetYear       int32      `json:"targetYear"`
-	TargetMonth      int32      `json:"targetMonth"`
-	InstallmentIndex int32      `json:"installmentIndex"`
-	InstallmentTotal int32      `json:"installmentTotal"`
-	Status           string     `json:"status"`
-	CreatedAt        time.Time  `json:"createdAt"`
-	AppliedAt        *time.Time `json:"appliedAt"`
+	ID                            string     `json:"id"`
+	UserID                        string     `json:"userId"`
+	ProRataGroup                  string     `json:"proRataGroup"`
+	Name                          string     `json:"name"`
+	InstallmentAmountInMinorUnits int64      `json:"installmentAmountInMinorUnits"`
+	Currency                      string     `json:"currency"`
+	ExpenseType                   string     `json:"expenseType"`
+	TagID                         string     `json:"tagId"`
+	TargetYear                    int32      `json:"targetYear"`
+	TargetMonth                   int32      `json:"targetMonth"`
+	InstallmentIndex              int32      `json:"installmentIndex"`
+	InstallmentTotal              int32      `json:"installmentTotal"`
+	Status                        string     `json:"status"`
+	CreatedAt                     time.Time  `json:"createdAt"`
+	AppliedAt                     *time.Time `json:"appliedAt"`
 
 	// Capture intent fields for multi-currency pro-rata schedules.
-	TransactionAmount         int64                 `json:"transactionAmount"`
-	TransactionCurrency       string                `json:"transactionCurrency"`
-	CreationReportingCurrency string                `json:"creationReportingCurrency"`
-	CapturedRateSnapshot      *CapturedRateSnapshot `json:"capturedRateSnapshot,omitempty"`
-	FailureReason             string                `json:"failureReason,omitempty"`
+	OriginalTransactionAmountInMinorUnits int64                 `json:"originalTransactionAmountInMinorUnits"`
+	TransactionCurrencyCode               string                `json:"transactionCurrencyCode"`
+	CreationReportingCurrency             string                `json:"creationReportingCurrency"`
+	CapturedRateSnapshot                  *CapturedRateSnapshot `json:"capturedRateSnapshot,omitempty"`
+	FailureReason                         string                `json:"failureReason,omitempty"`
 }
 
 // CapturedRateSnapshot is the USD-based provider snapshot stored on pro-rata
@@ -43,15 +43,15 @@ type CapturedRateSnapshot struct {
 
 // CreateProRataRequest is the input for POST /api/finance/prorata.
 type CreateProRataRequest struct {
-	Name                string `json:"name" binding:"required"`
-	TotalAmount         int64  `json:"totalAmount" binding:"required"`
-	TransactionCurrency string `json:"transactionCurrency"`
-	ExpenseType         string `json:"expenseType" binding:"required"`
-	TagID               string `json:"tagId" binding:"required"`
-	ExpenseDate         string `json:"expenseDate" binding:"required"`
-	Months              int32  `json:"months" binding:"required"`
-	PeriodYear          int32  `json:"periodYear" binding:"required"`
-	PeriodMonth         int32  `json:"periodMonth" binding:"required"`
+	Name                    string `json:"name" binding:"required"`
+	TotalAmountInMinorUnits int64  `json:"totalAmountInMinorUnits" binding:"required"`
+	TransactionCurrencyCode string `json:"transactionCurrencyCode"`
+	ExpenseType             string `json:"expenseType" binding:"required"`
+	TagID                   string `json:"tagId" binding:"required"`
+	ExpenseDateIso          string `json:"expenseDateIso" binding:"required"`
+	SpreadOverMonths        int32  `json:"spreadOverMonths" binding:"required"`
+	PeriodYear              int32  `json:"periodYear" binding:"required"`
+	PeriodMonth             int32  `json:"periodMonth" binding:"required"`
 }
 
 // ProRataResponse is the JSON body returned for POST /api/finance/prorata.
@@ -63,21 +63,21 @@ type ProRataResponse struct {
 // CreatedExpense is a simplified expense representation returned by the finance service
 // after the expense service creates it via gRPC.
 type CreatedExpense struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	Amount              int64  `json:"amount"`
-	TransactionCurrency string `json:"transactionCurrency"`
-	Currency            string `json:"currency"`
-	ExpenseType         string `json:"expenseType"`
-	TagID               string `json:"tagId"`
-	ExpenseDate         string `json:"expenseDate"`
-	PeriodYear          int32  `json:"periodYear"`
-	PeriodMonth         int32  `json:"periodMonth"`
-	IsProRata           bool   `json:"isProRata"`
-	ProRataGroup        string `json:"proRataGroup"`
-	ProRataIndex        int32  `json:"proRataIndex"`
-	ProRataTotal        int32  `json:"proRataTotal"`
-	CreatedAt           string `json:"createdAt"`
+	ID                            string `json:"id"`
+	Name                          string `json:"name"`
+	InstallmentAmountInMinorUnits int64  `json:"installmentAmountInMinorUnits"`
+	TransactionCurrencyCode       string `json:"transactionCurrencyCode"`
+	Currency                      string `json:"currency"`
+	ExpenseType                   string `json:"expenseType"`
+	TagID                         string `json:"tagId"`
+	ExpenseDateIso                string `json:"expenseDateIso"`
+	PeriodYear                    int32  `json:"periodYear"`
+	PeriodMonth                   int32  `json:"periodMonth"`
+	IsProRata                     bool   `json:"isProRata"`
+	ProRataGroup                  string `json:"proRataGroup"`
+	ProRataIndex                  int32  `json:"proRataIndex"`
+	ProRataTotal                  int32  `json:"proRataTotal"`
+	CreatedAt                     string `json:"createdAt"`
 }
 
 // UpcomingProRataResponse is the JSON body returned for GET /api/finance/prorata/upcoming.

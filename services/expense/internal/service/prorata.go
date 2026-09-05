@@ -24,7 +24,7 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		return nil, err
 	}
 
-	reportingCurrency := normalizeCurrencyCode(req.PeriodContext.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(req.PeriodContext.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		return nil, err
 	}
@@ -54,32 +54,35 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 	if convErr != nil {
 		return nil, s.handleFxConversionFailure(convErr, transactionCurrency, reportingCurrency)
 	}
-	snapshot := buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+	snapshot, invErr := buildProviderSnapshot(req.Amount, transactionCurrency, reportingCurrency, fxResp)
+	if invErr != nil {
+		return nil, invErr
+	}
 
 	expense := &model.Expense{
-		ID:                    uuid.New().String(),
-		UserID:                req.UserID,
-		Name:                  req.Name,
-		TransactionCurrency:   transactionCurrency,
-		ExpenseType:           req.ExpenseType,
-		TagID:                 req.TagID,
-		ExpenseDate:           req.ExpenseDate,
-		PeriodYear:            req.PeriodContext.Year,
-		PeriodMonth:           req.PeriodContext.Month,
-		Status:                "active",
-		CorrectsID:            "",
-		IsProRata:             true,
-		ProRataGroup:          req.ProRataGroup,
-		ProRataIndex:          req.ProRataIndex,
-		ProRataTotal:          req.ProRataTotal,
-		CreatedAt:             now,
-		TransactionAmount:     snapshot.TransactionAmount,
-		ReportingAmount:       snapshot.ReportingAmount,
-		ReportingCurrency:     snapshot.ReportingCurrency,
-		ExchangeRate:          snapshot.ExchangeRate,
-		ExchangeRateSource:    snapshot.ExchangeRateSource,
-		ExchangeRateTimestamp: snapshot.ExchangeRateTimestamp,
-		ExchangeRateExpiresAt: snapshot.ExchangeRateExpiresAt,
+		ID:                                    uuid.New().String(),
+		UserID:                                req.UserID,
+		Name:                                  req.Name,
+		TransactionCurrencyCode:               transactionCurrency,
+		ExpenseType:                           req.ExpenseType,
+		TagID:                                 req.TagID,
+		ExpenseDateIso:                        req.ExpenseDate,
+		PeriodYear:                            req.PeriodContext.Year,
+		PeriodMonth:                           req.PeriodContext.Month,
+		Status:                                "active",
+		CorrectsID:                            "",
+		IsProRata:                             true,
+		ProRataGroup:                          req.ProRataGroup,
+		ProRataIndex:                          req.ProRataIndex,
+		ProRataTotal:                          req.ProRataTotal,
+		CreatedAt:                             now,
+		OriginalTransactionAmountInMinorUnits: snapshot.OriginalTransactionAmountInMinorUnits,
+		ReportingAmountInMinorUnits:           snapshot.ReportingAmountInMinorUnits,
+		ReportingCurrencyCode:                 snapshot.ReportingCurrencyCode,
+		SourceToTargetExchangeRate:            snapshot.SourceToTargetExchangeRate,
+		ExchangeRateSource:                    snapshot.ExchangeRateSource,
+		ExchangeRateTimestamp:                 snapshot.ExchangeRateTimestamp,
+		ExchangeRateCacheExpiresAt:            snapshot.ExchangeRateCacheExpiresAt,
 	}
 
 	created, err := s.repo.CreateExpense(ctx, expense)

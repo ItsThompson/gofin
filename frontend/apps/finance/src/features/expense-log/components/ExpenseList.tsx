@@ -48,7 +48,7 @@ export function ExpenseList({ table, onRowClick }: ExpenseListProps) {
                     {expense.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {expense.expenseDate}
+                    {expense.expenseDateIso}
                   </span>
                   {expense.showReportingAmount && (
                     <span className={`text-xs text-muted-foreground ${className}`}>

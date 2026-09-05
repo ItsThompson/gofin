@@ -34,12 +34,12 @@ func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 	expenses := make([]ExpenseData, len(resp.GetData()))
 	for i, exp := range resp.GetData() {
 		expenses[i] = ExpenseData{
-			ID:                exp.GetId(),
-			ReportingAmount:   exp.GetReportingAmount(),
-			ReportingCurrency: exp.GetReportingCurrency(),
-			ExpenseType:       exp.GetExpenseType(),
-			TagID:             exp.GetTagId(),
-			ExpenseDate:       exp.GetExpenseDate(),
+			ID:                    exp.GetId(),
+			ReportingAmount:       exp.GetReportingAmountInMinorUnits(),
+			ReportingCurrencyCode: exp.GetReportingCurrencyCode(),
+			ExpenseType:           exp.GetExpenseType(),
+			TagID:                 exp.GetTagId(),
+			ExpenseDate:           exp.GetExpenseDateIso(),
 		}
 	}
 
@@ -59,20 +59,20 @@ func (c *GRPCExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagI
 
 func (c *GRPCExpenseClient) CreateExpense(ctx context.Context, req CreateExpenseInput) (*CreatedExpenseData, error) {
 	resp, err := c.client.CreateExpense(ctx, &expensepb.CreateExpenseRequest{
-		UserId:                        req.UserID,
-		Name:                          req.Name,
-		Amount:                        req.Amount,
-		TransactionCurrency:           req.TransactionCurrency,
-		ExpenseType:                   req.ExpenseType,
-		TagId:                         req.TagID,
-		ExpenseDate:                   req.ExpenseDate,
-		PeriodYear:                    req.PeriodYear,
-		PeriodMonth:                   req.PeriodMonth,
-		IsProRata:                     req.IsProRata,
-		ProRataGroup:                  req.ProRataGroup,
-		ProRataIndex:                  req.ProRataIndex,
-		ProRataTotal:                  req.ProRataTotal,
-		ClientGeneratedIdempotencyKey: req.ClientGeneratedIdempotencyKey,
+		UserId:                                req.UserID,
+		Name:                                  req.Name,
+		AmountInTransactionCurrencyMinorUnits: req.Amount,
+		TransactionCurrencyCode:               req.TransactionCurrency,
+		ExpenseType:                           req.ExpenseType,
+		TagId:                                 req.TagID,
+		ExpenseDateIso:                        req.ExpenseDate,
+		PeriodYear:                            req.PeriodYear,
+		PeriodMonth:                           req.PeriodMonth,
+		IsProRata:                             req.IsProRata,
+		ProRataGroup:                          req.ProRataGroup,
+		ProRataIndex:                          req.ProRataIndex,
+		ProRataTotal:                          req.ProRataTotal,
+		ClientGeneratedIdempotencyKey:         req.ClientGeneratedIdempotencyKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gRPC CreateExpense: %w", err)
@@ -91,23 +91,23 @@ func (c *GRPCExpenseClient) CreateProRataInstallment(ctx context.Context, req Cr
 	resp, err := c.client.CreateProRataInstallment(ctx, &expensepb.CreateProRataInstallmentRequest{
 		UserId: req.UserID,
 		PeriodContext: &expensepb.TrustedPeriodContext{
-			PeriodId:          req.PeriodContext.PeriodID,
-			UserId:            req.PeriodContext.UserID,
-			Year:              req.PeriodContext.Year,
-			Month:             req.PeriodContext.Month,
-			ReportingCurrency: req.PeriodContext.ReportingCurrency,
-			Source:            req.PeriodContext.Source,
+			PeriodId:              req.PeriodContext.PeriodID,
+			UserId:                req.PeriodContext.UserID,
+			Year:                  req.PeriodContext.Year,
+			Month:                 req.PeriodContext.Month,
+			ReportingCurrencyCode: req.PeriodContext.ReportingCurrencyCode,
+			Source:                req.PeriodContext.Source,
 		},
-		Name:                 req.Name,
-		Amount:               req.Amount,
-		TransactionCurrency:  req.Currency,
-		ExpenseType:          req.ExpenseType,
-		TagId:                req.TagID,
-		ExpenseDate:          req.ExpenseDate,
-		ProRataGroup:         req.ProRataGroup,
-		ProRataIndex:         req.ProRataIndex,
-		ProRataTotal:         req.ProRataTotal,
-		CapturedRateSnapshot: snapshotToProto(req.CapturedRateSnapshot),
+		Name:                                  req.Name,
+		AmountInTransactionCurrencyMinorUnits: req.Amount,
+		TransactionCurrencyCode:               req.Currency,
+		ExpenseType:                           req.ExpenseType,
+		TagId:                                 req.TagID,
+		ExpenseDateIso:                        req.ExpenseDate,
+		ProRataGroup:                          req.ProRataGroup,
+		ProRataIndex:                          req.ProRataIndex,
+		ProRataTotal:                          req.ProRataTotal,
+		CapturedRateSnapshot:                  snapshotToProto(req.CapturedRateSnapshot),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("gRPC CreateProRataInstallment: %w", err)

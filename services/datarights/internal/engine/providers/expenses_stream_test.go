@@ -24,22 +24,22 @@ func streamRowFixtures(n int) []*expensepb.ExpenseData {
 	for i := range rows {
 		amount := int64(1000 + i)
 		rows[i] = &expensepb.ExpenseData{
-			Id:                    fmt.Sprintf("exp-%08d", i),
-			Name:                  "Expense",
-			ExpenseType:           "essentials",
-			TagId:                 "tag-1",
-			ExpenseDate:           "2026-05-01",
-			PeriodYear:            2026,
-			PeriodMonth:           5,
-			Status:                "active",
-			CreatedAt:             fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
-			TransactionCurrency:   "USD",
-			TransactionAmount:     amount,
-			ReportingAmount:       amount,
-			ReportingCurrency:     "USD",
-			ExchangeRate:          "1",
-			ExchangeRateSource:    exchangesource.Identity,
-			ExchangeRateTimestamp: fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
+			Id:                                    fmt.Sprintf("exp-%08d", i),
+			Name:                                  "Expense",
+			ExpenseType:                           "essentials",
+			TagId:                                 "tag-1",
+			ExpenseDateIso:                        "2026-05-01",
+			PeriodYear:                            2026,
+			PeriodMonth:                           5,
+			Status:                                "active",
+			CreatedAt:                             fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
+			TransactionCurrencyCode:               "USD",
+			OriginalTransactionAmountInMinorUnits: amount,
+			ReportingAmountInMinorUnits:           amount,
+			ReportingCurrencyCode:                 "USD",
+			SourceToTargetExchangeRate:            "1",
+			ExchangeRateSource:                    exchangesource.Identity,
+			ExchangeRateTimestamp:                 fmt.Sprintf("2026-05-01T%02d:%02d:%02dZ", i/3600%24, i/60%60, i%60),
 		}
 	}
 	return rows

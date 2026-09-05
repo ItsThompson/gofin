@@ -1,0 +1,40 @@
+{
+  "year": 2026,
+  "month": 3,
+  "total": 77,
+  "band": "amber",
+  "provisional": false,
+  "formulaVersion": 4,
+  "reportingCurrencyCode": "USD",
+  "components": [
+    {
+      "key": "savings_achievement",
+      "score": 13,
+      "max": 25,
+      "detail": "Saved $300 of $600 target"
+    },
+    {
+      "key": "budget_adherence",
+      "score": 25,
+      "max": 25,
+      "detail": "Spent $2,350 of $2,400 plan"
+    },
+    {
+      "key": "allocation_balance",
+      "score": 25,
+      "max": 30,
+      "detail": "Desires 6 pts over target share"
+    },
+    {
+      "key": "spending_stability",
+      "score": 14,
+      "max": 20,
+      "detail": "Desires spend varied ~29% month to month"
+    }
+  ],
+  "insight": {
+    "summary": "Savings is the softest score this month.",
+    "driver": "savings_achievement",
+    "nudge": "Move an extra $300 to savings to reach your target and lift your score about 12 points."
+  }
+}

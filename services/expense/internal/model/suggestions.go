@@ -27,15 +27,15 @@ type ExpenseSuggestionInput struct {
 // TransactionAmount/TransactionCurrency are the canonical fields sourced from
 // the latest active matching expense.
 type ExpenseSuggestion struct {
-	Name                string  `json:"name"`
-	TransactionAmount   int64   `json:"transactionAmount"`
-	TransactionCurrency string  `json:"transactionCurrency"`
-	ExpenseType         string  `json:"expenseType"`
-	TagID               string  `json:"tagId"`
-	Frequency           int32   `json:"frequency"`
-	LastUsedAt          string  `json:"lastUsedAt"`
-	RecencyBucket       string  `json:"recencyBucket"`
-	FrecencyScore       float64 `json:"frecencyScore"`
+	Name                                  string  `json:"name"`
+	OriginalTransactionAmountInMinorUnits int64   `json:"originalTransactionAmountInMinorUnits"`
+	TransactionCurrencyCode               string  `json:"transactionCurrencyCode"`
+	ExpenseType                           string  `json:"expenseType"`
+	TagID                                 string  `json:"tagId"`
+	Frequency                             int32   `json:"frequency"`
+	LastUsedAt                            string  `json:"lastUsedAt"`
+	RecencyBucket                         string  `json:"recencyBucket"`
+	FrecencyScore                         float64 `json:"frecencyScore"`
 }
 
 // ExpenseSuggestionListResponse follows the app pagination shape.

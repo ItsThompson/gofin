@@ -57,19 +57,19 @@ func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
 
 func (h *GRPCHandler) CreateExpense(ctx context.Context, req *pb.CreateExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CreateExpense(ctx, req.GetUserId(), &model.CreateExpenseRequest{
-		Name:                          req.GetName(),
-		Amount:                        req.GetAmount(),
-		TransactionCurrency:           req.GetTransactionCurrency(),
-		ExpenseType:                   req.GetExpenseType(),
-		TagID:                         req.GetTagId(),
-		ExpenseDate:                   req.GetExpenseDate(),
-		PeriodYear:                    req.GetPeriodYear(),
-		PeriodMonth:                   req.GetPeriodMonth(),
-		IsProRata:                     req.GetIsProRata(),
-		ProRataGroup:                  req.GetProRataGroup(),
-		ProRataIndex:                  req.GetProRataIndex(),
-		ProRataTotal:                  req.GetProRataTotal(),
-		ClientGeneratedIdempotencyKey: req.GetClientGeneratedIdempotencyKey(),
+		Name:                                  req.GetName(),
+		AmountInTransactionCurrencyMinorUnits: req.GetAmountInTransactionCurrencyMinorUnits(),
+		TransactionCurrencyCode:               req.GetTransactionCurrencyCode(),
+		ExpenseType:                           req.GetExpenseType(),
+		TagID:                                 req.GetTagId(),
+		ExpenseDateIso:                        req.GetExpenseDateIso(),
+		PeriodYear:                            req.GetPeriodYear(),
+		PeriodMonth:                           req.GetPeriodMonth(),
+		IsProRata:                             req.GetIsProRata(),
+		ProRataGroup:                          req.GetProRataGroup(),
+		ProRataIndex:                          req.GetProRataIndex(),
+		ProRataTotal:                          req.GetProRataTotal(),
+		ClientGeneratedIdempotencyKey:         req.GetClientGeneratedIdempotencyKey(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCreate, req.GetUserId())
@@ -84,11 +84,11 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 	reqModel := &service.CreateProRataInstallmentRequest{
 		UserID:              req.GetUserId(),
 		Name:                req.GetName(),
-		Amount:              req.GetAmount(),
-		TransactionCurrency: req.GetTransactionCurrency(),
+		Amount:              req.GetAmountInTransactionCurrencyMinorUnits(),
+		TransactionCurrency: req.GetTransactionCurrencyCode(),
 		ExpenseType:         req.GetExpenseType(),
 		TagID:               req.GetTagId(),
-		ExpenseDate:         req.GetExpenseDate(),
+		ExpenseDate:         req.GetExpenseDateIso(),
 		ProRataGroup:        req.GetProRataGroup(),
 		ProRataIndex:        req.GetProRataIndex(),
 		ProRataTotal:        req.GetProRataTotal(),
@@ -99,7 +99,7 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 			UserID:            pc.GetUserId(),
 			Year:              pc.GetYear(),
 			Month:             pc.GetMonth(),
-			ReportingCurrency: pc.GetReportingCurrency(),
+			ReportingCurrencyCode: pc.GetReportingCurrencyCode(),
 			Source:            pc.GetSource(),
 		}
 	}
@@ -164,12 +164,12 @@ func (h *GRPCHandler) GetExpense(ctx context.Context, req *pb.GetExpenseRequest)
 
 func (h *GRPCHandler) CorrectExpense(ctx context.Context, req *pb.CorrectExpenseRequest) (*pb.ExpenseResponse, error) {
 	expense, err := h.expenseService.CorrectExpense(ctx, req.GetUserId(), req.GetExpenseId(), &model.CorrectExpenseRequest{
-		Name:                req.GetName(),
-		Amount:              req.GetAmount(),
-		TransactionCurrency: req.GetTransactionCurrency(),
-		ExpenseType:         req.GetExpenseType(),
-		TagID:               req.GetTagId(),
-		ExpenseDate:         req.GetExpenseDate(),
+		Name:                                  req.GetName(),
+		AmountInTransactionCurrencyMinorUnits: req.GetAmountInTransactionCurrencyMinorUnits(),
+		TransactionCurrencyCode:               req.GetTransactionCurrencyCode(),
+		ExpenseType:                           req.GetExpenseType(),
+		TagID:                                 req.GetTagId(),
+		ExpenseDateIso:                        req.GetExpenseDateIso(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCorrect, req.GetUserId())
@@ -241,29 +241,29 @@ func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.Anon
 // expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{
-		Id:                    e.ID,
-		UserId:                e.UserID,
-		Name:                  e.Name,
-		TransactionCurrency:   e.TransactionCurrency,
-		ExpenseType:           e.ExpenseType,
-		TagId:                 e.TagID,
-		ExpenseDate:           e.ExpenseDate,
-		PeriodYear:            e.PeriodYear,
-		PeriodMonth:           e.PeriodMonth,
-		Status:                e.Status,
-		CorrectsId:            e.CorrectsID,
-		IsProRata:             e.IsProRata,
-		ProRataGroup:          e.ProRataGroup,
-		ProRataIndex:          e.ProRataIndex,
-		ProRataTotal:          e.ProRataTotal,
-		CreatedAt:             e.CreatedAt,
-		TransactionAmount:     e.TransactionAmount,
-		ReportingAmount:       e.ReportingAmount,
-		ReportingCurrency:     e.ReportingCurrency,
-		ExchangeRate:          e.ExchangeRate,
-		ExchangeRateSource:    e.ExchangeRateSource,
-		ExchangeRateTimestamp: e.ExchangeRateTimestamp,
-		ExchangeRateExpiresAt: e.ExchangeRateExpiresAt,
+		Id:                                    e.ID,
+		UserId:                                e.UserID,
+		Name:                                  e.Name,
+		TransactionCurrencyCode:               e.TransactionCurrencyCode,
+		ExpenseType:                           e.ExpenseType,
+		TagId:                                 e.TagID,
+		ExpenseDateIso:                        e.ExpenseDateIso,
+		PeriodYear:                            e.PeriodYear,
+		PeriodMonth:                           e.PeriodMonth,
+		Status:                                e.Status,
+		CorrectsId:                            e.CorrectsID,
+		IsProRata:                             e.IsProRata,
+		ProRataGroup:                          e.ProRataGroup,
+		ProRataIndex:                          e.ProRataIndex,
+		ProRataTotal:                          e.ProRataTotal,
+		CreatedAt:                             e.CreatedAt,
+		OriginalTransactionAmountInMinorUnits: e.OriginalTransactionAmountInMinorUnits,
+		ReportingAmountInMinorUnits:           e.ReportingAmountInMinorUnits,
+		ReportingCurrencyCode:                 e.ReportingCurrencyCode,
+		SourceToTargetExchangeRate:            e.SourceToTargetExchangeRate,
+		ExchangeRateSource:                    e.ExchangeRateSource,
+		ExchangeRateTimestamp:                 e.ExchangeRateTimestamp,
+		ExchangeRateCacheExpiresAt:            e.ExchangeRateCacheExpiresAt,
 	}
 }
 

@@ -32,20 +32,20 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 			return &expensepb.ExpenseListResponse{
 				Data: []*expensepb.ExpenseData{
 					{
-						Id:                "e1",
-						ReportingAmount:   90000, // converted reporting amount
-						ReportingCurrency: "USD",
-						ExpenseType:       "essentials",
-						TagId:             "t1",
-						ExpenseDate:       "2025-01-05",
+						Id:                          "e1",
+						ReportingAmountInMinorUnits: 90000, // converted reporting amount
+						ReportingCurrencyCode:       "USD",
+						ExpenseType:                 "essentials",
+						TagId:                       "t1",
+						ExpenseDateIso:              "2025-01-05",
 					},
 					{
-						Id:                "e2",
-						ReportingAmount:   110000,
-						ReportingCurrency: "USD",
-						ExpenseType:       "desires",
-						TagId:             "t2",
-						ExpenseDate:       "2025-01-06",
+						Id:                          "e2",
+						ReportingAmountInMinorUnits: 110000,
+						ReportingCurrencyCode:       "USD",
+						ExpenseType:                 "desires",
+						TagId:                       "t2",
+						ExpenseDateIso:              "2025-01-06",
 					},
 				},
 			}, nil
@@ -59,9 +59,9 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	require.Len(t, expenses, 2)
 
 	assert.Equal(t, int64(90000), expenses[0].ReportingAmount)
-	assert.Equal(t, "USD", expenses[0].ReportingCurrency)
+	assert.Equal(t, "USD", expenses[0].ReportingCurrencyCode)
 	assert.Equal(t, int64(110000), expenses[1].ReportingAmount)
-	assert.Equal(t, "USD", expenses[1].ReportingCurrency)
+	assert.Equal(t, "USD", expenses[1].ReportingCurrencyCode)
 
 	// Dashboard aggregation over the mapped rows uses reporting amounts.
 	var total int64

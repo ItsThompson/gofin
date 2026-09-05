@@ -15,8 +15,8 @@ const mockFrecencyData: ExpenseFrecencyDataState = {
   suggestions: [
     {
       name: "Groceries",
-      transactionAmount: 50000,
-      transactionCurrency: "USD",
+      originalTransactionAmountInMinorUnits: 50000,
+      transactionCurrencyCode: "USD",
       expenseType: "essentials",
       frequency: 114,
       lastUsedAt: "2026-05-02T10:00:00Z",

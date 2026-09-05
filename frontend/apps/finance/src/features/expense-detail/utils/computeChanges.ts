@@ -9,11 +9,11 @@ export interface ExpenseChange {
 
 interface CorrectionValues {
   name: string;
-  transactionAmount: number;
-  transactionCurrency?: string;
+  originalTransactionAmountInMinorUnits: number;
+  transactionCurrencyCode?: string;
   expenseType: ExpenseType;
   tagId: string;
-  expenseDate: string;
+  expenseDateIso: string;
 }
 
 /**
@@ -34,16 +34,16 @@ export function computeChanges(
     changes.push({ field: "Name", from: original.name, to: corrected.name });
   }
 
-  if (original.transactionAmount !== corrected.transactionAmount) {
+  if (original.originalTransactionAmountInMinorUnits !== corrected.originalTransactionAmountInMinorUnits) {
     changes.push({
       field: "Amount",
       from: formatCurrency(
-        original.transactionAmount,
-        original.transactionCurrency,
+        original.originalTransactionAmountInMinorUnits,
+        original.transactionCurrencyCode,
       ),
       to: formatCurrency(
-        corrected.transactionAmount,
-        corrected.transactionCurrency ?? currency,
+        corrected.originalTransactionAmountInMinorUnits,
+        corrected.transactionCurrencyCode ?? currency,
       ),
     });
   }
@@ -64,11 +64,11 @@ export function computeChanges(
     });
   }
 
-  if (original.expenseDate !== corrected.expenseDate) {
+  if (original.expenseDateIso !== corrected.expenseDateIso) {
     changes.push({
       field: "Date",
-      from: original.expenseDate,
-      to: corrected.expenseDate,
+      from: original.expenseDateIso,
+      to: corrected.expenseDateIso,
     });
   }
 
