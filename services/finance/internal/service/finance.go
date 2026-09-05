@@ -14,6 +14,7 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/pgutil"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
+	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 
 // DefaultTags are seeded when a user completes onboarding.
@@ -80,84 +81,46 @@ func NewFinanceServiceWithFx(
 	}
 }
 
-// ValidateEDSSplit checks that essentials + desires + savings == 100. On
-// failure it returns an *apierr.Error whose Fields map names every offending
-// percentage, so the response carries field-level detail.
+// ValidateEDSSplit checks that essentials + desires + savings == 100 and that
+// each percentage is non-negative and does not exceed 100. All checks run in a
+// single pass so every violation is surfaced at once; the validator records the
+// first error per field (non-negative, then not-over-100, then sum-to-100), so
+// the most specific relevant message wins per field. The top-level message is
+// the standardized "validation failed"; the field-level messages carry the
+// specific detail.
 func ValidateEDSSplit(essentials, desires, savings int32) *apierr.Error {
-	if negFields := negativeEDSFields(essentials, desires, savings); len(negFields) > 0 {
-		return apierr.Validation("E/D/S percentages must be non-negative", negFields)
-	}
-	if overFields := overHundredEDSFields(essentials, desires, savings); len(overFields) > 0 {
-		return apierr.Validation("E/D/S percentages must not exceed 100", overFields)
-	}
-	if total := essentials + desires + savings; total != 100 {
-		return apierr.Validation(
-			fmt.Sprintf("E/D/S split must sum to 100%%, got %d%%", total),
-			map[string]string{
-				"essentialsPercent": "must sum to 100 with desires and savings",
-				"desiresPercent":    "must sum to 100 with essentials and savings",
-				"savingsPercent":    "must sum to 100 with essentials and desires",
-			},
-		)
+	v := validator.New()
+	v.Check(essentials >= 0, "essentialsPercent", "must be non-negative")
+	v.Check(desires >= 0, "desiresPercent", "must be non-negative")
+	v.Check(savings >= 0, "savingsPercent", "must be non-negative")
+	v.Check(essentials <= 100, "essentialsPercent", "must not exceed 100")
+	v.Check(desires <= 100, "desiresPercent", "must not exceed 100")
+	v.Check(savings <= 100, "savingsPercent", "must not exceed 100")
+	v.Check(essentials+desires+savings == 100, "essentialsPercent", "must sum to 100 with desires and savings")
+	v.Check(essentials+desires+savings == 100, "desiresPercent", "must sum to 100 with essentials and savings")
+	v.Check(essentials+desires+savings == 100, "savingsPercent", "must sum to 100 with essentials and desires")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 	return nil
-}
-
-func negativeEDSFields(essentials, desires, savings int32) map[string]string {
-	fields := map[string]string{}
-	if essentials < 0 {
-		fields["essentialsPercent"] = "must be non-negative"
-	}
-	if desires < 0 {
-		fields["desiresPercent"] = "must be non-negative"
-	}
-	if savings < 0 {
-		fields["savingsPercent"] = "must be non-negative"
-	}
-	return fields
-}
-
-func overHundredEDSFields(essentials, desires, savings int32) map[string]string {
-	fields := map[string]string{}
-	if essentials > 100 {
-		fields["essentialsPercent"] = "must not exceed 100"
-	}
-	if desires > 100 {
-		fields["desiresPercent"] = "must not exceed 100"
-	}
-	if savings > 100 {
-		fields["savingsPercent"] = "must not exceed 100"
-	}
-	return fields
-}
-
-// budgetAmountError returns a VALIDATION_ERROR for a negative budget amount.
-func budgetAmountError() *apierr.Error {
-	return apierr.Validation("Budget amount must be non-negative", map[string]string{
-		"budgetAmount": "must be non-negative",
-	})
 }
 
 func normalizeCurrencyCode(currencyCode string) string {
 	return strings.ToUpper(strings.TrimSpace(currencyCode))
 }
 
-func unsupportedCurrencyError(fieldName string, currencyCode string) *apierr.Error {
-	return &apierr.Error{
-		Code:    model.ErrUnsupportedCurrency,
-		Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
-		Status:  http.StatusBadRequest,
-		Fields: map[string]string{
-			fieldName: "unsupported currency",
-		},
-	}
-}
-
 func validateSupportedCurrency(fieldName string, currencyCode string) *apierr.Error {
-	if currencycatalog.IsSupported(currencyCode) {
-		return nil
+	v := validator.New()
+	v.Check(currencycatalog.IsSupported(currencyCode), fieldName, "unsupported currency")
+	if v.HasErrors() {
+		return &apierr.Error{
+			Code:    model.ErrUnsupportedCurrency,
+			Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
+			Status:  http.StatusBadRequest,
+			Fields:  v.Errors(),
+		}
 	}
-	return unsupportedCurrencyError(fieldName, currencyCode)
+	return nil
 }
 
 func (s *FinanceService) getPeriodCreationDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error) {
@@ -247,8 +210,10 @@ func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req 
 		return nil, verr
 	}
 
-	if req.BudgetAmount < 0 {
-		return nil, budgetAmountError()
+	v := validator.New()
+	v.Check(req.BudgetAmount >= 0, "budgetAmount", "must be non-negative")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	currencyCode := normalizeCurrencyCode(req.Currency)
@@ -279,10 +244,10 @@ func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req 
 // GetCurrentPeriod retrieves the budget period for a given user, year, and month.
 // Returns a PERIOD_NOT_FOUND apierr.Error (404) when no period exists.
 func (s *FinanceService) GetCurrentPeriod(ctx context.Context, userID string, year, month int32) (*model.BudgetPeriod, error) {
-	if month < 1 || month > 12 {
-		return nil, apierr.Validation("Month must be between 1 and 12", map[string]string{
-			"month": "must be between 1 and 12",
-		})
+	v := validator.New()
+	v.Check(month >= 1 && month <= 12, "month", "must be between 1 and 12")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	period, err := s.repo.GetCurrentPeriod(ctx, userID, year, month)
@@ -335,8 +300,10 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 		return nil, verr
 	}
 
-	if req.BudgetAmount < 0 {
-		return nil, budgetAmountError()
+	v := validator.New()
+	v.Check(req.BudgetAmount >= 0, "budgetAmount", "must be non-negative")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	// Fetch the period to check ownership and whether it's current.
@@ -463,12 +430,15 @@ func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, re
 
 // validateTagName enforces the non-empty and length constraints shared by tag
 // creation and rename, returning a VALIDATION_ERROR with a name field on failure.
+// The validator records the first error per field, so an empty name reports only
+// "required" (the length check passes for "") and an over-length name reports
+// only the length message.
 func validateTagName(name string) *apierr.Error {
-	if name == "" {
-		return apierr.Validation("Tag name is required", map[string]string{"name": "required"})
-	}
-	if utf8.RuneCountInString(name) > 50 {
-		return apierr.Validation("Tag name must be 50 characters or fewer", map[string]string{"name": "must be 50 characters or fewer"})
+	v := validator.New()
+	v.Check(name != "", "name", "required")
+	v.Check(utf8.RuneCountInString(name) <= 50, "name", "must be 50 characters or fewer")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 	return nil
 }

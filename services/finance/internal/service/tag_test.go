@@ -387,7 +387,7 @@ func TestCreateTag_NameTooLong(t *testing.T) {
 
 	svcErr := requireAPIError(t, err)
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
-	assert.Contains(t, svcErr.Message, "50 characters")
+	assert.Contains(t, svcErr.Fields["name"], "50 characters")
 }
 
 func TestCreateTag_EmptyName(t *testing.T) {

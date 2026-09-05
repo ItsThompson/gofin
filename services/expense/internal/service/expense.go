@@ -19,6 +19,7 @@ import (
 	"github.com/ItsThompson/gofin/services/serverkit"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
+	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 
 var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
@@ -171,11 +172,11 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 
 // GetActiveExpensesForPeriod returns materialized expenses for a period with pagination.
 func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
-	if req.Year < 1 {
-		return nil, apierr.Validation("year must be positive", nil)
-	}
-	if req.Month < 1 || req.Month > 12 {
-		return nil, apierr.Validation("month must be between 1 and 12", nil)
+	v := validator.New()
+	v.Check(req.Year >= 1, "year", "year must be positive")
+	v.Check(req.Month >= 1 && req.Month <= 12, "month", "month must be between 1 and 12")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	page := req.Page
@@ -205,8 +206,10 @@ func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *mo
 
 // GetExpense returns a single expense by ID, scoped to the requesting user.
 func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id string) (*model.Expense, error) {
-	if id == "" {
-		return nil, apierr.Validation("expense ID is required", nil)
+	v := validator.New()
+	v.Check(id != "", "expenseId", "expense ID is required")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	expense, err := s.repo.GetExpenseByID(ctx, id, userID)
@@ -222,8 +225,10 @@ func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id strin
 
 // CountExpensesByTag returns the count of active expenses for a user that reference a given tag.
 func (s *ExpenseService) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
-	if tagID == "" {
-		return 0, apierr.Validation("tag_id is required", nil)
+	v := validator.New()
+	v.Check(tagID != "", "tagId", "tag_id is required")
+	if v.HasErrors() {
+		return 0, apierr.Validation("validation failed", v.Errors())
 	}
 
 	count, err := s.repo.CountExpensesByTag(ctx, userID, tagID)
@@ -238,8 +243,10 @@ func (s *ExpenseService) CountExpensesByTag(ctx context.Context, userID string, 
 // The original is marked as "corrected" and a new entry with status "active"
 // is created atomically. Returns the new correction entry.
 func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expenseID string, req *model.CorrectExpenseRequest) (*model.Expense, error) {
-	if expenseID == "" {
-		return nil, apierr.Validation("expense ID is required", nil)
+	v := validator.New()
+	v.Check(expenseID != "", "expenseId", "expense ID is required")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	if err := validateCorrectExpenseRequest(req); err != nil {
@@ -365,8 +372,10 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 // patterns but creates no correction entry. Past-period expenses cannot be
 // deleted, preventing alteration of closed financial periods.
 func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expenseID string) error {
-	if expenseID == "" {
-		return apierr.Validation("expense ID is required", nil)
+	v := validator.New()
+	v.Check(expenseID != "", "expenseId", "expense ID is required")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 
 	expense, err := s.repo.GetExpenseByID(ctx, expenseID, userID)
@@ -411,8 +420,10 @@ func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expen
 // GetCorrectionHistory returns the full correction chain for an expense,
 // ordered chronologically (original first, latest correction last).
 func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string, expenseID string) ([]*model.Expense, error) {
-	if expenseID == "" {
-		return nil, apierr.Validation("expense ID is required", nil)
+	v := validator.New()
+	v.Check(expenseID != "", "expenseId", "expense ID is required")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	chain, err := s.repo.GetCorrectionHistory(ctx, expenseID, userID)
@@ -428,8 +439,10 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 
 // GetExpensesInProRataGroup returns all expenses belonging to a pro-rata group.
 func (s *ExpenseService) GetExpensesInProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
-	if groupID == "" {
-		return nil, apierr.Validation("group ID is required", nil)
+	v := validator.New()
+	v.Check(groupID != "", "groupId", "group ID is required")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	expenses, err := s.repo.GetExpensesInProRataGroup(ctx, groupID, userID)
@@ -454,8 +467,10 @@ func (s *ExpenseService) GetExpensesInProRataGroup(ctx context.Context, userID s
 // client disconnect, or a job timeout stops the walk promptly without leaking
 // the goroutine.
 func (s *ExpenseService) StreamAllUserExpenses(ctx context.Context, userID string, pageSize int32, send func(*model.Expense) error) error {
-	if userID == "" {
-		return apierr.Validation("user_id is required", nil)
+	v := validator.New()
+	v.Check(userID != "", "userId", "user_id is required")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 	if pageSize < 1 {
 		pageSize = repository.DefaultStreamPageSize
@@ -538,8 +553,10 @@ func (s *ExpenseService) produceExpensePages(ctx context.Context, userID string,
 // Satisfies GDPR right-to-erasure by overwriting the current accessible state.
 // Idempotent: calling for already-redacted data returns success.
 func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID string) error {
-	if userID == "" {
-		return apierr.Validation("user_id is required", nil)
+	v := validator.New()
+	v.Check(userID != "", "userId", "user_id is required")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 
 	if err := s.repo.AnonymizeAllUserExpenses(ctx, userID); err != nil {
@@ -556,17 +573,6 @@ func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID st
 
 func normalizeCurrencyCode(currencyCode string) string {
 	return strings.ToUpper(strings.TrimSpace(currencyCode))
-}
-
-func unsupportedCurrencyError(currencyCode string) *apierr.Error {
-	return &apierr.Error{
-		Code:    model.ErrUnsupportedCurrency,
-		Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
-		Status:  http.StatusBadRequest,
-		Fields: map[string]string{
-			"transactionCurrency": "unsupported currency",
-		},
-	}
 }
 
 // conversionUnavailableError is returned when a foreign-currency expense cannot
@@ -724,70 +730,47 @@ func (s *ExpenseService) resolveCorrectionTransactionCurrency(original *model.Ex
 }
 
 func (s *ExpenseService) validateTransactionCurrency(currencyCode string) (string, error) {
-	if currencycatalog.IsSupported(currencyCode) {
-		return currencyCode, nil
+	v := validator.New()
+	v.Check(currencycatalog.IsSupported(currencyCode), "transactionCurrency", "unsupported currency")
+	if v.HasErrors() {
+		return "", &apierr.Error{
+			Code:    model.ErrUnsupportedCurrency,
+			Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
+			Status:  http.StatusBadRequest,
+			Fields:  v.Errors(),
+		}
 	}
-	return "", unsupportedCurrencyError(currencyCode)
+	return currencyCode, nil
 }
 
 // validateCorrectExpenseRequest checks all required fields for a correction.
 func validateCorrectExpenseRequest(req *model.CorrectExpenseRequest) *apierr.Error {
-	fields := make(map[string]string)
-
-	if req.Name == "" {
-		fields["name"] = "name is required"
-	}
-	if req.AmountInTransactionCurrencyMinorUnits <= 0 {
-		fields["amountInTransactionCurrencyMinorUnits"] = "amount must be positive"
-	}
-	if !model.ValidExpenseTypes[req.ExpenseType] {
-		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"
-	}
-	if req.TagID == "" {
-		fields["tagId"] = "tag_id is required"
-	}
-	if req.ExpenseDateIso == "" {
-		fields["expenseDateIso"] = "expense_date is required"
-	} else if !isoDateRegex.MatchString(req.ExpenseDateIso) {
-		fields["expenseDateIso"] = "expense_date must be in ISO format (YYYY-MM-DD)"
-	}
-
-	if len(fields) > 0 {
-		return apierr.Validation("validation failed", fields)
+	v := validator.New()
+	v.Check(req.Name != "", "name", "name is required")
+	v.Check(req.AmountInTransactionCurrencyMinorUnits > 0, "amountInTransactionCurrencyMinorUnits", "amount must be positive")
+	v.Check(model.ValidExpenseTypes[req.ExpenseType], "expenseType", "expense_type must be one of: essentials, desires, savings")
+	v.Check(req.TagID != "", "tagId", "tag_id is required")
+	v.Check(req.ExpenseDateIso != "", "expenseDateIso", "expense_date is required")
+	v.Check(isoDateRegex.MatchString(req.ExpenseDateIso), "expenseDateIso", "expense_date must be in ISO format (YYYY-MM-DD)")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 	return nil
 }
 
 // validateCreateExpenseRequest checks all required fields and business rules.
 func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error {
-	fields := make(map[string]string)
-
-	if req.Name == "" {
-		fields["name"] = "name is required"
-	}
-	if req.AmountInTransactionCurrencyMinorUnits <= 0 {
-		fields["amountInTransactionCurrencyMinorUnits"] = "amount must be positive"
-	}
-	if !model.ValidExpenseTypes[req.ExpenseType] {
-		fields["expenseType"] = "expense_type must be one of: essentials, desires, savings"
-	}
-	if req.TagID == "" {
-		fields["tagId"] = "tag_id is required"
-	}
-	if req.ExpenseDateIso == "" {
-		fields["expenseDateIso"] = "expense_date is required"
-	} else if !isoDateRegex.MatchString(req.ExpenseDateIso) {
-		fields["expenseDateIso"] = "expense_date must be in ISO format (YYYY-MM-DD)"
-	}
-	if req.PeriodYear < 1 {
-		fields["periodYear"] = "period_year must be positive"
-	}
-	if req.PeriodMonth < 1 || req.PeriodMonth > 12 {
-		fields["periodMonth"] = "period_month must be between 1 and 12"
-	}
-
-	if len(fields) > 0 {
-		return apierr.Validation("validation failed", fields)
+	v := validator.New()
+	v.Check(req.Name != "", "name", "name is required")
+	v.Check(req.AmountInTransactionCurrencyMinorUnits > 0, "amountInTransactionCurrencyMinorUnits", "amount must be positive")
+	v.Check(model.ValidExpenseTypes[req.ExpenseType], "expenseType", "expense_type must be one of: essentials, desires, savings")
+	v.Check(req.TagID != "", "tagId", "tag_id is required")
+	v.Check(req.ExpenseDateIso != "", "expenseDateIso", "expense_date is required")
+	v.Check(isoDateRegex.MatchString(req.ExpenseDateIso), "expenseDateIso", "expense_date must be in ISO format (YYYY-MM-DD)")
+	v.Check(req.PeriodYear >= 1, "periodYear", "period_year must be positive")
+	v.Check(req.PeriodMonth >= 1 && req.PeriodMonth <= 12, "periodMonth", "period_month must be between 1 and 12")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 	return nil
 }
@@ -797,15 +780,19 @@ func validateCreateExpenseRequest(req *model.CreateExpenseRequest) *apierr.Error
 // Called before any lookup or insert so a malformed or missing key is rejected
 // without touching the ledger. The key is required: every create must be
 // idempotent so a client retry returns the already-created expense.
+//
+// The validator records the first failure per field, so this produces the same
+// effective behavior as the previous short-circuit chain: an empty key reports
+// only "required"; a too-long key reports only "at most 36 characters"; a
+// wrong-length non-UUID reports only "must be a valid UUID".
 func validateIdempotencyKey(key string) *apierr.Error {
-	if key == "" {
-		return apierr.Validation("clientGeneratedIdempotencyKey is required", nil)
-	}
-	if len(key) > 36 {
-		return apierr.Validation("clientGeneratedIdempotencyKey must be at most 36 characters", nil)
-	}
-	if _, err := uuid.Parse(key); err != nil {
-		return apierr.Validation("clientGeneratedIdempotencyKey must be a valid UUID", nil)
+	_, uuidErr := uuid.Parse(key)
+	v := validator.New()
+	v.Check(key != "", "clientGeneratedIdempotencyKey", "clientGeneratedIdempotencyKey is required")
+	v.Check(len(key) <= 36, "clientGeneratedIdempotencyKey", "clientGeneratedIdempotencyKey must be at most 36 characters")
+	v.Check(uuidErr == nil, "clientGeneratedIdempotencyKey", "clientGeneratedIdempotencyKey must be a valid UUID")
+	if v.HasErrors() {
+		return apierr.Validation("validation failed", v.Errors())
 	}
 	return nil
 }

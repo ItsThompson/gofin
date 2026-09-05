@@ -185,7 +185,9 @@ func mapFxError(err error) *apierr.Error {
 				Fields:  map[string]string{"transactionCurrency": "unsupported currency"},
 			}
 		}
-		return apierr.Validation("The FX service rejected the conversion amount", nil)
+		return apierr.Validation("validation failed", map[string]string{
+			"amount": "The FX service rejected the conversion amount",
+		})
 	default:
 		// Internal and anything unclassified is an FX server failure, not a
 		// retryable conversion outage. The 5xx status makes the handler report

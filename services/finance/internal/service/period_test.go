@@ -22,17 +22,17 @@ func fixedNow(year int, month time.Month, day int) func() time.Time {
 
 func makePeriod(id string, year int32, month int32) *model.BudgetPeriod {
 	return &model.BudgetPeriod{
-		ID:                id,
-		UserID:            "user-1",
-		Year:              year,
-		Month:             month,
-		BudgetAmount:      300000,
+		ID:                    id,
+		UserID:                "user-1",
+		Year:                  year,
+		Month:                 month,
+		BudgetAmount:          300000,
 		ReportingCurrencyCode: "USD",
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
+		EssentialsPercent:     50,
+		DesiresPercent:        30,
+		SavingsPercent:        20,
+		CreatedAt:             time.Now(),
+		UpdatedAt:             time.Now(),
 	}
 }
 
@@ -100,17 +100,17 @@ func TestUpdatePeriod_Success(t *testing.T) {
 	repo.On("GetPeriodByID", mock.Anything, "period-1", "user-1").Return(existing, nil)
 
 	updated := &model.BudgetPeriod{
-		ID:                "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      500000,
+		ID:                    "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
+		BudgetAmount:          500000,
 		ReportingCurrencyCode: "USD",
-		EssentialsPercent: 60,
-		DesiresPercent:    20,
-		SavingsPercent:    20,
-		CreatedAt:         existing.CreatedAt,
-		UpdatedAt:         time.Now(),
+		EssentialsPercent:     60,
+		DesiresPercent:        20,
+		SavingsPercent:        20,
+		CreatedAt:             existing.CreatedAt,
+		UpdatedAt:             time.Now(),
 	}
 	repo.On("UpdatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).Return(updated, nil)
 
@@ -191,7 +191,7 @@ func TestUpdatePeriod_InvalidSplit(t *testing.T) {
 
 	svcErr := requireAPIError(t, err)
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
-	assert.Contains(t, svcErr.Message, "sum to 100%")
+	assert.Contains(t, svcErr.Fields["essentialsPercent"], "must sum to 100")
 }
 
 func TestUpdatePeriod_NegativeBudget(t *testing.T) {
@@ -211,7 +211,7 @@ func TestUpdatePeriod_NegativeBudget(t *testing.T) {
 
 	svcErr := requireAPIError(t, err)
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
-	assert.Contains(t, svcErr.Message, "non-negative")
+	assert.Contains(t, svcErr.Fields["budgetAmount"], "non-negative")
 }
 
 func TestUpdatePeriod_NotFound(t *testing.T) {
@@ -245,15 +245,15 @@ func TestUpdatePeriod_ZeroBudgetAllowed(t *testing.T) {
 	repo.On("GetPeriodByID", mock.Anything, "period-1", "user-1").Return(existing, nil)
 
 	updated := &model.BudgetPeriod{
-		ID:                "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
-		BudgetAmount:      0,
+		ID:                    "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
+		BudgetAmount:          0,
 		ReportingCurrencyCode: "USD",
-		EssentialsPercent: 50,
-		DesiresPercent:    30,
-		SavingsPercent:    20,
+		EssentialsPercent:     50,
+		DesiresPercent:        30,
+		SavingsPercent:        20,
 	}
 	repo.On("UpdatePeriod", mock.Anything, mock.AnythingOfType("*model.BudgetPeriod")).Return(updated, nil)
 
