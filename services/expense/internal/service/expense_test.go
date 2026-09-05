@@ -44,22 +44,22 @@ func (m *mockExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, 
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
 }
 
-func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
-	args := m.Called(ctx, id, userID)
+func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error) {
+	args := m.Called(ctx, expenseID, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, idempotencyKey string) (*model.Expense, error) {
 	// The key is now required, so every create performs a replay lookup. Most
 	// create tests exercise the fresh-insert path and don't care about replays:
 	// default to "no existing expense" unless a test registers an explicit
 	// expectation for this method (the idempotent-replay tests do).
 	for _, c := range m.ExpectedCalls {
 		if c.Method == "GetExpenseByIdempotencyKey" {
-			args := m.Called(ctx, userID, key)
+			args := m.Called(ctx, userID, idempotencyKey)
 			if args.Get(0) == nil {
 				return nil, args.Error(1)
 			}

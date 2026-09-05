@@ -125,12 +125,12 @@ func (r *ImmudbExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context
 
 // GetExpenseByID returns a single expense by ID, scoped to the given user.
 // Returns nil if not found or if the expense belongs to a different user.
-func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error) {
+func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error) {
 	query := fmt.Sprintf(`SELECT %s
 		FROM expenses
 		WHERE id = @id AND user_id = @user_id;`, expenseSelectColumns)
 
-	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": id, "user_id": userID})
+	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{"id": expenseID, "user_id": userID})
 	if err != nil {
 		return nil, fmt.Errorf("querying expense by ID: %w", err)
 	}
@@ -148,14 +148,14 @@ func (r *ImmudbExpenseRepository) GetExpenseByID(ctx context.Context, id string,
 
 // GetExpenseByIdempotencyKey returns the expense for the given user that was
 // created with the supplied idempotency key, or nil if no such expense exists.
-func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error) {
+func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, userID string, idempotencyKey string) (*model.Expense, error) {
 	query := fmt.Sprintf(`SELECT %s
 		FROM expenses
 		WHERE user_id = @user_id AND idempotency_key = @key;`, expenseSelectColumns)
 
 	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{
 		"user_id": userID,
-		"key":     key,
+		"key":     idempotencyKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("querying expense by idempotency key: %w", err)
