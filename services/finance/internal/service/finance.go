@@ -105,16 +105,6 @@ func ValidateEDSSplit(essentials, desires, savings int32) *apierr.Error {
 	return nil
 }
 
-// budgetAmountError returns a VALIDATION_ERROR for a negative budget amount.
-func budgetAmountError() *apierr.Error {
-	v := validator.New()
-	v.Check(false, "budgetAmount", "must be non-negative")
-	if v.HasErrors() {
-		return apierr.Validation("validation failed", v.Errors())
-	}
-	return nil
-}
-
 func normalizeCurrencyCode(currencyCode string) string {
 	return strings.ToUpper(strings.TrimSpace(currencyCode))
 }
@@ -220,8 +210,10 @@ func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req 
 		return nil, verr
 	}
 
-	if req.BudgetAmount < 0 {
-		return nil, budgetAmountError()
+	v := validator.New()
+	v.Check(req.BudgetAmount >= 0, "budgetAmount", "must be non-negative")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	currencyCode := normalizeCurrencyCode(req.Currency)
@@ -308,8 +300,10 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 		return nil, verr
 	}
 
-	if req.BudgetAmount < 0 {
-		return nil, budgetAmountError()
+	v := validator.New()
+	v.Check(req.BudgetAmount >= 0, "budgetAmount", "must be non-negative")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	// Fetch the period to check ownership and whether it's current.

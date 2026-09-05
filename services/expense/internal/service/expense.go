@@ -575,17 +575,6 @@ func normalizeCurrencyCode(currencyCode string) string {
 	return strings.ToUpper(strings.TrimSpace(currencyCode))
 }
 
-func unsupportedCurrencyError(currencyCode string) *apierr.Error {
-	return &apierr.Error{
-		Code:    model.ErrUnsupportedCurrency,
-		Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
-		Status:  http.StatusBadRequest,
-		Fields: map[string]string{
-			"transactionCurrency": "unsupported currency",
-		},
-	}
-}
-
 // conversionUnavailableError is returned when a foreign-currency expense cannot
 // be converted because the FX provider is unavailable. No ledger row is written.
 func conversionUnavailableError() *apierr.Error {
@@ -741,10 +730,17 @@ func (s *ExpenseService) resolveCorrectionTransactionCurrency(original *model.Ex
 }
 
 func (s *ExpenseService) validateTransactionCurrency(currencyCode string) (string, error) {
-	if currencycatalog.IsSupported(currencyCode) {
-		return currencyCode, nil
+	v := validator.New()
+	v.Check(currencycatalog.IsSupported(currencyCode), "transactionCurrency", "unsupported currency")
+	if v.HasErrors() {
+		return "", &apierr.Error{
+			Code:    model.ErrUnsupportedCurrency,
+			Message: fmt.Sprintf("Unsupported currency %q", currencyCode),
+			Status:  http.StatusBadRequest,
+			Fields:  v.Errors(),
+		}
 	}
-	return "", unsupportedCurrencyError(currencyCode)
+	return currencyCode, nil
 }
 
 // validateCorrectExpenseRequest checks all required fields for a correction.

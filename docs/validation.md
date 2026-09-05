@@ -69,8 +69,6 @@ func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id strin
 }
 ```
 
-A `validateNonEmpty(field, value, msg)` helper was considered and rejected: it adds indirection for negligible benefit over the inline two-line pattern, and consistency across single- and multi-field checks is more valuable than the saved line.
-
 ### Dependent checks on one field
 
 Stack checks in order of relevance; first-error-per-field makes the right message win:
@@ -131,8 +129,9 @@ Conventions:
 
 ## What Not to Do
 
-- **No hand-rolled `fields := make(map[string]string)` accumulation.** The shared validator is the only way to build the `fields` map in service-layer validation. A `grep -rn "fields := make(map\[string\]string)" services/ --include="*.go" | grep -v shared/validator | grep -v _test.go` should return nothing in service-layer code (the handler's `immutableReportingCurrencyFields` body-field detection is the one exception - it is transport-layer detection, not validation).
-- **No `apierr.Validation("msg", nil)` with a nil fields map.** Every validation call carries field-level detail via `v.Errors()`. A nil fields map is a missing-detail bug. The only `apierr.Validation` calls in the service layer should be `apierr.Validation("validation failed", v.Errors())` (or the custom-code variant above).
+- **No hand-rolled `fields := make(map[string]string)` accumulation.** The shared validator is the only way to build the `fields` map in service-layer *validation*. Two non-validation sites build field maps directly and are expected: the handler's `immutableReportingCurrencyFields` (transport-layer body-field detection) and `fx_client.go`'s `mapFxError` INVALID_AMOUNT branch (an error *mapper* translating an upstream gRPC rejection - there is no condition to evaluate, so forcing it through `validator.New()` would reintroduce the `v.Check(false, ...)` anti-pattern). A `grep -rn "fields := make(map\[string\]string)" services/ --include="*.go" | grep -v shared/validator | grep -v _test.go` should return nothing.
+- **No `apierr.Validation("msg", nil)` with a nil fields map.** Every validation call carries field-level detail via `v.Errors()`. A nil fields map is a missing-detail bug.
+- **No `v.Check(false, ...)`.** The condition belongs at the check site. A constant `false` makes the validator a verbose map builder and leaves dead code behind (`return nil` is unreachable). If the condition is already checked at the call site, inline the validator there instead of hiding it in a helper.
 - **No short-circuiting between validation tiers.** If a request has multiple kinds of violations (negative values *and* a sum mismatch), surface all of them. The caller should fix everything in one round-trip. `ValidateEDSSplit` is the reference: non-negative, not-over-100, and sum-to-100 checks all run in one validator.
 - **No service-layer query-param parsing.** Parsing `year`/`month`/`page` strings is the handler's job. Service methods receive typed values and validate the business rules (range, presence), not the transport.
 - **No top-level messages more specific than "validation failed".** Specific messages go in the `fields` entry for the offending field. A reviewer should not see `apierr.Validation("E/D/S percentages must be non-negative", ...)` - that detail belongs in the `essentialsPercent` field message.
@@ -141,10 +140,10 @@ Conventions:
 
 | Service | File | Validators |
 |---------|------|------------|
-| Expense | `services/expense/internal/service/expense.go` | `validateCreateExpenseRequest`, `validateCorrectExpenseRequest`, `validateIdempotencyKey`, and inline checks on `GetExpense`, `CorrectExpense`, `DeleteExpense`, `GetCorrectionHistory`, `GetExpensesInProRataGroup`, `CountExpensesByTag`, `GetActiveExpensesForPeriod`, `StreamAllUserExpenses`, `AnonymizeAllUserExpenses` |
+| Expense | `services/expense/internal/service/expense.go` | `validateCreateExpenseRequest`, `validateCorrectExpenseRequest`, `validateIdempotencyKey`, `validateTransactionCurrency` (custom `ErrUnsupportedCurrency` code), and inline checks on `GetExpense`, `CorrectExpense`, `DeleteExpense`, `GetCorrectionHistory`, `GetExpensesInProRataGroup`, `CountExpensesByTag`, `GetActiveExpensesForPeriod`, `StreamAllUserExpenses`, `AnonymizeAllUserExpenses` |
 | Expense | `services/expense/internal/service/suggestions.go` | `GetExpenseSuggestions` (user/page/pageSize) |
 | Expense | `services/expense/internal/service/prorata_request.go` | `validateProRataInstallmentRequest`, `validateTrustedPeriodContext`, `validateSnapshotCoverage` (reference implementation) |
-| Finance | `services/finance/internal/service/finance.go` | `ValidateEDSSplit` (aggregated), `validateSupportedCurrency`, `validateTagName`, `budgetAmountError`, `GetCurrentPeriod` month check |
+| Finance | `services/finance/internal/service/finance.go` | `ValidateEDSSplit` (aggregated), `validateSupportedCurrency` (custom `ErrUnsupportedCurrency` code), `validateTagName`, and the inline `budgetAmount` checks in `UpdateDefaults`/`UpdatePeriod` and the `GetCurrentPeriod` month check |
 | Finance | `services/finance/internal/service/prorata.go` | `CreateProRataExpense` request checks, `CreatePeriodWithProRata` month/budget checks |
 
 ## Testing Validators
