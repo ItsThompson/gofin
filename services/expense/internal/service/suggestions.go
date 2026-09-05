@@ -8,6 +8,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 
 const maxSuggestionPageSize int32 = 100
@@ -20,14 +21,12 @@ type suggestionGroup struct {
 
 // GetExpenseSuggestions returns active-only, exact-name suggestions for a user.
 func (s *ExpenseService) GetExpenseSuggestions(ctx context.Context, req *model.ExpenseSuggestionRequest) (*model.ExpenseSuggestionListResponse, error) {
-	if req.UserID == "" {
-		return nil, apierr.Validation("user_id is required", nil)
-	}
-	if req.Page < 1 {
-		return nil, apierr.Validation("page must be positive", nil)
-	}
-	if req.PageSize < 1 || req.PageSize > maxSuggestionPageSize {
-		return nil, apierr.Validation("pageSize must be between 1 and 100", nil)
+	v := validator.New()
+	v.Check(req.UserID != "", "userId", "user_id is required")
+	v.Check(req.Page >= 1, "page", "page must be positive")
+	v.Check(req.PageSize >= 1 && req.PageSize <= maxSuggestionPageSize, "pageSize", "pageSize must be between 1 and 100")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	inputs, err := s.repo.GetActiveExpenseSuggestionInputs(ctx, req.UserID)
@@ -80,15 +79,15 @@ func (s *ExpenseService) aggregateExpenseSuggestions(inputs []*model.ExpenseSugg
 		frequency := group.nonProRataCount + int32(len(group.proRataGroups))
 		bucket, weight := recencyBucket(group.latest.CreatedAt, s.clock())
 		suggestions = append(suggestions, &model.ExpenseSuggestion{
-			Name:                name,
-			OriginalTransactionAmountInMinorUnits:   group.latest.TransactionAmount,
-			TransactionCurrencyCode: group.latest.TransactionCurrency,
-			ExpenseType:         group.latest.ExpenseType,
-			TagID:               group.latest.TagID,
-			Frequency:           frequency,
-			LastUsedAt:          group.latest.CreatedAt,
-			RecencyBucket:       bucket,
-			FrecencyScore:       float64(frequency * weight),
+			Name:                                  name,
+			OriginalTransactionAmountInMinorUnits: group.latest.TransactionAmount,
+			TransactionCurrencyCode:               group.latest.TransactionCurrency,
+			ExpenseType:                           group.latest.ExpenseType,
+			TagID:                                 group.latest.TagID,
+			Frequency:                             frequency,
+			LastUsedAt:                            group.latest.CreatedAt,
+			RecencyBucket:                         bucket,
+			FrecencyScore:                         float64(frequency * weight),
 		})
 	}
 

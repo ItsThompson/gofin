@@ -218,10 +218,10 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 
 	periodClient := new(mockPeriodContextClient)
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "EUR",
 	}, nil)
 
@@ -285,10 +285,10 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 	requestedAt := now.UTC().Format(time.RFC3339)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "USD",
 	}, nil)
 
@@ -361,10 +361,10 @@ func TestCreateExpenseHandler_ForeignCurrencyFxUnavailable(t *testing.T) {
 	fxClient := new(mockFxClient)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "USD",
 	}, nil)
 
@@ -474,7 +474,8 @@ func TestCreateExpenseHandler_MissingIdempotencyKey(t *testing.T) {
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, apierr.CodeValidation, errResp.Code)
-	assert.Equal(t, "clientGeneratedIdempotencyKey is required", errResp.Message)
+	assert.Equal(t, "validation failed", errResp.Message)
+	assert.Equal(t, "clientGeneratedIdempotencyKey is required", errResp.Fields["clientGeneratedIdempotencyKey"])
 	repo.AssertNotCalled(t, "GetExpenseByIdempotencyKey", mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "CreateExpense", mock.Anything, mock.Anything)
 }
