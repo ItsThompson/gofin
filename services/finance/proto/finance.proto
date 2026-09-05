@@ -138,7 +138,7 @@ message PeriodData {
   int32 desires_percent = 7;
   int32 savings_percent = 8;
   string created_at = 9;
-  string reporting_currency = 10;
+  string reporting_currency_code = 10;
 }
 
 message GetCurrentPeriodRequest {
@@ -155,7 +155,7 @@ message CreatePeriodRequest {
   int32 essentials_percent = 5;
   int32 desires_percent = 6;
   int32 savings_percent = 7;
-  string reporting_currency = 8;
+  string reporting_currency_code = 8;
 }
 
 message UpdatePeriodRequest {
@@ -193,7 +193,7 @@ message GetPeriodContextResponse {
   string user_id = 2;
   int32 year = 3;
   int32 month = 4;
-  string reporting_currency = 5;
+  string reporting_currency_code = 5;
   bool is_locked = 6;
 }
 

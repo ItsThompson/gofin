@@ -35,7 +35,7 @@ func validProRataInstallmentRequest() *CreateProRataInstallmentRequest {
 			UserID:            "user-1",
 			Year:              2026,
 			Month:             5,
-			ReportingCurrency: "USD",
+			ReportingCurrencyCode: "USD",
 			Source:            "finance_service",
 		},
 		Name:                 "Annual subscription",
@@ -284,7 +284,7 @@ func TestCreateProRataInstallment_DifferentTargetCurrencyUsesCapturedSnapshot(t 
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             7,
-		ReportingCurrency: "EUR",
+		ReportingCurrencyCode: "EUR",
 		Source:            "finance_service",
 	}
 	req.TransactionCurrency = "USD"
@@ -344,7 +344,7 @@ func TestCreateProRataInstallment_CapturedSnapshotMissingTargetCurrencyRejects(t
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             7,
-		ReportingCurrency: "JPY",
+		ReportingCurrencyCode: "JPY",
 		Source:            "finance_service",
 	}
 	req.TransactionCurrency = "USD"

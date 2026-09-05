@@ -170,7 +170,7 @@ func (s *FinanceService) getPeriodCreationDefaults(ctx context.Context, userID s
 	}
 
 	defaults.Currency = normalizeCurrencyCode(defaults.Currency)
-	if verr := validateSupportedCurrency("reportingCurrency", defaults.Currency); verr != nil {
+	if verr := validateSupportedCurrency("reportingCurrencyCode", defaults.Currency); verr != nil {
 		return nil, verr
 	}
 	return defaults, nil
@@ -319,12 +319,12 @@ func (s *FinanceService) GetPeriodContext(ctx context.Context, userID string, ye
 	isLocked := period.Year != int32(now.Year()) || period.Month != int32(now.Month())
 
 	return &model.PeriodContext{
-		PeriodID:          period.ID,
-		UserID:            period.UserID,
-		Year:              period.Year,
-		Month:             period.Month,
-		ReportingCurrency: period.ReportingCurrency,
-		IsLocked:          isLocked,
+		PeriodID:              period.ID,
+		UserID:                period.UserID,
+		Year:                  period.Year,
+		Month:                 period.Month,
+		ReportingCurrencyCode: period.ReportingCurrencyCode,
+		IsLocked:              isLocked,
 	}, nil
 }
 

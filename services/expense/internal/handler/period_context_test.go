@@ -27,7 +27,7 @@ func newTestPeriodClient() *mockPeriodContextClient {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 	return client
 }

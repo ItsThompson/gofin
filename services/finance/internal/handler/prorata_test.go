@@ -34,7 +34,7 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 
 	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return(&model.BudgetPeriod{
-			ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrency: "USD",
+			ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrencyCode: "USD",
 		}, nil)
 
 	snapshot := &model.CapturedRateSnapshot{
@@ -54,7 +54,7 @@ func TestCreateProRataExpenseHandler_TransactionCurrencyOnly(t *testing.T) {
 		return req.Currency == "EUR" &&
 			req.PeriodContext.Year == 2026 &&
 			req.PeriodContext.Month == 5 &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.CapturedRateSnapshot == snapshot
 	})).Return(&service.CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 

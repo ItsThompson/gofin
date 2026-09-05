@@ -144,7 +144,7 @@ func newTestPeriodClient() *mockPeriodContextClient {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 	return client
 }
@@ -279,7 +279,7 @@ func TestCreateExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t 
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	requestedAt := now.UTC().Format(time.RFC3339)
@@ -375,7 +375,7 @@ func TestCreateExpense_ForeignCurrencyFxUnavailableDoesNotWrite(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req FxConvertRequest) bool {
@@ -410,7 +410,7 @@ func TestCreateExpense_ForeignCurrencyInvalidSourceDoesNotWrite(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxResp := &FxConvertResponse{
@@ -447,7 +447,7 @@ func TestCreateExpense_ForeignCurrencyFxClientReturnsConversionUnavailableDoesNo
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, conversionUnavailableError())
@@ -478,7 +478,7 @@ func TestCreateExpense_UnsupportedTransactionCurrencyDoesNotCallFx(t *testing.T)
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	req := validCreateRequest()
@@ -510,7 +510,7 @@ func TestCreateExpense_UnsupportedReportingCurrencyDefaultsToInternal(t *testing
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "XXX",
+		ReportingCurrencyCode: "XXX",
 	}, nil)
 
 	req := validCreateRequest()
@@ -541,7 +541,7 @@ func TestCreateExpense_ForeignCurrencyFxServerFailureWrapsErrorWithCurrencyPair(
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, apierr.Internal("currency conversion failed internally"))
@@ -574,7 +574,7 @@ func TestCreateExpense_ForeignCurrencyFxClientRejectionReturnsUnwrapped(t *testi
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, apierr.Validation("The FX service rejected the conversion amount", nil))
@@ -735,7 +735,7 @@ func TestCreateExpense_CurrencyCompatibility(t *testing.T) {
 				UserID:            "user-1",
 				Year:              2026,
 				Month:             5,
-				ReportingCurrency: reportingCurrency,
+				ReportingCurrencyCode: reportingCurrency,
 			}, nil)
 
 			if tt.expectRepositoryCall {
@@ -1257,7 +1257,7 @@ func TestCorrectExpense_ForeignCurrencySuccessCallsFxAndWritesProviderSnapshot(t
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	requestedAt := now.UTC().Format(time.RFC3339)
@@ -1345,7 +1345,7 @@ func TestCorrectExpense_ForeignCurrencyFxUnavailableDoesNotCorrect(t *testing.T)
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req FxConvertRequest) bool {

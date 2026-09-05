@@ -103,16 +103,16 @@ func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsReques
 
 func periodToProto(period *model.BudgetPeriod) *pb.PeriodData {
 	return &pb.PeriodData{
-		Id:                period.ID,
-		UserId:            period.UserID,
-		Year:              period.Year,
-		Month:             period.Month,
-		BudgetAmount:      period.BudgetAmount,
-		EssentialsPercent: period.EssentialsPercent,
-		DesiresPercent:    period.DesiresPercent,
-		SavingsPercent:    period.SavingsPercent,
-		CreatedAt:         period.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		ReportingCurrency: period.ReportingCurrency,
+		Id:                    period.ID,
+		UserId:                period.UserID,
+		Year:                  period.Year,
+		Month:                 period.Month,
+		BudgetAmount:          period.BudgetAmount,
+		EssentialsPercent:     period.EssentialsPercent,
+		DesiresPercent:        period.DesiresPercent,
+		SavingsPercent:        period.SavingsPercent,
+		CreatedAt:             period.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ReportingCurrencyCode: period.ReportingCurrencyCode,
 	}
 }
 
@@ -195,13 +195,13 @@ func (h *GRPCHandler) GetCurrentPeriod(ctx context.Context, req *pb.GetCurrentPe
 func (h *GRPCHandler) CreatePeriod(ctx context.Context, req *pb.CreatePeriodRequest) (*pb.PeriodResponse, error) {
 	budgetAmount := req.GetBudgetAmount()
 	result, err := h.financeService.CreatePeriodWithProRata(ctx, req.GetUserId(), &model.CreatePeriodRequest{
-		Year:              req.GetYear(),
-		Month:             req.GetMonth(),
-		BudgetAmount:      &budgetAmount,
-		EssentialsPercent: req.GetEssentialsPercent(),
-		DesiresPercent:    req.GetDesiresPercent(),
-		SavingsPercent:    req.GetSavingsPercent(),
-		ReportingCurrency: req.GetReportingCurrency(),
+		Year:                  req.GetYear(),
+		Month:                 req.GetMonth(),
+		BudgetAmount:          &budgetAmount,
+		EssentialsPercent:     req.GetEssentialsPercent(),
+		DesiresPercent:        req.GetDesiresPercent(),
+		SavingsPercent:        req.GetSavingsPercent(),
+		ReportingCurrencyCode: req.GetReportingCurrencyCode(),
 	})
 	if statusErr := financeErrorStatus(err); statusErr != nil {
 		return nil, statusErr
@@ -288,12 +288,12 @@ func (h *GRPCHandler) GetPeriodContext(ctx context.Context, req *pb.GetPeriodCon
 	}
 
 	return &pb.GetPeriodContextResponse{
-		PeriodId:          period.PeriodID,
-		UserId:            period.UserID,
-		Year:              period.Year,
-		Month:             period.Month,
-		ReportingCurrency: period.ReportingCurrency,
-		IsLocked:          period.IsLocked,
+		PeriodId:              period.PeriodID,
+		UserId:                period.UserID,
+		Year:                  period.Year,
+		Month:                 period.Month,
+		ReportingCurrencyCode: period.ReportingCurrencyCode,
+		IsLocked:              period.IsLocked,
 	}, nil
 }
 
@@ -476,15 +476,15 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 
 func (h *GRPCHandler) CreateProRataExpense(ctx context.Context, req *pb.CreateProRataExpenseRequest) (*pb.ProRataResponse, error) {
 	_, err := h.financeService.CreateProRataExpense(ctx, req.GetUserId(), &model.CreateProRataRequest{
-		Name:                req.GetName(),
-		TotalAmountInMinorUnits:         req.GetTotalAmount(),
+		Name:                    req.GetName(),
+		TotalAmountInMinorUnits: req.GetTotalAmount(),
 		TransactionCurrencyCode: req.GetTransactionCurrency(),
-		ExpenseType:         req.GetExpenseType(),
-		TagID:               req.GetTagId(),
-		ExpenseDateIso:         req.GetExpenseDate(),
-		SpreadOverMonths:              req.GetMonths(),
-		PeriodYear:          req.GetPeriodYear(),
-		PeriodMonth:         req.GetPeriodMonth(),
+		ExpenseType:             req.GetExpenseType(),
+		TagID:                   req.GetTagId(),
+		ExpenseDateIso:          req.GetExpenseDate(),
+		SpreadOverMonths:        req.GetMonths(),
+		PeriodYear:              req.GetPeriodYear(),
+		PeriodMonth:             req.GetPeriodMonth(),
 	})
 	if err != nil {
 		if statusErr := financeErrorStatus(err); statusErr != nil {

@@ -94,7 +94,7 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "EUR",
+		ReportingCurrencyCode: "EUR",
 	}, nil)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	expenseSvc := service.NewExpenseService(repo, periodClient, &stubFxClient{}, time.Now, logger)
@@ -175,7 +175,7 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	repo.On("CorrectExpense", mock.Anything, original, mock.MatchedBy(func(correction *model.Expense) bool {
@@ -264,7 +264,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
@@ -343,7 +343,7 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, &apierr.Error{

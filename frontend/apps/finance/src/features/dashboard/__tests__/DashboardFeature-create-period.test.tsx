@@ -274,14 +274,14 @@ describe("DashboardFeature", () => {
           !call.url.includes("/current") &&
           call.method === "POST",
       );
-      expect((createCall!.body as { reportingCurrency: string }).reportingCurrency).toBe("USD");
+      expect((createCall!.body as { reportingCurrencyCode: string }).reportingCurrencyCode).toBe("USD");
     });
 
     it("sends the selected reporting currency and parses amount with its precision", async () => {
       const jpyPeriod = buildPeriod({
         ...testPeriod,
         budgetAmount: 300000,
-        reportingCurrency: "JPY",
+        reportingCurrencyCode: "JPY",
       });
       const mockApi = createMockApi({
         "/api/finance/periods/current": {
@@ -346,7 +346,7 @@ describe("DashboardFeature", () => {
       );
       expect(createCall?.body).toMatchObject({
         budgetAmount: 300000,
-        reportingCurrency: "JPY",
+        reportingCurrencyCode: "JPY",
       });
     });
 
@@ -410,7 +410,7 @@ describe("DashboardFeature", () => {
       );
       expect(createCall).toBeDefined();
       expect((createCall!.body as { budgetAmount: number }).budgetAmount).toBe(500000);
-      expect((createCall!.body as { reportingCurrency: string }).reportingCurrency).toBe("USD");
+      expect((createCall!.body as { reportingCurrencyCode: string }).reportingCurrencyCode).toBe("USD");
 
       // Verify no PUT to /api/finance/defaults was made
       const defaultsUpdateCall = mockApi._calls.find(

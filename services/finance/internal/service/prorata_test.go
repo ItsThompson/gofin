@@ -213,7 +213,7 @@ func TestCreateProRataExpense_Success(t *testing.T) {
 			req.PeriodContext.UserID == "user-1" &&
 			req.PeriodContext.Year == 2026 &&
 			req.PeriodContext.Month == 5 &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.PeriodContext.Source == "finance_service" &&
 			req.CapturedRateSnapshot == snapshot
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
@@ -528,7 +528,7 @@ func TestCreatePeriodWithProRata_NoPriorPeriod(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -553,10 +553,10 @@ func TestCreatePeriodWithProRata_AutoCreatedPeriodsUseDefaultCurrency(t *testing
 		Currency:          "EUR",
 	}, nil)
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
-		return p.Year == 2026 && p.Month == 4 && p.ReportingCurrency == "EUR"
+		return p.Year == 2026 && p.Month == 4 && p.ReportingCurrencyCode == "EUR"
 	})).Return(makePeriod("p-apr", 2026, 4), nil)
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
-		return p.Year == 2026 && p.Month == 5 && p.ReportingCurrency == "JPY"
+		return p.Year == 2026 && p.Month == 5 && p.ReportingCurrencyCode == "JPY"
 	})).Return(makePeriod("p-may", 2026, 5), nil)
 	repo.On("GetPendingProRata", mock.Anything, "user-1", mock.Anything, mock.Anything).
 		Return([]*model.ProRataSchedule{}, nil)
@@ -564,7 +564,7 @@ func TestCreatePeriodWithProRata_AutoCreatedPeriodsUseDefaultCurrency(t *testing
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "JPY",
+		ReportingCurrencyCode: "JPY",
 	})
 
 	require.NoError(t, err)
@@ -580,14 +580,14 @@ func TestCreatePeriodWithProRata_RejectsUnsupportedReportingCurrency(t *testing.
 	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "XYZ",
+		ReportingCurrencyCode: "XYZ",
 	})
 
 	require.Error(t, err)
 	var svcErr *apierr.Error
 	require.ErrorAs(t, err, &svcErr)
 	assert.Equal(t, model.ErrUnsupportedCurrency, svcErr.Code)
-	assert.Equal(t, "unsupported currency", svcErr.Fields["reportingCurrency"])
+	assert.Equal(t, "unsupported currency", svcErr.Fields["reportingCurrencyCode"])
 	repo.AssertNotCalled(t, "CreatePeriod", mock.Anything, mock.Anything)
 }
 
@@ -615,7 +615,7 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		return req.Name == "Insurance" && req.Amount == 3333 && req.ProRataIndex == 2 &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.Currency == "USD" && req.CapturedRateSnapshot != nil
 	})).Return(&CreatedExpenseData{ID: "exp-applied", CreatedAt: "2026-05-01T00:00:00Z"}, nil)
 
@@ -624,7 +624,7 @@ func TestCreatePeriodWithProRata_AppliesSchedules(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -670,7 +670,7 @@ func TestCreatePeriodWithProRata_MissedMonths(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -728,7 +728,7 @@ func TestCreatePeriodWithProRata_MissedMonthsWithProRata(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -789,7 +789,7 @@ func TestProRataScheduleStatusTransitions(t *testing.T) {
 	result, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.NoError(t, err)
@@ -822,7 +822,7 @@ func TestCreatePeriodWithProRata_NilDefaultsReturnsError(t *testing.T) {
 	_, err := svc.CreatePeriodWithProRata(context.Background(), "user-1", &model.CreatePeriodRequest{
 		Year: 2026, Month: 5, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	})
 
 	require.Error(t, err)
@@ -846,7 +846,7 @@ func setupPeriodCreationMocks(repo *mockRepo, pending []*model.ProRataSchedule, 
 	repo.On("GetLatestPeriod", mock.Anything, "user-1").
 		Return(makePeriod("p-prev", targetYear, targetMonth-1), nil)
 	targetPeriod := makePeriod("p-target", targetYear, targetMonth)
-	targetPeriod.ReportingCurrency = reportingCurrency
+	targetPeriod.ReportingCurrencyCode = reportingCurrency
 	repo.On("CreatePeriod", mock.Anything, mock.MatchedBy(func(p *model.BudgetPeriod) bool {
 		return p.Year == targetYear && p.Month == targetMonth
 	})).Return(targetPeriod, nil)
@@ -858,7 +858,7 @@ func createPeriodRequest(year, month int32, reportingCurrency string) *model.Cre
 	return &model.CreatePeriodRequest{
 		Year: year, Month: month, BudgetAmount: int64Ptr(300000),
 		EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-		ReportingCurrency: reportingCurrency,
+		ReportingCurrencyCode: reportingCurrency,
 	}
 }
 
@@ -885,7 +885,7 @@ func TestApplyProRata_CapturedSnapshotSameTargetCurrencyAppliesWithSnapshot(t *t
 
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.MatchedBy(func(req CreateProRataInstallmentInput) bool {
 		return req.Currency == "USD" &&
-			req.PeriodContext.ReportingCurrency == "USD" &&
+			req.PeriodContext.ReportingCurrencyCode == "USD" &&
 			req.CapturedRateSnapshot == snap && req.Amount == 3333
 	})).Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-06-01T00:00:00Z"}, nil)
 	repo.On("MarkProRataApplied", mock.Anything, "s-1").Return(nil)
@@ -924,7 +924,7 @@ func TestApplyProRata_CapturedSnapshotDifferentTargetCurrencyAppliesInTargetCurr
 		// Target period reports in EUR; the transaction currency (captured
 		// schedule context) stays USD and the snapshot is forwarded.
 		return req.Currency == "USD" &&
-			req.PeriodContext.ReportingCurrency == "EUR" &&
+			req.PeriodContext.ReportingCurrencyCode == "EUR" &&
 			req.CapturedRateSnapshot == snap
 	})).Return(&CreatedExpenseData{ID: "exp-2", CreatedAt: "2026-07-01T00:00:00Z"}, nil)
 	repo.On("MarkProRataApplied", mock.Anything, "s-2").Return(nil)

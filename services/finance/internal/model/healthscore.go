@@ -4,7 +4,7 @@ package model
 // to the same numbers only within the same version. It is serialized into the
 // response so persisted or recomputed scores stay comparable across formula
 // changes. This version includes the spending-stability sub-score in the weighting.
-const FormulaVersion int32 = 3
+const FormulaVersion int32 = 4
 
 // Health-score component keys. These are domain truths shared by the compute
 // logic, the insight driver, and the frontend, so they live on the model.
@@ -51,16 +51,16 @@ type HealthInsight struct {
 // in [0,100]. ConfigureBudget is set (with the numeric fields left zero) when
 // the period has no budget configured.
 type HealthScore struct {
-	Year              int32             `json:"year"`
-	Month             int32             `json:"month"`
-	Total             int32             `json:"total"`
-	Band              string            `json:"band"`
-	Provisional       bool              `json:"provisional"`
-	FormulaVersion    int32             `json:"formulaVersion"`
-	ReportingCurrency string            `json:"reportingCurrency"`
-	Components        []HealthComponent `json:"components"`
-	Insight           HealthInsight     `json:"insight"`
-	ConfigureBudget   bool              `json:"configureBudget,omitempty"`
+	Year                  int32             `json:"year"`
+	Month                 int32             `json:"month"`
+	Total                 int32             `json:"total"`
+	Band                  string            `json:"band"`
+	Provisional           bool              `json:"provisional"`
+	FormulaVersion        int32             `json:"formulaVersion"`
+	ReportingCurrencyCode string            `json:"reportingCurrencyCode"`
+	Components            []HealthComponent `json:"components"`
+	Insight               HealthInsight     `json:"insight"`
+	ConfigureBudget       bool              `json:"configureBudget,omitempty"`
 }
 
 // HealthScoreResponse is the JSON body returned for GET /api/finance/health-score.
@@ -72,13 +72,13 @@ type HealthScoreResponse struct {
 // carries only the denormalized scalars the sparkline needs, not the full
 // component breakdown, so the trend read stays cheap.
 type HealthScoreTrendPoint struct {
-	Year              int32  `json:"year"`
-	Month             int32  `json:"month"`
-	Total             int32  `json:"total"`
-	Band              string `json:"band"`
-	Provisional       bool   `json:"provisional"`
-	FormulaVersion    int32  `json:"formulaVersion"`
-	ReportingCurrency string `json:"reportingCurrency"`
+	Year                  int32  `json:"year"`
+	Month                 int32  `json:"month"`
+	Total                 int32  `json:"total"`
+	Band                  string `json:"band"`
+	Provisional           bool   `json:"provisional"`
+	FormulaVersion        int32  `json:"formulaVersion"`
+	ReportingCurrencyCode string `json:"reportingCurrencyCode"`
 }
 
 // HealthScoreTrendResponse is the JSON body returned for

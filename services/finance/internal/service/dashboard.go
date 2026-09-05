@@ -160,7 +160,7 @@ func ComputeSpendingTrends(periods []*model.BudgetPeriod, expensesByMonth [][]Ex
 			point.EssentialsPercent = float64(p.EssentialsPercent)
 			point.DesiresPercent = float64(p.DesiresPercent)
 			point.SavingsPercent = float64(p.SavingsPercent)
-			point.ReportingCurrency = p.ReportingCurrency
+			point.ReportingCurrencyCode = p.ReportingCurrencyCode
 		}
 
 		expenses := expensesByMonth[i]
@@ -270,13 +270,13 @@ func (s *FinanceService) computeHistoricalComparison(
 	if len(priorPeriods) > 0 {
 		prevSpent := spent[1]
 		result.PreviousSpent = prevSpent
-		result.PreviousReportingCurrency = priorPeriods[0].ReportingCurrency
+		result.PreviousReportingCurrency = priorPeriods[0].ReportingCurrencyCode
 
 		// Cross-currency comparison guard: when the previous period's reporting
 		// currency differs from the current period's, the amount delta and
 		// change percent are not meaningful and the frontend must guard the display.
-		currentCurrency := periods[requestedIdx].ReportingCurrency
-		if currentCurrency != "" && priorPeriods[0].ReportingCurrency != "" && currentCurrency != priorPeriods[0].ReportingCurrency {
+		currentCurrency := periods[requestedIdx].ReportingCurrencyCode
+		if currentCurrency != "" && priorPeriods[0].ReportingCurrencyCode != "" && currentCurrency != priorPeriods[0].ReportingCurrencyCode {
 			result.Comparable = false
 			result.ChangePercent = 0
 		} else if prevSpent > 0 {
@@ -292,7 +292,7 @@ func (s *FinanceService) computeHistoricalComparison(
 		return result, nil
 	}
 
-	currentCurrency := periods[requestedIdx].ReportingCurrency
+	currentCurrency := periods[requestedIdx].ReportingCurrencyCode
 	if allSameReportingCurrency(currentCurrency, priorPeriods[:3]) {
 		avg := (spent[1] + spent[2] + spent[3]) / 3
 		result.RollingAverage = &avg
@@ -549,7 +549,7 @@ func allSameReportingCurrency(current string, periods []*model.BudgetPeriod) boo
 		return false
 	}
 	for _, p := range periods {
-		if p.ReportingCurrency != current {
+		if p.ReportingCurrencyCode != current {
 			return false
 		}
 	}

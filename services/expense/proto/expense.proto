@@ -94,7 +94,7 @@ message TrustedPeriodContext {
   string user_id = 2;
   int32 year = 3;
   int32 month = 4;
-  string reporting_currency = 5;
+  string reporting_currency_code = 5;
   string source = 6;
 }
 

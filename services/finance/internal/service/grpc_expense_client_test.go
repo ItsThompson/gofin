@@ -59,9 +59,9 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	require.Len(t, expenses, 2)
 
 	assert.Equal(t, int64(90000), expenses[0].ReportingAmount)
-	assert.Equal(t, "USD", expenses[0].ReportingCurrency)
+	assert.Equal(t, "USD", expenses[0].ReportingCurrencyCode)
 	assert.Equal(t, int64(110000), expenses[1].ReportingAmount)
-	assert.Equal(t, "USD", expenses[1].ReportingCurrency)
+	assert.Equal(t, "USD", expenses[1].ReportingCurrencyCode)
 
 	// Dashboard aggregation over the mapped rows uses reporting amounts.
 	var total int64

@@ -440,15 +440,15 @@ func (x *ExpenseResponse) GetExpense() *ExpenseData {
 // to write a pro-rata installment. Expense validates its consistency but does
 // not call Finance again for Finance-originated pro-rata writes.
 type TrustedPeriodContext struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	PeriodId          string                 `protobuf:"bytes,1,opt,name=period_id,json=periodId,proto3" json:"period_id,omitempty"`
-	UserId            string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Year              int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
-	Month             int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
-	ReportingCurrency string                 `protobuf:"bytes,5,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
-	Source            string                 `protobuf:"bytes,6,opt,name=source,proto3" json:"source,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	PeriodId              string                 `protobuf:"bytes,1,opt,name=period_id,json=periodId,proto3" json:"period_id,omitempty"`
+	UserId                string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Year                  int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
+	Month                 int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
+	ReportingCurrencyCode string                 `protobuf:"bytes,5,opt,name=reporting_currency_code,json=reportingCurrencyCode,proto3" json:"reporting_currency_code,omitempty"`
+	Source                string                 `protobuf:"bytes,6,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *TrustedPeriodContext) Reset() {
@@ -509,9 +509,9 @@ func (x *TrustedPeriodContext) GetMonth() int32 {
 	return 0
 }
 
-func (x *TrustedPeriodContext) GetReportingCurrency() string {
+func (x *TrustedPeriodContext) GetReportingCurrencyCode() string {
 	if x != nil {
-		return x.ReportingCurrency
+		return x.ReportingCurrencyCode
 	}
 	return ""
 }
@@ -1475,13 +1475,13 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x19transaction_currency_code\x18\x0e \x01(\tR\x17transactionCurrencyCode\x12G\n" +
 	" client_generated_idempotency_key\x18\x0f \x01(\tR\x1dclientGeneratedIdempotencyKeyJ\x04\b\x04\x10\x05\"A\n" +
 	"\x0fExpenseResponse\x12.\n" +
-	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\xbd\x01\n" +
+	"\aexpense\x18\x01 \x01(\v2\x14.expense.ExpenseDataR\aexpense\"\xc6\x01\n" +
 	"\x14TrustedPeriodContext\x12\x1b\n" +
 	"\tperiod_id\x18\x01 \x01(\tR\bperiodId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x03 \x01(\x05R\x04year\x12\x14\n" +
-	"\x05month\x18\x04 \x01(\x05R\x05month\x12-\n" +
-	"\x12reporting_currency\x18\x05 \x01(\tR\x11reportingCurrency\x12\x16\n" +
+	"\x05month\x18\x04 \x01(\x05R\x05month\x126\n" +
+	"\x17reporting_currency_code\x18\x05 \x01(\tR\x15reportingCurrencyCode\x12\x16\n" +
 	"\x06source\x18\x06 \x01(\tR\x06source\"\x89\x03\n" +
 	"\x14CapturedRateSnapshot\x12)\n" +
 	"\x10snapshot_version\x18\x01 \x01(\x05R\x0fsnapshotVersion\x12\x16\n" +

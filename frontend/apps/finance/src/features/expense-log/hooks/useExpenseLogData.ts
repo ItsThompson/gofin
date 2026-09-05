@@ -23,7 +23,7 @@ export type ExpenseLogDataState =
       expenses: ExpenseRow[];
       tags: Tag[];
       periods: BudgetPeriod[];
-      reportingCurrency: string;
+      reportingCurrencyCode: string;
     };
 
 export interface ExpenseLogData {
@@ -138,7 +138,7 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       expenses,
       tags: fetchResult.tags,
       periods: fetchResult.periods,
-      reportingCurrency: selected.reportingCurrency,
+      reportingCurrencyCode: selected.reportingCurrencyCode,
     };
   }, [loading, error, fetchResult, selectedYear, selectedMonth, expenses]);
 

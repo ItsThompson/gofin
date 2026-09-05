@@ -484,7 +484,7 @@ func immutableReportingCurrencyFields(c *gin.Context) map[string]string {
 	}
 
 	fields := map[string]string{}
-	for _, field := range []string{"reportingCurrency", "reporting_currency"} {
+	for _, field := range []string{"reportingCurrencyCode", "reporting_currency_code"} {
 		if _, ok := payload[field]; ok {
 			fields[field] = "immutable"
 		}

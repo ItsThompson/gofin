@@ -15,7 +15,7 @@ const mockPeriods: BudgetPeriod[] = [
     year: 2026,
     month: 3,
     budgetAmount: 300000,
-    reportingCurrency: "USD",
+    reportingCurrencyCode: "USD",
     essentialsPercent: 50,
     desiresPercent: 30,
     savingsPercent: 20,

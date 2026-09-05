@@ -16,7 +16,7 @@ type TrustedPeriodContext struct {
 	UserID            string
 	Year              int32
 	Month             int32
-	ReportingCurrency string
+	ReportingCurrencyCode string
 	Source            string
 }
 

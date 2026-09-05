@@ -19,7 +19,7 @@ type PeriodContext struct {
 	UserID            string
 	Year              int32
 	Month             int32
-	ReportingCurrency string
+	ReportingCurrencyCode string
 	IsLocked          bool
 }
 
@@ -54,7 +54,7 @@ func (c *GRPCPeriodContextClient) GetPeriodContext(ctx context.Context, userID s
 		UserID:            resp.GetUserId(),
 		Year:              resp.GetYear(),
 		Month:             resp.GetMonth(),
-		ReportingCurrency: resp.GetReportingCurrency(),
+		ReportingCurrencyCode: resp.GetReportingCurrencyCode(),
 		IsLocked:          resp.GetIsLocked(),
 	}, nil
 }

@@ -91,7 +91,7 @@ describe("NewExpenseFeature", () => {
   });
 
   it("displays currency symbol from the resolved budget period", async () => {
-    renderNewExpense({ period: { ...mockPeriod, reportingCurrency: "EUR" } });
+    renderNewExpense({ period: { ...mockPeriod, reportingCurrencyCode: "EUR" } });
     await waitForFormBootstrap();
 
     expect(screen.getByText("€")).toBeInTheDocument();

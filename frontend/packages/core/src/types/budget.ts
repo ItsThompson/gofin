@@ -8,7 +8,7 @@ export interface BudgetPeriod {
   month: number;
   /** Budget total in the reporting currency's minor units. */
   budgetAmount: number;
-  reportingCurrency: string;
+  reportingCurrencyCode: string;
   essentialsPercent: number;
   desiresPercent: number;
   savingsPercent: number;
@@ -50,7 +50,7 @@ export interface CreatePeriodRequest {
   month: number;
   /** Budget amount in the reporting currency's minor units. */
   budgetAmount: number;
-  reportingCurrency: string;
+  reportingCurrencyCode: string;
   essentialsPercent: number;
   desiresPercent: number;
   savingsPercent: number;

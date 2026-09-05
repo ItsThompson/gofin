@@ -85,7 +85,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	// must surface as a 500, not a 400 transaction-currency error from the
 	// defaulting branch. Normalization keeps casing/whitespace drift from
 	// routing a same-currency write to FX or persisting mismatched casing.
-	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		s.logger.Error("unsupported reporting currency from period context",
 			slog.String("event", "unsupported_reporting_currency"),
@@ -278,7 +278,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		return nil, err
 	}
 
-	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		s.logger.Error("unsupported reporting currency from period context",
 			slog.String("event", "unsupported_reporting_currency"),
@@ -702,7 +702,7 @@ func validateReportingCurrency(reportingCurrency string) *apierr.Error {
 func (s *ExpenseService) resolveCreateTransactionCurrency(period *PeriodContext, req *model.CreateExpenseRequest) (string, error) {
 	transactionCurrency := normalizeCurrencyCode(req.TransactionCurrencyCode)
 	if transactionCurrency == "" {
-		transactionCurrency = normalizeCurrencyCode(period.ReportingCurrency)
+		transactionCurrency = normalizeCurrencyCode(period.ReportingCurrencyCode)
 		s.logger.Info("transaction currency defaulted",
 			slog.String("event", "transaction_currency_defaulted"),
 			slog.String("reporting_currency", transactionCurrency),

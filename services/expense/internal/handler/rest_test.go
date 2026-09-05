@@ -222,7 +222,7 @@ func TestCreateExpenseHandler_AcceptsTransactionCurrency(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "EUR",
+		ReportingCurrencyCode: "EUR",
 	}, nil)
 
 	repo.On("CreateExpense", mock.Anything, mock.MatchedBy(func(expense *model.Expense) bool {
@@ -289,7 +289,7 @@ func TestCreateExpenseHandler_ForeignCurrencyFxSuccess(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.MatchedBy(func(req service.FxConvertRequest) bool {
@@ -365,7 +365,7 @@ func TestCreateExpenseHandler_ForeignCurrencyFxUnavailable(t *testing.T) {
 		UserID:            "user-1",
 		Year:              2026,
 		Month:             5,
-		ReportingCurrency: "USD",
+		ReportingCurrencyCode: "USD",
 	}, nil)
 
 	fxClient.On("ConvertAmount", mock.Anything, mock.Anything).Return(nil, &apierr.Error{

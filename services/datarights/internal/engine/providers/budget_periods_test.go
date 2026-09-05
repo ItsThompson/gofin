@@ -29,28 +29,28 @@ func TestBudgetPeriodsProvider_Collect_Success(t *testing.T) {
 	data := &financepb.AllUserDataResponse{
 		Periods: []*financepb.PeriodData{
 			{
-				Id:                "p1",
-				Year:              2026,
-				Month:             1,
-				BudgetAmount:      99, // 0.99 dollars
-				ReportingCurrency: "USD",
-				CreatedAt:         "2026-01-01T00:00:00Z",
+				Id:                    "p1",
+				Year:                  2026,
+				Month:                 1,
+				BudgetAmount:          99, // 0.99 dollars
+				ReportingCurrencyCode: "USD",
+				CreatedAt:             "2026-01-01T00:00:00Z",
 			},
 			{
-				Id:                "p2",
-				Year:              2026,
-				Month:             2,
-				BudgetAmount:      100000, // 1000.00 dollars
-				ReportingCurrency: "USD",
-				CreatedAt:         "2026-02-01T00:00:00Z",
+				Id:                    "p2",
+				Year:                  2026,
+				Month:                 2,
+				BudgetAmount:          100000, // 1000.00 dollars
+				ReportingCurrencyCode: "USD",
+				CreatedAt:             "2026-02-01T00:00:00Z",
 			},
 			{
-				Id:                "p3",
-				Year:              2026,
-				Month:             3,
-				BudgetAmount:      12345, // 12345 yen, no decimals
-				ReportingCurrency: "JPY",
-				CreatedAt:         "2026-03-01T00:00:00Z",
+				Id:                    "p3",
+				Year:                  2026,
+				Month:                 3,
+				BudgetAmount:          12345, // 12345 yen, no decimals
+				ReportingCurrencyCode: "JPY",
+				CreatedAt:             "2026-03-01T00:00:00Z",
 			},
 		},
 	}
@@ -73,11 +73,11 @@ func TestBudgetPeriodsProvider_Collect_UnsupportedCurrencyFails(t *testing.T) {
 	data := &financepb.AllUserDataResponse{
 		Periods: []*financepb.PeriodData{
 			{
-				Id:                "p1",
-				Year:              2026,
-				Month:             1,
-				BudgetAmount:      100,
-				ReportingCurrency: "XXX",
+				Id:                    "p1",
+				Year:                  2026,
+				Month:                 1,
+				BudgetAmount:          100,
+				ReportingCurrencyCode: "XXX",
 			},
 		},
 	}

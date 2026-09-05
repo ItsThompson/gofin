@@ -24,7 +24,7 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		return nil, err
 	}
 
-	reportingCurrency := normalizeCurrencyCode(req.PeriodContext.ReportingCurrency)
+	reportingCurrency := normalizeCurrencyCode(req.PeriodContext.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
 		return nil, err
 	}

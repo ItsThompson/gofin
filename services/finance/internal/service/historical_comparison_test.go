@@ -21,9 +21,9 @@ import (
 func TestGetHistoricalComparison_MixedCurrencyNotComparable(t *testing.T) {
 	exp := newCountingExpenseClient()
 	currentPeriod := makePeriod("p12", 2026, 12)
-	currentPeriod.ReportingCurrency = "USD"
+	currentPeriod.ReportingCurrencyCode = "USD"
 	prevPeriod := makePeriod("p11", 2026, 11)
-	prevPeriod.ReportingCurrency = "EUR"
+	prevPeriod.ReportingCurrencyCode = "EUR"
 	periods := []*model.BudgetPeriod{currentPeriod, prevPeriod}
 	exp.set(2026, 12, []ExpenseData{{ReportingAmount: 80000}})
 	exp.set(2026, 11, []ExpenseData{{ReportingAmount: 70000}})

@@ -15,7 +15,7 @@ export const mockPeriod: BudgetPeriod = {
   year: 2026,
   month: 5,
   budgetAmount: 500000,
-  reportingCurrency: "USD",
+  reportingCurrencyCode: "USD",
   essentialsPercent: 50,
   desiresPercent: 30,
   savingsPercent: 20,

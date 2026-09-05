@@ -20,7 +20,7 @@ func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year
 		return nil, err
 	}
 	if period.BudgetAmount == 0 {
-		return &model.HealthScore{Year: year, Month: month, ConfigureBudget: true, ReportingCurrency: period.ReportingCurrency}, nil
+		return &model.HealthScore{Year: year, Month: month, ConfigureBudget: true, ReportingCurrencyCode: period.ReportingCurrencyCode}, nil
 	}
 	return s.resolveHealthScore(ctx, userID, period, year, month)
 }
@@ -44,8 +44,8 @@ func (s *FinanceService) resolveHealthScore(ctx context.Context, userID string, 
 	if stored != nil && stored.FormulaVersion == model.FormulaVersion {
 		// Backfill ReportingCurrency for scores persisted before the field was
 		// added. The period's reporting currency is immutable, so this is safe.
-		if stored.ReportingCurrency == "" {
-			stored.ReportingCurrency = period.ReportingCurrency
+		if stored.ReportingCurrencyCode == "" {
+			stored.ReportingCurrencyCode = period.ReportingCurrencyCode
 		}
 		return stored, nil
 	}
@@ -74,7 +74,7 @@ func (s *FinanceService) resolveHealthScore(ctx context.Context, userID string, 
 // currency, not the user's default settings currency, so the display stays
 // stable after default settings changes.
 func (s *FinanceService) computeHealthScore(ctx context.Context, userID string, period *model.BudgetPeriod, year, month int32) (*model.HealthScore, error) {
-	currency := period.ReportingCurrency
+	currency := period.ReportingCurrencyCode
 	if currency == "" {
 		currency = defaultCurrency
 	}

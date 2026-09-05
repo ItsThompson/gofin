@@ -146,7 +146,7 @@ func cannedAllUserData() *financepb.AllUserDataResponse {
 			{
 				Id: "period-1", Year: 2026, Month: 5, BudgetAmount: 250000,
 				EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
-				ReportingCurrency: "USD", CreatedAt: "2026-05-01T00:00:00Z",
+				ReportingCurrencyCode: "USD", CreatedAt: "2026-05-01T00:00:00Z",
 			},
 		},
 		Defaults: &financepb.DefaultsData{

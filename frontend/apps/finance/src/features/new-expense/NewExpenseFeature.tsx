@@ -15,7 +15,7 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
   const activePeriod =
     periodContext.status === "active" ? periodContext.period : null;
   const { state, actions } = useNewExpenseForm(
-    activePeriod?.reportingCurrency ?? user.currency,
+    activePeriod?.reportingCurrencyCode ?? user.currency,
     activePeriod?.year ?? currentYear,
     activePeriod?.month ?? currentMonth,
   );

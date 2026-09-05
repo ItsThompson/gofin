@@ -43,7 +43,7 @@ func (p *BudgetPeriodsProvider) Collect(_ context.Context, _ string) ([][]string
 	periods := p.data.GetPeriods()
 	rows := make([][]string, 0, len(periods))
 	for _, period := range periods {
-		budgetAmount, err := formatMinorUnits(period.GetBudgetAmount(), period.GetReportingCurrency())
+		budgetAmount, err := formatMinorUnits(period.GetBudgetAmount(), period.GetReportingCurrencyCode())
 		if err != nil {
 			return nil, fmt.Errorf("period %s budget amount: %w", period.GetId(), err)
 		}
@@ -52,7 +52,7 @@ func (p *BudgetPeriodsProvider) Collect(_ context.Context, _ string) ([][]string
 			strconv.FormatInt(int64(period.GetYear()), 10),
 			strconv.FormatInt(int64(period.GetMonth()), 10),
 			budgetAmount,
-			period.GetReportingCurrency(),
+			period.GetReportingCurrencyCode(),
 			strconv.FormatInt(int64(period.GetEssentialsPercent()), 10),
 			strconv.FormatInt(int64(period.GetDesiresPercent()), 10),
 			strconv.FormatInt(int64(period.GetSavingsPercent()), 10),

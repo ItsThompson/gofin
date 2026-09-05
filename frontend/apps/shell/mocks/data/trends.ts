@@ -45,7 +45,7 @@ export function computeMockTrends(months: number): TrendPoint[] {
       essentialsPercent: 50,
       desiresPercent: 30,
       savingsPercent: 20,
-      reportingCurrency: "USD",
+      reportingCurrencyCode: "USD",
     });
 
     month++;

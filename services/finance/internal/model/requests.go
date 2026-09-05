@@ -21,13 +21,13 @@ type DefaultsResponse struct {
 // BudgetAmount is a pointer so binding:"required" rejects an absent field
 // without rejecting a legitimate $0 budget (the int64 zero value).
 type CreatePeriodRequest struct {
-	Year              int32  `json:"year" binding:"required"`
-	Month             int32  `json:"month" binding:"required"`
-	BudgetAmount      *int64 `json:"budgetAmount" binding:"required"`
-	ReportingCurrency string `json:"reportingCurrency" binding:"required"`
-	EssentialsPercent int32  `json:"essentialsPercent"`
-	DesiresPercent    int32  `json:"desiresPercent"`
-	SavingsPercent    int32  `json:"savingsPercent"`
+	Year                  int32  `json:"year" binding:"required"`
+	Month                 int32  `json:"month" binding:"required"`
+	BudgetAmount          *int64 `json:"budgetAmount" binding:"required"`
+	ReportingCurrencyCode string `json:"reportingCurrencyCode" binding:"required"`
+	EssentialsPercent     int32  `json:"essentialsPercent"`
+	DesiresPercent        int32  `json:"desiresPercent"`
+	SavingsPercent        int32  `json:"savingsPercent"`
 }
 
 type PeriodResponse struct {
@@ -119,7 +119,7 @@ type TrendPoint struct {
 	SavingsPercent    float64 `json:"savingsPercent"`
 	// Each trend point may have a different currency when the user has mixed-
 	// currency periods; the frontend uses it to format each point correctly.
-	ReportingCurrency string `json:"reportingCurrency"`
+	ReportingCurrencyCode string `json:"reportingCurrencyCode"`
 }
 
 type TrendResponse struct {

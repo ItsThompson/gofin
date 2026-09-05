@@ -50,7 +50,7 @@ describe("buildPeriod", () => {
     expect(period.year).toBe(2026);
     expect(period.month).toBe(1);
     expect(period.budgetAmount).toBe(300000);
-    expect(period.reportingCurrency).toBe("USD");
+    expect(period.reportingCurrencyCode).toBe("USD");
     expect(period.essentialsPercent).toBe(50);
     expect(period.desiresPercent).toBe(30);
     expect(period.savingsPercent).toBe(20);

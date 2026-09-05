@@ -99,7 +99,7 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 			UserID:            pc.GetUserId(),
 			Year:              pc.GetYear(),
 			Month:             pc.GetMonth(),
-			ReportingCurrency: pc.GetReportingCurrency(),
+			ReportingCurrencyCode: pc.GetReportingCurrencyCode(),
 			Source:            pc.GetSource(),
 		}
 	}

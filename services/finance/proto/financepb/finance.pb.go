@@ -694,19 +694,19 @@ func (*DeleteAllUserDataResponse) Descriptor() ([]byte, []int) {
 }
 
 type PeriodData struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	UserId            string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Year              int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
-	Month             int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
-	BudgetAmount      int64                  `protobuf:"varint,5,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"`
-	EssentialsPercent int32                  `protobuf:"varint,6,opt,name=essentials_percent,json=essentialsPercent,proto3" json:"essentials_percent,omitempty"`
-	DesiresPercent    int32                  `protobuf:"varint,7,opt,name=desires_percent,json=desiresPercent,proto3" json:"desires_percent,omitempty"`
-	SavingsPercent    int32                  `protobuf:"varint,8,opt,name=savings_percent,json=savingsPercent,proto3" json:"savings_percent,omitempty"`
-	CreatedAt         string                 `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	ReportingCurrency string                 `protobuf:"bytes,10,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	UserId                string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Year                  int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
+	Month                 int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
+	BudgetAmount          int64                  `protobuf:"varint,5,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"`
+	EssentialsPercent     int32                  `protobuf:"varint,6,opt,name=essentials_percent,json=essentialsPercent,proto3" json:"essentials_percent,omitempty"`
+	DesiresPercent        int32                  `protobuf:"varint,7,opt,name=desires_percent,json=desiresPercent,proto3" json:"desires_percent,omitempty"`
+	SavingsPercent        int32                  `protobuf:"varint,8,opt,name=savings_percent,json=savingsPercent,proto3" json:"savings_percent,omitempty"`
+	CreatedAt             string                 `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ReportingCurrencyCode string                 `protobuf:"bytes,10,opt,name=reporting_currency_code,json=reportingCurrencyCode,proto3" json:"reporting_currency_code,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *PeriodData) Reset() {
@@ -802,9 +802,9 @@ func (x *PeriodData) GetCreatedAt() string {
 	return ""
 }
 
-func (x *PeriodData) GetReportingCurrency() string {
+func (x *PeriodData) GetReportingCurrencyCode() string {
 	if x != nil {
-		return x.ReportingCurrency
+		return x.ReportingCurrencyCode
 	}
 	return ""
 }
@@ -870,17 +870,17 @@ func (x *GetCurrentPeriodRequest) GetMonth() int32 {
 }
 
 type CreatePeriodRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	UserId            string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Year              int32                  `protobuf:"varint,2,opt,name=year,proto3" json:"year,omitempty"`
-	Month             int32                  `protobuf:"varint,3,opt,name=month,proto3" json:"month,omitempty"`
-	BudgetAmount      int64                  `protobuf:"varint,4,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"`
-	EssentialsPercent int32                  `protobuf:"varint,5,opt,name=essentials_percent,json=essentialsPercent,proto3" json:"essentials_percent,omitempty"`
-	DesiresPercent    int32                  `protobuf:"varint,6,opt,name=desires_percent,json=desiresPercent,proto3" json:"desires_percent,omitempty"`
-	SavingsPercent    int32                  `protobuf:"varint,7,opt,name=savings_percent,json=savingsPercent,proto3" json:"savings_percent,omitempty"`
-	ReportingCurrency string                 `protobuf:"bytes,8,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	UserId                string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Year                  int32                  `protobuf:"varint,2,opt,name=year,proto3" json:"year,omitempty"`
+	Month                 int32                  `protobuf:"varint,3,opt,name=month,proto3" json:"month,omitempty"`
+	BudgetAmount          int64                  `protobuf:"varint,4,opt,name=budget_amount,json=budgetAmount,proto3" json:"budget_amount,omitempty"`
+	EssentialsPercent     int32                  `protobuf:"varint,5,opt,name=essentials_percent,json=essentialsPercent,proto3" json:"essentials_percent,omitempty"`
+	DesiresPercent        int32                  `protobuf:"varint,6,opt,name=desires_percent,json=desiresPercent,proto3" json:"desires_percent,omitempty"`
+	SavingsPercent        int32                  `protobuf:"varint,7,opt,name=savings_percent,json=savingsPercent,proto3" json:"savings_percent,omitempty"`
+	ReportingCurrencyCode string                 `protobuf:"bytes,8,opt,name=reporting_currency_code,json=reportingCurrencyCode,proto3" json:"reporting_currency_code,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *CreatePeriodRequest) Reset() {
@@ -962,9 +962,9 @@ func (x *CreatePeriodRequest) GetSavingsPercent() int32 {
 	return 0
 }
 
-func (x *CreatePeriodRequest) GetReportingCurrency() string {
+func (x *CreatePeriodRequest) GetReportingCurrencyCode() string {
 	if x != nil {
-		return x.ReportingCurrency
+		return x.ReportingCurrencyCode
 	}
 	return ""
 }
@@ -1270,15 +1270,15 @@ func (x *GetPeriodContextRequest) GetMonth() int32 {
 }
 
 type GetPeriodContextResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	PeriodId          string                 `protobuf:"bytes,1,opt,name=period_id,json=periodId,proto3" json:"period_id,omitempty"`
-	UserId            string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Year              int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
-	Month             int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
-	ReportingCurrency string                 `protobuf:"bytes,5,opt,name=reporting_currency,json=reportingCurrency,proto3" json:"reporting_currency,omitempty"`
-	IsLocked          bool                   `protobuf:"varint,6,opt,name=is_locked,json=isLocked,proto3" json:"is_locked,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	PeriodId              string                 `protobuf:"bytes,1,opt,name=period_id,json=periodId,proto3" json:"period_id,omitempty"`
+	UserId                string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Year                  int32                  `protobuf:"varint,3,opt,name=year,proto3" json:"year,omitempty"`
+	Month                 int32                  `protobuf:"varint,4,opt,name=month,proto3" json:"month,omitempty"`
+	ReportingCurrencyCode string                 `protobuf:"bytes,5,opt,name=reporting_currency_code,json=reportingCurrencyCode,proto3" json:"reporting_currency_code,omitempty"`
+	IsLocked              bool                   `protobuf:"varint,6,opt,name=is_locked,json=isLocked,proto3" json:"is_locked,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *GetPeriodContextResponse) Reset() {
@@ -1339,9 +1339,9 @@ func (x *GetPeriodContextResponse) GetMonth() int32 {
 	return 0
 }
 
-func (x *GetPeriodContextResponse) GetReportingCurrency() string {
+func (x *GetPeriodContextResponse) GetReportingCurrencyCode() string {
 	if x != nil {
-		return x.ReportingCurrency
+		return x.ReportingCurrencyCode
 	}
 	return ""
 }
@@ -2569,7 +2569,7 @@ const file_proto_finance_proto_rawDesc = "" +
 	"\bdefaults\x18\x03 \x01(\v2\x15.finance.DefaultsDataR\bdefaults\"3\n" +
 	"\x18DeleteAllUserDataRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x1b\n" +
-	"\x19DeleteAllUserDataResponse\"\xd3\x02\n" +
+	"\x19DeleteAllUserDataResponse\"\xdc\x02\n" +
 	"\n" +
 	"PeriodData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
@@ -2581,13 +2581,13 @@ const file_proto_finance_proto_rawDesc = "" +
 	"\x0fdesires_percent\x18\a \x01(\x05R\x0edesiresPercent\x12'\n" +
 	"\x0fsavings_percent\x18\b \x01(\x05R\x0esavingsPercent\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\t \x01(\tR\tcreatedAt\x12-\n" +
-	"\x12reporting_currency\x18\n" +
-	" \x01(\tR\x11reportingCurrency\"\\\n" +
+	"created_at\x18\t \x01(\tR\tcreatedAt\x126\n" +
+	"\x17reporting_currency_code\x18\n" +
+	" \x01(\tR\x15reportingCurrencyCode\"\\\n" +
 	"\x17GetCurrentPeriodRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
-	"\x05month\x18\x03 \x01(\x05R\x05month\"\xad\x02\n" +
+	"\x05month\x18\x03 \x01(\x05R\x05month\"\xb6\x02\n" +
 	"\x13CreatePeriodRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
@@ -2595,8 +2595,8 @@ const file_proto_finance_proto_rawDesc = "" +
 	"\rbudget_amount\x18\x04 \x01(\x03R\fbudgetAmount\x12-\n" +
 	"\x12essentials_percent\x18\x05 \x01(\x05R\x11essentialsPercent\x12'\n" +
 	"\x0fdesires_percent\x18\x06 \x01(\x05R\x0edesiresPercent\x12'\n" +
-	"\x0fsavings_percent\x18\a \x01(\x05R\x0esavingsPercent\x12-\n" +
-	"\x12reporting_currency\x18\b \x01(\tR\x11reportingCurrency\"\xf1\x01\n" +
+	"\x0fsavings_percent\x18\a \x01(\x05R\x0esavingsPercent\x126\n" +
+	"\x17reporting_currency_code\x18\b \x01(\tR\x15reportingCurrencyCode\"\xf1\x01\n" +
 	"\x13UpdatePeriodRequest\x12\x1b\n" +
 	"\tperiod_id\x18\x01 \x01(\tR\bperiodId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12#\n" +
@@ -2616,13 +2616,13 @@ const file_proto_finance_proto_rawDesc = "" +
 	"\x17GetPeriodContextRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
-	"\x05month\x18\x03 \x01(\x05R\x05month\"\xc6\x01\n" +
+	"\x05month\x18\x03 \x01(\x05R\x05month\"\xcf\x01\n" +
 	"\x18GetPeriodContextResponse\x12\x1b\n" +
 	"\tperiod_id\x18\x01 \x01(\tR\bperiodId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x03 \x01(\x05R\x04year\x12\x14\n" +
-	"\x05month\x18\x04 \x01(\x05R\x05month\x12-\n" +
-	"\x12reporting_currency\x18\x05 \x01(\tR\x11reportingCurrency\x12\x1b\n" +
+	"\x05month\x18\x04 \x01(\x05R\x05month\x126\n" +
+	"\x17reporting_currency_code\x18\x05 \x01(\tR\x15reportingCurrencyCode\x12\x1b\n" +
 	"\tis_locked\x18\x06 \x01(\bR\bisLocked\"\x84\x01\n" +
 	"\aTagData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +

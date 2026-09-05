@@ -34,12 +34,12 @@ func (c *GRPCExpenseClient) GetExpensesForPeriod(ctx context.Context, userID str
 	expenses := make([]ExpenseData, len(resp.GetData()))
 	for i, exp := range resp.GetData() {
 		expenses[i] = ExpenseData{
-			ID:                exp.GetId(),
-			ReportingAmount:   exp.GetReportingAmountInMinorUnits(),
-			ReportingCurrency: exp.GetReportingCurrencyCode(),
-			ExpenseType:       exp.GetExpenseType(),
-			TagID:             exp.GetTagId(),
-			ExpenseDate:       exp.GetExpenseDateIso(),
+			ID:                    exp.GetId(),
+			ReportingAmount:       exp.GetReportingAmountInMinorUnits(),
+			ReportingCurrencyCode: exp.GetReportingCurrencyCode(),
+			ExpenseType:           exp.GetExpenseType(),
+			TagID:                 exp.GetTagId(),
+			ExpenseDate:           exp.GetExpenseDateIso(),
 		}
 	}
 
@@ -91,12 +91,12 @@ func (c *GRPCExpenseClient) CreateProRataInstallment(ctx context.Context, req Cr
 	resp, err := c.client.CreateProRataInstallment(ctx, &expensepb.CreateProRataInstallmentRequest{
 		UserId: req.UserID,
 		PeriodContext: &expensepb.TrustedPeriodContext{
-			PeriodId:          req.PeriodContext.PeriodID,
-			UserId:            req.PeriodContext.UserID,
-			Year:              req.PeriodContext.Year,
-			Month:             req.PeriodContext.Month,
-			ReportingCurrency: req.PeriodContext.ReportingCurrency,
-			Source:            req.PeriodContext.Source,
+			PeriodId:              req.PeriodContext.PeriodID,
+			UserId:                req.PeriodContext.UserID,
+			Year:                  req.PeriodContext.Year,
+			Month:                 req.PeriodContext.Month,
+			ReportingCurrencyCode: req.PeriodContext.ReportingCurrencyCode,
+			Source:                req.PeriodContext.Source,
 		},
 		Name:                                  req.Name,
 		AmountInTransactionCurrencyMinorUnits: req.Amount,
