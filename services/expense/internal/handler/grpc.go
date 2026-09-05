@@ -125,7 +125,7 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 	}, nil
 }
 
-func (h *GRPCHandler) GetExpensesForPeriod(ctx context.Context, req *pb.GetExpensesForPeriodRequest) (*pb.ExpenseListResponse, error) {
+func (h *GRPCHandler) GetActiveExpensesForPeriod(ctx context.Context, req *pb.GetActiveExpensesForPeriodRequest) (*pb.ExpenseListResponse, error) {
 	result, err := h.expenseService.GetActiveExpensesForPeriod(ctx, &model.GetExpensesRequest{
 		UserID:   req.GetUserId(),
 		Year:     req.GetYear(),

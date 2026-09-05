@@ -61,7 +61,7 @@ func (m *mockExpenseServiceClient) StreamAllUserExpenses(_ context.Context, req 
 func (m *mockExpenseServiceClient) CreateExpense(_ context.Context, _ *expensepb.CreateExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil
 }
-func (m *mockExpenseServiceClient) GetExpensesForPeriod(_ context.Context, _ *expensepb.GetExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
+func (m *mockExpenseServiceClient) GetActiveExpensesForPeriod(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
 	return nil, nil
 }
 func (m *mockExpenseServiceClient) GetExpense(_ context.Context, _ *expensepb.GetExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {

@@ -20,7 +20,7 @@ func NewGRPCExpenseClient(client expensepb.ExpenseServiceClient) *GRPCExpenseCli
 }
 
 func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
-	resp, err := c.client.GetExpensesForPeriod(ctx, &expensepb.GetExpensesForPeriodRequest{
+	resp, err := c.client.GetActiveExpensesForPeriod(ctx, &expensepb.GetActiveExpensesForPeriodRequest{
 		UserId:   userID,
 		Year:     year,
 		Month:    month,
