@@ -90,7 +90,7 @@ func TestCompleteOnboardingHandler_InvalidSplit(t *testing.T) {
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, apierr.CodeValidation, errResp.Code)
-	assert.Contains(t, errResp.Message, "sum to 100%")
+	assert.Contains(t, errResp.Fields["essentialsPercent"], "must sum to 100")
 }
 
 func TestCompleteOnboardingHandler_MultiFieldValidationEmitsFields(t *testing.T) {
@@ -375,7 +375,7 @@ func TestUpdateDefaultsHandler_InvalidSplit(t *testing.T) {
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, apierr.CodeValidation, errResp.Code)
-	assert.Contains(t, errResp.Message, "sum to 100%")
+	assert.Contains(t, errResp.Fields["essentialsPercent"], "must sum to 100")
 }
 
 func TestUpdateDefaultsHandler_MissingUserID(t *testing.T) {

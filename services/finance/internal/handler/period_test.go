@@ -214,7 +214,7 @@ func TestCreatePeriodHandler_InvalidSplit(t *testing.T) {
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, apierr.CodeValidation, errResp.Code)
-	assert.Contains(t, errResp.Message, "sum to 100%")
+	assert.Contains(t, errResp.Fields["essentialsPercent"], "must sum to 100")
 }
 
 func TestCreatePeriodHandler_InvalidMonth(t *testing.T) {
@@ -467,7 +467,7 @@ func TestUpdatePeriodHandler_InvalidSplit(t *testing.T) {
 	var errResp apierr.APIError
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, apierr.CodeValidation, errResp.Code)
-	assert.Contains(t, errResp.Message, "sum to 100%")
+	assert.Contains(t, errResp.Fields["essentialsPercent"], "must sum to 100")
 }
 
 func TestUpdatePeriodHandler_MissingUserID(t *testing.T) {

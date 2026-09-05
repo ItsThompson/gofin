@@ -121,12 +121,12 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	created, err := s.expenseClient.CreateProRataInstallment(ctx, CreateProRataInstallmentInput{
 		UserID: userID,
 		PeriodContext: TrustedPeriodContext{
-			PeriodID:          period.ID,
-			UserID:            period.UserID,
-			Year:              period.Year,
-			Month:             period.Month,
+			PeriodID:              period.ID,
+			UserID:                period.UserID,
+			Year:                  period.Year,
+			Month:                 period.Month,
 			ReportingCurrencyCode: reportingCurrency,
-			Source:            "finance_service",
+			Source:                "finance_service",
 		},
 		Name:                 req.Name,
 		Amount:               installments[0],
@@ -256,12 +256,12 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 
 	targetReportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	trustedCtx := TrustedPeriodContext{
-		PeriodID:          period.ID,
-		UserID:            period.UserID,
-		Year:              period.Year,
-		Month:             period.Month,
+		PeriodID:              period.ID,
+		UserID:                period.UserID,
+		Year:                  period.Year,
+		Month:                 period.Month,
 		ReportingCurrencyCode: targetReportingCurrency,
-		Source:            "finance_service",
+		Source:                "finance_service",
 	}
 
 	applied := make([]*model.ProRataSchedule, 0, len(pending))
@@ -420,9 +420,6 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
 		return nil, verr
 	}
-	if req.Month < 1 || req.Month > 12 {
-		return nil, apierr.Validation("Month must be between 1 and 12", map[string]string{"month": "must be between 1 and 12"})
-	}
 
 	// REST binding guarantees a non-nil BudgetAmount, but gRPC can only express
 	// the int64 zero value, so treat nil as 0 rather than dereferencing blindly.
@@ -430,8 +427,12 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	if req.BudgetAmount != nil {
 		budgetAmount = *req.BudgetAmount
 	}
-	if budgetAmount < 0 {
-		return nil, budgetAmountError()
+
+	v := validator.New()
+	v.Check(req.Month >= 1 && req.Month <= 12, "month", "must be between 1 and 12")
+	v.Check(budgetAmount >= 0, "budgetAmount", "must be non-negative")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
 	reportingCurrency := normalizeCurrencyCode(req.ReportingCurrencyCode)
