@@ -10,7 +10,7 @@ benchmark_note: reads use a synthetic 200µs per-read latency (benchReadLatency 
                 reference, never a CI threshold.
 
 # Environment-independent (portable; the durable signal, gated by regression tests)
-#   GetSpendingTrends issues exactly one GetExpensesForPeriod per non-nil period in
+#   GetSpendingTrends issues exactly one GetActiveExpensesForPeriod per non-nil period in
 #   the window (nil/missing periods issue no read):
 expense_calls@GetSpendingTrends(months=1):   1
 expense_calls@GetSpendingTrends(months=6):   6
