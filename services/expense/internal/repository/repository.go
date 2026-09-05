@@ -35,7 +35,7 @@ type ExpenseRepository interface {
 	// Used by the check-then-insert idempotency path in CreateExpense.
 	GetExpenseByIdempotencyKey(ctx context.Context, userID string, key string) (*model.Expense, error)
 
-	DeactivateExpense(ctx context.Context, id string, userID string) (int64, error)
+	DeactivateExpense(ctx context.Context, expenseID string, userID string) error
 
 	GetActiveExpenseSuggestionInputs(ctx context.Context, userID string) ([]*model.ExpenseSuggestionInput, error)
 

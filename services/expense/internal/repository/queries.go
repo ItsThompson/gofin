@@ -172,16 +172,16 @@ func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context
 	return expense, nil
 }
 
-func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
+func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, expenseID string, userID string) error {
 	query := `UPDATE expenses SET status = 'corrected' WHERE id = @id AND user_id = @user_id;`
 	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{
-		"id":      id,
+		"id":      expenseID,
 		"user_id": userID,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("deactivating expense: %w", err)
+		return fmt.Errorf("deactivating expense: %w", err)
 	}
-	return 1, nil
+	return nil
 }
 
 // CountExpensesByTag returns the count of active expenses referencing the given tag

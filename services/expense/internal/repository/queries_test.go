@@ -133,9 +133,8 @@ func TestDeactivateExpense_IssuesScopedUpdate(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	repo := NewImmudbExpenseRepository(client, logger)
 
-	count, err := repo.DeactivateExpense(context.Background(), "exp-1", "user-1")
+	err := repo.DeactivateExpense(context.Background(), "exp-1", "user-1")
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), count)
 
 	recorded := client.Queries()
 	require.Len(t, recorded, 1)

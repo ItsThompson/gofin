@@ -393,7 +393,7 @@ func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expen
 		}
 	}
 
-	if _, err := s.repo.DeactivateExpense(ctx, expenseID, userID); err != nil {
+	if err := s.repo.DeactivateExpense(ctx, expenseID, userID); err != nil {
 		return fmt.Errorf("deleting expense: %w", err)
 	}
 

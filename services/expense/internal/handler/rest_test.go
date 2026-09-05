@@ -69,9 +69,9 @@ func (m *mockExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context, 
 	return nil, nil
 }
 
-func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
-	args := m.Called(ctx, id, userID)
-	return args.Get(0).(int64), args.Error(1)
+func (m *mockExpenseRepository) DeactivateExpense(ctx context.Context, expenseID string, userID string) error {
+	args := m.Called(ctx, expenseID, userID)
+	return args.Error(0)
 }
 
 func (m *mockExpenseRepository) CountExpensesByTag(ctx context.Context, userID string, tagID string) (int64, error) {
@@ -854,7 +854,7 @@ func TestDeleteExpenseHandler_Success(t *testing.T) {
 		PeriodYear: 2026, PeriodMonth: 5, Status: "active",
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
-	repo.On("DeactivateExpense", mock.Anything, "exp-original", "user-1").Return(int64(1), nil)
+	repo.On("DeactivateExpense", mock.Anything, "exp-original", "user-1").Return(nil)
 
 	r := setupTestRouterWithClock(repo, now)
 	w := doJSONWithUserID(r, "DELETE", "/api/expenses/exp-original", "user-1", nil)
