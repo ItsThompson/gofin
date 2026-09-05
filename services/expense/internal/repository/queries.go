@@ -212,9 +212,9 @@ func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID
 	return 0, nil
 }
 
-// GetProRataGroup returns all expenses in a pro-rata group for a user,
+// GetExpensesInProRataGroup returns all expenses in a pro-rata group for a user,
 // ordered by installment index.
-func (r *ImmudbExpenseRepository) GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
+func (r *ImmudbExpenseRepository) GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
 	query := fmt.Sprintf(`SELECT %s FROM expenses
 		WHERE pro_rata_group = @group_id AND user_id = @user_id
 		ORDER BY pro_rata_index;`, expenseSelectColumns)

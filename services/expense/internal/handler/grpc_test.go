@@ -62,7 +62,7 @@ func (stubFxClient) ConvertWithSnapshot(ctx context.Context, req service.FxConve
 }
 
 // TestGRPC_RemovedReadRPCsAreNotRegistered asserts GetCorrectionHistory and
-// GetProRataGroup are served over REST, not gRPC. This guards against
+// GetExpensesInProRataGroup are served over REST, not gRPC. This guards against
 // re-introducing an unscoped read RPC on the gRPC surface.
 func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	registered := make(map[string]bool)
@@ -74,7 +74,7 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	}
 
 	assert.NotContains(t, registered, "GetCorrectionHistory")
-	assert.NotContains(t, registered, "GetProRataGroup")
+	assert.NotContains(t, registered, "GetExpensesInProRataGroup")
 
 	// The rest of the gRPC surface is unchanged.
 	assert.Contains(t, registered, "CreateExpense")

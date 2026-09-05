@@ -95,7 +95,7 @@ func (m *mockExpenseRepository) GetCorrectionHistory(ctx context.Context, expens
 	return args.Get(0).([]*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
+func (m *mockExpenseRepository) GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
 	args := m.Called(ctx, groupID, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -815,15 +815,15 @@ func TestGetCorrectionHistoryHandler_MissingUserID(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-// --- GetProRataGroup Handler Tests ---
+// --- GetExpensesInProRataGroup Handler Tests ---
 
-func TestGetProRataGroupHandler_Success(t *testing.T) {
+func TestGetExpensesInProRataGroupHandler_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	expenses := []*model.Expense{
 		{ID: "exp-1", ProRataIndex: 1, ProRataTotal: 3},
 		{ID: "exp-2", ProRataIndex: 2, ProRataTotal: 3},
 	}
-	repo.On("GetProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
+	repo.On("GetExpensesInProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
 
 	r := setupTestRouter(repo)
 	w := doJSONWithUserID(r, "GET", "/api/expenses/prorata/group-1", "user-1", nil)
@@ -834,7 +834,7 @@ func TestGetProRataGroupHandler_Success(t *testing.T) {
 	assert.Len(t, resp.Expenses, 2)
 }
 
-func TestGetProRataGroupHandler_MissingUserID(t *testing.T) {
+func TestGetExpensesInProRataGroupHandler_MissingUserID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	r := setupTestRouter(repo)
 	w := doJSONWithUserID(r, "GET", "/api/expenses/prorata/group-1", "", nil)

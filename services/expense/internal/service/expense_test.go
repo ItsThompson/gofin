@@ -95,7 +95,7 @@ func (m *mockExpenseRepository) GetCorrectionHistory(ctx context.Context, expens
 	return args.Get(0).([]*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
+func (m *mockExpenseRepository) GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error) {
 	args := m.Called(ctx, groupID, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -1430,9 +1430,9 @@ func TestGetCorrectionHistory_EmptyID(t *testing.T) {
 	assert.Equal(t, apierr.CodeValidation, svcErr.Code)
 }
 
-// --- GetProRataGroup tests ---
+// --- GetExpensesInProRataGroup tests ---
 
-func TestGetProRataGroup_Success(t *testing.T) {
+func TestGetExpensesInProRataGroup_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
@@ -1441,19 +1441,19 @@ func TestGetProRataGroup_Success(t *testing.T) {
 		{ID: "exp-2", ProRataIndex: 2, ProRataTotal: 3},
 	}
 
-	repo.On("GetProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
+	repo.On("GetExpensesInProRataGroup", mock.Anything, "group-1", "user-1").Return(expenses, nil)
 
-	result, err := svc.GetProRataGroup(context.Background(), "user-1", "group-1")
+	result, err := svc.GetExpensesInProRataGroup(context.Background(), "user-1", "group-1")
 
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
 }
 
-func TestGetProRataGroup_EmptyGroupID(t *testing.T) {
+func TestGetExpensesInProRataGroup_EmptyGroupID(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	_, err := svc.GetProRataGroup(context.Background(), "user-1", "")
+	_, err := svc.GetExpensesInProRataGroup(context.Background(), "user-1", "")
 
 	require.Error(t, err)
 	svcErr := requireAPIError(t, err)

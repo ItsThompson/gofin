@@ -29,7 +29,7 @@ type ExpenseRepository interface {
 	// ordered chronologically (original first, latest correction last).
 	GetCorrectionHistory(ctx context.Context, expenseID string, userID string) ([]*model.Expense, error)
 
-	GetProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
+	GetExpensesInProRataGroup(ctx context.Context, groupID string, userID string) ([]*model.Expense, error)
 
 	// GetExpenseByIdempotencyKey returns the expense for the given user that was
 	// created with the supplied idempotency key, or nil if no such expense exists.

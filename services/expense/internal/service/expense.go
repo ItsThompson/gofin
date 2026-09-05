@@ -426,13 +426,13 @@ func (s *ExpenseService) GetCorrectionHistory(ctx context.Context, userID string
 	return chain, nil
 }
 
-// GetProRataGroup returns all expenses belonging to a pro-rata group.
-func (s *ExpenseService) GetProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
+// GetExpensesInProRataGroup returns all expenses belonging to a pro-rata group.
+func (s *ExpenseService) GetExpensesInProRataGroup(ctx context.Context, userID string, groupID string) ([]*model.Expense, error) {
 	if groupID == "" {
 		return nil, apierr.Validation("group ID is required", nil)
 	}
 
-	expenses, err := s.repo.GetProRataGroup(ctx, groupID, userID)
+	expenses, err := s.repo.GetExpensesInProRataGroup(ctx, groupID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("getting pro-rata group: %w", err)
 	}
