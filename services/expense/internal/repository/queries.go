@@ -172,11 +172,6 @@ func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context
 	return expense, nil
 }
 
-// DeactivateExpense soft-deletes an active expense by flipping its status to
-// "corrected" with no replacement row. Scoped to the user. immudb's SQLExec
-// does not expose a row count; the service layer's pre-check (fetch -> 404 if
-// nil -> reject if not active) guarantees the row exists and is active before
-// this call, so a successful exec means the UPDATE ran. Returns 1 on success.
 func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, id string, userID string) (int64, error) {
 	query := `UPDATE expenses SET status = 'corrected' WHERE id = @id AND user_id = @user_id;`
 	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{
