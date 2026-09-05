@@ -5,6 +5,12 @@
 - **Go module path**: `github.com/ItsThompson/gofin` (capital I, capital T, case-sensitive)
 - **Remote**: `https://github.com/ItsThompson/gofin.git`
 
+## Documentation
+
+- Detailed project docs live in `docs/` (one file per area: api, architecture, auth, data-model, testing, ...) and operational procedures in `docs/runbooks/`
+- Before working in an unfamiliar area, run `ls docs/` and read any guide relevant to the task
+- When a task reveals docs are outdated or missing coverage, update or add a doc in the same change
+
 ## Repository Structure
 
 ```
@@ -16,6 +22,7 @@ gofin/
 ├── monitoring/        # Prometheus, Grafana, alert rules
 ├── deployments/       # Cloudflare tunnel configs
 ├── scripts/           # Deploy scripts
+├── docs/              # Project documentation (see Documentation section)
 └── docker-compose.yml
 ```
 
