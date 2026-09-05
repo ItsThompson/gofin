@@ -10,10 +10,10 @@ import (
 type ExpenseRepository interface {
 	CreateExpense(ctx context.Context, expense *model.Expense) (*model.Expense, error)
 
-	// GetExpensesForPeriod returns materialized (status=active only) expenses
+	// GetActiveExpensesForPeriod returns materialized (status=active only) expenses
 	// for the given user and period, ordered by expense_date DESC, created_at DESC.
 	// Returns the matching expenses and the total count for pagination.
-	GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error)
+	GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error)
 
 	// Returns nil if the expense doesn't exist or belongs to a different user.
 	GetExpenseByID(ctx context.Context, id string, userID string) (*model.Expense, error)

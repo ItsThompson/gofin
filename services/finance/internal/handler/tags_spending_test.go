@@ -32,7 +32,7 @@ func TestGetSpendingByTagHandler_Success(t *testing.T) {
 			SavingsPercent:    20,
 		}, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{
 			{TagID: "tag-food", ReportingAmount: 30000},
 			{TagID: "tag-food", ReportingAmount: 20000},
@@ -84,7 +84,7 @@ func TestGetSpendingByTagHandler_NoExpenses(t *testing.T) {
 			EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 		}, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{}, nil)
 
 	repo.On("ListTags", mock.Anything, "user-123").
@@ -118,7 +118,7 @@ func TestGetCumulativeSpendHandler_Success(t *testing.T) {
 			SavingsPercent:    20,
 		}, nil)
 
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).
 		Return([]service.ExpenseData{
 			{ExpenseDate: "2025-01-01", ReportingAmount: 10000},
 			{ExpenseDate: "2025-01-03", ReportingAmount: 20000},

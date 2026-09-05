@@ -169,8 +169,8 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	return created, nil
 }
 
-// GetExpensesForPeriod returns materialized expenses for a period with pagination.
-func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
+// GetActiveExpensesForPeriod returns materialized expenses for a period with pagination.
+func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
 	if req.Year < 1 {
 		return nil, apierr.Validation("year must be positive", nil)
 	}
@@ -187,7 +187,7 @@ func (s *ExpenseService) GetExpensesForPeriod(ctx context.Context, req *model.Ge
 		pageSize = 50
 	}
 
-	expenses, total, err := s.repo.GetExpensesForPeriod(ctx, req.UserID, req.Year, req.Month, page, pageSize)
+	expenses, total, err := s.repo.GetActiveExpensesForPeriod(ctx, req.UserID, req.Year, req.Month, page, pageSize)
 	if err != nil {
 		return nil, fmt.Errorf("getting expenses for period: %w", err)
 	}

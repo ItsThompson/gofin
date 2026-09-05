@@ -54,7 +54,7 @@ func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 
 	client := NewGRPCExpenseClient(stub)
 
-	expenses, err := client.GetExpensesForPeriod(context.Background(), "user-1", 2025, 1)
+	expenses, err := client.GetActiveExpensesForPeriod(context.Background(), "user-1", 2025, 1)
 	require.NoError(t, err)
 	require.Len(t, expenses, 2)
 

@@ -36,7 +36,7 @@ func (m *mockExpenseRepository) CreateExpense(ctx context.Context, expense *mode
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
+func (m *mockExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
 	args := m.Called(ctx, userID, year, month, page, pageSize)
 	if args.Get(0) == nil {
 		return nil, args.Get(1).(int64), args.Error(2)
@@ -537,7 +537,7 @@ func TestGetExpensesHandler_Success(t *testing.T) {
 		{ID: "exp-2", Name: "Coffee", Status: "active", ExpenseDateIso: "2026-05-01"},
 	}
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
 		Return(expenses, int64(2), nil)
 
 	r := setupTestRouter(repo)
@@ -562,7 +562,7 @@ func TestGetExpensesHandler_WithPagination(t *testing.T) {
 		{ID: "exp-3", Name: "Lunch", Status: "active"},
 	}
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(2), int32(10)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(2), int32(10)).
 		Return(expenses, int64(15), nil)
 
 	r := setupTestRouter(repo)

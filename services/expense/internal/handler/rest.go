@@ -117,7 +117,7 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 		}
 	}
 
-	result, svcErr := h.expenseService.GetExpensesForPeriod(c.Request.Context(), &model.GetExpensesRequest{
+	result, svcErr := h.expenseService.GetActiveExpensesForPeriod(c.Request.Context(), &model.GetExpensesRequest{
 		UserID:   userID,
 		Year:     int32(year),
 		Month:    int32(month),

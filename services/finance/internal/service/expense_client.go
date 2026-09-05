@@ -19,7 +19,7 @@ type ExpenseData struct {
 // ExpenseClient abstracts the gRPC call to the expense service.
 // In production, this wraps a gRPC client. In tests, it's a mock.
 type ExpenseClient interface {
-	GetExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error)
+	GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error)
 	CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error)
 	CreateExpense(ctx context.Context, req CreateExpenseInput) (*CreatedExpenseData, error)
 	CreateProRataInstallment(ctx context.Context, req CreateProRataInstallmentInput) (*CreatedExpenseData, error)

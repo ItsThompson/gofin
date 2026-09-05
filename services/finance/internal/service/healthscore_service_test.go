@@ -46,7 +46,7 @@ func TestGetHealthScore_ConfigureBudget(t *testing.T) {
 	// Must not read defaults, expenses, or storage when there is no budget.
 	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "GetHealthScore", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
-	expClient.AssertNotCalled(t, "GetExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "GetActiveExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestGetHealthScore_Success_UsesPeriodReportingCurrency(t *testing.T) {
@@ -63,7 +63,7 @@ func TestGetHealthScore_Success_UsesPeriodReportingCurrency(t *testing.T) {
 	// empty (building baseline).
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{
 			healthExpense("essentials", 130000),
 			healthExpense("desires", 90000),
@@ -98,7 +98,7 @@ func TestGetHealthScore_EmptyReportingCurrencyFallback(t *testing.T) {
 		Return(period, nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{
 			healthExpense("essentials", 130000),
 			healthExpense("desires", 90000),
@@ -170,7 +170,7 @@ func TestGetHealthScore_ClosedStoredCurrentVersionReturnsStored(t *testing.T) {
 	// Stored hit: no recompute, no expense read, no upsert.
 	repo.AssertNotCalled(t, "GetDefaults", mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "ListPeriods", mock.Anything, mock.Anything)
-	expClient.AssertNotCalled(t, "GetExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	expClient.AssertNotCalled(t, "GetActiveExpensesForPeriod", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	repo.AssertNotCalled(t, "UpsertHealthScore", mock.Anything, mock.Anything, mock.Anything)
 }
 
@@ -206,7 +206,7 @@ func TestGetHealthScore_ClosedMissComputesAndUpserts(t *testing.T) {
 	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, nil) // miss
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 	repo.On("UpsertHealthScore", mock.Anything, "user-1", mock.Anything).Return(nil, nil)
 
@@ -232,7 +232,7 @@ func TestGetHealthScore_StaleVersionRecomputesAndUpserts(t *testing.T) {
 		Return(storedScore(1), nil) // stale version
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 	repo.On("UpsertHealthScore", mock.Anything, "user-1", mock.Anything).Return(nil, nil)
 
@@ -255,7 +255,7 @@ func TestGetHealthScore_ProvisionalNotStored(t *testing.T) {
 		Return(healthPeriod(300000, 50, 30, 20), nil)
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 
 	score, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
@@ -286,14 +286,14 @@ func TestGetHealthScore_StabilityPresentReadsWindowOncePerMonth(t *testing.T) {
 		healthPeriodMonth(2026, 2),
 		healthPeriodMonth(2026, 1),
 	}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{
 			healthExpense("essentials", 140000),
 			healthExpense("desires", 80000),
 			healthExpense("savings", 40000),
 		}, nil)
 	for month := int32(1); month <= 4; month++ {
-		expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), month).
+		expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), month).
 			Return([]ExpenseData{healthExpense("desires", 80000)}, nil)
 	}
 
@@ -304,7 +304,7 @@ func TestGetHealthScore_StabilityPresentReadsWindowOncePerMonth(t *testing.T) {
 	assert.Equal(t, model.HealthKeyStability, score.Components[3].Key)
 	assert.Equal(t, int32(20), score.Components[3].Score, "steady desires earn full stability marks")
 	// one read for the target plus one per windowed month (Apr..Jan) = 5.
-	expClient.AssertNumberOfCalls(t, "GetExpensesForPeriod", 5)
+	expClient.AssertNumberOfCalls(t, "GetActiveExpensesForPeriod", 5)
 }
 
 // --- Health-score currency stability ---
@@ -323,7 +323,7 @@ func TestGetHealthScore_StableAfterDefaultCurrencyChange(t *testing.T) {
 		Return(healthPeriod(300000, 50, 30, 20), nil) // reportingCurrency = USD
 	repo.On("ListPeriods", mock.Anything, "user-1").
 		Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
-	expClient.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
 		Return([]ExpenseData{
 			healthExpense("essentials", 130000),
 			healthExpense("desires", 90000),

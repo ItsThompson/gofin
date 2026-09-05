@@ -61,9 +61,9 @@ func (r *ImmudbExpenseRepository) CreateExpense(ctx context.Context, expense *mo
 	return expense, nil
 }
 
-// GetExpensesForPeriod returns materialized (active-only) expenses for the given
+// GetActiveExpensesForPeriod returns materialized (active-only) expenses for the given
 // user and period, with pagination. Also returns the total count.
-func (r *ImmudbExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
+func (r *ImmudbExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
 	// Count query for pagination
 	countQuery := `SELECT COUNT(*) FROM expenses
 		WHERE user_id = @user_id

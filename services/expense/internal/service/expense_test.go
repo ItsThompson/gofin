@@ -36,7 +36,7 @@ func (m *mockExpenseRepository) CreateExpense(ctx context.Context, expense *mode
 	return args.Get(0).(*model.Expense), args.Error(1)
 }
 
-func (m *mockExpenseRepository) GetExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
+func (m *mockExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) ([]*model.Expense, int64, error) {
 	args := m.Called(ctx, userID, year, month, page, pageSize)
 	if args.Get(0) == nil {
 		return nil, args.Get(1).(int64), args.Error(2)
@@ -891,9 +891,9 @@ func TestCreateExpense_InvalidDateFormat(t *testing.T) {
 	}
 }
 
-// --- GetExpensesForPeriod tests ---
+// --- GetActiveExpensesForPeriod tests ---
 
-func TestGetExpensesForPeriod_Success(t *testing.T) {
+func TestGetActiveExpensesForPeriod_Success(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
@@ -902,10 +902,10 @@ func TestGetExpensesForPeriod_Success(t *testing.T) {
 		{ID: "exp-2", Name: "Coffee", Status: "active"},
 	}
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
 		Return(expenses, int64(2), nil)
 
-	result, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	result, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID:   "user-1",
 		Year:     2026,
 		Month:    5,
@@ -921,7 +921,7 @@ func TestGetExpensesForPeriod_Success(t *testing.T) {
 	assert.False(t, result.HasMore)
 }
 
-func TestGetExpensesForPeriod_HasMore(t *testing.T) {
+func TestGetActiveExpensesForPeriod_HasMore(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
@@ -929,10 +929,10 @@ func TestGetExpensesForPeriod_HasMore(t *testing.T) {
 		{ID: "exp-1", Name: "Groceries"},
 	}
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(1)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(1)).
 		Return(expenses, int64(5), nil)
 
-	result, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	result, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID:   "user-1",
 		Year:     2026,
 		Month:    5,
@@ -945,15 +945,15 @@ func TestGetExpensesForPeriod_HasMore(t *testing.T) {
 	assert.Equal(t, int64(5), result.Total)
 }
 
-func TestGetExpensesForPeriod_DefaultsPagination(t *testing.T) {
+func TestGetActiveExpensesForPeriod_DefaultsPagination(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	repo.On("GetExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5), int32(1), int32(50)).
 		Return([]*model.Expense{}, int64(0), nil)
 
 	// page=0 and pageSize=0 should be defaulted
-	result, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	result, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID:   "user-1",
 		Year:     2026,
 		Month:    5,
@@ -966,11 +966,11 @@ func TestGetExpensesForPeriod_DefaultsPagination(t *testing.T) {
 	assert.Equal(t, int32(50), result.PageSize)
 }
 
-func TestGetExpensesForPeriod_InvalidMonth(t *testing.T) {
+func TestGetActiveExpensesForPeriod_InvalidMonth(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newTestService(repo)
 
-	_, err := svc.GetExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
+	_, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{
 		UserID: "user-1",
 		Year:   2026,
 		Month:  13,

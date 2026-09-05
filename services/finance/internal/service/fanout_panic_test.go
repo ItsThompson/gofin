@@ -71,7 +71,7 @@ type panickingExpenseClient struct {
 	panicMonth int32
 }
 
-func (c *panickingExpenseClient) GetExpensesForPeriod(_ context.Context, _ string, year, month int32) ([]ExpenseData, error) {
+func (c *panickingExpenseClient) GetActiveExpensesForPeriod(_ context.Context, _ string, year, month int32) ([]ExpenseData, error) {
 	if (c.panicYear == 0 && c.panicMonth == 0) || (year == c.panicYear && month == c.panicMonth) {
 		explodeIn("expense read")
 	}

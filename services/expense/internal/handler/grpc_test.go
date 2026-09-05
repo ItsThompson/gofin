@@ -78,7 +78,7 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 
 	// The rest of the gRPC surface is unchanged.
 	assert.Contains(t, registered, "CreateExpense")
-	assert.Contains(t, registered, "GetExpensesForPeriod")
+	assert.Contains(t, registered, "GetActiveExpensesForPeriod")
 	assert.Contains(t, registered, "GetExpense")
 	assert.Contains(t, registered, "CorrectExpense")
 	assert.Contains(t, registered, "CountExpensesByTag")
