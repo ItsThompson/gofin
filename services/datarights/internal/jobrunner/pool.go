@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
@@ -27,6 +28,22 @@ const runningStatus = "running"
 // the persisted string, which datarights shows to the user; the log record holds
 // the real cause.
 const panicFailureReason = "Job failed unexpectedly"
+
+// reportStatusWriteFailure reports a failed lifecycle persistence write. The
+// pool runs on contexts that carry no hub (background jobs), so the reports
+// fall back to a clone of the global hub, which is errkit's documented path for
+// background work.
+func reportStatusWriteFailure(ctx context.Context, err error, msg string, jobID, userID string) {
+	_ = errkit.Report(ctx, err, errkit.Meta{
+		Op:     "jobrunner.status_write",
+		Domain: "datarights",
+		Msg:    msg,
+		Data: map[string]any{
+			"job_id":  jobID,
+			"user_id": userID,
+		},
+	})
+}
 
 // StatusStore persists a job's lifecycle transitions. The deletion job repo
 // satisfies it directly; the export engine adapts its repo behind this seam so
@@ -103,20 +120,12 @@ func (p *Pool) run(jobID, userID string) {
 		// A fresh background context, matching the error branch below: the job
 		// context may already have expired.
 		if failErr := p.store.FailJob(context.Background(), jobID, panicFailureReason); failErr != nil {
-			p.log.Error("failed to mark panicking job failed",
-				slog.String("job_id", jobID),
-				slog.String("user_id", userID),
-				slog.String("error", failErr.Error()),
-			)
+			reportStatusWriteFailure(context.Background(), failErr, "failed to mark panicking job failed", jobID, userID)
 		}
 	}()
 
 	if err := p.store.UpdateStatus(ctx, jobID, runningStatus); err != nil {
-		p.log.Error("failed to mark job running",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
+		reportStatusWriteFailure(ctx, err, "failed to mark job running", jobID, userID)
 		return
 	}
 
@@ -124,21 +133,13 @@ func (p *Pool) run(jobID, userID string) {
 		// The job context may already be expired (timeout), so persist the
 		// terminal failure through a fresh background context.
 		if failErr := p.store.FailJob(context.Background(), jobID, err.Error()); failErr != nil {
-			p.log.Error("failed to mark job failed",
-				slog.String("job_id", jobID),
-				slog.String("user_id", userID),
-				slog.String("error", failErr.Error()),
-			)
+			reportStatusWriteFailure(context.Background(), failErr, "failed to mark job failed", jobID, userID)
 		}
 		return
 	}
 
 	if err := p.store.CompleteJob(ctx, jobID); err != nil {
-		p.log.Error("failed to complete job",
-			slog.String("job_id", jobID),
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
+		reportStatusWriteFailure(ctx, err, "failed to complete job", jobID, userID)
 	}
 }
 

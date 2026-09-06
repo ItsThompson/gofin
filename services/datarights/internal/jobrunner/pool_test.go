@@ -32,6 +32,7 @@ type fakeStore struct {
 
 	updateErr   error
 	completeErr error
+	failErr     error
 }
 
 type statusCall struct {
@@ -66,7 +67,7 @@ func (s *fakeStore) FailJob(ctx context.Context, jobID, reason string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failed = append(s.failed, failCall{jobID: jobID, reason: reason, ctxLive: ctx.Err() == nil})
-	return nil
+	return s.failErr
 }
 
 func (s *fakeStore) statusSnapshot() []statusCall {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/jobrunner"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
+	"github.com/ItsThompson/gofin/services/errkit"
 )
 
 const (
@@ -62,14 +63,19 @@ func (e *Engine) execute(ctx context.Context, jobID, userID string) error {
 	for _, provider := range e.registry.All() {
 		attempts, err := e.executeProvider(ctx, provider, jobID, userID)
 		if err != nil {
-			// Provider exhausted retries or context expired: fail the job.
+			// Provider exhausted retries or context expired: fail the job. The
+			// pool persists the returned reason (PII-free by contract) and does not
+			// report, so this report is the failure's only Sentry record.
 			jobErr := fmt.Errorf("provider %s failed after %d attempts: %w", provider.Name(), attempts, err)
-			e.logger.Error("deletion job failed",
-				slog.String("job_id", jobID),
-				slog.String("user_id", userID),
-				slog.String("error", jobErr.Error()),
-				slog.String("method", "deletion.engine.execute"),
-			)
+			_ = errkit.Report(ctx, jobErr, errkit.Meta{
+				Op:     "deletion_job.run",
+				Domain: "datarights",
+				Msg:    "deletion job failed",
+				Data: map[string]any{
+					"job_id":  jobID,
+					"user_id": userID,
+				},
+			})
 			return jobErr
 		}
 	}
