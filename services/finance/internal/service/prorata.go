@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 	"github.com/ItsThompson/gofin/services/shared/validator"
@@ -166,14 +167,8 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 			CapturedRateSnapshot:                  snapshot,
 		})
 		if err != nil {
-			// Log the inconsistency and return an error (the first installment is already written).
-			s.logger.Error("pro-rata schedule creation failed after expense write",
-				slog.String("method", "CreateProRataExpense"),
-				slog.String("user_id", userID),
-				slog.String("pro_rata_group", proRataGroup),
-				slog.Int("installment_index", int(i)),
-				slog.String("error", err.Error()),
-			)
+			// The error is returned and the handler reports it, so a record here
+			// would be the second for one failure.
 			return nil, apierr.Internal("First installment was created but schedule creation failed. Please contact support.")
 		}
 		schedules = append(schedules, schedule)
@@ -331,23 +326,33 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 		if reason := classifyProRataExpenseError(err); reason != "" {
 			s.markProRataFailed(ctx, schedule, reason)
 		} else {
-			s.logger.Error("pro-rata installment write failed; schedule remains pending",
-				slog.String("method", "applyOneProRataSchedule"),
-				slog.String("schedule_id", schedule.ID),
-				slog.String("pro_rata_group", schedule.ProRataGroup),
-				slog.String("failure_reason", "transient_write_failure"),
-				slog.String("error", err.Error()),
-			)
+			// Swallowed: the schedule stays pending for retry, so this service is
+			// the failure's only reporter.
+			_ = errkit.Report(ctx, err, errkit.Meta{
+				Op:     "finance.prorata_apply",
+				Domain: "budgets",
+				Msg:    "pro-rata installment write failed; schedule remains pending",
+				Data: map[string]any{
+					"schedule_id":    schedule.ID,
+					"pro_rata_group": schedule.ProRataGroup,
+				},
+			})
 		}
 		return nil
 	}
 
 	if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
-		s.logger.Error("failed to mark pro-rata as applied after successful ledger write",
-			slog.String("method", "applyOneProRataSchedule"),
-			slog.String("schedule_id", schedule.ID),
-			slog.String("error", err.Error()),
-		)
+		// Swallowed: the ledger write succeeded, so the schedule is financially
+		// applied even though the status row was not updated. This service is the
+		// failure's only reporter.
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "finance.prorata_apply",
+			Domain: "budgets",
+			Msg:    "failed to mark pro-rata as applied after successful ledger write",
+			Data: map[string]any{
+				"schedule_id": schedule.ID,
+			},
+		})
 		return nil
 	}
 
@@ -392,12 +397,17 @@ func classifyProRataExpenseError(err error) string {
 // failure during the status update is logged but does not roll back the decision.
 func (s *FinanceService) markProRataFailed(ctx context.Context, schedule *model.ProRataSchedule, failureReason string) {
 	if err := s.repo.MarkProRataFailed(ctx, schedule.ID, failureReason); err != nil {
-		s.logger.Error("failed to mark pro-rata schedule as failed",
-			slog.String("method", "markProRataFailed"),
-			slog.String("schedule_id", schedule.ID),
-			slog.String("intended_failure_reason", failureReason),
-			slog.String("error", err.Error()),
-		)
+		// Swallowed: the repo is too broken to persist the transition, so this
+		// service is the failure's only reporter.
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "finance.prorata_apply",
+			Domain: "budgets",
+			Msg:    "failed to mark pro-rata schedule as failed",
+			Data: map[string]any{
+				"schedule_id":            schedule.ID,
+				"intended_failure_reason": failureReason,
+			},
+		})
 		return
 	}
 	schedule.Status = "failed"
@@ -469,11 +479,17 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	// transient failures leave them pending.
 	applied, applyErr := s.applyPendingProRata(ctx, userID, period)
 	if applyErr != nil {
-		s.logger.Error("failed to load pending pro-rata for new period",
-			slog.Int("year", int(req.Year)),
-			slog.Int("month", int(req.Month)),
-			slog.String("error", applyErr.Error()),
-		)
+		// Swallowed: the period is created and returned, so this service is the
+		// failure's only reporter.
+		_ = errkit.Report(ctx, applyErr, errkit.Meta{
+			Op:     "finance.create_period",
+			Domain: "budgets",
+			Msg:    "failed to load pending pro-rata for new period",
+			Data: map[string]any{
+				"year":  int(req.Year),
+				"month": int(req.Month),
+			},
+		})
 	}
 	allAppliedProRata = append(allAppliedProRata, applied...)
 
@@ -540,11 +556,17 @@ func (s *FinanceService) createMissedPeriods(
 		// failed and transient failures leave them pending.
 		applied, applyErr := s.applyPendingProRata(ctx, userID, autoPeriod)
 		if applyErr != nil {
-			s.logger.Error("failed to load pending pro-rata for auto-created period",
-				slog.Int("year", int(missed.year)),
-				slog.Int("month", int(missed.month)),
-				slog.String("error", applyErr.Error()),
-			)
+			// Swallowed: the auto-created period stands, so this service is the
+			// failure's only reporter.
+			_ = errkit.Report(ctx, applyErr, errkit.Meta{
+				Op:     "finance.create_period",
+				Domain: "budgets",
+				Msg:    "failed to load pending pro-rata for auto-created period",
+				Data: map[string]any{
+					"year":  int(missed.year),
+					"month": int(missed.month),
+				},
+			})
 		}
 		allApplied = append(allApplied, applied...)
 		autoCreatedMonths = append(autoCreatedMonths, monthLabel(missed.year, missed.month))
