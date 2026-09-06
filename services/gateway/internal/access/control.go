@@ -12,6 +12,7 @@ import (
 
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/errkit"
 )
 
 // Identity headers the gateway sets for downstream services after a successful
@@ -80,12 +81,19 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) s
 			// not that the client's token is invalid: fail fast with 503 so the
 			// worker is freed, distinct from the 401 for a genuine rejection.
 			if isValidationTimeout(err) {
-				logger.Warn("auth validation timed out",
-					slog.String("method", c.Request.Method),
-					slog.String("path", c.Request.URL.Path),
-					slog.String("dependency", "auth"),
-					slog.String("error", err.Error()),
-				)
+				// A 5xx-class dependency failure, so it is reported like one; the
+				// other warns below are middleware decisions with no error value.
+				_ = errkit.Report(c.Request.Context(), err, errkit.Meta{
+					Kind:   errkit.KindTimeout,
+					Op:     "gateway.auth_validate",
+					Domain: "platform",
+					Msg:    "auth validation timed out",
+					Data: map[string]any{
+						"method":     c.Request.Method,
+						"path":       c.Request.URL.Path,
+						"dependency": "auth",
+					},
+				})
 				abortUnavailable(c)
 				return
 			}
