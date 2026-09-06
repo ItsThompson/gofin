@@ -11,8 +11,13 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
+	"github.com/ItsThompson/gofin/services/errkit"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 )
+
+// reportDomain is the domain tag on every report this service makes, shared
+// with the other services' tag vocabulary so one cross-project query covers it.
+const reportDomain = "auth"
 
 // GRPCHandler implements the AuthService gRPC server. Register and Login
 // deliberately return codes.Unimplemented directing callers to the REST
@@ -40,13 +45,27 @@ func isMissingUser(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized
 }
 
+// reportServerFailure reports err unless the client is about to receive a client
+// error. Every codes.Internal exit below is reachable with a typed *apierr.Error
+// whose code the exit does not name, and a code this handler does not map is not
+// evidence that the failure is the service's fault: a validation or not-found error
+// arriving at one of them would otherwise bill error quota for ordinary client
+// input, and nothing would fail.
+//
+// The gate is the rendered status rather than a list of codes, so it stays correct
+// as the code set grows. A gated error leaves no record here, which is right: the
+// guard that produced the typed 4xx recorded it where the decision was made.
+func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
+	if apierr.IsServerError(err) {
+		_ = errkit.Report(ctx, err, meta)
+	}
+}
+
 func (h *GRPCHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
 	result, err := h.authService.ValidateToken(ctx, req.GetAccessToken())
 	if err != nil {
-		h.logger.Warn("token validation failed",
-			slog.String("method", "ValidateToken"),
-			slog.String("error", err.Error()),
-		)
+		// An expired or invalid token is ordinary client input: the 401 wire
+		// response is the record, and reporting it would bill quota per request.
 		return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
 	}
 
@@ -79,11 +98,15 @@ func (h *GRPCHandler) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 		if isMissingUser(err) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
-		h.logger.Error("failed to get user",
-			slog.String("method", "GetUser"),
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "auth.get_user",
+			Domain: reportDomain,
+			Msg:    "failed to get user",
+			Data: map[string]any{
+				"method":  "GetUser",
+				"user_id": userID,
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to retrieve user")
 	}
 
@@ -113,11 +136,15 @@ func (h *GRPCHandler) VerifyPassword(ctx context.Context, req *pb.VerifyPassword
 		if isMissingUser(err) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
-		h.logger.Error("failed to look up user for password verification",
-			slog.String("method", "VerifyPassword"),
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "auth.verify_password",
+			Domain: reportDomain,
+			Msg:    "failed to look up user",
+			Data: map[string]any{
+				"method":  "VerifyPassword",
+				"user_id": userID,
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to look up user")
 	}
 
@@ -133,20 +160,28 @@ func (h *GRPCHandler) DeleteUserData(ctx context.Context, req *pb.DeleteUserData
 
 	// Delete refresh token blacklist entries first (FK constraint)
 	if err := h.authService.DeleteRefreshTokenBlacklist(ctx, userID); err != nil {
-		h.logger.Error("failed to delete refresh token blacklist",
-			slog.String("method", "DeleteUserData"),
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "auth.delete_user_data",
+			Domain: reportDomain,
+			Msg:    "failed to delete refresh tokens",
+			Data: map[string]any{
+				"method":  "DeleteUserData",
+				"user_id": userID,
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to delete refresh tokens")
 	}
 
 	if err := h.authService.DeleteUserRow(ctx, userID); err != nil {
-		h.logger.Error("failed to delete user row",
-			slog.String("method", "DeleteUserData"),
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "auth.delete_user_data",
+			Domain: reportDomain,
+			Msg:    "failed to delete user",
+			Data: map[string]any{
+				"method":  "DeleteUserData",
+				"user_id": userID,
+			},
+		})
 		return nil, status.Error(codes.Internal, "failed to delete user")
 	}
 

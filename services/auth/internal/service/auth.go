@@ -12,6 +12,7 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/repository"
+	"github.com/ItsThompson/gofin/services/errkit"
 )
 
 // AuthService contains the business logic for authentication operations.
@@ -162,10 +163,17 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*m
 	// Check if user's tokens have been revoked (e.g., after password change)
 	revokedAt, err := s.repo.GetTokensRevokedAt(ctx, claims.Subject)
 	if err != nil {
-		s.logger.Error("failed to check token revocation",
-			slog.String("user_id", claims.Subject),
-			slog.String("error", err.Error()),
-		)
+		// The masked 401 hides this DB failure from the caller, so this report
+		// is the failure's only record: it carries the raw error, while the
+		// caller still receives the same 401 as before.
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "auth.validate_token",
+			Domain: "auth",
+			Msg:    "token revocation check failed",
+			Data: map[string]any{
+				"user_id": claims.Subject,
+			},
+		})
 		// Fail open: if we can't check revocation, still reject to be safe
 		return nil, apierr.Unauthorized("Unable to validate token")
 	}

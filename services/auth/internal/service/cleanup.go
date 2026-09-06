@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
 
@@ -55,10 +56,13 @@ func (s *AuthService) StartPeriodicCleanup(ctx context.Context, interval, timeou
 					defer cancel()
 
 					if err := s.blacklistRepo.CleanupExpired(cleanupCtx); err != nil {
-						s.logger.Error("blacklist cleanup failed",
-							slog.String("method", "StartPeriodicCleanup"),
-							slog.String("error", err.Error()),
-						)
+						// cleanupCtx is still live here (the timeout has not fired
+						// while the call was in flight), so the report carries it.
+						_ = errkit.Report(cleanupCtx, err, errkit.Meta{
+							Op:     "auth.blacklist_cleanup",
+							Domain: "auth",
+							Msg:    "blacklist cleanup failed",
+						})
 						return
 					}
 
