@@ -70,7 +70,7 @@ func errorLevelRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
 	return records
 }
 
-var networkFailure = errors.New("dial tcp: connection refused")
+var errNetworkFailure = errors.New("dial tcp: connection refused")
 
 // The provider is the only reporter for the swallowed conversion surface, and
 // an outage fails every conversion request, so the network class must report
@@ -80,7 +80,7 @@ var networkFailure = errors.New("dial tcp: connection refused")
 func TestFetchLatest_NetworkFailure_ReportsOncePerWindow(t *testing.T) {
 	shrinkReportWindow(t, time.Second)
 	provider, logs := newReportingProvider(t, 0, roundTripperFunc(func(*http.Request) (*http.Response, error) {
-		return nil, networkFailure
+		return nil, errNetworkFailure
 	}))
 
 	transport := &errkittest.Transport{}
@@ -112,7 +112,7 @@ func TestFetchLatest_NetworkFailure_ReportsOncePerWindow(t *testing.T) {
 func TestFetchLatest_RetriesWriteOneSiteRecord(t *testing.T) {
 	shrinkReportWindow(t, 10*time.Second)
 	provider, logs := newReportingProvider(t, 2, roundTripperFunc(func(*http.Request) (*http.Response, error) {
-		return nil, networkFailure
+		return nil, errNetworkFailure
 	}))
 
 	transport := &errkittest.Transport{}
@@ -142,7 +142,7 @@ func TestFetchLatest_AuthFailure_ReportsIndependentlyOfTheNetworkLimiter(t *test
 	provider, logs := newReportingProvider(t, 0, roundTripperFunc(func(*http.Request) (*http.Response, error) {
 		calls++
 		if calls == 1 {
-			return nil, networkFailure
+			return nil, errNetworkFailure
 		}
 		return &http.Response{
 			StatusCode: http.StatusUnauthorized,
