@@ -138,3 +138,39 @@ func TestGRPC_StreamCancelled_ReportsNothing(t *testing.T) {
 	assert.Equal(t, codes.Canceled, st.Code())
 	assert.Empty(t, transport.Events())
 }
+
+// A snapshot-integrity read failure surfaces as an unclassified internal
+// error, and the handler's report is now its only record: the repository no
+// longer warns beside it. The DataCarrier merge must carry the expense id and
+// the missing field names into the event's context block.
+func TestGRPC_SnapshotIntegrityError_CarriesReportDataInTheEventContext(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	handler, logs := newGRPCHandlerWithLog(t, repo)
+
+	repo.On("GetExpenseByID", mock.Anything, "exp-1", "user-1").
+		Return(nil, &repository.SnapshotIntegrityError{
+			ExpenseID:     "exp-1",
+			MissingFields: []string{"reporting_amount", "reporting_currency"},
+		})
+
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	_, err := handler.GetExpense(ctx, &pb.GetExpenseRequest{UserId: "user-1", Id: "exp-1"})
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code(), "the wire mapping is unchanged")
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "expense.get", events[0].Tags["operation"])
+	gofin := events[0].Contexts["gofin"]
+	assert.Equal(t, "exp-1", gofin["expense_id"])
+	assert.Equal(t, []string{"reporting_amount", "reporting_currency"}, gofin["missing_fields"])
+
+	records := errorRecords(t, logs)
+	require.Len(t, records, 1, "one record: the report's own, no separate warn")
+	assert.Equal(t, "unclassified service error", records[0]["msg"])
+}

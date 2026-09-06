@@ -152,10 +152,11 @@ func TestRowToExpense_IntegrityErrorIsTyped(t *testing.T) {
 	assert.Equal(t, map[string]any{"expense_id": "exp-1", "missing_fields": integrityErr.MissingFields}, integrityErr.ReportData())
 }
 
-// TestMapRow_LogsIntegrityErrorTelemetry asserts mapRow logs the
-// expense_snapshot_integrity_error event when rowToExpense returns a
-// SnapshotIntegrityError.
-func TestMapRow_LogsIntegrityErrorTelemetry(t *testing.T) {
+// TestMapRow_IntegrityError_WritesNoSeparateRecord asserts mapRow leaves no
+// warn record of its own: the typed error reaches the handler, whose errkit
+// report merges ReportData() (expense_id, missing_fields) into the event's
+// context block, so a second record here would duplicate one failure.
+func TestMapRow_IntegrityError_WritesNoSeparateRecord(t *testing.T) {
 	row := legacyRow()
 	row.Values[15] = fakeSQLValue{intValue: 1250}     // transaction_amount
 	row.Values[16] = fakeSQLValue{stringValue: "EUR"} // transaction_currency
@@ -172,12 +173,10 @@ func TestMapRow_LogsIntegrityErrorTelemetry(t *testing.T) {
 	// The error should be wrapped but still detectable via errors.As.
 	var integrityErr *SnapshotIntegrityError
 	assert.True(t, errors.As(err, &integrityErr), "wrapped error should contain *SnapshotIntegrityError")
+	assert.Equal(t, "exp-1", integrityErr.ExpenseID)
 
-	// The integrity event must actually be emitted through mapRow.
-	assert.Contains(t, buf.String(), "expense_snapshot_integrity_error",
-		"mapRow must log the expense_snapshot_integrity_error event")
-	assert.Contains(t, buf.String(), "exp-1",
-		"integrity log must carry the expense id")
-	assert.Contains(t, buf.String(), "missing_fields",
-		"integrity log must carry the missing field names")
+	// No warn record: the handler's report (which carries ReportData) is the
+	// failure's one record.
+	assert.NotContains(t, buf.String(), "expense_snapshot_integrity_error",
+		"mapRow must not write a separate integrity record")
 }
