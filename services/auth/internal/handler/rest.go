@@ -257,8 +257,6 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 	cookie, err := c.Request.Cookie("gofin_refresh")
 	if err == nil && cookie.Value != "" {
 		if logoutErr := h.authService.Logout(c.Request.Context(), cookie.Value); logoutErr != nil {
-			// Fire-and-forget: the caller still receives 204, so this handler is
-			// the only possible reporter for a blacklist write that failed.
 			_ = errkit.Report(c.Request.Context(), logoutErr, errkit.Meta{
 				Op:     "auth.logout",
 				Domain: config.ReportDomain,

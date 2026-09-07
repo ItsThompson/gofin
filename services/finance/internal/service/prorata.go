@@ -326,8 +326,6 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 		if reason := classifyProRataExpenseError(err); reason != "" {
 			s.markProRataFailed(ctx, schedule, reason)
 		} else {
-			// Swallowed: the schedule stays pending for retry, so this service is
-			// the failure's only reporter.
 			_ = errkit.Report(ctx, err, errkit.Meta{
 				Op:     "finance.prorata_apply",
 				Domain: "budgets",
@@ -342,9 +340,6 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 	}
 
 	if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
-		// Swallowed: the ledger write succeeded, so the schedule is financially
-		// applied even though the status row was not updated. This service is the
-		// failure's only reporter.
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "finance.prorata_apply",
 			Domain: "budgets",
@@ -397,8 +392,6 @@ func classifyProRataExpenseError(err error) string {
 // failure during the status update is logged but does not roll back the decision.
 func (s *FinanceService) markProRataFailed(ctx context.Context, schedule *model.ProRataSchedule, failureReason string) {
 	if err := s.repo.MarkProRataFailed(ctx, schedule.ID, failureReason); err != nil {
-		// Swallowed: the repo is too broken to persist the transition, so this
-		// service is the failure's only reporter.
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "finance.prorata_apply",
 			Domain: "budgets",
@@ -479,8 +472,6 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	// transient failures leave them pending.
 	applied, applyErr := s.applyPendingProRata(ctx, userID, period)
 	if applyErr != nil {
-		// Swallowed: the period is created and returned, so this service is the
-		// failure's only reporter.
 		_ = errkit.Report(ctx, applyErr, errkit.Meta{
 			Op:     "finance.create_period",
 			Domain: "budgets",
@@ -556,8 +547,6 @@ func (s *FinanceService) createMissedPeriods(
 		// failed and transient failures leave them pending.
 		applied, applyErr := s.applyPendingProRata(ctx, userID, autoPeriod)
 		if applyErr != nil {
-			// Swallowed: the auto-created period stands, so this service is the
-			// failure's only reporter.
 			_ = errkit.Report(ctx, applyErr, errkit.Meta{
 				Op:     "finance.create_period",
 				Domain: "budgets",

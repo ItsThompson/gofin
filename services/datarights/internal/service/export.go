@@ -120,9 +120,6 @@ func (s *ExportService) CreateJob(ctx context.Context, userID string) (*CreateJo
 	if s.engine != nil {
 		userEmail, err := s.resolveUserEmail(ctx, userID)
 		if err != nil {
-			// Fire-and-forget: the job is still submitted (it will fail with a
-			// descriptive error at the email step), so this service is the email
-			// failure's only reporter.
 			_ = errkit.Report(ctx, err, errkit.Meta{
 				Op:     "datarights.create_export",
 				Domain: "datarights",

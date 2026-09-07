@@ -63,9 +63,7 @@ func (e *Engine) execute(ctx context.Context, jobID, userID string) error {
 	for _, provider := range e.registry.All() {
 		attempts, err := e.executeProvider(ctx, provider, jobID, userID)
 		if err != nil {
-			// Provider exhausted retries or context expired: fail the job. The
-			// pool persists the returned reason (PII-free by contract) and does not
-			// report, so this report is the failure's only Sentry record.
+			// Provider exhausted retries or context expired: fail the job.
 			jobErr := fmt.Errorf("provider %s failed after %d attempts: %w", provider.Name(), attempts, err)
 			_ = errkit.Report(ctx, jobErr, errkit.Meta{
 				Op:     "deletion_job.run",

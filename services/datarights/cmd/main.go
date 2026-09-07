@@ -150,8 +150,6 @@ func run() error {
 	recoverJobs(ctx, logger, "export", repo.GetNonTerminalJobs, func(ctx context.Context, job model.RecoverableJob) {
 		userEmail, err := emailResolver.ResolveEmail(ctx, job.UserID)
 		if err != nil {
-			// Fire-and-forget: the job is still submitted (it will fail with a
-			// descriptive error at the email step), so this is its only report.
 			_ = errkit.Report(ctx, err, errkit.Meta{
 				Op:     "datarights.recover_jobs",
 				Domain: "datarights",
@@ -255,8 +253,6 @@ func recoverJobs[J any](
 ) {
 	jobs, err := fetch(ctx)
 	if err != nil {
-		// Startup recovery runs before any handler can observe the failure, so
-		// this report is its only record.
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "datarights.recover_jobs",
 			Domain: "datarights",

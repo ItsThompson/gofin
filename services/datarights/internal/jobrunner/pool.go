@@ -29,10 +29,7 @@ const runningStatus = "running"
 // the real cause.
 const panicFailureReason = "Job failed unexpectedly"
 
-// reportStatusWriteFailure reports a failed lifecycle persistence write. The
-// pool runs on contexts that carry no hub (background jobs), so the reports
-// fall back to a clone of the global hub, which is errkit's documented path for
-// background work.
+// reportStatusWriteFailure reports a failed lifecycle persistence write.
 func reportStatusWriteFailure(ctx context.Context, err error, msg string, jobID, userID string) {
 	_ = errkit.Report(ctx, err, errkit.Meta{
 		Op:     "jobrunner.status_write",

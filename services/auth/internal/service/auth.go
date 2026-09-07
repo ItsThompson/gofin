@@ -163,9 +163,6 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*m
 	// Check if user's tokens have been revoked (e.g., after password change)
 	revokedAt, err := s.repo.GetTokensRevokedAt(ctx, claims.Subject)
 	if err != nil {
-		// The masked 401 hides this DB failure from the caller, so this report
-		// is the failure's only record: it carries the raw error, while the
-		// caller still receives the same 401 as before.
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "auth.validate_token",
 			Domain: "auth",

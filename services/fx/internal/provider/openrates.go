@@ -86,22 +86,13 @@ func (p *OpenRatesProvider) FetchLatest(ctx context.Context, expiresAt time.Time
 		}
 	}
 
-	// The terminal exit, once per user-visible call rather than per attempt:
-	// network errors and 5xx responses both terminate here as the same
-	// ErrorConversionUnavailable, so retry attempts cannot multiply records.
-	// The site record is unconditional (it is the per-occurrence artifact that
-	// shows an operator how much traffic the outage affects); the report is
-	// gated to one per window per failure class.
 	p.logger.Error("fx provider fetch failed",
 		slog.String("endpoint", p.baseURL),
 		slog.Int("attempts", p.retryCount+1),
 		slog.String("error", lastErr.Error()),
 	)
 	if p.netReports.Allow() {
-		// One issue for the whole class: the stack varies with the call while
-		// the meaning (the provider is unreachable) does not. endpoint is the
-		// configured base URL, never the full request URL, because the query
-		// carries the API key.
+		// endpoint is the base URL, never the full request URL: the query carries the API key.
 		_ = errkit.Report(ctx, lastErr, errkit.Meta{
 			Kind:       errkit.KindUpstream,
 			Op:         "fx.provider_fetch",
@@ -145,8 +136,6 @@ func (p *OpenRatesProvider) fetchOnce(ctx context.Context, expiresAt time.Time) 
 		fxmetrics.ProviderRequestsTotal.WithLabelValues("auth_failed", statusCode).Inc()
 		fxmetrics.ProviderLatencySeconds.WithLabelValues("auth_failed").Observe(time.Since(start).Seconds())
 		authErr := model.NewError(model.ErrorProviderAuthFailed, "", fmt.Errorf("provider returned %d", response.StatusCode))
-		// The record stays per occurrence; the report is bounded to one per
-		// window so a long-lived bad credential cannot burn the allowance.
 		p.logger.Error("fx provider authentication failed", slog.Int("status", response.StatusCode))
 		if p.authReports.Allow() {
 			_ = errkit.Report(ctx, authErr, errkit.Meta{

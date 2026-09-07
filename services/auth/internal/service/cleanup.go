@@ -56,8 +56,6 @@ func (s *AuthService) StartPeriodicCleanup(ctx context.Context, interval, timeou
 					defer cancel()
 
 					if err := s.blacklistRepo.CleanupExpired(cleanupCtx); err != nil {
-						// cleanupCtx is still live here (the timeout has not fired
-						// while the call was in flight), so the report carries it.
 						_ = errkit.Report(cleanupCtx, err, errkit.Meta{
 							Op:     "auth.blacklist_cleanup",
 							Domain: "auth",

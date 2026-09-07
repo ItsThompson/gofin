@@ -88,8 +88,6 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	// routing a same-currency write to FX or persisting mismatched casing.
 	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
-		// Returned and reported by the handler: no record here, or the failure
-		// would be recorded twice.
 		return nil, err
 	}
 
@@ -285,8 +283,6 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 
 	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
-		// Returned and reported by the handler: no record here, or the failure
-		// would be recorded twice.
 		return nil, err
 	}
 

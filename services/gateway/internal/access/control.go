@@ -81,8 +81,6 @@ func AccessControl(validator TokenValidator, resolve func(method, path string) s
 			// not that the client's token is invalid: fail fast with 503 so the
 			// worker is freed, distinct from the 401 for a genuine rejection.
 			if isValidationTimeout(err) {
-				// A 5xx-class dependency failure, so it is reported like one; the
-				// other warns below are middleware decisions with no error value.
 				_ = errkit.Report(c.Request.Context(), err, errkit.Meta{
 					Kind:   errkit.KindTimeout,
 					Op:     "gateway.auth_validate",
