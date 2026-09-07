@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -131,4 +134,50 @@ func warnRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
 		}
 	}
 	return records
+}
+
+// The logout blacklist failure is fire-and-forget: the caller still receives
+// 204, so this handler is the failure's only reporter.
+func TestREST_LogoutBlacklistFailure_ReportsOneEvent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := new(mockUserRepository)
+	blacklistRepo := new(mockBlacklistRepository)
+
+	buf := new(bytes.Buffer)
+	logger := slog.New(slog.NewJSONHandler(buf, nil))
+	previous := slog.Default()
+	slog.SetDefault(logger)
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	jwtSvc := service.NewJWTService("test-secret")
+	pwdSvc := service.NewPasswordService(4)
+	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
+	handler := NewRESTHandler(authSvc, logger, false, "", service.DefaultAccessTokenTTL, service.DefaultRefreshTokenTTL)
+
+	r := gin.New()
+	handler.RegisterRoutes(r)
+
+	_, refreshToken, err := jwtSvc.GenerateTokenPair("user-1", "user", "testuser")
+	require.NoError(t, err)
+	refreshClaims, err := jwtSvc.ValidateRefreshToken(refreshToken)
+	require.NoError(t, err)
+
+	blacklistRepo.On("BlacklistToken", mock.Anything, refreshClaims.ID, "user-1", mock.AnythingOfType("time.Time")).
+		Return(errors.New("blacklist write: connection refused"))
+
+	transport := &errkittest.Transport{}
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "gofin_refresh", Value: refreshToken})
+	req = req.WithContext(errkittest.ContextWithHub(req.Context(), transport))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNoContent, rec.Code, "the caller still receives 204")
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "auth.logout", events[0].Tags["operation"])
+	assert.Equal(t, "auth", events[0].Tags["domain"])
+	assert.Contains(t, events[0].Exception[len(events[0].Exception)-1].Value, "connection refused")
 }

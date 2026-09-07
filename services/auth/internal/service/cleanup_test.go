@@ -189,7 +189,7 @@ func TestStartPeriodicCleanup_RecoversAPanickingRepoAndKeepsTicking(t *testing.T
 // panicInCleanup is named so the recorded stack carries a frame to assert on.
 func panicInCleanup() { panic("repo exploded") }
 
-func TestStartPeriodicCleanup_LogsErrorOnFailure(t *testing.T) {
+func TestStartPeriodicCleanup_ContinuesAfterError(t *testing.T) {
 	blacklistRepo := new(mockBlacklistRepository)
 	repo := new(mockUserRepository)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

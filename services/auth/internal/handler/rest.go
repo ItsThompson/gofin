@@ -260,7 +260,7 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 			// the only possible reporter for a blacklist write that failed.
 			_ = errkit.Report(c.Request.Context(), logoutErr, errkit.Meta{
 				Op:     "auth.logout",
-				Domain: "auth",
+				Domain: reportDomain,
 				Msg:    "failed to blacklist token during logout",
 			})
 		}
