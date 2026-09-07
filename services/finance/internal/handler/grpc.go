@@ -9,53 +9,36 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/errkit"
+	"github.com/ItsThompson/gofin/services/finance/internal/config"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 )
 
-// reportDomain is the domain tag on every report this service makes. Budgets,
-// periods, tags, and spending are all one business area, and the tag is a query
-// dimension shared with the other services, so it comes from one place.
-const reportDomain = "budgets"
-
-// GRPCHandler implements the FinanceService gRPC server. RPCs without an
-// explicit method are served by the embedded UnimplementedFinanceServiceServer,
-// which returns codes.Unimplemented.
 type GRPCHandler struct {
 	pb.UnimplementedFinanceServiceServer
 	financeService *service.FinanceService
 }
 
-// NewGRPCHandler creates a new GRPCHandler.
 func NewGRPCHandler(financeService *service.FinanceService) *GRPCHandler {
 	return &GRPCHandler{
 		financeService: financeService,
 	}
 }
 
-// reportServerFailure reports err unless the client is about to receive a client
-// error. Every codes.Internal exit below is reachable with a typed *apierr.Error
-// whose code the exit does not name, and a code this handler does not map is not
-// evidence that the failure is the service's fault: a validation or not-found error
-// arriving at one of them would otherwise bill error quota for ordinary client
-// input, and nothing would fail.
-//
-// The gate is the rendered status rather than a list of codes, so it stays correct
-// as the code set grows. A gated error leaves no record here, which is right: the
-// guard that produced the typed 4xx recorded it where the decision was made, and
-// what a client error at an internal exit really signals is a status pairing the
-// caller can see.
+// reportServerFailure reports only server (5xx) errors. Client errors are
+// already recorded at the guard that produced them; reporting them here would
+// bill error quota for ordinary client input.
 func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
 	if apierr.IsServerError(err) {
 		_ = errkit.Report(ctx, err, meta)
 	}
 }
 
-// ListSupportedCurrencies returns the supported-currency catalog. The catalog
-// is static reference data owned by the shared currency package, so the RPC
-// reads it directly instead of routing through the finance service layer.
+// ListSupportedCurrencies reads the static currency catalog directly from the
+// shared currency package rather than routing through the finance service
+// (static reference data, no per-user state).
 func (h *GRPCHandler) ListSupportedCurrencies(ctx context.Context, req *pb.ListSupportedCurrenciesRequest) (*pb.ListSupportedCurrenciesResponse, error) {
 	definitions := currencycatalog.All()
 	currencies := make([]*pb.CurrencyData, len(definitions))
@@ -79,7 +62,7 @@ func (h *GRPCHandler) GetDefaults(ctx context.Context, req *pb.GetDefaultsReques
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.get_defaults",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to get defaults",
 			Data: map[string]any{
 				"method":  "GetDefaults",
@@ -150,7 +133,7 @@ func (h *GRPCHandler) CompleteOnboarding(ctx context.Context, req *pb.CompleteOn
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.complete_onboarding",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to complete onboarding",
 			Data: map[string]any{
 				"method":  "CompleteOnboarding",
@@ -180,7 +163,7 @@ func (h *GRPCHandler) GetCurrentPeriod(ctx context.Context, req *pb.GetCurrentPe
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.get_current_period",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to get current period",
 			Data: map[string]any{
 				"method":  "GetCurrentPeriod",
@@ -209,7 +192,7 @@ func (h *GRPCHandler) CreatePeriod(ctx context.Context, req *pb.CreatePeriodRequ
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.create_period",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to create period",
 			Data: map[string]any{
 				"method":  "CreatePeriod",
@@ -234,7 +217,7 @@ func (h *GRPCHandler) UpdatePeriod(ctx context.Context, req *pb.UpdatePeriodRequ
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.update_period",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to update period",
 			Data: map[string]any{
 				"method":    "UpdatePeriod",
@@ -252,7 +235,7 @@ func (h *GRPCHandler) ListPeriods(ctx context.Context, req *pb.ListPeriodsReques
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.list_periods",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to list periods",
 			Data: map[string]any{
 				"method":  "ListPeriods",
@@ -277,7 +260,7 @@ func (h *GRPCHandler) GetPeriodContext(ctx context.Context, req *pb.GetPeriodCon
 		}
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.get_period_context",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to get period context",
 			Data: map[string]any{
 				"method":  "GetPeriodContext",
@@ -303,7 +286,7 @@ func (h *GRPCHandler) ListTags(ctx context.Context, req *pb.ListTagsRequest) (*p
 		// Both returns below are codes.Internal, so one report covers both.
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.list_tags",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to list tags",
 			Data: map[string]any{
 				"method":  "ListTags",
@@ -346,7 +329,7 @@ func (h *GRPCHandler) CreateTag(ctx context.Context, req *pb.CreateTagRequest) (
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.create_tag",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to create tag",
 			Data: map[string]any{
 				"method":  "CreateTag",
@@ -375,7 +358,7 @@ func (h *GRPCHandler) UpdateTag(ctx context.Context, req *pb.UpdateTagRequest) (
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.update_tag",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to update tag",
 			Data: map[string]any{
 				"method":  "UpdateTag",
@@ -405,7 +388,7 @@ func (h *GRPCHandler) DeleteTag(ctx context.Context, req *pb.DeleteTagRequest) (
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.delete_tag",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to delete tag",
 			Data: map[string]any{
 				"method":  "DeleteTag",
@@ -429,7 +412,7 @@ func (h *GRPCHandler) GetAllUserData(ctx context.Context, req *pb.GetAllUserData
 	if err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.get_all_user_data",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to get all user data",
 			Data: map[string]any{
 				"method":  "GetAllUserData",
@@ -492,7 +475,7 @@ func (h *GRPCHandler) CreateProRataExpense(ctx context.Context, req *pb.CreatePr
 		}
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.create_pro_rata_expense",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to create pro-rata expense",
 			Data: map[string]any{
 				"method":  "CreateProRataExpense",
@@ -516,7 +499,7 @@ func (h *GRPCHandler) DeleteAllUserData(ctx context.Context, req *pb.DeleteAllUs
 	if err := h.financeService.DeleteAllUserData(ctx, userID); err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
 			Op:     "finance.delete_all_user_data",
-			Domain: reportDomain,
+			Domain: config.ReportDomain,
 			Msg:    "failed to delete all user data",
 			Data: map[string]any{
 				"method":  "DeleteAllUserData",

@@ -41,7 +41,7 @@ Errors can implement `errkit.DataCarrier` (`ReportData() map[string]any`) so any
 Every event carries three taxonomy tags, derived from `errkit.Meta`:
 
 - **`operation`** (`Meta.Op`): the logical operation, dot notation, e.g. `expense.create`, `finance.prorata_apply`. Must come from a bounded set: never interpolate an identifier, which would create one Sentry issue per record.
-- **`domain`** (`Meta.Domain`): the business area. The set is closed: adding a value widens the query vocabulary of both Sentry projects. Use the value already established by the service's existing reports (e.g. `reportDomain` constants in handler packages).
+- **`domain`** (`Meta.Domain`): the business area. The set is closed: adding a value widens the query vocabulary of both Sentry projects. Use the value already established by the service's existing reports (e.g. `config.ReportDomain` constants in each service's `internal/config` package).
 - **`error_kind`** (`Meta.Kind`): the low-cardinality failure class (`internal`, `database`, `upstream`, `timeout`, `validation`, ...). The set is closed in `services/errkit/kind.go`; adding a value widens the query vocabulary of both Sentry projects.
 
 Grouping: every event carries the fingerprint `{"{{ default }}", op/kind}`, which refines Sentry's own grouping. `GroupKey` + `GroupExact: true` replaces grouping entirely with one key; use it only for a generic failure whose stack varies but whose meaning is singular (see Bounded reports).

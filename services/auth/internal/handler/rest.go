@@ -9,6 +9,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/auth/internal/config"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	"github.com/ItsThompson/gofin/services/errkit"
@@ -260,7 +261,7 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 			// the only possible reporter for a blacklist write that failed.
 			_ = errkit.Report(c.Request.Context(), logoutErr, errkit.Meta{
 				Op:     "auth.logout",
-				Domain: reportDomain,
+				Domain: config.ReportDomain,
 				Msg:    "failed to blacklist token during logout",
 			})
 		}
