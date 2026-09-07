@@ -191,7 +191,7 @@ All Go services emit JSON-structured logs to stdout with a consistent format:
 - `duration_ms`: present for timed operations
 - `error`: present on errors
 
-Logs are viewable via `just logs <service>` or `docker compose logs -f <service>`. There is no centralized log aggregation (ELK, Loki).
+Logs are viewable via `just logs <service>` or `docker compose logs -f <service>`. There is no centralized log aggregation (ELK, Loki). The decision rules for which layer logs, which layer reports to Sentry, and which stays silent live in [error-handling.md](error-handling.md).
 
 ### Recovered panics
 
@@ -221,7 +221,7 @@ pages on a single increment of `recovered_panics_total`.
 
 ### Bounded reports
 
-Two error paths fire per request or per heartbeat rather than per incident. Each
+Three error paths fire per request or per heartbeat rather than per incident. Each
 is recorded every time and reported at most once an hour:
 
 - The gateway's `downstream service unreachable`, once per hour per target. A
@@ -230,6 +230,10 @@ is recorded every time and reported at most once an hour:
 - expense's `immudb reconnection failed`, once per hour. The SDK heartbeat drives
   it about once a minute for as long as immudb is unreachable, and a session error
   reaches the same line per request.
+- fx's provider fetch failures, once per hour per failure class (network/5xx under
+  `fx.provider_unreachable`, auth under `fx.provider_auth_failed`): an outage fails
+  every conversion request, and the provider is the only reporter on the swallowed
+  conversion surface. See [error-handling.md](error-handling.md) for the pattern.
 
 Both collapse into a single Sentry issue per class, so a long outage is one issue
 with a low event count rather than a flood. Read the record count for volume, not

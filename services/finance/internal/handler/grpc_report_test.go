@@ -14,6 +14,7 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/errkit/errkittest"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 )
 
@@ -150,4 +151,56 @@ func TestGRPC_ATypedServerError_IsReported(t *testing.T) {
 	events := transport.Events()
 	require.Len(t, events, 1)
 	assert.Equal(t, "finance.get_defaults", events[0].Tags["operation"])
+}
+
+// The pro-rata schedule-write failure is the one service exit that used to log
+// beside returning: the service record is gone, and this is the assertion that
+// the handler's event is now the failure's only record.
+func TestGRPC_ProRataScheduleWriteFailure_YieldsExactlyOneHandlerOwnedEvent(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	exp := new(mockExpenseClient)
+	fx := new(mockFxClient)
+	handler := setupProRataGRPCHandler(repo, exp, fx)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).
+		Return(&model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 5, ReportingCurrencyCode: "USD"}, nil)
+	snapshot := &model.CapturedRateSnapshot{
+		SnapshotVersion: 1,
+		Source:          "open_exchange_rates",
+		BaseCurrency:    "USD",
+		RateTimestamp:   "2026-05-15T10:00:00Z",
+		RatesByCurrency: map[string]string{"USD": "1"},
+	}
+	fx.On("CaptureRateSnapshot", mock.Anything, mock.Anything).Return(snapshot, nil)
+	exp.On("CreateProRataInstallment", mock.Anything, mock.Anything).
+		Return(&service.CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
+	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
+		Return(nil, errors.New(repoFailure))
+
+	transport := &errkittest.Transport{}
+	ctx := errkittest.ContextWithHub(context.Background(), transport)
+
+	_, err := handler.CreateProRataExpense(ctx, &pb.CreateProRataExpenseRequest{
+		UserId:              "user-1",
+		Name:                "Annual subscription",
+		TotalAmount:         6000,
+		TransactionCurrency: "USD",
+		ExpenseType:         "essentials",
+		TagId:               "tag-1",
+		ExpenseDate:         "2026-05-15",
+		Months:              2,
+		PeriodYear:          2026,
+		PeriodMonth:         5,
+	})
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Internal, st.Code())
+	assert.Equal(t, "failed to create pro-rata expense", st.Message(), "the wire message does not move")
+
+	events := transport.Events()
+	require.Len(t, events, 1, "exactly one event: the handler's, not one per layer")
+	assert.Equal(t, "finance.create_pro_rata_expense", events[0].Tags["operation"])
+	assert.Equal(t, "budgets", events[0].Tags["domain"])
 }

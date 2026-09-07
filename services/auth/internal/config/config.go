@@ -16,6 +16,11 @@ const DefaultRESTPort = "8081"
 
 const defaultGRPCPort = "9081"
 
+// ReportDomain is the domain tag on every error report this service makes. It
+// is a query dimension shared with the other services so cross-project Sentry
+// queries work; the set is closed and documented in docs/error-handling.md.
+const ReportDomain = "auth"
+
 // Cleanup cadence defaults for the blacklist sweep background worker.
 const (
 	defaultCleanupInterval = 5 * time.Minute

@@ -10,6 +10,11 @@ import (
 // (via ResolveRESTPort) so the two never desync.
 const DefaultRESTPort = "8082"
 
+// ReportDomain tags every error report this service makes; it is a query
+// dimension shared across services so cross-project Sentry queries work. The
+// closed set of domains is documented in docs/error-handling.md.
+const ReportDomain = "expenses"
+
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
 // DefaultRESTPort. The --healthcheck branch runs before Load, so it calls this
 // to probe the same port the listener will bind.

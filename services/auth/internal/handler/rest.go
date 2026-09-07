@@ -9,6 +9,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/access"
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/auth/internal/config"
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
 	"github.com/ItsThompson/gofin/services/errkit"
@@ -256,9 +257,11 @@ func (h *RESTHandler) Logout(c *gin.Context) {
 	cookie, err := c.Request.Cookie("gofin_refresh")
 	if err == nil && cookie.Value != "" {
 		if logoutErr := h.authService.Logout(c.Request.Context(), cookie.Value); logoutErr != nil {
-			h.logger.Error("failed to blacklist token during logout",
-				slog.String("error", logoutErr.Error()),
-			)
+			_ = errkit.Report(c.Request.Context(), logoutErr, errkit.Meta{
+				Op:     "auth.logout",
+				Domain: config.ReportDomain,
+				Msg:    "failed to blacklist token during logout",
+			})
 		}
 	}
 

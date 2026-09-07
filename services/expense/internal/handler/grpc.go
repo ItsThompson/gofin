@@ -9,46 +9,37 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/errkit"
+	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
-// reportDomain is the domain tag on every report this service makes.
-const reportDomain = "expenses"
-
-// operation identifies one RPC to the reporter. name is the bounded logical
-// operation an event is grouped and queried by, shared with the REST route that
-// serves the same operation because a failure means the same thing over either
-// transport; rpc names the entry point that surfaced it, which is what the log
-// record and the Sentry context block carry.
-//
-// They travel as one value so the pairs are enumerated here rather than spelled at
-// each call site, where two adjacent strings could be swapped silently.
+// operation bundles a logical operation name with the gRPC method that surfaced
+// it. opName is shared with the REST route serving the same operation, since a
+// failure means the same thing over either transport; bundling the pair here
+// prevents two adjacent strings being silently swapped at each call site.
 type operation struct {
-	name string
-	rpc  string
+	opName    string
+	rpcMethod string
 }
 
 var (
-	opCreate             = operation{name: "expense.create", rpc: "CreateExpense"}
-	opProRataInstallment = operation{name: "expense.create_pro_rata_installment", rpc: "CreateProRataInstallment"}
-	opList               = operation{name: "expense.list", rpc: "GetActiveExpensesForPeriod"}
-	opGet                = operation{name: "expense.get", rpc: "GetExpense"}
-	opCorrect            = operation{name: "expense.correct", rpc: "CorrectExpense"}
-	opCountByTag         = operation{name: "expense.count_by_tag", rpc: "CountExpensesByTag"}
-	opStreamAll          = operation{name: "expense.stream_all", rpc: "StreamAllUserExpenses"}
-	opAnonymize          = operation{name: "expense.anonymize", rpc: "AnonymizeAllUserExpenses"}
+	opCreate             = operation{opName: "expense.create", rpcMethod: "CreateExpense"}
+	opProRataInstallment = operation{opName: "expense.create_pro_rata_installment", rpcMethod: "CreateProRataInstallment"}
+	opList               = operation{opName: "expense.list", rpcMethod: "GetActiveExpensesForPeriod"}
+	opGet                = operation{opName: "expense.get", rpcMethod: "GetExpense"}
+	opCorrect            = operation{opName: "expense.correct", rpcMethod: "CorrectExpense"}
+	opCountByTag         = operation{opName: "expense.count_by_tag", rpcMethod: "CountExpensesByTag"}
+	opStreamAll          = operation{opName: "expense.stream_all", rpcMethod: "StreamAllUserExpenses"}
+	opAnonymize          = operation{opName: "expense.anonymize", rpcMethod: "AnonymizeAllUserExpenses"}
 )
 
-// GRPCHandler implements the ExpenseService gRPC server. Each RPC delegates to
-// the shared ExpenseService and maps service errors to gRPC status codes.
 type GRPCHandler struct {
 	pb.UnimplementedExpenseServiceServer
 	expenseService *service.ExpenseService
 }
 
-// NewGRPCHandler creates a new GRPCHandler.
 func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
 	return &GRPCHandler{
 		expenseService: expenseService,
@@ -202,17 +193,15 @@ func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest
 	if errors.As(err, &apiErr) {
 		return h.mapServiceError(stream.Context(), err, opStreamAll, req.GetUserId())
 	}
-	// Normalize context cancellation / deadline so gRPC reports codes.Canceled /
-	// codes.DeadlineExceeded rather than codes.Unknown. Neither reports: the caller
-	// went away or its deadline expired, which is a client outcome, and one
-	// disconnect per request would be an unbounded event source.
+	// Normalize cancellation/deadline so gRPC reports Canceled/DeadlineExceeded,
+	// not Unknown. Not reported: a client outcome, and one disconnect per request
+	// would be an unbounded event source.
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return status.FromContextError(err).Err()
 	}
-	// Stream-send failures are already gRPC-meaningful; surface them directly. They
-	// do not report either: a send fails because the consumer stopped reading, and
-	// the consumer is the export engine, which fails its own job and reports that
-	// failure with the job id. Reporting here would bill a second event for it.
+	// Stream-send failures are already gRPC-meaningful; surface directly. The
+	// consumer (export engine) reports its own failure with the job id, so
+	// reporting here would double-bill.
 	return err
 }
 
@@ -224,11 +213,11 @@ func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.Anon
 
 	if err := h.expenseService.AnonymizeAllUserExpenses(ctx, userID); err != nil {
 		reportServerFailure(ctx, err, errkit.Meta{
-			Op:     opAnonymize.name,
-			Domain: reportDomain,
+			Op:     opAnonymize.opName,
+			Domain: config.ReportDomain,
 			Msg:    "failed to anonymize expenses",
 			Data: map[string]any{
-				"method":  opAnonymize.rpc,
+				"method":  opAnonymize.rpcMethod,
 				"user_id": userID,
 			},
 		})
@@ -238,7 +227,6 @@ func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.Anon
 	return &pb.AnonymizeResponse{}, nil
 }
 
-// expenseToProto converts a domain Expense to a protobuf ExpenseData.
 func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	return &pb.ExpenseData{
 		Id:                                    e.ID,
@@ -267,32 +255,19 @@ func expenseToProto(e *model.Expense) *pb.ExpenseData {
 	}
 }
 
-// mapServiceError converts a service-layer error to a gRPC status error. It
-// classifies via errors.As so a %w-wrapped *apierr.Error still maps to the
-// correct gRPC status code. The two codes.Internal exits report the underlying
-// error against op, because the status returned to the caller carries no internal
-// detail.
-//
-// reportServerFailure reports err unless the client is about to receive a client
-// error. Both codes.Internal exits below are reachable with a typed *apierr.Error,
-// and a code this handler does not map is not evidence that the failure is the
-// service's fault: a future 401 or a new conflict code would otherwise start
-// billing error quota for ordinary client input, and nothing would fail.
-//
-// The gate is the rendered status rather than a list of codes, so it stays correct
-// as the code set grows. A gated error leaves no record here, which is right: the
-// guard that produced the typed 4xx recorded it where the decision was made, and
-// what a client error at an internal exit really signals is a status pairing the
-// caller can see.
+// reportServerFailure reports only server (5xx) errors. Client errors are
+// already recorded at the guard that produced them; reporting them here would
+// bill error quota for ordinary client input.
 func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
 	if apierr.IsServerError(err) {
 		_ = errkit.Report(ctx, err, meta)
 	}
 }
 
-// op comes from the caller rather than a constant here, because one generic
-// operation would group every gRPC failure in the service into a single issue,
-// which is exactly the collapse a shared reporter risks.
+// mapServiceError converts a service error to a gRPC status. The codes.Internal
+// exits report the underlying error against op, since the returned status carries
+// no internal detail. op is per-RPC, not a shared constant: one generic operation
+// would merge every gRPC failure into a single issue.
 func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operation, userID string) error {
 	var apiErr *apierr.Error
 	if errors.As(err, &apiErr) {
@@ -313,11 +288,11 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 			return status.Error(codes.FailedPrecondition, apiErr.Message)
 		default:
 			reportServerFailure(ctx, err, errkit.Meta{
-				Op:     op.name,
-				Domain: reportDomain,
+				Op:     op.opName,
+				Domain: config.ReportDomain,
 				Msg:    "internal service error",
 				Data: map[string]any{
-					"method":     op.rpc,
+					"method":     op.rpcMethod,
 					"user_id":    userID,
 					"error_code": apiErr.Code,
 				},
@@ -326,11 +301,11 @@ func (h *GRPCHandler) mapServiceError(ctx context.Context, err error, op operati
 		}
 	}
 	reportServerFailure(ctx, err, errkit.Meta{
-		Op:     op.name,
-		Domain: reportDomain,
+		Op:     op.opName,
+		Domain: config.ReportDomain,
 		Msg:    "unclassified service error",
 		Data: map[string]any{
-			"method":  op.rpc,
+			"method":  op.rpcMethod,
 			"user_id": userID,
 		},
 	})

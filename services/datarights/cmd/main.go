@@ -26,6 +26,7 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/service"
 	"github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/proto/financepb"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/serverkit"
 )
@@ -149,11 +150,16 @@ func run() error {
 	recoverJobs(ctx, logger, "export", repo.GetNonTerminalJobs, func(ctx context.Context, job model.RecoverableJob) {
 		userEmail, err := emailResolver.ResolveEmail(ctx, job.UserID)
 		if err != nil {
-			logger.Error("failed to resolve email for recovered job",
-				slog.String("job_id", job.ID),
-				slog.String("user_id", job.UserID),
-				slog.String("error", err.Error()),
-			)
+			_ = errkit.Report(ctx, err, errkit.Meta{
+				Op:     "datarights.recover_jobs",
+				Domain: "datarights",
+				Msg:    "failed to resolve email for recovered job",
+				Data: map[string]any{
+					"job_id":  job.ID,
+					"user_id": job.UserID,
+					"kind":    "export",
+				},
+			})
 		}
 		logger.Info("re-submitting job",
 			slog.String("job_id", job.ID),
@@ -247,10 +253,14 @@ func recoverJobs[J any](
 ) {
 	jobs, err := fetch(ctx)
 	if err != nil {
-		logger.Error("failed to query recoverable jobs",
-			slog.String("kind", kind),
-			slog.String("error", err.Error()),
-		)
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "datarights.recover_jobs",
+			Domain: "datarights",
+			Msg:    "failed to query recoverable jobs",
+			Data: map[string]any{
+				"kind": kind,
+			},
+		})
 		return
 	}
 

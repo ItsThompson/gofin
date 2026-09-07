@@ -88,10 +88,6 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 	// routing a same-currency write to FX or persisting mismatched casing.
 	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
-		s.logger.Error("unsupported reporting currency from period context",
-			slog.String("event", "unsupported_reporting_currency"),
-			slog.String("reporting_currency", reportingCurrency),
-		)
 		return nil, err
 	}
 
@@ -287,10 +283,6 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 
 	reportingCurrency := normalizeCurrencyCode(period.ReportingCurrencyCode)
 	if err := validateReportingCurrency(reportingCurrency); err != nil {
-		s.logger.Error("unsupported reporting currency from period context",
-			slog.String("event", "unsupported_reporting_currency"),
-			slog.String("reporting_currency", reportingCurrency),
-		)
 		return nil, err
 	}
 

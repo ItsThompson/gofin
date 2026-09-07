@@ -14,8 +14,21 @@ import (
 
 	fxmetrics "github.com/ItsThompson/gofin/services/fx/internal/metrics"
 	"github.com/ItsThompson/gofin/services/fx/internal/model"
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
+
+// reportWindow bounds how often one provider failure class is reported. The
+// converter calls FetchLatest on cache misses, so an outage fails every
+// conversion request; a plain provider report would emit thousands of events
+// an hour against the organization's shared monthly allowance. One report per
+// window per failure class keeps one stable issue per outage while every failed
+// call still writes its own site record.
+//
+// It is a variable rather than a constant because it is the test seam: an
+// internal test shrinks it before constructing the provider (NewLimiter panics
+// on non-positive windows, and Limiter.now is not publicly injectable).
+var reportWindow = time.Hour
 
 type OpenRatesProvider struct {
 	client     *http.Client
@@ -24,6 +37,11 @@ type OpenRatesProvider struct {
 	retryCount int
 	now        func() time.Time
 	logger     *slog.Logger
+
+	// One Limiter per failure class: the window belongs to the site it guards,
+	// so a shared Limiter would suppress the other class's first report.
+	netReports  *errkit.Limiter
+	authReports *errkit.Limiter
 }
 
 type openRatesResponse struct {
@@ -47,6 +65,8 @@ func NewOpenRatesProvider(
 		retryCount: retryCount,
 		now:        now,
 		logger:     logger,
+		netReports:  errkit.NewLimiter(reportWindow),
+		authReports: errkit.NewLimiter(reportWindow),
 	}
 }
 
@@ -64,6 +84,26 @@ func (p *OpenRatesProvider) FetchLatest(ctx context.Context, expiresAt time.Time
 		if fxErr, ok := err.(*model.Error); ok && fxErr.Code != model.ErrorConversionUnavailable {
 			return nil, err
 		}
+	}
+
+	p.logger.Error("fx provider fetch failed",
+		slog.String("endpoint", p.baseURL),
+		slog.Int("attempts", p.retryCount+1),
+		slog.String("error", lastErr.Error()),
+	)
+	if p.netReports.Allow() {
+		// endpoint is the base URL, never the full request URL: the query carries the API key.
+		_ = errkit.Report(ctx, lastErr, errkit.Meta{
+			Kind:       errkit.KindUpstream,
+			Op:         "fx.provider_fetch",
+			Domain:     "fx",
+			Msg:        "fx provider fetch failed",
+			GroupKey:   "fx.provider_unreachable",
+			GroupExact: true,
+			Data: map[string]any{
+				"endpoint": p.baseURL,
+			},
+		})
 	}
 	return nil, lastErr
 }
@@ -87,7 +127,6 @@ func (p *OpenRatesProvider) fetchOnce(ctx context.Context, expiresAt time.Time) 
 	if err != nil {
 		fxmetrics.ProviderRequestsTotal.WithLabelValues("error", "network").Inc()
 		fxmetrics.ProviderLatencySeconds.WithLabelValues("error").Observe(time.Since(start).Seconds())
-		p.logger.Warn("fx provider request failed", slog.String("error", err.Error()))
 		return nil, model.NewError(model.ErrorConversionUnavailable, "", err)
 	}
 	defer func() { _ = response.Body.Close() }()
@@ -96,8 +135,22 @@ func (p *OpenRatesProvider) fetchOnce(ctx context.Context, expiresAt time.Time) 
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
 		fxmetrics.ProviderRequestsTotal.WithLabelValues("auth_failed", statusCode).Inc()
 		fxmetrics.ProviderLatencySeconds.WithLabelValues("auth_failed").Observe(time.Since(start).Seconds())
+		authErr := model.NewError(model.ErrorProviderAuthFailed, "", fmt.Errorf("provider returned %d", response.StatusCode))
 		p.logger.Error("fx provider authentication failed", slog.Int("status", response.StatusCode))
-		return nil, model.NewError(model.ErrorProviderAuthFailed, "", fmt.Errorf("provider returned %d", response.StatusCode))
+		if p.authReports.Allow() {
+			_ = errkit.Report(ctx, authErr, errkit.Meta{
+				Kind:       errkit.KindUpstream,
+				Op:         "fx.provider_auth",
+				Domain:     "fx",
+				Msg:        "fx provider authentication failed",
+				GroupKey:   "fx.provider_auth_failed",
+				GroupExact: true,
+				Data: map[string]any{
+					"status": response.StatusCode,
+				},
+			})
+		}
+		return nil, authErr
 	}
 	if response.StatusCode >= 500 {
 		fxmetrics.ProviderRequestsTotal.WithLabelValues("retryable_error", statusCode).Inc()

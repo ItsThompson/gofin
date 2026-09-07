@@ -10,6 +10,7 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/engine"
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 	"github.com/ItsThompson/gofin/services/datarights/internal/repository"
+	"github.com/ItsThompson/gofin/services/errkit"
 )
 
 // RateLimitWindow is the minimum duration between successful exports for a user.
@@ -106,10 +107,6 @@ func (s *ExportService) CreateJob(ctx context.Context, userID string) (*CreateJo
 
 	job, err := s.repo.CreateJob(ctx, userID)
 	if err != nil {
-		s.logger.Error("failed to create export job",
-			slog.String("user_id", userID),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("creating job: %w", err)
 	}
 
@@ -123,12 +120,15 @@ func (s *ExportService) CreateJob(ctx context.Context, userID string) (*CreateJo
 	if s.engine != nil {
 		userEmail, err := s.resolveUserEmail(ctx, userID)
 		if err != nil {
-			// Log but don't fail job creation: the engine will fail at the email step
-			s.logger.Error("failed to resolve user email for export",
-				slog.String("job_id", job.ID),
-				slog.String("user_id", userID),
-				slog.String("error", err.Error()),
-			)
+			_ = errkit.Report(ctx, err, errkit.Meta{
+				Op:     "datarights.create_export",
+				Domain: "datarights",
+				Msg:    "failed to resolve user email for export",
+				Data: map[string]any{
+					"job_id":  job.ID,
+					"user_id": userID,
+				},
+			})
 		}
 		s.engine.Submit(job.ID, userID, userEmail)
 	}

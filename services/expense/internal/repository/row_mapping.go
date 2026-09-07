@@ -2,9 +2,7 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 )
@@ -23,24 +21,14 @@ const expenseColumnCount = 24
 
 const expenseSuggestionInputLimit int32 = 1000
 
-// mapRow wraps rowToExpense with telemetry. When rowToExpense returns a
-// SnapshotIntegrityError (row missing required fields), it logs the
-// expense_snapshot_integrity_error event before returning the error, so the
-// data-integrity issue is recorded even though the read fails.
+// mapRow maps a result row to an Expense. When rowToExpense returns a
+// SnapshotIntegrityError (row missing required snapshot fields), the typed
+// error reaches the handler, whose errkit report merges ReportData()
+// (expense_id, missing_fields) into the event's context block via the
+// DataCarrier contract, so the data-integrity issue stays visible without a
+// separate warn record here.
 func (r *ImmudbExpenseRepository) mapRow(row SQLRow) (*model.Expense, error) {
-	expense, err := rowToExpense(row)
-	if err == nil {
-		return expense, nil
-	}
-	var integrityErr *SnapshotIntegrityError
-	if errors.As(err, &integrityErr) {
-		r.logger.Warn("expense snapshot integrity error",
-			slog.String("event", "expense_snapshot_integrity_error"),
-			slog.String("expense_id", integrityErr.ExpenseID),
-			slog.Any("missing_fields", integrityErr.MissingFields),
-		)
-	}
-	return nil, err
+	return rowToExpense(row)
 }
 
 // rowToExpense maps a result row to an Expense. The column order must match the

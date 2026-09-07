@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	sharedaccess "github.com/ItsThompson/gofin/services/access"
+	"github.com/ItsThompson/gofin/services/errkit/errkittest"
 	"github.com/ItsThompson/gofin/services/gateway/internal/access"
 )
 
@@ -363,25 +364,37 @@ func TestAccessControl_NonDeadlineGRPCError_Returns401(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "UNAUTHORIZED")
 }
 
-// TestAccessControl_ValidationTimeout_LogsWarningNamingAuth asserts the 503 path
-// emits a distinct warn log that names the auth dependency as the cause, so the
-// timeout is diagnosable separately from a 401.
-func TestAccessControl_ValidationTimeout_LogsWarningNamingAuth(t *testing.T) {
+// TestAccessControl_ValidationTimeout_ReportsTimeoutEvent asserts the 503 path
+// reports one timeout-classified event naming the auth dependency (the wire
+// contract is unchanged), while the plain 401 and 403 warns below stay on slog.
+func TestAccessControl_ValidationTimeout_ReportsTimeoutEvent(t *testing.T) {
 	logger, buf := captureLogger()
 	validator := &fakeValidator{err: status.Error(codes.DeadlineExceeded, "context deadline exceeded")}
 	engine := buildEngine(validator, logger, http.MethodGet, "/api/finance/periods", okHandler)
 
+	transport := &errkittest.Transport{}
 	req := httptest.NewRequest(http.MethodGet, "/api/finance/periods", nil)
 	req.AddCookie(&http.Cookie{Name: "gofin_access", Value: "token"})
+	req = req.WithContext(errkittest.ContextWithHub(req.Context(), transport))
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	entry := buf.lastEntry(t)
-	assert.Equal(t, "WARN", entry["level"])
-	assert.Equal(t, "auth validation timed out", entry["msg"])
-	assert.Equal(t, "auth", entry["dependency"])
-	assert.Equal(t, "/api/finance/periods", entry["path"])
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code, "the wire contract is unchanged")
+	assert.Contains(t, rec.Body.String(), "Authentication service unavailable")
+
+	events := transport.Events()
+	require.Len(t, events, 1)
+	assert.Equal(t, "timeout", events[0].Tags["error_kind"])
+	assert.Equal(t, "gateway.auth_validate", events[0].Tags["operation"])
+	assert.Equal(t, "platform", events[0].Tags["domain"])
+	gofin := events[0].Contexts["gofin"]
+	assert.Equal(t, "GET", gofin["method"])
+	assert.Equal(t, "/api/finance/periods", gofin["path"])
+	assert.Equal(t, "auth", gofin["dependency"])
+
+	// The report record goes through slog.Default, so the middleware's own
+	// logger stays silent on this path (it records only the 4xx decisions).
+	assert.Empty(t, splitNonEmptyLines(buf.data), "no middleware warn for a dependency timeout")
 }
 
 // --- Warn logging on 401 and 403 ---

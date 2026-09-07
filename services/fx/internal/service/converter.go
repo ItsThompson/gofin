@@ -240,7 +240,6 @@ func (c *Converter) recordConversion(sourceCurrency string, targetCurrency strin
 	fxmetrics.ConversionRequestsTotal.WithLabelValues(sourceCurrency, targetCurrency, result).Inc()
 	fxmetrics.ConversionLatencySeconds.WithLabelValues(sourceCurrency, targetCurrency).Observe(time.Since(start).Seconds())
 	if err != nil {
-		c.logger.Warn("fx conversion failed", slog.String("source_currency", sourceCurrency), slog.String("target_currency", targetCurrency), slog.String("error", err.Error()))
 		return
 	}
 	c.logger.Info("fx conversion completed", slog.String("source_currency", sourceCurrency), slog.String("target_currency", targetCurrency))

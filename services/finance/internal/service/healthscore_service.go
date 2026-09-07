@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ItsThompson/gofin/services/errkit"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
 
@@ -55,15 +55,18 @@ func (s *FinanceService) resolveHealthScore(ctx context.Context, userID string, 
 		return nil, err
 	}
 	// Persisting is best-effort: a write failure must not fail the read, so it is
-	// logged and the freshly computed score is still returned.
+	// reported and the freshly computed score is still returned.
 	if _, err := s.repo.UpsertHealthScore(ctx, userID, result); err != nil {
-		s.logger.Error("upserting health score",
-			slog.String("method", "resolveHealthScore"),
-			slog.String("user_id", userID),
-			slog.Int("year", int(year)),
-			slog.Int("month", int(month)),
-			slog.String("error", err.Error()),
-		)
+		_ = errkit.Report(ctx, err, errkit.Meta{
+			Op:     "finance.health_score",
+			Domain: "budgets",
+			Msg:    "upserting health score",
+			Data: map[string]any{
+				"user_id": userID,
+				"year":    int(year),
+				"month":   int(month),
+			},
+		})
 	}
 	return result, nil
 }

@@ -126,11 +126,6 @@ func (s *DeletionService) CreateJob(ctx context.Context, userID, adminUserID, pa
 	// All guards passed: create the job
 	job, err := s.repo.CreateJob(ctx, userID, adminUserID)
 	if err != nil {
-		s.logger.Error("failed to create deletion job",
-			slog.String("user_id", userID),
-			slog.String("admin_user_id", adminUserID),
-			slog.String("error", err.Error()),
-		)
 		return nil, fmt.Errorf("creating deletion job: %w", err)
 	}
 
