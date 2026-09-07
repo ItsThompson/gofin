@@ -41,17 +41,7 @@ Errors can implement `errkit.DataCarrier` (`ReportData() map[string]any`) so any
 Every event carries three taxonomy tags, derived from `errkit.Meta`:
 
 - **`operation`** (`Meta.Op`): the logical operation, dot notation, e.g. `expense.create`, `finance.prorata_apply`. Must come from a bounded set: never interpolate an identifier, which would create one Sentry issue per record.
-- **`domain`** (`Meta.Domain`): the business area. The closed set:
-
-| Domain | Services | Business area |
-|--------|----------|---------------|
-| `auth` | auth | Accounts, sessions, tokens |
-| `budgets` | finance | Periods, tags, pro-rata, health score, dashboards |
-| `expenses` | expense | The expense ledger and corrections |
-| `datarights` | datarights | Export and deletion jobs |
-| `fx` | fx | Provider fetch and conversion |
-| `platform` | gateway | Proxying and access control |
-
+- **`domain`** (`Meta.Domain`): the business area. The set is closed: adding a value widens the query vocabulary of both Sentry projects. Use the value already established by the service's existing reports (e.g. `reportDomain` constants in handler packages).
 - **`error_kind`** (`Meta.Kind`): the low-cardinality failure class (`internal`, `database`, `upstream`, `timeout`, `validation`, ...). The set is closed in `services/errkit/kind.go`; adding a value widens the query vocabulary of both Sentry projects.
 
 Grouping: every event carries the fingerprint `{"{{ default }}", op/kind}`, which refines Sentry's own grouping. `GroupKey` + `GroupExact: true` replaces grouping entirely with one key; use it only for a generic failure whose stack varies but whose meaning is singular (see Bounded reports).
@@ -93,30 +83,22 @@ Current bounded sites:
 
 Background work (job pools, cleanup tickers, startup recovery) has no request hub on its context. `errkit.Report` falls back to `sentry.CurrentHub().Clone()`, which is the documented correct path for background jobs: the event keeps its tags and context; it simply lacks request/trace data. Pass the most specific live context available (the job's own context while it is still live, `context.Background()` when it may have expired), not a request context borrowed from elsewhere.
 
-## Keep-list: warn/error slog sites that are not failures
+## Advisory slog sites (the keep-list)
 
-These sites stay on `slog` deliberately. They are advisories, startup diagnostics, or per-attempt retry notes, not server failures a Sentry event would help:
+Some `slog.Warn` / `slog.Error` sites stay on `slog` deliberately because they are not server failures a Sentry event would help with. A site belongs here when it matches one of these criteria:
 
-| Site | Reason |
-|------|--------|
-| Every `cmd/main.go` sentry-init error | Sentry is not initialized when it fires; `errkit` cannot capture it |
-| `gateway/internal/access/control.go` 401/403 warns | Access decisions with no error value; middleware choices, not service failures |
-| `gateway/internal/config/config.go` oversized-timeout warn | Startup config advisory |
-| `gateway/internal/readiness/readiness.go` probe warn | Health probe result |
-| `fx/cmd/main.go` empty-API-key warn | Startup advisory (dev rates in use) |
-| `expense/cmd/immudb.go` connection retry warns | Transient per-attempt retries |
-| `expense/cmd/immudb_prod.go` heartbeat/session-loss warns | Session diagnostics beside the bounded reconnect report (dual pattern) |
-| `auth/internal/service/auth.go` refresh-token replay warn | Security advisory (replay detection) |
-| `finance/internal/service/prorata.go` schedule-marked-failed warn | Status-transition advisory beside the failure reports |
-| `datarights/internal/deletion/engine.go` per-attempt provider warn | Transient per-attempt retry |
-| `datarights/internal/handler/rest.go` rate-limit warn | 429 decision, not a failure |
-| `expense/internal/repository/schema.go` index-creation warn | Idempotent startup advisory |
-| `datarights/internal/engine/engine.go` export failure record | Dual pattern: user-facing record beside the errkit report |
-| `gateway/internal/proxy/proxy.go` unreachable record | Dual pattern: site record beside the bounded report |
-| `fx/internal/provider/openrates.go` fetch/auth site records | Dual pattern: per-occurrence records beside the bounded reports |
-| `serverkit/recover.go` dead-client-connection warn | Client went away; not a service defect (see monitoring.md) |
+- **Sentry is not initialized**: every `cmd/main.go` sentry-init error fires before the SDK is ready, so `errkit` cannot capture it.
+- **No error value**: access-control 4xx warns in the gateway are middleware decisions (missing cookie, wrong role, unclassified route), not service failures. They carry a status code, not an error.
+- **Startup / config advisories**: oversized-timeout warnings, empty-API-key notices, idempotent index-creation skips. They describe a configuration state, not a failure.
+- **Health probe results**: readiness check outcomes. The probe itself is the monitoring signal.
+- **Transient per-attempt retries**: deletion-provider and immudb-connection attempts that fail and retry. The terminal failure is reported; the per-attempt warn is diagnostic.
+- **Security advisories**: refresh-token replay detection. Not a failure, but a security signal that must stay visible in logs.
+- **Status-transition advisories**: a pro-rata schedule marked failed. The failure that caused the transition is already reported; the warn records the transition itself.
+- **Rate-limit decisions**: a 429 rejection is a policy outcome, not a service defect.
+- **Dead-client connections**: a client that went away (EPIPE, ECONNRESET) is not a service defect. See `docs/monitoring.md`.
+- **Dual-pattern site records**: any bounded-report site keeps its unconditional per-occurrence `slog` record beside the gated `errkit.Report` (the record shows volume; the report is what costs quota). This is structural, not a per-site decision.
 
-Two more dual-pattern records join this list by construction: any new bounded-report site keeps its unconditional per-occurrence record beside the gated report.
+The inventory of current sites is verified by the grep audit, not by reading this doc: the extended-pattern grep (excluding `*_test.go` and `services/errkit/`) returns every error/warn site, and each must either be a conversion (handled by `errkit`) or match one of the criteria above.
 
 ## Known follow-ups
 
