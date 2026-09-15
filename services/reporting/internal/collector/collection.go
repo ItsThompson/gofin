@@ -31,10 +31,7 @@ func (c Collector) Collect(ctx context.Context, windows *reportingpb.ReportWindo
 			}
 			defer cancel()
 			result := collectSafely(client, groupName, requestContext, windows)
-			select {
-			case results <- indexedResult{index: index, result: result}:
-			case <-ctx.Done():
-			}
+			results <- indexedResult{index: index, result: result}
 		}()
 	}
 
