@@ -48,6 +48,36 @@ func TestSendUsesWaitAndDisablesMentions(t *testing.T) {
 	}
 }
 
+func TestSendRetriesOversizedTransientResponses(t *testing.T) {
+	for _, status := range []int{http.StatusBadGateway, http.StatusTooManyRequests} {
+		var calls atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			if calls.Add(1) == 1 {
+				if status == http.StatusTooManyRequests {
+					writer.Header().Set("Retry-After", "0")
+				}
+				writer.WriteHeader(status)
+				_, _ = writer.Write([]byte(strings.Repeat("x", MaxResponseBodyBytes+1)))
+				return
+			}
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{"id":"message-1"}`))
+		}))
+		sender, err := NewSender(server.URL, time.Second)
+		if err != nil {
+			t.Fatalf("NewSender: %v", err)
+		}
+		sender.Sleep = func(context.Context, time.Duration) error { return nil }
+		if err := sender.Send(context.Background(), "hello"); err != nil {
+			t.Errorf("status %d Send: %v", status, err)
+		}
+		if calls.Load() != 2 {
+			t.Errorf("status %d calls = %d, want 2", status, calls.Load())
+		}
+		server.Close()
+	}
+}
+
 func TestSendRetriesOnlyTransientResponses(t *testing.T) {
 	var calls atomic.Int32
 	var delays []time.Duration
@@ -151,7 +181,7 @@ func TestSendUsesInjectedClockForRetryAfterDate(t *testing.T) {
 }
 
 func TestSendRequiresRetryAfterFor429AndBoundsIt(t *testing.T) {
-	for _, retryAfter := range []string{"", "bad", "-1", "31"} {
+	for _, retryAfter := range []string{"", "bad", "+1", "-1", "31"} {
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			writer.Header().Set("Retry-After", retryAfter)
 			writer.WriteHeader(http.StatusTooManyRequests)

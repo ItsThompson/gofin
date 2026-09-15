@@ -24,6 +24,16 @@ case "$command_name" in
         ;;
     esac
     ;;
+  cp)
+    if [[ "${FAIL_CREDENTIAL_RESTORE:-}" == 1 && "${3:-}" == "${DEPLOY_ROOT}/deployments/cloudflare/"* ]]; then
+      case "${3##*/}" in
+        gofin-app.json) [[ "${FAIL_CREDENTIAL_APP_RESTORE:-}" != 1 ]] || exit 1 ;;
+        gofin-grafana.json) [[ "${FAIL_CREDENTIAL_GRAFANA_RESTORE:-}" != 1 ]] || exit 1 ;;
+        cert.pem) [[ "${FAIL_CREDENTIAL_CERT_RESTORE:-}" != 1 ]] || exit 1 ;;
+      esac
+    fi
+    exec /bin/cp "$@"
+    ;;
   docker)
     if [[ "${1:-}" == "pull" ]]; then
       image=${2:-}
@@ -34,7 +44,11 @@ case "$command_name" in
     fi
     if [[ "${1:-}" == "inspect" ]]; then
       if [[ "$*" == *".Config.Image"* ]]; then
-        printf 'ghcr.io/itsthompson/gofin/expense-service:sha-%s\n' "$PREVIOUS_SHA"
+        if [[ "${MIGRATE_LATEST:-}" == 1 ]]; then
+          printf 'ghcr.io/itsthompson/gofin/expense-service:latest\n'
+        else
+          printf 'ghcr.io/itsthompson/gofin/expense-service:sha-%s\n' "$PREVIOUS_SHA"
+        fi
       else
         printf 'old-image-id\n'
       fi
@@ -93,9 +107,21 @@ case "$command_name" in
     exit 0
     ;;
   mv)
-    if [[ "${FAIL_MARKER:-0}" == 1 && "${3:-}" == "${DEPLOY_ROOT}/.deployed-sha" && ! -e "$FAKE_MARKER_MOVED" ]]; then
-      : >"$FAKE_MARKER_MOVED"
-      exit 1
+    if [[ "${3:-}" == "${DEPLOY_ROOT}/.deployed-sha" ]]; then
+      marker_count=0
+      if [[ -f "${FAKE_MARKER_MOVED}.count" ]]; then
+        marker_count=$(<"${FAKE_MARKER_MOVED}.count")
+      fi
+      marker_count=$((marker_count + 1))
+      printf '%s\n' "$marker_count" >"${FAKE_MARKER_MOVED}.count"
+      if [[ "${FAIL_MARKER:-0}" == 1 && "$marker_count" -eq 1 ]]; then
+        : >"$FAKE_MARKER_MOVED"
+        exit 1
+      fi
+      if [[ "${FAIL_MARKER_RESTORE:-0}" == 1 && "$marker_count" -ge 2 ]]; then
+        : >"$FAKE_MARKER_MOVED"
+        exit 1
+      fi
     fi
     exec "$REAL_MV" "$@"
     ;;

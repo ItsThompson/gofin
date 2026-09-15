@@ -5,11 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -130,14 +128,6 @@ func (s *Sender) sendAttempt(ctx context.Context, endpoint string, body []byte) 
 		return &SendError{Kind: "network", Retryable: true}
 	}
 	defer response.Body.Close()
-	limited := io.LimitReader(response.Body, MaxResponseBodyBytes+1)
-	responseBody, readErr := io.ReadAll(limited)
-	if readErr != nil {
-		return &SendError{Kind: "response", StatusCode: response.StatusCode}
-	}
-	if len(responseBody) > MaxResponseBodyBytes {
-		return &SendError{Kind: "response_too_large", StatusCode: response.StatusCode}
-	}
 	if response.StatusCode != http.StatusOK {
 		retryable := response.StatusCode >= 500 && response.StatusCode <= 599
 		retryAfter := time.Duration(0)
@@ -168,6 +158,14 @@ func (s *Sender) sendAttempt(ctx context.Context, endpoint string, body []byte) 
 		}
 		return sendError
 	}
+	limited := io.LimitReader(response.Body, MaxResponseBodyBytes+1)
+	responseBody, readErr := io.ReadAll(limited)
+	if readErr != nil {
+		return &SendError{Kind: "response", StatusCode: response.StatusCode}
+	}
+	if len(responseBody) > MaxResponseBodyBytes {
+		return &SendError{Kind: "response_too_large", StatusCode: response.StatusCode}
+	}
 	var confirmation struct {
 		ID string `json:"id"`
 	}
@@ -186,110 +184,4 @@ func webhookEndpoint(raw string) (string, error) {
 	query.Set("wait", "true")
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
-}
-
-type retryAfterState uint8
-
-const (
-	retryAfterMissing retryAfterState = iota
-	retryAfterValid
-	retryAfterMalformed
-	retryAfterNegative
-	retryAfterTooLong
-)
-
-func parseRetryAfterValue(value string, now time.Time) (time.Duration, retryAfterState) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return 0, retryAfterMissing
-	}
-	if seconds, err := strconv.Atoi(value); err == nil {
-		if seconds < 0 {
-			return 0, retryAfterNegative
-		}
-		if seconds > int(MaxRetryAfter/time.Second) {
-			return 0, retryAfterTooLong
-		}
-		delay := time.Duration(seconds) * time.Second
-		if delay > MaxRetryAfter {
-			return 0, retryAfterTooLong
-		}
-		return delay, retryAfterValid
-	}
-	when, err := http.ParseTime(value)
-	if err != nil {
-		return 0, retryAfterMalformed
-	}
-	if !when.After(now) {
-		return 0, retryAfterValid
-	}
-	delay := when.Sub(now)
-	if delay > MaxRetryAfter {
-		return 0, retryAfterTooLong
-	}
-	return delay, retryAfterValid
-}
-
-func retryAfterReason(state retryAfterState) string {
-	switch state {
-	case retryAfterMissing:
-		return "missing"
-	case retryAfterMalformed:
-		return "malformed"
-	case retryAfterNegative:
-		return "negative"
-	case retryAfterTooLong:
-		return "over_limit"
-	default:
-		return "invalid"
-	}
-}
-
-func sleepContext(ctx context.Context, delay time.Duration) error {
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-type ConfigError struct {
-	Kind string
-}
-
-func (e *ConfigError) Error() string {
-	if e == nil {
-		return ""
-	}
-	return "discord configuration failed: " + e.Kind
-}
-
-type SendError struct {
-	Kind             string
-	StatusCode       int
-	Retryable        bool
-	RetryAfter       time.Duration
-	RetryAfterSet    bool
-	RetryAfterReason string
-	Attempts         int
-}
-
-func (e *SendError) Error() string {
-	if e == nil {
-		return ""
-	}
-	message := fmt.Sprintf("discord delivery failed: %s", e.Kind)
-	if e.StatusCode != 0 {
-		message += " (HTTP " + strconv.Itoa(e.StatusCode) + ")"
-	}
-	if e.RetryAfterReason != "" {
-		message += " (" + e.RetryAfterReason + ")"
-	}
-	if e.Attempts > 0 {
-		message += ", attempts=" + strconv.Itoa(e.Attempts)
-	}
-	return message
 }

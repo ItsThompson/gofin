@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ItsThompson/gofin/services/reporting/internal/app"
 	"github.com/ItsThompson/gofin/services/reporting/internal/clients"
@@ -44,6 +45,10 @@ func run(parent context.Context, args []string, output, errorOutput io.Writer) i
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(errorOutput, "reporting: unexpected command-line argument")
+		return ExitUsage
+	}
+	if _, err := app.ResolveWindows(*reportWeekStart, time.Now().UTC()); err != nil {
+		fmt.Fprintln(errorOutput, "reporting: invalid report week")
 		return ExitUsage
 	}
 

@@ -10,7 +10,7 @@ import (
 
 func TestDialRejectsMalformedServiceAddressWithoutExposingIt(t *testing.T) {
 	_, err := Dial(context.Background(), config.Config{
-		AuthAddr:       "malformed",
+		AuthAddr:       "foo/bar:9081",
 		ExpenseAddr:    "expense-service:9082",
 		FinanceAddr:    "finance-service:9083",
 		DatarightsAddr: "datarights-service:9084",
@@ -24,6 +24,30 @@ func TestDialRejectsMalformedServiceAddressWithoutExposingIt(t *testing.T) {
 	}
 	if got := err.Error(); got != "create auth client failed" {
 		t.Fatalf("error text = %q", got)
+	}
+}
+
+func TestValidAddressRejectsTargetSyntax(t *testing.T) {
+	for _, address := range []string{
+		"foo/bar:9081",
+		"https://foo:9081",
+		"foo bar:9081",
+		"foo:9081/path",
+		"foo: +1",
+		"foo:9081 ",
+		"foo:0",
+		"foo:65536",
+		"-foo:9081",
+		"foo..bar:9081",
+	} {
+		if validAddress(address) {
+			t.Errorf("validAddress(%q) = true", address)
+		}
+	}
+	for _, address := range []string{"auth-service:9081", "127.0.0.1:9081", "[::1]:9081"} {
+		if !validAddress(address) {
+			t.Errorf("validAddress(%q) = false", address)
+		}
 	}
 }
 

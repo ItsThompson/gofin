@@ -110,6 +110,22 @@ func TestRunDryRunDoesNotConstructOrCallSender(t *testing.T) {
 	}
 }
 
+func TestRunRequiresOutputBeforeDelivery(t *testing.T) {
+	sender := &appSender{}
+	result, err := Run(context.Background(), "2026-09-07", false, testConfig(), Dependencies{
+		Groups: completeGroups(availableMetric()),
+		Sender: sender,
+		Now:    func() time.Time { return time.Date(2026, time.September, 14, 0, 0, 0, 0, time.UTC) },
+	})
+	if err == nil || result.Text == "" || sender.calls != 0 {
+		t.Fatalf("result=%+v sender calls=%d err=%v", result, sender.calls, err)
+	}
+	var lifecycle *LifecycleError
+	if !errors.As(err, &lifecycle) || lifecycle.Stage != "output" {
+		t.Fatalf("error = %v, want output lifecycle error", err)
+	}
+}
+
 func TestRunPrintsBeforeSizeValidation(t *testing.T) {
 	longMetrics := make([]collector.MetricResult, 0, 100)
 	for i := 0; i < 100; i++ {

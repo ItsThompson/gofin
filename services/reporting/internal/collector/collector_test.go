@@ -58,6 +58,52 @@ func TestCollectorRunsAllGroupsConcurrentlyAndPreservesFailures(t *testing.T) {
 	}
 }
 
+func TestCollectorRecoversClientPanic(t *testing.T) {
+	groups := []GroupClient{
+		fakeGroup{name: "auth", call: func(context.Context) { panic("test panic") }},
+	}
+	collection := (Collector{Clients: groups, Timeout: time.Second}).Collect(context.Background(), nil)
+	if len(collection.Groups) != 1 || collection.Groups[0].Err == nil {
+		t.Fatalf("collection = %+v, want one failed group", collection)
+	}
+	if len(collection.Groups[0].Metrics) != 2 {
+		t.Fatalf("metrics = %d, want auth metrics", len(collection.Groups[0].Metrics))
+	}
+}
+
+func TestCollectorStopsReceivingAfterCancellationAndKeepsCompletedResults(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	completed := make(chan struct{})
+	release := make(chan struct{})
+	groups := []GroupClient{
+		fakeGroup{name: "auth", call: func(context.Context) {
+			close(completed)
+		}, group: GroupResult{Name: "auth"}},
+		fakeGroup{name: "expense", call: func(context.Context) {
+			<-release
+		}, group: GroupResult{Name: "expense"}},
+	}
+	collectionDone := make(chan Collection, 1)
+	go func() {
+		collectionDone <- (Collector{Clients: groups, Timeout: time.Second}).Collect(ctx, nil)
+	}()
+	<-completed
+	cancel()
+	select {
+	case collection := <-collectionDone:
+		if group, ok := collection.Group("auth"); !ok || group.Err != nil {
+			t.Fatalf("completed group = %+v, want successful result", group)
+		}
+		if group, ok := collection.Group("expense"); !ok || group.Err == nil {
+			t.Fatalf("canceled group = %+v, want failure", group)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("collector did not stop after context cancellation")
+	}
+	close(release)
+}
+
 func TestCollectorDeadlineReachesEachGroup(t *testing.T) {
 	groups := make([]GroupClient, 0, 4)
 	for _, name := range []string{"auth", "expense", "finance", "datarights"} {

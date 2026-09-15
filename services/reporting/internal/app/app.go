@@ -11,6 +11,7 @@ import (
 	"github.com/ItsThompson/gofin/services/reporting/internal/collector"
 	"github.com/ItsThompson/gofin/services/reporting/internal/config"
 	"github.com/ItsThompson/gofin/services/reporting/internal/formatter"
+	reportingpb "github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 )
 
 type Sender interface {
@@ -31,6 +32,18 @@ type Result struct {
 	Delivered bool
 }
 
+func ResolveWindows(reportDate string, now time.Time) (*reportingpb.ReportWindowSet, error) {
+	start, err := config.ResolveReportDate(reportDate, now)
+	if err != nil {
+		return nil, &LifecycleError{Stage: "date", Cause: err}
+	}
+	windows, err := aggregator.BuildWindowSet(start)
+	if err != nil {
+		return nil, &LifecycleError{Stage: "window", Cause: err}
+	}
+	return windows, nil
+}
+
 func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config, deps Dependencies) (Result, error) {
 	if cfg.RPCTimeout <= 0 {
 		cfg.RPCTimeout = config.DefaultRPCTimeout
@@ -49,13 +62,9 @@ func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config,
 		now = deps.Now
 	}
 	generatedAt := now().UTC()
-	start, err := config.ResolveReportDate(reportDate, generatedAt)
+	windows, err := ResolveWindows(reportDate, generatedAt)
 	if err != nil {
-		return Result{}, &LifecycleError{Stage: "date", Cause: err}
-	}
-	windows, err := aggregator.BuildWindowSet(start)
-	if err != nil {
-		return Result{}, &LifecycleError{Stage: "window", Cause: err}
+		return Result{}, err
 	}
 	if len(deps.Groups) != 4 {
 		return Result{}, &LifecycleError{Stage: "clients", Cause: fmt.Errorf("expected four reporting clients")}
@@ -76,11 +85,10 @@ func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config,
 	report := aggregator.Aggregate(collection, windows)
 	report.GeneratedAt = generatedAt
 	text := formatter.Format(report)
-	output := deps.Output
-	if output == nil {
-		output = io.Discard
+	if deps.Output == nil {
+		return Result{Report: report, Text: text, Partial: hasGroupFailure(report)}, &LifecycleError{Stage: "output", Cause: fmt.Errorf("output writer is required")}
 	}
-	if _, err := io.WriteString(output, text); err != nil {
+	if _, err := io.WriteString(deps.Output, text); err != nil {
 		return Result{Report: report, Text: text, Partial: hasGroupFailure(report)}, &LifecycleError{Stage: "output", Cause: err}
 	}
 	result := Result{Report: report, Text: text, Partial: hasGroupFailure(report)}

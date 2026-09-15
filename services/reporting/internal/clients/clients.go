@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"unicode"
 
 	authpb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
 	datarightspb "github.com/ItsThompson/gofin/services/datarights/proto/datarightspb"
@@ -41,13 +42,13 @@ func Dial(ctx context.Context, cfg config.Config) (Set, error) {
 	}
 	for _, service := range addresses {
 		if err := ctx.Err(); err != nil {
-			closeConnections()
 			return Set{}, &DialError{Service: service.name}
 		}
 		if !validAddress(service.addr) {
-			closeConnections()
 			return Set{}, &DialError{Service: service.name}
 		}
+	}
+	for _, service := range addresses {
 		connection, err := grpc.NewClient(service.addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			closeConnections()
@@ -69,12 +70,50 @@ func Dial(ctx context.Context, cfg config.Config) (Set, error) {
 }
 
 func validAddress(address string) bool {
-	host, port, err := net.SplitHostPort(strings.TrimSpace(address))
-	if err != nil || host == "" {
+	if address == "" || address != strings.TrimSpace(address) || strings.IndexFunc(address, unicode.IsSpace) >= 0 {
+		return false
+	}
+	host, port, err := net.SplitHostPort(address)
+	if err != nil || !validHost(host) || !validPort(port) {
 		return false
 	}
 	portNumber, err := strconv.Atoi(port)
 	return err == nil && portNumber > 0 && portNumber <= 65535
+}
+
+func validHost(host string) bool {
+	if host == "" || strings.ContainsAny(host, "/\\?#%@") {
+		return false
+	}
+	if net.ParseIP(host) != nil {
+		return true
+	}
+	if len(host) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(host, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, char := range label {
+			if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func validPort(port string) bool {
+	if port == "" {
+		return false
+	}
+	for _, char := range port {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 type DialError struct {

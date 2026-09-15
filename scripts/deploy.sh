@@ -215,12 +215,19 @@ render_config() {
   local template=$1
   local output=$2
   local rendered_tmp
-  rendered_tmp="$(mktemp "${output}.tmp.XXXXXX")"
-  if ! envsubst <"$template" >"$rendered_tmp"; then
-    rm -f "$rendered_tmp"
+  if ! rendered_tmp="$(mktemp "${output}.tmp.XXXXXX")"; then
+    echo "ERROR: temporary config file could not be created" >&2
     return 1
   fi
-  mv -f "$rendered_tmp" "$output"
+  if ! envsubst <"$template" >"$rendered_tmp"; then
+    rm -f "$rendered_tmp" || true
+    return 1
+  fi
+  if ! mv -f "$rendered_tmp" "$output"; then
+    echo "ERROR: rendered config could not be installed" >&2
+    rm -f "$rendered_tmp" || true
+    return 1
+  fi
 }
 
 wait_for_health() {
@@ -241,19 +248,32 @@ wait_for_health() {
       return 0
     fi
     echo "  Waiting for healthy services (attempt ${attempt}/12)..."
-    sleep 5
+    if ! sleep 5; then
+      echo "ERROR: health-check delay failed" >&2
+      return 1
+    fi
   done
   return 1
 }
 
 restore_marker() {
   if [[ -n "$PREVIOUS_SHA" ]]; then
-    marker_tmp="$(mktemp "${marker}.rollback.XXXXXX")"
-    printf '%s\n' "$PREVIOUS_SHA" >"$marker_tmp"
-    mv -f "$marker_tmp" "$marker"
+    if ! marker_tmp="$(mktemp "${marker}.rollback.XXXXXX")"; then
+      echo "ERROR: rollback marker temporary file could not be created" >&2
+      return 1
+    fi
+    if ! printf '%s\n' "$PREVIOUS_SHA" >"$marker_tmp"; then
+      echo "ERROR: rollback marker could not be written" >&2
+      return 1
+    fi
+    if ! mv -f "$marker_tmp" "$marker"; then
+      echo "ERROR: rollback marker could not be restored" >&2
+      return 1
+    fi
     marker_tmp=""
-  else
-    rm -f "$marker"
+  elif ! rm -f "$marker"; then
+    echo "ERROR: rollback marker could not be removed" >&2
+    return 1
   fi
 }
 
@@ -264,18 +284,30 @@ rollback() {
   local credential
   local destination
   local backup_name
+  local service_list
 
-  if [[ -n "$checkout_restore_sha" && -d "${DEPLOY_ROOT}/.git" ]]; then
+  if [[ -n "$PREVIOUS_SHA" && -d "${DEPLOY_ROOT}/.git" ]]; then
+    if ! git -C "$DEPLOY_ROOT" reset --hard "$PREVIOUS_SHA"; then
+      echo "ERROR: rollback Git reset failed" >&2
+      return 1
+    fi
+  elif [[ -n "$checkout_restore_sha" && -d "${DEPLOY_ROOT}/.git" ]]; then
     if ! git -C "$DEPLOY_ROOT" reset --hard "$checkout_restore_sha"; then
       echo "ERROR: rollback Git reset failed" >&2
       return 1
     fi
   elif [[ "$repo_created" == true ]]; then
-    rm -rf "$DEPLOY_ROOT"
+    if ! rm -rf "$DEPLOY_ROOT"; then
+      echo "ERROR: rollback checkout removal failed" >&2
+      return 1
+    fi
   fi
 
   if [[ -n "$env_backup" && -f "$env_backup" && -d "$DEPLOY_ROOT" ]]; then
-    restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"
+    if ! restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"; then
+      echo "ERROR: rollback environment temporary file could not be created" >&2
+      return 1
+    fi
     if ! cp -p "$env_backup" "$restore_tmp" || ! mv -f "$restore_tmp" "$env_file"; then
       echo "ERROR: rollback environment restore failed" >&2
       return 1
@@ -294,22 +326,35 @@ rollback() {
         backup_name="cert.pem"
       fi
       if [[ -f "$credential_backup_dir/$backup_name" ]]; then
-        cp -p "$credential_backup_dir/$backup_name" "$destination"
-      else
-        rm -f "$destination"
+        if ! cp -p "$credential_backup_dir/$backup_name" "$destination"; then
+          echo "ERROR: rollback credential restore failed: $destination" >&2
+          return 1
+        fi
+      elif ! rm -f "$destination"; then
+        echo "ERROR: rollback credential removal failed: $destination" >&2
+        return 1
       fi
     done
   fi
-  restore_marker
+  if ! restore_marker; then
+    echo "ERROR: rollback marker restoration failed" >&2
+    return 1
+  fi
 
   if [[ ! -d "$DEPLOY_ROOT" ]]; then
     return 0
   fi
 
-  cd "$DEPLOY_ROOT"
+  if ! cd "$DEPLOY_ROOT"; then
+    echo "ERROR: rollback checkout directory is unavailable" >&2
+    return 1
+  fi
   if [[ -f .env ]]; then
     set -a
-    source .env
+    if ! source .env; then
+      echo "ERROR: rollback environment could not be loaded" >&2
+      return 1
+    fi
     set +a
     if [[ -f deployments/cloudflare/config-app.yml ]]; then
       if ! render_config deployments/cloudflare/config-app.yml deployments/cloudflare/config-app.rendered.yml; then
@@ -328,7 +373,18 @@ rollback() {
     return 0
   fi
 
-  expected_services="$(docker compose --profile tunnels config --services | wc -l | tr -d ' ')"
+  if [[ ! -f "$rollback_refs" ]]; then
+    echo "ERROR: rollback image references are unavailable" >&2
+    return 1
+  fi
+  if ! service_list="$(docker compose --profile tunnels config --services)"; then
+    echo "ERROR: rollback Compose service list failed" >&2
+    return 1
+  fi
+  if ! expected_services="$(printf '%s\n' "$service_list" | awk 'NF {count++} END {print count + 0}')"; then
+    echo "ERROR: rollback service count failed" >&2
+    return 1
+  fi
   rollback_args=(docker compose --profile tunnels -f docker-compose.yml -f "$rollback_override" up -d --no-build --no-deps --remove-orphans)
   while IFS=$'\t' read -r service old_ref; do
     [[ -z "$service" ]] && continue
@@ -351,13 +407,20 @@ rollback() {
 
 finish() {
   local status=$?
+  local rollback_status=0
   if [[ "$status" -ne 0 && "$transaction_committed" != true && "$rollback_in_progress" != true ]]; then
     rollback_in_progress=true
-    if ! rollback; then
-      echo "ERROR: rollback failed after deployment failure" >&2
+    if rollback; then
+      :
+    else
+      rollback_status=$?
+      echo "FATAL: rollback failed; original deployment error was $status" >&2
     fi
   fi
   cleanup
+  if [[ "$rollback_status" -ne 0 ]]; then
+    exit "$rollback_status"
+  fi
   exit "$status"
 }
 trap finish EXIT
@@ -378,14 +441,21 @@ else
   repo_created=true
 fi
 checkout_restore_sha="$(git -C "$DEPLOY_ROOT" rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$PREVIOUS_SHA" ]]; then
+  if ! git -C "$DEPLOY_ROOT" cat-file -e "${PREVIOUS_SHA}^{commit}"; then
+    echo "ERROR: deployed marker does not name an available commit" >&2
+    exit 1
+  fi
+  if [[ "$checkout_restore_sha" != "$PREVIOUS_SHA" ]]; then
+    echo "ERROR: checkout does not match the deployed marker" >&2
+    exit 1
+  fi
+fi
 git -C "$DEPLOY_ROOT" fetch --no-tags origin main --force
 if ! git -C "$DEPLOY_ROOT" cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
   git -C "$DEPLOY_ROOT" fetch --no-tags origin "$DEPLOY_SHA"
 fi
 git -C "$DEPLOY_ROOT" cat-file -e "${DEPLOY_SHA}^{commit}"
-if [[ -n "$PREVIOUS_SHA" ]]; then
-  git -C "$DEPLOY_ROOT" cat-file -e "${PREVIOUS_SHA}^{commit}"
-fi
 git -C "$DEPLOY_ROOT" reset --hard "$DEPLOY_SHA"
 mkdir -p "${DEPLOY_ROOT}/deployments/cloudflare"
 credential_backup_dir="$(mktemp -d /tmp/gofin-credentials-backup.XXXXXX)"
@@ -476,8 +546,22 @@ while IFS=$'\t' read -r service image; do
   target_id="$(docker image inspect --format '{{.Id}}' "$target_ref")"
   current_ref="$(docker inspect --format '{{.Config.Image}}' "$container")"
   if [[ ! "$current_ref" =~ :sha-[0-9a-f]{40}$ ]]; then
-    echo "ERROR: running service $service uses a mutable image tag: $current_ref" >&2
-    exit 1
+    if [[ -n "$PREVIOUS_SHA" && "$current_ref" =~ :latest$ ]]; then
+      previous_ref="${current_ref%:latest}:sha-${PREVIOUS_SHA}"
+      if ! docker pull "$previous_ref"; then
+        echo "ERROR: previous image is unavailable for mutable service $service" >&2
+        exit 1
+      fi
+      previous_id="$(docker image inspect --format '{{.Id}}' "$previous_ref")"
+      if [[ "$previous_id" != "$current_id" ]]; then
+        echo "ERROR: mutable image does not match the deployed marker for $service" >&2
+        exit 1
+      fi
+      current_ref="$previous_ref"
+    else
+      echo "ERROR: running service $service uses an unrecognized image tag: $current_ref" >&2
+      exit 1
+    fi
   fi
   current_ref_id="$(docker image inspect --format '{{.Id}}' "$current_ref")"
   if [[ "$current_ref_id" != "$current_id" ]]; then

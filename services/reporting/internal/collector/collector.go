@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	authpb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
@@ -54,42 +53,6 @@ type GroupClient interface {
 type Collector struct {
 	Clients []GroupClient
 	Timeout time.Duration
-}
-
-func (c Collector) Collect(ctx context.Context, windows *reportingpb.ReportWindowSet) Collection {
-	results := make(chan GroupResult, len(c.Clients))
-	for _, client := range c.Clients {
-		client := client
-		go func() {
-			requestContext := ctx
-			cancel := func() {}
-			if c.Timeout > 0 {
-				requestContext, cancel = context.WithTimeout(ctx, c.Timeout)
-			}
-			defer cancel()
-			result := client.Collect(requestContext, cloneWindowSet(windows))
-			if result.Name == "" {
-				result.Name = client.Name()
-			}
-			results <- result
-		}()
-	}
-
-	collection := Collection{Groups: make([]GroupResult, 0, len(c.Clients))}
-	for range c.Clients {
-		collection.Groups = append(collection.Groups, <-results)
-	}
-	sort.SliceStable(collection.Groups, func(i, j int) bool {
-		return collection.Groups[i].Name < collection.Groups[j].Name
-	})
-	return collection
-}
-
-func cloneWindowSet(windows *reportingpb.ReportWindowSet) *reportingpb.ReportWindowSet {
-	if windows == nil {
-		return nil
-	}
-	return proto.Clone(windows).(*reportingpb.ReportWindowSet)
 }
 
 type rpcGroup struct {
