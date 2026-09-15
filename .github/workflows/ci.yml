@@ -67,6 +67,30 @@ jobs:
       - name: Validate change-management items
         run: python change-management/.validation/validate_change_management.py
 
+  test-infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check deployment and workflow scripts
+        run: |
+          bash -n scripts/deploy.sh
+          bash -n scripts/deploy_test.sh
+          bash -n .github/scripts/validate-weekly-report-inputs.sh
+          bash -n .github/scripts/verify-reporting-compose.sh
+          bash -n .github/scripts/validate-weekly-report-inputs_test.sh
+          bash -n .github/scripts/verify-reporting-compose_test.sh
+
+      - name: Run infrastructure script tests
+        run: |
+          bash scripts/deploy_test.sh
+          bash .github/scripts/validate-weekly-report-inputs_test.sh
+          bash .github/scripts/verify-reporting-compose_test.sh
+
+      - name: Verify reporting Compose service
+        run: .github/scripts/verify-reporting-compose.sh
+
   test-backend:
     needs: [lint-backend, lint-frontend]
     runs-on: ubuntu-latest

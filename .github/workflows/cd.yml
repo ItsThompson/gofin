@@ -8,6 +8,10 @@ on:
   workflow_dispatch:
     branches: [main]
 
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
 permissions:
   contents: read
   packages: write
@@ -28,8 +32,9 @@ env:
   # bundle is built with therefore has to be the release the maps upload against.
   # The SSR process and the Go services read a bare SHA from /opt/gofin/.env and
   # apply their own prefix in code.
-  SENTRY_RELEASE_WEB: gofin-web@${{ github.sha }}
-  SENTRY_RELEASE_API: gofin-api@${{ github.sha }}
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  SENTRY_RELEASE_WEB: gofin-web@${{ github.event.workflow_run.head_sha || github.sha }}
+  SENTRY_RELEASE_API: gofin-api@${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   discover:
@@ -38,14 +43,16 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Discover buildable services from docker-compose.yml
         id: set-matrix
         run: |
           # Use 'docker compose config' (official parser) to extract buildable services.
           # Filters to ghcr.io/itsthompson/gofin/* images and converts absolute paths to relative.
-          matrix=$(docker compose config --format json | jq -c --arg pwd "$PWD" '
-            [.services | to_entries[] | select(.value.image | test("^ghcr\\.io/itsthompson/gofin/")) | {
+          matrix=$(docker compose --profile reporting config --format json | jq -c --arg pwd "$PWD" '
+            [.services | to_entries[] | select((.value.image | test("^ghcr\\.io/itsthompson/gofin/")) and .value.build.context != null) | {
               "service": (.value.image | sub("ghcr\\.io/itsthompson/gofin/"; "") | sub(":.*"; "")),
               "context": ("." + (.value.build.context | ltrimstr($pwd))),
               "file": ("." + ((.value.build.context + "/" + .value.build.dockerfile) | ltrimstr($pwd)))
@@ -66,6 +73,8 @@ jobs:
         include: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -99,7 +108,7 @@ jobs:
             sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           tags: |
             ghcr.io/itsthompson/gofin/${{ matrix.service }}:latest
-            ghcr.io/itsthompson/gofin/${{ matrix.service }}:sha-${{ github.sha }}
+            ghcr.io/itsthompson/gofin/${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha || github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -112,6 +121,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Decode tunnel credentials
         run: |
@@ -152,7 +163,7 @@ jobs:
       - name: Deploy to VPS
         run: ./scripts/deploy.sh ${{ secrets.DEPLOY_SERVER_IP }}
         env:
-          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # Deliberately no `if:`. The default is success(), so a failed deploy
       # leaves both releases unfinalized, and the window Sentry records then

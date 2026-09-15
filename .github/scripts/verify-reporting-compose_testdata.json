@@ -1,0 +1,24 @@
+{
+  "services": {
+    "reporting": {
+      "image": "ghcr.io/itsthompson/gofin/reporting:sha-0123456789abcdef0123456789abcdef0123456789",
+      "build": {
+        "context": "/workspace/services",
+        "dockerfile": "reporting/Dockerfile"
+      },
+      "profiles": ["reporting"],
+      "networks": {"compute-net": null},
+      "deploy": {"resources": {"limits": {"cpus": 0.25, "memory": "268435456"}}},
+      "environment": {
+        "AUTH_SERVICE_ADDR": "auth-service:9081",
+        "EXPENSE_SERVICE_ADDR": "expense-service:9082",
+        "FINANCE_SERVICE_ADDR": "finance-service:9083",
+        "DATARIGHTS_SERVICE_ADDR": "datarights-service:9084",
+        "REPORTING_TOKEN": "do-not-print"
+      }
+    },
+    "api-gateway": {
+      "environment": {"JWT_SECRET": "also-do-not-print"}
+    }
+  }
+}

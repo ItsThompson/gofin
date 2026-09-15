@@ -1,0 +1,12 @@
+{
+  "services": {
+    "reporting": {
+      "image": "ghcr.io/itsthompson/gofin/reporting:latest",
+      "build": {"context": "/workspace/services", "dockerfile": "reporting/Dockerfile"},
+      "profiles": ["reporting"],
+      "networks": {"compute-net": null},
+      "deploy": {"resources": {"limits": {"cpus": 0.25, "memory": "268435456"}}},
+      "environment": {"REPORTING_DB_URL": "postgres://secret"}
+    }
+  }
+}

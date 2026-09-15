@@ -1,0 +1,111 @@
+name: Weekly report
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      report_week_start:
+        description: "Monday that starts the report week (YYYY-MM-DD)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Run without sending report output"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: weekly-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: github.event_name == 'workflow_dispatch' || vars.WEEKLY_REPORT_SCHEDULE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate report inputs
+        env:
+          REPORT_WEEK_START: ${{ github.event.inputs.report_week_start || '' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: .github/scripts/validate-weekly-report-inputs.sh "$REPORT_WEEK_START" "$DRY_RUN"
+
+      - name: Set up SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_SERVER_IP }}" >> ~/.ssh/known_hosts
+
+      - name: Verify deployed commit
+        id: marker
+        env:
+          DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
+        run: |
+          set -euo pipefail
+          remote_sha="$(ssh -o BatchMode=yes "root@${DEPLOY_SERVER_IP}" bash -s <<'REMOTE_MARKER'
+          set -euo pipefail
+          marker=/opt/gofin/.deployed-sha
+          if [[ ! -f "$marker" ]]; then
+            echo "ERROR: $marker is missing" >&2
+            exit 1
+          fi
+          deployed_sha="$(<"$marker")"
+          if [[ ! "$deployed_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: $marker must contain exactly 40 lowercase hexadecimal characters" >&2
+            exit 1
+          fi
+          vps_sha="$(git -C /opt/gofin rev-parse --verify HEAD)"
+          if [[ "$deployed_sha" != "$vps_sha" ]]; then
+            echo "ERROR: marker does not match the VPS Git HEAD" >&2
+            exit 1
+          fi
+          printf '%s\n' "$deployed_sha"
+          REMOTE_MARKER
+          )"
+          if [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ERROR: VPS returned an invalid deployment SHA" >&2
+            exit 1
+          fi
+          echo "sha=$remote_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Pull and run the immutable reporting image
+        env:
+          DEPLOY_SERVER_IP: ${{ secrets.DEPLOY_SERVER_IP }}
+          DEPLOY_SHA: ${{ steps.marker.outputs.sha }}
+          REPORT_WEEK_START: ${{ github.event.inputs.report_week_start || '' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes "root@${DEPLOY_SERVER_IP}" \
+            env \
+              DEPLOY_SHA="$DEPLOY_SHA" \
+              REPORT_WEEK_START="$REPORT_WEEK_START" \
+              DRY_RUN="$DRY_RUN" \
+              bash -s <<'REMOTE_REPORT'
+          set -euo pipefail
+          cd /opt/gofin
+          export REPORTING_IMAGE_TAG="sha-${DEPLOY_SHA}"
+          if [[ ! "$REPORTING_IMAGE_TAG" =~ ^sha-[0-9a-f]{40}$ ]]; then
+            echo "ERROR: reporting image tag is not immutable" >&2
+            exit 1
+          fi
+          docker compose --profile reporting pull reporting
+          report_args=()
+          if [[ -n "$REPORT_WEEK_START" ]]; then
+            report_args+=(--report-week-start "$REPORT_WEEK_START")
+          fi
+          if [[ "$DRY_RUN" == "true" ]]; then
+            report_args+=(--dry-run)
+          fi
+          exec docker compose --profile reporting run --rm --no-deps reporting "${report_args[@]}"
+          REMOTE_REPORT

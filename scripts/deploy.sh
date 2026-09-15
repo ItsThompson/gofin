@@ -27,6 +27,12 @@ SSH_TARGET="${SSH_USER}@${SERVER_IP}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CREDENTIALS_DIR="${REPO_ROOT}/deployments/cloudflare"
 REPO_URL="https://github.com/ItsThompson/gofin.git"
+DEPLOY_SHA="${DEPLOY_SHA:?DEPLOY_SHA must be set to the commit SHA being deployed}"
+
+if [[ ! "${DEPLOY_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: DEPLOY_SHA must be exactly 40 lowercase hexadecimal characters." >&2
+  exit 1
+fi
 
 # --- Preflight checks -------------------------------------------------------
 
@@ -135,245 +141,362 @@ rm -f /etc/cron.weekly/docker-prune
 echo "  Daily prune cron installed."
 REMOTE_CRON
 
+# --- Capture the previous deployment marker before changing the checkout ------
+
+PREVIOUS_SHA="$(ssh "${SSH_TARGET}" bash -s <<'REMOTE_PREVIOUS'
+set -euo pipefail
+marker=/opt/gofin/.deployed-sha
+if [[ ! -f "$marker" ]]; then
+  exit 0
+fi
+previous_sha="$(<"$marker")"
+if [[ ! "$previous_sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: existing .deployed-sha is not a 40-character lowercase SHA" >&2
+  exit 1
+fi
+printf '%s\n' "$previous_sha"
+REMOTE_PREVIOUS
+)"
+if [[ -n "$PREVIOUS_SHA" ]]; then
+  echo "==> Previous deployment: ${PREVIOUS_SHA}"
+else
+  echo "==> No previous deployment marker. Rollback is unavailable for this first deploy."
+fi
+
 # --- Clone or update the repo ------------------------------------------------
 
-echo "==> Setting up repository on server..."
-ssh "${SSH_TARGET}" bash <<REMOTE_REPO
+echo "==> Setting up repository on server at ${DEPLOY_SHA}..."
+ssh "${SSH_TARGET}" env DEPLOY_SHA="${DEPLOY_SHA}" PREVIOUS_SHA="${PREVIOUS_SHA}" REPO_URL="${REPO_URL}" bash -s <<'REMOTE_REPO'
 set -euo pipefail
+
 if [[ -d /opt/gofin/.git ]]; then
-  echo "  Repo exists, pulling latest..."
-  cd /opt/gofin && git fetch origin && git reset --hard origin/main
+  echo "  Repo exists."
+elif [[ -e /opt/gofin ]]; then
+  echo "ERROR: /opt/gofin exists but is not a Git checkout." >&2
+  exit 1
 else
   echo "  Cloning repo..."
-  git clone ${REPO_URL} /opt/gofin
+  git clone --no-checkout "$REPO_URL" /opt/gofin
 fi
+
+git -C /opt/gofin fetch --no-tags origin main --force
+if ! git -C /opt/gofin cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+  git -C /opt/gofin fetch --no-tags origin "$DEPLOY_SHA"
+fi
+git -C /opt/gofin cat-file -e "${DEPLOY_SHA}^{commit}"
+if [[ -n "$PREVIOUS_SHA" ]]; then
+  git -C /opt/gofin cat-file -e "${PREVIOUS_SHA}^{commit}"
+fi
+git -C /opt/gofin reset --hard "$DEPLOY_SHA"
 mkdir -p /opt/gofin/deployments/cloudflare
 REMOTE_REPO
 
-# --- Copy tunnel credentials to server ---------------------------------------
+# --- Copy tunnel credentials to the server ----------------------------------
 
-echo "==> Copying tunnel credentials and certificate to server..."
+echo "==> Copying tunnel credentials and certificate to the server..."
 scp "${CREDENTIALS_DIR}/gofin-app.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-app.json"
 scp "${CREDENTIALS_DIR}/gofin-grafana.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-grafana.json"
 scp "${CREDENTIALS_DIR}/cert.pem" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/cert.pem"
 ssh "${SSH_TARGET}" "chmod 644 /opt/gofin/deployments/cloudflare/*.json /opt/gofin/deployments/cloudflare/cert.pem"
 
-# --- Check .env exists on server ---------------------------------------------
+# --- Deploy the immutable image set ------------------------------------------
 
-echo "==> Checking .env on server..."
-ssh "${SSH_TARGET}" bash <<'REMOTE_ENV'
-set -euo pipefail
-if [[ ! -f /opt/gofin/.env ]]; then
-  echo "ERROR: /opt/gofin/.env not found on server."
-  echo "SSH in and create it from .env.example:"
-  echo "  cp /opt/gofin/.env.example /opt/gofin/.env && nano /opt/gofin/.env"
-  exit 1
-fi
-echo "  .env found."
-
-# Both Sentry DSNs must be present and non-empty. This deliberately fails closed
-# while the application code fails open: .env.example ships both empty so CI and a
-# fresh checkout send nothing, but a production deploy with an empty DSN reports
-# nothing and looks exactly like a broken integration. There is no mechanism to
-# push these from GitHub Secrets, so this check is the only interlock that does
-# not depend on someone remembering. Do not "fix" the asymmetry.
-#
-# The value is unquoted and trimmed before the test: SENTRY_DSN_BACKEND="" is empty
-# to both docker compose and source, and a hand-edited file is the one way either
-# state arises.
-MISSING=""
-for VAR in SENTRY_DSN_BACKEND SENTRY_DSN_FRONTEND; do
-  VALUE="$(grep -m1 "^${VAR}=" /opt/gofin/.env || true)"
-  VALUE="${VALUE#*=}"
-  VALUE="${VALUE%\"}"; VALUE="${VALUE#\"}"
-  VALUE="${VALUE%\'}"; VALUE="${VALUE#\'}"
-  VALUE="${VALUE#"${VALUE%%[![:space:]]*}"}"
-  VALUE="${VALUE%"${VALUE##*[![:space:]]}"}"
-  if [[ -z "${VALUE}" ]]; then
-    MISSING="${MISSING} ${VAR}"
-  fi
-done
-
-if [[ -n "${MISSING}" ]]; then
-  echo "ERROR: missing or empty in /opt/gofin/.env:${MISSING}"
-  echo "Every error would go unreported, which is indistinguishable from a broken"
-  echo "integration. Add the values from the Sentry project's Client Keys page:"
-  echo "  nano /opt/gofin/.env"
-  exit 1
-fi
-echo "  Sentry DSNs present."
-REMOTE_ENV
-
-# --- Record the deploy SHA as the Sentry release -----------------------------
-
-# Written before the REMOTE_START heredoc below, which is quoted and therefore
-# does not interpolate, and before its `source .env`, so docker compose picks the
-# value up. DEPLOY_SHA is interpolated by the local shell here, exactly as it is
-# for the .deployed-sha write further down.
-#
-# The value stays a bare SHA: serverkit prefixes it as gofin-api@<sha> and the
-# frontend's SSR entry as gofin-web@<sha>, so each prefix is applied exactly once.
-if [[ -n "${DEPLOY_SHA:-}" ]]; then
-  echo "==> Recording the deploy SHA as the Sentry release..."
-  ssh "${SSH_TARGET}" bash <<REMOTE_RELEASE
-set -euo pipefail
-# Resolved, so replacing the file cannot turn a symlinked .env into a regular file.
-ENV_FILE="\$(readlink -f /opt/gofin/.env)"
-TMP_FILE="\${ENV_FILE}.deploy-tmp"
-
-# Rewritten rather than appended, so the file cannot grow a line per deploy, and
-# through a temp copy so a partial write cannot truncate the live file. The copy is
-# what carries the original mode across the rename, and it also repairs a file
-# saved without a trailing newline, because grep always terminates its output.
-cp -p "\${ENV_FILE}" "\${TMP_FILE}"
-{ grep -v '^SENTRY_RELEASE=' "\${ENV_FILE}" || true; } > "\${TMP_FILE}"
-printf 'SENTRY_RELEASE=%s\n' '${DEPLOY_SHA}' >> "\${TMP_FILE}"
-
-# grep exits 1 on zero matches, which is the common case here, so its status says
-# nothing. Compare line counts instead: the rewrite must keep every line that is
-# not the release, plus the one it writes.
-KEPT=\$(grep -vc '^SENTRY_RELEASE=' "\${ENV_FILE}" || true)
-if [[ "\$(wc -l < "\${TMP_FILE}")" -ne "\$((KEPT + 1))" ]]; then
-  echo "ERROR: refusing to replace \${ENV_FILE}: the rewrite lost lines"
-  rm -f "\${TMP_FILE}"
-  exit 1
-fi
-
-mv "\${TMP_FILE}" "\${ENV_FILE}"
-grep -n '^SENTRY_RELEASE=' "\${ENV_FILE}"
-REMOTE_RELEASE
-fi
-
-# --- Pull images and start ---------------------------------------------------
-
-echo "==> Rendering tunnel configs, pulling images, and starting the stack..."
-ssh "${SSH_TARGET}" bash <<'REMOTE_START'
+echo "==> Pulling immutable images and starting the stack..."
+ssh "${SSH_TARGET}" env DEPLOY_SHA="${DEPLOY_SHA}" PREVIOUS_SHA="${PREVIOUS_SHA}" bash -s <<'REMOTE_DEPLOY'
 set -euo pipefail
 cd /opt/gofin
 
-# Render tunnel config templates from .env
+if [[ ! -f .env ]]; then
+  echo "ERROR: /opt/gofin/.env not found on server." >&2
+  echo "Create it from /opt/gofin/.env.example before deploying." >&2
+  exit 1
+fi
+
+missing=""
+for variable in SENTRY_DSN_BACKEND SENTRY_DSN_FRONTEND; do
+  value="$(grep -m1 "^${variable}=" .env || true)"
+  value="${value#*=}"
+  value="${value%\"}"; value="${value#\"}"
+  value="${value%\'}"; value="${value#\'}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  if [[ -z "$value" ]]; then
+    missing="${missing} ${variable}"
+  fi
+done
+if [[ -n "$missing" ]]; then
+  echo "ERROR: missing or empty Sentry DSN in .env:${missing}" >&2
+  exit 1
+fi
+
+env_tmp=""
+env_backup=""
+target_override=""
+rollback_override=""
+rollback_refs=""
+marker_tmp=""
+restore_tmp=""
+trap 'rm -f "${env_tmp:-}" "${env_backup:-}" "${target_override:-}" "${rollback_override:-}" "${rollback_refs:-}" "${marker_tmp:-}" "${restore_tmp:-}"' EXIT
+
+marker=/opt/gofin/.deployed-sha
+if [[ -n "$PREVIOUS_SHA" && ! "$PREVIOUS_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: previous deployment SHA is invalid" >&2
+  exit 1
+fi
+
+compose_config="$(docker compose --profile tunnels config --format json)"
+target_override="$(mktemp /tmp/gofin-target.XXXXXX.yml)"
+rollback_override="$(mktemp /tmp/gofin-rollback.XXXXXX.yml)"
+rollback_refs="$(mktemp /tmp/gofin-rollback-refs.XXXXXX)"
+printf 'services:\n' >"$target_override"
+printf 'services:\n' >"$rollback_override"
+: >"$rollback_refs"
+
+custom_count=0
+while IFS=$'\t' read -r service image; do
+  [[ -z "$service" ]] && continue
+  if [[ ! "$service" =~ ^[A-Za-z0-9_.-]+$ || ! "$image" =~ ^ghcr\.io/itsthompson/gofin/[A-Za-z0-9_.-]+$ ]]; then
+    echo "ERROR: unexpected custom image in Compose config" >&2
+    exit 1
+  fi
+  [[ "$service" == "reporting" ]] && continue
+  target_ref="${image}:sha-${DEPLOY_SHA}"
+  printf '  %s:\n    image: %s\n' "$service" "$target_ref" >>"$target_override"
+  if ! docker pull "$target_ref"; then
+    echo "ERROR: immutable image is unavailable: $target_ref" >&2
+    exit 1
+  fi
+  custom_count=$((custom_count + 1))
+done < <(jq -r '.services | to_entries[] | select(.value.image | startswith("ghcr.io/itsthompson/gofin/")) | [.key, (.value.image | sub(":([^:]+)$"; ""))] | @tsv' <<<"$compose_config")
+
+if [[ "$custom_count" -eq 0 ]]; then
+  echo "ERROR: Compose config contains no custom images" >&2
+  exit 1
+fi
+
+changed_count=0
+while IFS=$'\t' read -r service image; do
+  [[ -z "$service" || "$service" == "reporting" ]] && continue
+  target_ref="${image}:sha-${DEPLOY_SHA}"
+  container="$(docker compose --profile tunnels ps -q "$service")"
+  [[ -z "$container" ]] && continue
+  current_id="$(docker inspect --format '{{.Image}}' "$container")"
+  target_id="$(docker image inspect --format '{{.Id}}' "$target_ref")"
+  [[ "$current_id" == "$target_id" ]] && continue
+  current_ref="$(docker inspect --format '{{.Config.Image}}' "$container")"
+  if [[ ! "$current_ref" =~ :sha-[0-9a-f]{40}$ ]]; then
+    echo "ERROR: changed running service $service uses a mutable image tag: $current_ref" >&2
+    exit 1
+  fi
+  current_ref_id="$(docker image inspect --format '{{.Id}}' "$current_ref")"
+  if [[ "$current_ref_id" != "$current_id" ]]; then
+    echo "ERROR: immutable tag does not identify the running image for $service" >&2
+    exit 1
+  fi
+  printf '  %s:\n    image: %s\n' "$service" "$current_ref" >>"$rollback_override"
+  printf '%s\t%s\n' "$service" "$current_ref" >>"$rollback_refs"
+  changed_count=$((changed_count + 1))
+done < <(jq -r '.services | to_entries[] | select(.value.image | startswith("ghcr.io/itsthompson/gofin/")) | [.key, (.value.image | sub(":([^:]+)$"; ""))] | @tsv' <<<"$compose_config")
+
+if ! jq -e '.services | has("expense-service")' <<<"$compose_config" >/dev/null; then
+  echo "ERROR: expense-service is missing from the deployment Compose config" >&2
+  exit 1
+fi
+
+# Pull every previous immutable image before changing host configuration.
+while IFS=$'\t' read -r service old_ref; do
+  [[ -z "$service" ]] && continue
+  if ! docker pull "$old_ref"; then
+    echo "ERROR: previous immutable image is unavailable: $old_ref" >&2
+    exit 1
+  fi
+done <"$rollback_refs"
+
+# Rewrite configuration only after every target image and rollback reference passes preflight.
+env_file="$(readlink -f .env)"
+env_backup="$(mktemp /tmp/gofin-env-backup.XXXXXX)"
+cp -p "$env_file" "$env_backup"
+env_tmp="$(mktemp "${env_file}.tmp.XXXXXX")"
+old_lines="$(wc -l < "$env_file")"
+old_release_lines="$(grep -c '^SENTRY_RELEASE=' "$env_file" || true)"
+awk -v sha="$DEPLOY_SHA" '!/^SENTRY_RELEASE=/{print} END {print "SENTRY_RELEASE=" sha}' "$env_file" >"$env_tmp"
+new_lines="$(wc -l < "$env_tmp")"
+expected_lines=$((old_lines - old_release_lines + 1))
+if [[ "$new_lines" -ne "$expected_lines" ]]; then
+  echo "ERROR: refusing to replace .env: the rewrite lost lines" >&2
+  exit 1
+fi
+mv -f "$env_tmp" "$env_file"
+env_tmp=""
+
 set -a
 source .env
 set +a
-envsubst < deployments/cloudflare/config-app.yml > deployments/cloudflare/config-app.rendered.yml
-envsubst < deployments/cloudflare/config-grafana.yml > deployments/cloudflare/config-grafana.rendered.yml
-
-# Pull pre-built images from GHCR
-docker compose pull
-
-# Start/recreate containers with pulled images
-docker compose --profile tunnels up -d
-REMOTE_START
-
-# --- Post-deploy health check ------------------------------------------------
-
-echo "==> Running post-deploy health checks..."
-HEALTH_OK=false
-for i in $(seq 1 12); do
-  UNHEALTHY=$(ssh "${SSH_TARGET}" bash <<'REMOTE_HEALTH'
-set -euo pipefail
-cd /opt/gofin
-docker compose ps --format json | jq -r 'select(.Health != "healthy" and .Health != "") | .Service'
-REMOTE_HEALTH
-  )
-  if [ -z "${UNHEALTHY}" ]; then
-    HEALTH_OK=true
-    break
+render_config() {
+  local template=$1
+  local output=$2
+  local rendered_tmp
+  rendered_tmp="$(mktemp "${output}.tmp.XXXXXX")"
+  if ! envsubst <"$template" >"$rendered_tmp"; then
+    rm -f "$rendered_tmp"
+    return 1
   fi
-  echo "  Waiting for: ${UNHEALTHY//$'\n'/, } (attempt ${i}/12)"
-  sleep 5
-done
+  mv -f "$rendered_tmp" "$output"
+}
+render_config deployments/cloudflare/config-app.yml deployments/cloudflare/config-app.rendered.yml
+render_config deployments/cloudflare/config-grafana.yml deployments/cloudflare/config-grafana.rendered.yml
 
-if [ "${HEALTH_OK}" = "true" ]; then
-  echo "  All services healthy."
-  # Record deployed SHA for future rollback
-  if [ -n "${DEPLOY_SHA:-}" ]; then
-    ssh "${SSH_TARGET}" "echo '${DEPLOY_SHA}' > /opt/gofin/.deployed-sha"
-    echo "  Recorded deployed SHA: ${DEPLOY_SHA}"
+expected_services="$(docker compose --profile tunnels config --services | wc -l | tr -d ' ')"
+wait_for_health() {
+  local override_file=$1
+  local attempt
+  local rows
+  local compose_args=(docker compose --profile tunnels -f docker-compose.yml -f "$override_file")
+  for attempt in $(seq 1 12); do
+    if ! rows="$("${compose_args[@]}" ps -a --format json)"; then
+      echo "ERROR: Compose health query failed" >&2
+      return 1
+    fi
+    if jq -e --argjson expected "$expected_services" '
+      if type == "array" then . else [.] end
+      | length == $expected
+      and all(.[]; .State == "running" and ((.Health // "") == "" or .Health == "healthy"))
+    ' <<<"$rows" >/dev/null; then
+      return 0
+    fi
+    echo "  Waiting for healthy services (attempt ${attempt}/12)..."
+    sleep 5
+  done
+  return 1
+}
+
+rollback() {
+  local service
+  local old_ref
+  if [[ "$changed_count" -eq 0 ]]; then
+    echo "ERROR: no changed running service has an immutable rollback image" >&2
+    return 1
   fi
-else
-  echo "ERROR: Health checks failed after 60 seconds."
-  # Attempt rollback if previous SHA is recorded
-  PREV_SHA=$(ssh "${SSH_TARGET}" "cat /opt/gofin/.deployed-sha 2>/dev/null || true")
-  if [ -n "${PREV_SHA}" ]; then
-    echo "==> Rolling back to previous SHA: ${PREV_SHA}"
-    ssh "${SSH_TARGET}" bash <<REMOTE_ROLLBACK
-set -euo pipefail
-cd /opt/gofin
+  if [[ -z "$PREVIOUS_SHA" ]]; then
+    echo "ERROR: cannot roll back without a previous deployment SHA" >&2
+    return 1
+  fi
+  if ! git -C /opt/gofin reset --hard "$PREVIOUS_SHA"; then
+    echo "ERROR: rollback Git reset failed" >&2
+    return 1
+  fi
+  restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"
+  if ! cp -p "$env_backup" "$restore_tmp"; then
+    echo "ERROR: rollback environment restore failed" >&2
+    return 1
+  fi
+  if ! mv -f "$restore_tmp" "$env_file"; then
+    echo "ERROR: rollback environment replace failed" >&2
+    return 1
+  fi
+  restore_tmp=""
+  set -a
+  source .env
+  set +a
+  if ! render_config deployments/cloudflare/config-app.yml deployments/cloudflare/config-app.rendered.yml; then
+    echo "ERROR: rollback app tunnel config render failed" >&2
+    return 1
+  fi
+  if ! render_config deployments/cloudflare/config-grafana.yml deployments/cloudflare/config-grafana.rendered.yml; then
+    echo "ERROR: rollback Grafana tunnel config render failed" >&2
+    return 1
+  fi
+  expected_services="$(docker compose --profile tunnels config --services | wc -l | tr -d ' ')"
+  local rollback_args
+  rollback_args=(docker compose --profile tunnels -f docker-compose.yml -f "$rollback_override" up -d --no-build --no-deps --remove-orphans)
+  while IFS=$'\t' read -r service old_ref; do
+    [[ -z "$service" ]] && continue
+    if ! docker pull "$old_ref"; then
+      echo "ERROR: rollback image is unavailable: $old_ref" >&2
+      return 1
+    fi
+    rollback_args+=("$service")
+  done <"$rollback_refs"
+  if ! "${rollback_args[@]}"; then
+    echo "ERROR: rollback Compose start failed" >&2
+    return 1
+  fi
+  if ! wait_for_health "$rollback_override"; then
+    echo "ERROR: rollback health check failed" >&2
+    return 1
+  fi
+  echo "  Rollback completed with immutable image tags."
+}
 
-# Pull previous images by SHA tag
-for svc in auth-service finance-service datarights-service api-gateway mfe; do
-  docker pull "ghcr.io/itsthompson/gofin/\${svc}:sha-${PREV_SHA}" || true
-  docker tag "ghcr.io/itsthompson/gofin/\${svc}:sha-${PREV_SHA}" "ghcr.io/itsthompson/gofin/\${svc}:latest" || true
-done
-
-docker compose --profile tunnels up -d
-REMOTE_ROLLBACK
-    echo "  Rollback complete. Previous version restored."
-  else
-    echo "  No previous SHA recorded: cannot rollback automatically."
+if ! docker compose --profile tunnels -f docker-compose.yml -f "$target_override" up -d --no-build --remove-orphans; then
+  echo "ERROR: immutable deployment failed to start" >&2
+  if ! rollback; then
+    echo "ERROR: rollback failed after deployment start failure" >&2
+  fi
+  exit 1
+fi
+if ! wait_for_health "$target_override"; then
+  echo "ERROR: immutable deployment failed health checks" >&2
+  if ! rollback; then
+    echo "ERROR: rollback failed after health-check failure" >&2
   fi
   exit 1
 fi
 
+marker_tmp="$(mktemp "${marker}.tmp.XXXXXX")"
+printf '%s\n' "$DEPLOY_SHA" >"$marker_tmp"
+mv -f "$marker_tmp" "$marker"
+marker_tmp=""
+echo "  Recorded deployed SHA: $DEPLOY_SHA"
+REMOTE_DEPLOY
+
 # --- Seed admin --------------------------------------------------------------
 
-echo "==> Waiting for services to be healthy..."
-ssh "${SSH_TARGET}" bash <<'REMOTE_SEED'
+echo "==> Seeding the admin user..."
+ssh "${SSH_TARGET}" bash -s <<'REMOTE_SEED'
 set -euo pipefail
 cd /opt/gofin
-
-# Wait for auth service to be ready (up to 60 seconds)
-for i in $(seq 1 30); do
+for attempt in $(seq 1 30); do
   if docker compose exec -T auth-service /service seed-admin 2>/dev/null; then
     echo "  Admin user seeded."
     exit 0
   fi
-  echo "  Waiting for auth service... (attempt ${i}/30)"
+  echo "  Waiting for auth service (attempt ${attempt}/30)..."
   sleep 2
 done
-
-echo "ERROR: Auth service did not become healthy in time."
+echo "ERROR: auth service did not become ready" >&2
 exit 1
 REMOTE_SEED
 
 # --- Post-deploy cleanup (success path only) ---------------------------------
 
 echo "==> Cleaning up stale Docker artifacts..."
-ssh "${SSH_TARGET}" bash <<'REMOTE_CLEANUP' || true
-
-# Remove build cache older than 24 hours
-echo "  Pruning build cache..."
-docker builder prune -af --filter "until=24h" 2>&1 | tail -1 || echo "  WARNING: builder prune failed (non-critical)"
-
-# Remove unused images older than 72 hours (keeps images used by running containers)
-echo "  Pruning unused images..."
-docker image prune -af --filter "until=72h" 2>&1 | tail -1 || echo "  WARNING: image prune failed (non-critical)"
-
-# System-level cleanup
-echo "  Running system cleanup..."
+if ! ssh "${SSH_TARGET}" bash -s <<'REMOTE_CLEANUP'
+set -euo pipefail
+if ! docker builder prune -af --filter "until=24h"; then
+  echo "WARNING: builder prune failed (non-critical)" >&2
+fi
+if ! docker image prune -af --filter "until=72h"; then
+  echo "WARNING: image prune failed (non-critical)" >&2
+fi
 journalctl --vacuum-size=50M 2>/dev/null || true
 apt-get clean -y 2>/dev/null || true
 : > /var/log/btmp 2>/dev/null || true
-
-# Report final state
-echo "  Docker disk usage after cleanup:"
 docker system df 2>/dev/null || true
 REMOTE_CLEANUP
+then
+  echo "WARNING: cleanup failed after a successful deployment" >&2
+fi
 
 # --- Done --------------------------------------------------------------------
-
-DOMAIN=$(ssh "${SSH_TARGET}" "grep CF_APP_HOSTNAME /opt/gofin/.env | cut -d= -f2" 2>/dev/null || echo "your-domain")
-GRAFANA_DOMAIN=$(ssh "${SSH_TARGET}" "grep CF_GRAFANA_HOSTNAME /opt/gofin/.env | cut -d= -f2" 2>/dev/null || echo "grafana.your-domain")
 
 echo ""
 echo "==========================================================================="
 echo "  gofin deployed successfully!"
 echo "==========================================================================="
 echo ""
-echo "  App:     https://${DOMAIN:-your-domain}"
-echo "  Grafana: https://${GRAFANA_DOMAIN:-grafana.your-domain}"
+echo "  Deployment SHA: ${DEPLOY_SHA}"
 echo ""
 echo "  To redeploy after code changes:"
-echo "    Push to main — CD workflow handles build, push, and deploy automatically."
+echo "    Push to main. CD handles build, push, and deploy automatically."
 echo "==========================================================================="

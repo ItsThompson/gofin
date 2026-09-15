@@ -254,6 +254,27 @@ services:
           memory: 128M
     restart: unless-stopped
 
+  reporting:
+    image: ghcr.io/itsthompson/gofin/reporting:${REPORTING_IMAGE_TAG:-latest}
+    build:
+      context: ./services
+      dockerfile: reporting/Dockerfile
+    environment:
+      - AUTH_SERVICE_ADDR=auth-service:9081
+      - EXPENSE_SERVICE_ADDR=expense-service:9082
+      - FINANCE_SERVICE_ADDR=finance-service:9083
+      - DATARIGHTS_SERVICE_ADDR=datarights-service:9084
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+    networks:
+      - compute-net
+    profiles:
+      - reporting
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
   datarights-service:
     image: ghcr.io/itsthompson/gofin/datarights-service:latest
     build:
