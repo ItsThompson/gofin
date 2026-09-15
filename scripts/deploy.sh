@@ -163,52 +163,260 @@ else
   echo "==> No previous deployment marker. Rollback is unavailable for this first deploy."
 fi
 
-# --- Clone or update the repo ------------------------------------------------
-
-echo "==> Setting up repository on server at ${DEPLOY_SHA}..."
-ssh "${SSH_TARGET}" env DEPLOY_SHA="${DEPLOY_SHA}" PREVIOUS_SHA="${PREVIOUS_SHA}" REPO_URL="${REPO_URL}" bash -s <<'REMOTE_REPO'
-set -euo pipefail
-
-if [[ -d /opt/gofin/.git ]]; then
-  echo "  Repo exists."
-elif [[ -e /opt/gofin ]]; then
-  echo "ERROR: /opt/gofin exists but is not a Git checkout." >&2
-  exit 1
-else
-  echo "  Cloning repo..."
-  git clone --no-checkout "$REPO_URL" /opt/gofin
-fi
-
-git -C /opt/gofin fetch --no-tags origin main --force
-if ! git -C /opt/gofin cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
-  git -C /opt/gofin fetch --no-tags origin "$DEPLOY_SHA"
-fi
-git -C /opt/gofin cat-file -e "${DEPLOY_SHA}^{commit}"
-if [[ -n "$PREVIOUS_SHA" ]]; then
-  git -C /opt/gofin cat-file -e "${PREVIOUS_SHA}^{commit}"
-fi
-git -C /opt/gofin reset --hard "$DEPLOY_SHA"
-mkdir -p /opt/gofin/deployments/cloudflare
-REMOTE_REPO
-
 # --- Copy tunnel credentials to the server ----------------------------------
 
 echo "==> Copying tunnel credentials and certificate to the server..."
-scp "${CREDENTIALS_DIR}/gofin-app.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-app.json"
-scp "${CREDENTIALS_DIR}/gofin-grafana.json" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/gofin-grafana.json"
-scp "${CREDENTIALS_DIR}/cert.pem" "${SSH_TARGET}:/opt/gofin/deployments/cloudflare/cert.pem"
-ssh "${SSH_TARGET}" "chmod 644 /opt/gofin/deployments/cloudflare/*.json /opt/gofin/deployments/cloudflare/cert.pem"
+CREDENTIAL_APP_TMP="/tmp/gofin-app-${DEPLOY_SHA}.json"
+CREDENTIAL_GRAFANA_TMP="/tmp/gofin-grafana-${DEPLOY_SHA}.json"
+CREDENTIAL_CERT_TMP="/tmp/gofin-cert-${DEPLOY_SHA}.pem"
+scp "${CREDENTIALS_DIR}/gofin-app.json" "${SSH_TARGET}:${CREDENTIAL_APP_TMP}"
+scp "${CREDENTIALS_DIR}/gofin-grafana.json" "${SSH_TARGET}:${CREDENTIAL_GRAFANA_TMP}"
+scp "${CREDENTIALS_DIR}/cert.pem" "${SSH_TARGET}:${CREDENTIAL_CERT_TMP}"
+ssh "${SSH_TARGET}" "chmod 644 ${CREDENTIAL_APP_TMP} ${CREDENTIAL_GRAFANA_TMP} ${CREDENTIAL_CERT_TMP}"
 
 # --- Deploy the immutable image set ------------------------------------------
 
 echo "==> Pulling immutable images and starting the stack..."
-ssh "${SSH_TARGET}" env DEPLOY_SHA="${DEPLOY_SHA}" PREVIOUS_SHA="${PREVIOUS_SHA}" bash -s <<'REMOTE_DEPLOY'
+ssh "${SSH_TARGET}" env DEPLOY_SHA="${DEPLOY_SHA}" PREVIOUS_SHA="${PREVIOUS_SHA}" REPO_URL="${REPO_URL}" CREDENTIAL_APP_TMP="${CREDENTIAL_APP_TMP}" CREDENTIAL_GRAFANA_TMP="${CREDENTIAL_GRAFANA_TMP}" CREDENTIAL_CERT_TMP="${CREDENTIAL_CERT_TMP}" bash -s <<'REMOTE_DEPLOY'
 set -euo pipefail
-cd /opt/gofin
+
+DEPLOY_ROOT="${DEPLOY_ROOT:-/opt/gofin}"
+env_file="${DEPLOY_ROOT}/.env"
+env_tmp=""
+env_backup=""
+target_override=""
+rollback_override=""
+rollback_refs=""
+marker_tmp=""
+restore_tmp=""
+credential_backup_dir=""
+compose_config=""
+expected_services=0
+rollback_ref_count=0
+deployment_started=false
+transaction_committed=false
+rollback_in_progress=false
+repo_created=false
+checkout_restore_sha=""
+marker="${DEPLOY_ROOT}/.deployed-sha"
+credential_app="${DEPLOY_ROOT}/deployments/cloudflare/gofin-app.json"
+credential_grafana="${DEPLOY_ROOT}/deployments/cloudflare/gofin-grafana.json"
+credential_cert="${DEPLOY_ROOT}/deployments/cloudflare/cert.pem"
+
+cleanup() {
+  local temporary
+  for temporary in "$env_tmp" "$env_backup" "$target_override" "$rollback_override" "$rollback_refs" "$marker_tmp" "$restore_tmp" "$CREDENTIAL_APP_TMP" "$CREDENTIAL_GRAFANA_TMP" "$CREDENTIAL_CERT_TMP"; do
+    [[ -z "$temporary" ]] || rm -f "$temporary"
+  done
+  [[ -z "$credential_backup_dir" ]] || rm -rf "$credential_backup_dir"
+}
+
+render_config() {
+  local template=$1
+  local output=$2
+  local rendered_tmp
+  rendered_tmp="$(mktemp "${output}.tmp.XXXXXX")"
+  if ! envsubst <"$template" >"$rendered_tmp"; then
+    rm -f "$rendered_tmp"
+    return 1
+  fi
+  mv -f "$rendered_tmp" "$output"
+}
+
+wait_for_health() {
+  local override_file=$1
+  local attempt
+  local rows
+  local compose_args=(docker compose --profile tunnels -f docker-compose.yml -f "$override_file")
+  for attempt in $(seq 1 12); do
+    if ! rows="$("${compose_args[@]}" ps -a --format json)"; then
+      echo "ERROR: Compose health query failed" >&2
+      return 1
+    fi
+    if jq -e --argjson expected "$expected_services" '
+      if type == "array" then . else [.] end
+      | length == $expected
+      and all(.[]; .State == "running" and ((.Health // "") == "" or .Health == "healthy"))
+    ' <<<"$rows" >/dev/null; then
+      return 0
+    fi
+    echo "  Waiting for healthy services (attempt ${attempt}/12)..."
+    sleep 5
+  done
+  return 1
+}
+
+restore_marker() {
+  if [[ -n "$PREVIOUS_SHA" ]]; then
+    marker_tmp="$(mktemp "${marker}.rollback.XXXXXX")"
+    printf '%s\n' "$PREVIOUS_SHA" >"$marker_tmp"
+    mv -f "$marker_tmp" "$marker"
+    marker_tmp=""
+  else
+    rm -f "$marker"
+  fi
+}
+
+rollback() {
+  local service
+  local old_ref
+  local rollback_args
+  local credential
+  local destination
+  local backup_name
+
+  if [[ -n "$checkout_restore_sha" && -d "${DEPLOY_ROOT}/.git" ]]; then
+    if ! git -C "$DEPLOY_ROOT" reset --hard "$checkout_restore_sha"; then
+      echo "ERROR: rollback Git reset failed" >&2
+      return 1
+    fi
+  elif [[ "$repo_created" == true ]]; then
+    rm -rf "$DEPLOY_ROOT"
+  fi
+
+  if [[ -n "$env_backup" && -f "$env_backup" && -d "$DEPLOY_ROOT" ]]; then
+    restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"
+    if ! cp -p "$env_backup" "$restore_tmp" || ! mv -f "$restore_tmp" "$env_file"; then
+      echo "ERROR: rollback environment restore failed" >&2
+      return 1
+    fi
+    restore_tmp=""
+  fi
+  if [[ -n "$credential_backup_dir" && -d "$credential_backup_dir" && -d "$DEPLOY_ROOT" ]]; then
+    for credential in app grafana cert; do
+      destination="${credential_app}"
+      backup_name="gofin-app.json"
+      if [[ "$credential" == "grafana" ]]; then
+        destination="$credential_grafana"
+        backup_name="gofin-grafana.json"
+      elif [[ "$credential" == "cert" ]]; then
+        destination="$credential_cert"
+        backup_name="cert.pem"
+      fi
+      if [[ -f "$credential_backup_dir/$backup_name" ]]; then
+        cp -p "$credential_backup_dir/$backup_name" "$destination"
+      else
+        rm -f "$destination"
+      fi
+    done
+  fi
+  restore_marker
+
+  if [[ ! -d "$DEPLOY_ROOT" ]]; then
+    return 0
+  fi
+
+  cd "$DEPLOY_ROOT"
+  if [[ -f .env ]]; then
+    set -a
+    source .env
+    set +a
+    if [[ -f deployments/cloudflare/config-app.yml ]]; then
+      if ! render_config deployments/cloudflare/config-app.yml deployments/cloudflare/config-app.rendered.yml; then
+        echo "ERROR: rollback app tunnel config render failed" >&2
+        return 1
+      fi
+    fi
+    if [[ -f deployments/cloudflare/config-grafana.yml ]]; then
+      if ! render_config deployments/cloudflare/config-grafana.yml deployments/cloudflare/config-grafana.rendered.yml; then
+        echo "ERROR: rollback Grafana tunnel config render failed" >&2
+        return 1
+      fi
+    fi
+  fi
+  if [[ "$deployment_started" != true || "$rollback_ref_count" -eq 0 ]]; then
+    return 0
+  fi
+
+  expected_services="$(docker compose --profile tunnels config --services | wc -l | tr -d ' ')"
+  rollback_args=(docker compose --profile tunnels -f docker-compose.yml -f "$rollback_override" up -d --no-build --no-deps --remove-orphans)
+  while IFS=$'\t' read -r service old_ref; do
+    [[ -z "$service" ]] && continue
+    if ! docker pull "$old_ref"; then
+      echo "ERROR: rollback image is unavailable: $old_ref" >&2
+      return 1
+    fi
+    rollback_args+=("$service")
+  done <"$rollback_refs"
+  if ! "${rollback_args[@]}"; then
+    echo "ERROR: rollback Compose start failed" >&2
+    return 1
+  fi
+  if ! wait_for_health "$rollback_override"; then
+    echo "ERROR: rollback health check failed" >&2
+    return 1
+  fi
+  echo "  Rollback completed with immutable image tags."
+}
+
+finish() {
+  local status=$?
+  if [[ "$status" -ne 0 && "$transaction_committed" != true && "$rollback_in_progress" != true ]]; then
+    rollback_in_progress=true
+    if ! rollback; then
+      echo "ERROR: rollback failed after deployment failure" >&2
+    fi
+  fi
+  cleanup
+  exit "$status"
+}
+trap finish EXIT
+
+if [[ -n "$PREVIOUS_SHA" && ! "$PREVIOUS_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "ERROR: previous deployment SHA is invalid" >&2
+  exit 1
+fi
+
+if [[ -d "${DEPLOY_ROOT}/.git" ]]; then
+  echo "  Repo exists."
+elif [[ -e "$DEPLOY_ROOT" ]]; then
+  echo "ERROR: $DEPLOY_ROOT exists but is not a Git checkout." >&2
+  exit 1
+else
+  echo "  Cloning repo..."
+  git clone --no-checkout "$REPO_URL" "$DEPLOY_ROOT"
+  repo_created=true
+fi
+checkout_restore_sha="$(git -C "$DEPLOY_ROOT" rev-parse HEAD 2>/dev/null || true)"
+git -C "$DEPLOY_ROOT" fetch --no-tags origin main --force
+if ! git -C "$DEPLOY_ROOT" cat-file -e "${DEPLOY_SHA}^{commit}" 2>/dev/null; then
+  git -C "$DEPLOY_ROOT" fetch --no-tags origin "$DEPLOY_SHA"
+fi
+git -C "$DEPLOY_ROOT" cat-file -e "${DEPLOY_SHA}^{commit}"
+if [[ -n "$PREVIOUS_SHA" ]]; then
+  git -C "$DEPLOY_ROOT" cat-file -e "${PREVIOUS_SHA}^{commit}"
+fi
+git -C "$DEPLOY_ROOT" reset --hard "$DEPLOY_SHA"
+mkdir -p "${DEPLOY_ROOT}/deployments/cloudflare"
+credential_backup_dir="$(mktemp -d /tmp/gofin-credentials-backup.XXXXXX)"
+for credential in app grafana cert; do
+  source_path="$credential_app"
+  backup_name="gofin-app.json"
+  if [[ "$credential" == "grafana" ]]; then
+    source_path="$credential_grafana"
+    backup_name="gofin-grafana.json"
+  elif [[ "$credential" == "cert" ]]; then
+    source_path="$credential_cert"
+    backup_name="cert.pem"
+  fi
+  if [[ -f "$source_path" ]]; then
+    cp -p "$source_path" "$credential_backup_dir/$backup_name"
+  fi
+done
+for staged_credential in "$CREDENTIAL_APP_TMP" "$CREDENTIAL_GRAFANA_TMP" "$CREDENTIAL_CERT_TMP"; do
+  if [[ ! -f "$staged_credential" ]]; then
+    echo "ERROR: staged tunnel credential is missing" >&2
+    exit 1
+  fi
+done
+mv -f "$CREDENTIAL_APP_TMP" "$credential_app"
+mv -f "$CREDENTIAL_GRAFANA_TMP" "$credential_grafana"
+mv -f "$CREDENTIAL_CERT_TMP" "$credential_cert"
+cd "$DEPLOY_ROOT"
 
 if [[ ! -f .env ]]; then
-  echo "ERROR: /opt/gofin/.env not found on server." >&2
-  echo "Create it from /opt/gofin/.env.example before deploying." >&2
+  echo "ERROR: $DEPLOY_ROOT/.env not found on server." >&2
+  echo "Create it from $DEPLOY_ROOT/.env.example before deploying." >&2
   exit 1
 fi
 
@@ -226,21 +434,6 @@ for variable in SENTRY_DSN_BACKEND SENTRY_DSN_FRONTEND; do
 done
 if [[ -n "$missing" ]]; then
   echo "ERROR: missing or empty Sentry DSN in .env:${missing}" >&2
-  exit 1
-fi
-
-env_tmp=""
-env_backup=""
-target_override=""
-rollback_override=""
-rollback_refs=""
-marker_tmp=""
-restore_tmp=""
-trap 'rm -f "${env_tmp:-}" "${env_backup:-}" "${target_override:-}" "${rollback_override:-}" "${rollback_refs:-}" "${marker_tmp:-}" "${restore_tmp:-}"' EXIT
-
-marker=/opt/gofin/.deployed-sha
-if [[ -n "$PREVIOUS_SHA" && ! "$PREVIOUS_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "ERROR: previous deployment SHA is invalid" >&2
   exit 1
 fi
 
@@ -274,7 +467,6 @@ if [[ "$custom_count" -eq 0 ]]; then
   exit 1
 fi
 
-changed_count=0
 while IFS=$'\t' read -r service image; do
   [[ -z "$service" || "$service" == "reporting" ]] && continue
   target_ref="${image}:sha-${DEPLOY_SHA}"
@@ -282,10 +474,9 @@ while IFS=$'\t' read -r service image; do
   [[ -z "$container" ]] && continue
   current_id="$(docker inspect --format '{{.Image}}' "$container")"
   target_id="$(docker image inspect --format '{{.Id}}' "$target_ref")"
-  [[ "$current_id" == "$target_id" ]] && continue
   current_ref="$(docker inspect --format '{{.Config.Image}}' "$container")"
   if [[ ! "$current_ref" =~ :sha-[0-9a-f]{40}$ ]]; then
-    echo "ERROR: changed running service $service uses a mutable image tag: $current_ref" >&2
+    echo "ERROR: running service $service uses a mutable image tag: $current_ref" >&2
     exit 1
   fi
   current_ref_id="$(docker image inspect --format '{{.Id}}' "$current_ref")"
@@ -295,7 +486,8 @@ while IFS=$'\t' read -r service image; do
   fi
   printf '  %s:\n    image: %s\n' "$service" "$current_ref" >>"$rollback_override"
   printf '%s\t%s\n' "$service" "$current_ref" >>"$rollback_refs"
-  changed_count=$((changed_count + 1))
+  rollback_ref_count=$((rollback_ref_count + 1))
+  [[ "$current_id" == "$target_id" ]] && continue
 done < <(jq -r '.services | to_entries[] | select(.value.image | startswith("ghcr.io/itsthompson/gofin/")) | [.key, (.value.image | sub(":([^:]+)$"; ""))] | @tsv' <<<"$compose_config")
 
 if ! jq -e '.services | has("expense-service")' <<<"$compose_config" >/dev/null; then
@@ -332,114 +524,17 @@ env_tmp=""
 set -a
 source .env
 set +a
-render_config() {
-  local template=$1
-  local output=$2
-  local rendered_tmp
-  rendered_tmp="$(mktemp "${output}.tmp.XXXXXX")"
-  if ! envsubst <"$template" >"$rendered_tmp"; then
-    rm -f "$rendered_tmp"
-    return 1
-  fi
-  mv -f "$rendered_tmp" "$output"
-}
 render_config deployments/cloudflare/config-app.yml deployments/cloudflare/config-app.rendered.yml
 render_config deployments/cloudflare/config-grafana.yml deployments/cloudflare/config-grafana.rendered.yml
-
 expected_services="$(docker compose --profile tunnels config --services | wc -l | tr -d ' ')"
-wait_for_health() {
-  local override_file=$1
-  local attempt
-  local rows
-  local compose_args=(docker compose --profile tunnels -f docker-compose.yml -f "$override_file")
-  for attempt in $(seq 1 12); do
-    if ! rows="$("${compose_args[@]}" ps -a --format json)"; then
-      echo "ERROR: Compose health query failed" >&2
-      return 1
-    fi
-    if jq -e --argjson expected "$expected_services" '
-      if type == "array" then . else [.] end
-      | length == $expected
-      and all(.[]; .State == "running" and ((.Health // "") == "" or .Health == "healthy"))
-    ' <<<"$rows" >/dev/null; then
-      return 0
-    fi
-    echo "  Waiting for healthy services (attempt ${attempt}/12)..."
-    sleep 5
-  done
-  return 1
-}
 
-rollback() {
-  local service
-  local old_ref
-  if [[ "$changed_count" -eq 0 ]]; then
-    echo "ERROR: no changed running service has an immutable rollback image" >&2
-    return 1
-  fi
-  if [[ -z "$PREVIOUS_SHA" ]]; then
-    echo "ERROR: cannot roll back without a previous deployment SHA" >&2
-    return 1
-  fi
-  if ! git -C /opt/gofin reset --hard "$PREVIOUS_SHA"; then
-    echo "ERROR: rollback Git reset failed" >&2
-    return 1
-  fi
-  restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"
-  if ! cp -p "$env_backup" "$restore_tmp"; then
-    echo "ERROR: rollback environment restore failed" >&2
-    return 1
-  fi
-  if ! mv -f "$restore_tmp" "$env_file"; then
-    echo "ERROR: rollback environment replace failed" >&2
-    return 1
-  fi
-  restore_tmp=""
-  set -a
-  source .env
-  set +a
-  if ! render_config deployments/cloudflare/config-app.yml deployments/cloudflare/config-app.rendered.yml; then
-    echo "ERROR: rollback app tunnel config render failed" >&2
-    return 1
-  fi
-  if ! render_config deployments/cloudflare/config-grafana.yml deployments/cloudflare/config-grafana.rendered.yml; then
-    echo "ERROR: rollback Grafana tunnel config render failed" >&2
-    return 1
-  fi
-  expected_services="$(docker compose --profile tunnels config --services | wc -l | tr -d ' ')"
-  local rollback_args
-  rollback_args=(docker compose --profile tunnels -f docker-compose.yml -f "$rollback_override" up -d --no-build --no-deps --remove-orphans)
-  while IFS=$'\t' read -r service old_ref; do
-    [[ -z "$service" ]] && continue
-    if ! docker pull "$old_ref"; then
-      echo "ERROR: rollback image is unavailable: $old_ref" >&2
-      return 1
-    fi
-    rollback_args+=("$service")
-  done <"$rollback_refs"
-  if ! "${rollback_args[@]}"; then
-    echo "ERROR: rollback Compose start failed" >&2
-    return 1
-  fi
-  if ! wait_for_health "$rollback_override"; then
-    echo "ERROR: rollback health check failed" >&2
-    return 1
-  fi
-  echo "  Rollback completed with immutable image tags."
-}
-
+deployment_started=true
 if ! docker compose --profile tunnels -f docker-compose.yml -f "$target_override" up -d --no-build --remove-orphans; then
   echo "ERROR: immutable deployment failed to start" >&2
-  if ! rollback; then
-    echo "ERROR: rollback failed after deployment start failure" >&2
-  fi
   exit 1
 fi
 if ! wait_for_health "$target_override"; then
   echo "ERROR: immutable deployment failed health checks" >&2
-  if ! rollback; then
-    echo "ERROR: rollback failed after health-check failure" >&2
-  fi
   exit 1
 fi
 
@@ -448,25 +543,22 @@ printf '%s\n' "$DEPLOY_SHA" >"$marker_tmp"
 mv -f "$marker_tmp" "$marker"
 marker_tmp=""
 echo "  Recorded deployed SHA: $DEPLOY_SHA"
-REMOTE_DEPLOY
 
-# --- Seed admin --------------------------------------------------------------
-
-echo "==> Seeding the admin user..."
-ssh "${SSH_TARGET}" bash -s <<'REMOTE_SEED'
-set -euo pipefail
-cd /opt/gofin
 for attempt in $(seq 1 30); do
   if docker compose exec -T auth-service /service seed-admin 2>/dev/null; then
     echo "  Admin user seeded."
-    exit 0
+    break
+  fi
+  if [[ "$attempt" -eq 30 ]]; then
+    echo "ERROR: auth service did not become ready" >&2
+    exit 1
   fi
   echo "  Waiting for auth service (attempt ${attempt}/30)..."
   sleep 2
 done
-echo "ERROR: auth service did not become ready" >&2
-exit 1
-REMOTE_SEED
+
+transaction_committed=true
+REMOTE_DEPLOY
 
 # --- Post-deploy cleanup (success path only) ---------------------------------
 

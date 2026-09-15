@@ -2,7 +2,11 @@
   "services": {
     "reporting": {
       "image": "ghcr.io/itsthompson/gofin/reporting:latest",
-      "build": {"context": "/workspace/services", "dockerfile": "reporting/Dockerfile"},
+      "build": {
+        "context": "/workspace/services",
+        "dockerfile": "reporting/Dockerfile",
+        "args": {"VITE_SENTRY_DSN": "CANARY-SENTRY-DSN"}
+      },
       "profiles": ["reporting"],
       "networks": {"compute-net": null},
       "deploy": {"resources": {"limits": {"cpus": 0.25, "memory": "268435456"}}},

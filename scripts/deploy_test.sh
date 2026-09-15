@@ -20,9 +20,10 @@ if [[ "$invalid_sha_output" != *"exactly 40 lowercase hexadecimal"* ]]; then
   exit 1
 fi
 
-require_literal 'git -C /opt/gofin fetch --no-tags origin main --force'
-require_literal 'git -C /opt/gofin reset --hard "$DEPLOY_SHA"'
-require_literal 'git -C /opt/gofin reset --hard "$PREVIOUS_SHA"'
+require_literal 'git -C "$DEPLOY_ROOT" fetch --no-tags origin main --force'
+require_literal 'git -C "$DEPLOY_ROOT" reset --hard "$DEPLOY_SHA"'
+require_literal 'checkout_restore_sha="$(git -C "$DEPLOY_ROOT" rev-parse HEAD 2>/dev/null || true)"'
+require_literal 'git -C "$DEPLOY_ROOT" reset --hard "$checkout_restore_sha"'
 require_literal 'target_ref="${image}:sha-${DEPLOY_SHA}"'
 require_literal 'restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"'
 require_literal 'current_ref="$(docker inspect --format '\''{{.Config.Image}}'\'' "$container")"'
@@ -34,6 +35,10 @@ require_literal 'docker pull "$old_ref"'
 require_literal '--no-deps --remove-orphans'
 require_literal 'marker_tmp="$(mktemp "${marker}.tmp.XXXXXX")"'
 require_literal 'mv -f "$marker_tmp" "$marker"'
+require_literal 'trap finish EXIT'
+require_literal 'restore_marker'
+require_literal 'docker compose exec -T auth-service /service seed-admin'
+require_literal 'transaction_committed=true'
 
 pull_match=$(grep -m1 -n 'docker pull "$target_ref"' "$SCRIPT" || true)
 old_pull_match=$(grep -m1 -n 'docker pull "$old_ref"' "$SCRIPT" || true)
@@ -50,7 +55,7 @@ if grep -Fq 'ps -a --format json 2>/dev/null || true' "$SCRIPT"; then
   exit 1
 fi
 
-previous_reset_match=$(grep -m1 -n 'git -C /opt/gofin reset --hard "$PREVIOUS_SHA"' "$SCRIPT" || true)
+previous_reset_match=$(grep -m1 -n 'git -C "$DEPLOY_ROOT" reset --hard "$checkout_restore_sha"' "$SCRIPT" || true)
 rollback_start_match=$(grep -m1 -n 'rollback_args=(docker compose' "$SCRIPT" || true)
 previous_reset_line=${previous_reset_match%%:*}
 rollback_start_line=${rollback_start_match%%:*}
@@ -58,10 +63,18 @@ if [[ -z "$previous_reset_line" || -z "$rollback_start_line" || "$previous_reset
   echo "Rollback must reset the checkout before restarting containers" >&2
   exit 1
 fi
-if grep -Fq 'rm -f "$marker"' "$SCRIPT"; then
-  echo "Rollback must preserve the prior deployment marker" >&2
+marker_line=$(grep -m1 -n 'mv -f "$marker_tmp" "$marker"' "$SCRIPT" | cut -d: -f1 || true)
+seed_line=$(grep -m1 -n 'docker compose exec -T auth-service /service seed-admin' "$SCRIPT" | cut -d: -f1 || true)
+commit_line=$(grep -m1 -n 'transaction_committed=true' "$SCRIPT" | cut -d: -f1 || true)
+if [[ -z "$marker_line" || -z "$seed_line" || -z "$commit_line" || "$marker_line" -ge "$seed_line" || "$seed_line" -ge "$commit_line" ]]; then
+  echo "Marker and admin seed must remain rollback-covered until commit" >&2
   exit 1
 fi
+if grep -Fq 'REMOTE_SEED' "$SCRIPT"; then
+  echo "Admin seed must be inside the rollback-covered transaction" >&2
+  exit 1
+fi
+require_literal 'printf '\''%s\n'\'' "$PREVIOUS_SHA" >"$marker_tmp"'
 
 if grep -Fq 'docker tag' "$SCRIPT"; then
   echo "Rollback must not retag immutable images as latest" >&2
@@ -72,4 +85,5 @@ if grep -Fq 'docker compose pull' "$SCRIPT"; then
   exit 1
 fi
 
+bash "${SCRIPT_DIR}/deploy_remote_test.sh"
 echo "deploy.sh: all tests passed"

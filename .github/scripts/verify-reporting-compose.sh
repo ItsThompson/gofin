@@ -15,21 +15,52 @@ if ! compose_config=$(docker compose --profile reporting config --format json 2>
   exit 1
 fi
 
-redacted_config() {
+sanitized_projection() {
   jq '
-    walk(
-      if type == "object" and has("environment") then
-        .environment = (
-          if (.environment | type) == "object" then
-            .environment | with_entries(.value = "<redacted>")
-          elif (.environment | type) == "array" then
-            .environment | map(sub("=.*$"; "=<redacted>"))
-          else .environment
-          end
-        )
-      else .
-      end
-    )
+    {
+      services: [
+        .services
+        | to_entries[]
+        | {
+            name: .key,
+            image: (.value.image // null),
+            profiles: (.value.profiles // []),
+            network_names: (
+              (.value.networks // {})
+              | if type == "object" then keys | sort
+                elif type == "array" then sort
+                else []
+                end
+            ),
+            ports_configured: (.value.ports != null),
+            restart_configured: (.value.restart != null),
+            depends_on_configured: (.value.depends_on != null),
+            build: {
+              configured: (.value.build != null),
+              context: (.value.build.context // null),
+              dockerfile: (.value.build.dockerfile // null),
+              arg_names: (
+                (.value.build.args // {})
+                | if type == "object" then keys | sort
+                  elif type == "array" then map(split("=")[0]) | sort
+                  else []
+                  end
+              )
+            },
+            environment_names: (
+              (.value.environment // {})
+              | if type == "object" then keys | sort
+                elif type == "array" then map(split("=")[0]) | sort
+                else []
+                end
+            ),
+            resource_limit_names: (
+              (.value.deploy.resources.limits // {})
+              | if type == "object" then keys | sort else [] end
+            )
+          }
+      ] | sort_by(.name)
+    }
   '
 }
 
@@ -53,10 +84,10 @@ if ! jq -e '
   and ((($reporting.environment // {}) | keys | any(test("(?i)(db|database|postgres|immudb|password|passwd|credential)")) | not))
 ' <<<"$compose_config" >/dev/null; then
   echo "ERROR: reporting service does not satisfy its isolated Compose contract" >&2
-  redacted_config <<<"$compose_config" >&2
+  sanitized_projection <<<"$compose_config" >&2
   exit 1
 fi
 
-# Compose resolves interpolated environment values before emitting JSON. Never
-# print those values, including values belonging to unrelated services.
-redacted_config <<<"$compose_config"
+# Compose resolves interpolated values before emitting JSON. Print only approved
+# structural fields and names, including build-argument names but never values.
+sanitized_projection <<<"$compose_config"

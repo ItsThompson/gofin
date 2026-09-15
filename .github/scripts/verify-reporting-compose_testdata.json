@@ -4,7 +4,10 @@
       "image": "ghcr.io/itsthompson/gofin/reporting:sha-0123456789abcdef0123456789abcdef0123456789",
       "build": {
         "context": "/workspace/services",
-        "dockerfile": "reporting/Dockerfile"
+        "dockerfile": "reporting/Dockerfile",
+        "args": {
+          "VITE_SENTRY_DSN": "CANARY-SENTRY-DSN"
+        }
       },
       "profiles": ["reporting"],
       "networks": {"compute-net": null},
