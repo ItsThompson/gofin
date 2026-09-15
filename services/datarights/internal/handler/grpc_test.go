@@ -93,6 +93,16 @@ func TestGetExportMetrics_NilRequestReturnsInvalidArgument(t *testing.T) {
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
+func TestGetExportMetrics_NilServiceReturnsUnimplemented(t *testing.T) {
+	req, _ := validExportMetricsRequest()
+	handler := NewGRPCHandler(nil)
+
+	resp, err := handler.GetExportMetrics(context.Background(), req)
+
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
+}
+
 func TestGetExportMetrics_InvalidWindowReturnsInvalidArgument(t *testing.T) {
 	handler := NewGRPCHandler(nil)
 

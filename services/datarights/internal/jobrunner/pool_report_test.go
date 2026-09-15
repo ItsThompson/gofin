@@ -50,6 +50,9 @@ func TestPool_FailJobStoreFailure_ReportsThroughBackgroundHubFallback(t *testing
 		return len(store.failedSnapshot()) == 1
 	}, 2*time.Second, 10*time.Millisecond)
 
+	require.Eventually(t, func() bool {
+		return len(transport.Events()) == 1
+	}, 2*time.Second, 10*time.Millisecond)
 	events := transport.Events()
 	require.Len(t, events, 1, "exactly one event for the status-write failure")
 	assert.Equal(t, "jobrunner.status_write", events[0].Tags["operation"])

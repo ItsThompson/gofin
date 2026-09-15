@@ -127,7 +127,14 @@ func isContextError(err error) bool {
 }
 
 func (s *GrowthService) logMetricUnavailable(metric string) {
-	if s.logger != nil {
-		s.logger.Warn("growth metric unavailable", slog.String("metric", metric))
+	if s.logger == nil {
+		return
 	}
+	s.logger.Warn("reporting metric unavailable",
+		slog.String("service", "auth"),
+		slog.String("rpc", "GetGrowthMetrics"),
+		slog.String("metric", metric),
+		slog.String("code", "QUERY_FAILED"),
+		slog.String("error_class", "dependency"),
+	)
 }

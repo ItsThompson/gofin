@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	reportingpb "github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 	"google.golang.org/protobuf/proto"
@@ -15,8 +16,28 @@ type indexedResult struct {
 	result GroupResult
 }
 
+type resultSlot struct {
+	mu    sync.Mutex
+	value GroupResult
+	ready bool
+}
+
+func (s *resultSlot) store(result GroupResult) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.value = result
+	s.ready = true
+}
+
+func (s *resultSlot) load() (GroupResult, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.value, s.ready
+}
+
 func (c Collector) Collect(ctx context.Context, windows *reportingpb.ReportWindowSet) Collection {
 	results := make(chan indexedResult, len(c.Clients))
+	slots := make([]resultSlot, len(c.Clients))
 	groupNames := make([]string, len(c.Clients))
 	for index, client := range c.Clients {
 		groupNames[index] = safeGroupName(client, index)
@@ -31,6 +52,7 @@ func (c Collector) Collect(ctx context.Context, windows *reportingpb.ReportWindo
 			}
 			defer cancel()
 			result := collectSafely(client, groupName, requestContext, windows)
+			slots[index].store(result)
 			results <- indexedResult{index: index, result: result}
 		}()
 	}
@@ -60,9 +82,15 @@ func (c Collector) Collect(ctx context.Context, windows *reportingpb.ReportWindo
 					remaining--
 				default:
 					for index := range c.Clients {
-						if !completed[index] {
-							groups[index] = failedGroup(groupNames[index], ctx.Err())
+						if completed[index] {
+							continue
 						}
+						if result, ready := slots[index].load(); ready {
+							groups[index] = result
+							completed[index] = true
+							continue
+						}
+						groups[index] = failedGroup(groupNames[index], ctx.Err())
 					}
 					remaining = 0
 					break drain

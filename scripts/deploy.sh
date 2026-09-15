@@ -150,8 +150,9 @@ if [[ ! -f "$marker" ]]; then
   exit 0
 fi
 previous_sha="$(<"$marker")"
-if [[ ! "$previous_sha" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "ERROR: existing .deployed-sha is not a 40-character lowercase SHA" >&2
+marker_bytes="$(wc -c <"$marker")"
+if [[ ! "$previous_sha" =~ ^[0-9a-f]{40}$ || ( "$marker_bytes" -ne "${#previous_sha}" && "$marker_bytes" -ne $(( ${#previous_sha} + 1 )) ) ]]; then
+  echo "ERROR: existing .deployed-sha must contain exactly one SHA line" >&2
   exit 1
 fi
 printf '%s\n' "$previous_sha"
@@ -169,10 +170,18 @@ echo "==> Copying tunnel credentials and certificate to the server..."
 CREDENTIAL_APP_TMP="/tmp/gofin-app-${DEPLOY_SHA}.json"
 CREDENTIAL_GRAFANA_TMP="/tmp/gofin-grafana-${DEPLOY_SHA}.json"
 CREDENTIAL_CERT_TMP="/tmp/gofin-cert-${DEPLOY_SHA}.pem"
+cleanup_staged_credentials() {
+  local status=$?
+  ssh "${SSH_TARGET}" "rm -f -- '${CREDENTIAL_APP_TMP}' '${CREDENTIAL_GRAFANA_TMP}' '${CREDENTIAL_CERT_TMP}'" >/dev/null 2>&1 || true
+  exit "$status"
+}
+trap cleanup_staged_credentials EXIT
 scp "${CREDENTIALS_DIR}/gofin-app.json" "${SSH_TARGET}:${CREDENTIAL_APP_TMP}"
+ssh "${SSH_TARGET}" "chmod 600 ${CREDENTIAL_APP_TMP}"
 scp "${CREDENTIALS_DIR}/gofin-grafana.json" "${SSH_TARGET}:${CREDENTIAL_GRAFANA_TMP}"
+ssh "${SSH_TARGET}" "chmod 600 ${CREDENTIAL_GRAFANA_TMP}"
 scp "${CREDENTIALS_DIR}/cert.pem" "${SSH_TARGET}:${CREDENTIAL_CERT_TMP}"
-ssh "${SSH_TARGET}" "chmod 644 ${CREDENTIAL_APP_TMP} ${CREDENTIAL_GRAFANA_TMP} ${CREDENTIAL_CERT_TMP}"
+ssh "${SSH_TARGET}" "chmod 600 ${CREDENTIAL_CERT_TMP}"
 
 # --- Deploy the immutable image set ------------------------------------------
 
@@ -187,12 +196,14 @@ env_backup=""
 target_override=""
 rollback_override=""
 rollback_refs=""
+running_snapshot=""
 marker_tmp=""
 restore_tmp=""
 credential_backup_dir=""
 compose_config=""
 expected_services=0
 rollback_ref_count=0
+resolved_rollback_ref=""
 deployment_started=false
 transaction_committed=false
 rollback_in_progress=false
@@ -205,7 +216,7 @@ credential_cert="${DEPLOY_ROOT}/deployments/cloudflare/cert.pem"
 
 cleanup() {
   local temporary
-  for temporary in "$env_tmp" "$env_backup" "$target_override" "$rollback_override" "$rollback_refs" "$marker_tmp" "$restore_tmp" "$CREDENTIAL_APP_TMP" "$CREDENTIAL_GRAFANA_TMP" "$CREDENTIAL_CERT_TMP"; do
+  for temporary in "$env_tmp" "$env_backup" "$target_override" "$rollback_override" "$rollback_refs" "$running_snapshot" "$marker_tmp" "$restore_tmp" "$CREDENTIAL_APP_TMP" "$CREDENTIAL_GRAFANA_TMP" "$CREDENTIAL_CERT_TMP"; do
     [[ -z "$temporary" ]] || rm -f "$temporary"
   done
   [[ -z "$credential_backup_dir" ]] || rm -rf "$credential_backup_dir"
@@ -228,6 +239,46 @@ render_config() {
     rm -f "$rendered_tmp" || true
     return 1
   fi
+}
+
+resolve_rollback_ref() {
+  local service=$1
+  local current_ref=$2
+  local current_id=$3
+  local previous_ref
+  local previous_id
+  local current_ref_id
+
+  if [[ ! "$current_ref" =~ :sha-[0-9a-f]{40}$ ]]; then
+    if [[ -n "$PREVIOUS_SHA" && "$current_ref" =~ :latest$ ]]; then
+      previous_ref="${current_ref%:latest}:sha-${PREVIOUS_SHA}"
+      if ! docker pull "$previous_ref"; then
+        echo "ERROR: previous image is unavailable for mutable service $service" >&2
+        return 1
+      fi
+      if ! previous_id="$(docker image inspect --format '{{.Id}}' "$previous_ref")"; then
+        echo "ERROR: previous image lookup failed for mutable service $service" >&2
+        return 1
+      fi
+      if [[ "$previous_id" != "$current_id" ]]; then
+        echo "ERROR: mutable image does not match the deployed marker for $service" >&2
+        return 1
+      fi
+      current_ref="$previous_ref"
+    else
+      echo "ERROR: running service $service uses an unrecognized image tag: $current_ref" >&2
+      return 1
+    fi
+  fi
+  if ! current_ref_id="$(docker image inspect --format '{{.Id}}' "$current_ref")"; then
+    echo "ERROR: rollback image lookup failed for $service" >&2
+    return 1
+  fi
+  if [[ "$current_ref_id" != "$current_id" ]]; then
+    echo "ERROR: immutable tag does not identify the running image for $service" >&2
+    return 1
+  fi
+  resolved_rollback_ref="$current_ref"
 }
 
 wait_for_health() {
@@ -432,6 +483,27 @@ fi
 
 if [[ -d "${DEPLOY_ROOT}/.git" ]]; then
   echo "  Repo exists."
+  if ! cd "$DEPLOY_ROOT"; then
+    echo "ERROR: deployment checkout directory is unavailable" >&2
+    exit 1
+  fi
+  if ! old_compose_config="$(docker compose --profile tunnels config --format json)"; then
+    echo "ERROR: current Compose config could not be read" >&2
+    exit 1
+  fi
+  if ! running_snapshot="$(mktemp /tmp/gofin-running-refs.XXXXXX)"; then
+    echo "ERROR: running image snapshot could not be created" >&2
+    exit 1
+  fi
+  running_services="$(jq -r '.services | to_entries[] | select(.value.image | startswith("ghcr.io/itsthompson/gofin/")) | .key' <<<"$old_compose_config")"
+  while IFS= read -r service; do
+    [[ -z "$service" ]] && continue
+    container="$(docker compose --profile tunnels ps -q "$service")"
+    [[ -z "$container" ]] && continue
+    current_id="$(docker inspect --format '{{.Image}}' "$container")"
+    current_ref="$(docker inspect --format '{{.Config.Image}}' "$container")"
+    printf '%s\t%s\t%s\n' "$service" "$current_ref" "$current_id" >>"$running_snapshot"
+  done <<<"$running_services"
 elif [[ -e "$DEPLOY_ROOT" ]]; then
   echo "ERROR: $DEPLOY_ROOT exists but is not a Git checkout." >&2
   exit 1
@@ -545,34 +617,35 @@ while IFS=$'\t' read -r service image; do
   current_id="$(docker inspect --format '{{.Image}}' "$container")"
   target_id="$(docker image inspect --format '{{.Id}}' "$target_ref")"
   current_ref="$(docker inspect --format '{{.Config.Image}}' "$container")"
-  if [[ ! "$current_ref" =~ :sha-[0-9a-f]{40}$ ]]; then
-    if [[ -n "$PREVIOUS_SHA" && "$current_ref" =~ :latest$ ]]; then
-      previous_ref="${current_ref%:latest}:sha-${PREVIOUS_SHA}"
-      if ! docker pull "$previous_ref"; then
-        echo "ERROR: previous image is unavailable for mutable service $service" >&2
-        exit 1
-      fi
-      previous_id="$(docker image inspect --format '{{.Id}}' "$previous_ref")"
-      if [[ "$previous_id" != "$current_id" ]]; then
-        echo "ERROR: mutable image does not match the deployed marker for $service" >&2
-        exit 1
-      fi
-      current_ref="$previous_ref"
-    else
-      echo "ERROR: running service $service uses an unrecognized image tag: $current_ref" >&2
-      exit 1
-    fi
-  fi
-  current_ref_id="$(docker image inspect --format '{{.Id}}' "$current_ref")"
-  if [[ "$current_ref_id" != "$current_id" ]]; then
-    echo "ERROR: immutable tag does not identify the running image for $service" >&2
+  if ! resolve_rollback_ref "$service" "$current_ref" "$current_id"; then
     exit 1
   fi
+  current_ref="$resolved_rollback_ref"
   printf '  %s:\n    image: %s\n' "$service" "$current_ref" >>"$rollback_override"
   printf '%s\t%s\n' "$service" "$current_ref" >>"$rollback_refs"
   rollback_ref_count=$((rollback_ref_count + 1))
   [[ "$current_id" == "$target_id" ]] && continue
 done < <(jq -r '.services | to_entries[] | select(.value.image | startswith("ghcr.io/itsthompson/gofin/")) | [.key, (.value.image | sub(":([^:]+)$"; ""))] | @tsv' <<<"$compose_config")
+
+if [[ -n "$running_snapshot" ]]; then
+  while IFS=$'\t' read -r service current_ref current_id; do
+    [[ -z "$service" ]] && continue
+    if grep -Fq "$service"$'\t' "$rollback_refs"; then
+      continue
+    fi
+    if [[ ! "$service" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+      echo "ERROR: unexpected service in running image snapshot" >&2
+      exit 1
+    fi
+    if ! resolve_rollback_ref "$service" "$current_ref" "$current_id"; then
+      exit 1
+    fi
+    current_ref="$resolved_rollback_ref"
+    printf '  %s:\n    image: %s\n' "$service" "$current_ref" >>"$rollback_override"
+    printf '%s\t%s\n' "$service" "$current_ref" >>"$rollback_refs"
+    rollback_ref_count=$((rollback_ref_count + 1))
+  done <"$running_snapshot"
+fi
 
 if ! jq -e '.services | has("expense-service")' <<<"$compose_config" >/dev/null; then
   echo "ERROR: expense-service is missing from the deployment Compose config" >&2

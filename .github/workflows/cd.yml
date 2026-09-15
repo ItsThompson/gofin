@@ -6,7 +6,6 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
-    branches: [main]
 
 concurrency:
   group: cd-production
@@ -38,6 +37,11 @@ env:
 
 jobs:
   discover:
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -65,8 +69,10 @@ jobs:
     needs: [discover]
     runs-on: ubuntu-latest
     if: >
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
     timeout-minutes: 15
     strategy:
       matrix:
@@ -116,8 +122,10 @@ jobs:
     needs: [build-and-push]
     runs-on: ubuntu-latest
     if: >
-      (github.event_name == 'workflow_dispatch') ||
-      (github.event.workflow_run.conclusion == 'success')
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

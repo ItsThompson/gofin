@@ -19,6 +19,7 @@ run_failure_fixture() {
   local expect_failure=true
   local expect_restore=true
   local expect_rollback=true
+  local expect_removed=false
   local initial_head="$PREVIOUS_SHA"
   local root
   local fake_bin
@@ -35,6 +36,7 @@ run_failure_fixture() {
       success) expect_failure=false ;;
       no-restore) expect_restore=false ;;
       no-rollback) expect_rollback=false ;;
+      removed-service) expect_removed=true; failure_flags+=("REMOVED_SERVICE=1") ;;
       head=*) initial_head=${flag#head=} ;;
       *) failure_flags+=("${flag}=1") ;;
     esac
@@ -67,6 +69,13 @@ run_failure_fixture() {
   cat >"$root/compose.json" <<'EOF'
 {"services":{"expense-service":{"image":"ghcr.io/itsthompson/gofin/expense-service:latest"}}}
 EOF
+  if [[ "$expect_removed" == true ]]; then
+    cat >"$root/compose-initial.json" <<'EOF'
+{"services":{"expense-service":{"image":"ghcr.io/itsthompson/gofin/expense-service:latest"},"legacy-service":{"image":"ghcr.io/itsthompson/gofin/legacy-service:latest"}}}
+EOF
+  else
+    cp "$root/compose.json" "$root/compose-initial.json"
+  fi
 
   set +e
   env DEPLOY_ROOT="$root" \
@@ -77,6 +86,7 @@ EOF
   CREDENTIAL_GRAFANA_TMP="$root/staged-grafana" \
   CREDENTIAL_CERT_TMP="$root/staged-cert" \
   COMPOSE_CONFIG_FILE="$root/compose.json" \
+  COMPOSE_INITIAL_CONFIG_FILE="$root/compose-initial.json" \
   FAKE_HEAD_FILE="$root/.fake-head" \
   FAKE_EVENTS_FILE="$events" \
   FAKE_MARKER_MOVED="$root/marker-move-failed" \
@@ -125,12 +135,16 @@ EOF
   fi
   if [[ "$expect_failure" == true && "$expect_rollback" == true && "$name" != FAIL_PULL && "$expect_restore" == true ]]; then
     grep -q 'gofin-rollback' "$events" || { echo "${name}: rollback Compose was not started" >&2; exit 1; }
+    if [[ "$expect_removed" == true ]]; then
+      grep -q 'legacy-service' "$events" || { echo "${name}: removed service was not included in rollback" >&2; exit 1; }
+    fi
   fi
   rm -rf "$root" "$fake_bin"
 }
 
 run_failure_fixture FAIL_PULL
 run_failure_fixture FAIL_START
+run_failure_fixture FAIL_START removed-service
 run_failure_fixture FAIL_HEALTH
 run_failure_fixture FAIL_MARKER
 run_failure_fixture FAIL_SEED

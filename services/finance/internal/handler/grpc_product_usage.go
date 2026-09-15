@@ -21,7 +21,7 @@ func (h *GRPCHandler) GetProductUsageMetrics(ctx context.Context, req *pb.GetPro
 	if err := reporting.ValidateWindowSet(windowSet); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	if h.productUsageMetricsService == nil {
+	if h == nil || h.productUsageMetricsService == nil {
 		return nil, status.Error(codes.Unimplemented, "product usage metrics are not configured")
 	}
 

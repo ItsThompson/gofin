@@ -32,6 +32,9 @@ func (h *GRPCHandler) GetExportMetrics(ctx context.Context, req *pb.GetExportMet
 	if err := reporting.ValidateWindowSet(windowSet); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	if h == nil || h.exportMetricsService == nil {
+		return nil, status.Error(codes.Unimplemented, "export metrics are not configured")
+	}
 
 	completedExports, err := h.exportMetricsService.GetExportMetrics(ctx, windowSet)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/shared/reporting"
@@ -20,11 +21,16 @@ type ProductUsageMetrics struct {
 // ProductUsageService computes finance product-usage metrics for a shared set
 // of reporting windows.
 type ProductUsageService struct {
-	repo repository.ProductUsageRepository
+	repo   repository.ProductUsageRepository
+	logger *slog.Logger
 }
 
-func NewProductUsageService(repo repository.ProductUsageRepository) *ProductUsageService {
-	return &ProductUsageService{repo: repo}
+func NewProductUsageService(repo repository.ProductUsageRepository, logger ...*slog.Logger) *ProductUsageService {
+	var serviceLogger *slog.Logger
+	if len(logger) > 0 {
+		serviceLogger = logger[0]
+	}
+	return &ProductUsageService{repo: repo, logger: serviceLogger}
 }
 
 // GetProductUsageMetrics runs each metric query independently. A query failure
@@ -79,9 +85,14 @@ func (s *ProductUsageService) GetProductUsageMetrics(ctx context.Context, window
 	for _, outcome := range outcomes {
 		if outcome.err != nil {
 			var panicErr *productUsagePanicError
-			if errors.As(outcome.err, &panicErr) || errors.Is(outcome.err, context.Canceled) || errors.Is(outcome.err, context.DeadlineExceeded) {
+			if errors.As(outcome.err, &panicErr) {
+				s.logMetricFailure(outcome.name, "panic")
 				return nil, outcome.err
 			}
+			if errors.Is(outcome.err, context.Canceled) || errors.Is(outcome.err, context.DeadlineExceeded) {
+				return nil, outcome.err
+			}
+			s.logMetricFailure(outcome.name, "dependency")
 			result.setUnavailable(outcome.name)
 			continue
 		}
@@ -111,6 +122,19 @@ func callProductUsageMetric(metric string, call func() (repository.ProductUsageC
 		}
 	}()
 	return call()
+}
+
+func (s *ProductUsageService) logMetricFailure(metric, class string) {
+	if s.logger == nil {
+		return
+	}
+	s.logger.Warn("reporting metric unavailable",
+		slog.String("service", "finance"),
+		slog.String("rpc", "GetProductUsageMetrics"),
+		slog.String("metric", metric),
+		slog.String("code", "QUERY_FAILED"),
+		slog.String("error_class", class),
+	)
 }
 
 func (m *ProductUsageMetrics) setAvailable(metric string, counts repository.ProductUsageCounts) {

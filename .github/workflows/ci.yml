@@ -11,6 +11,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: raven-actions/actionlint@v2
+
   lint-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -81,12 +88,14 @@ jobs:
           bash -n .github/scripts/verify-reporting-compose.sh
           bash -n .github/scripts/validate-weekly-report-inputs_test.sh
           bash -n .github/scripts/verify-reporting-compose_test.sh
+          bash -n .github/scripts/verify-workflow-contract_test.sh
 
       - name: Run infrastructure script tests
         run: |
           bash scripts/deploy_test.sh
           bash .github/scripts/validate-weekly-report-inputs_test.sh
           bash .github/scripts/verify-reporting-compose_test.sh
+          bash .github/scripts/verify-workflow-contract_test.sh
 
       - name: Verify reporting Compose service
         run: .github/scripts/verify-reporting-compose.sh

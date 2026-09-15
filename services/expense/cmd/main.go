@@ -96,7 +96,7 @@ func run() error {
 	)
 
 	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
-	activitySvc := service.NewActivityService(repo)
+	activitySvc := service.NewActivityService(repo, logger)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

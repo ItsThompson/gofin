@@ -26,11 +26,16 @@ concurrency:
 
 jobs:
   report:
-    if: github.event_name == 'workflow_dispatch' || vars.WEEKLY_REPORT_SCHEDULE_ENABLED == 'true'
+    if: >
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && vars.WEEKLY_REPORT_SCHEDULE_ENABLED == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/heads/main
 
       - name: Validate report inputs
         env:
@@ -60,8 +65,9 @@ jobs:
             exit 1
           fi
           deployed_sha="$(<"$marker")"
-          if [[ ! "$deployed_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ERROR: $marker must contain exactly 40 lowercase hexadecimal characters" >&2
+          marker_bytes="$(wc -c <"$marker")"
+          if [[ ! "$deployed_sha" =~ ^[0-9a-f]{40}$ || ( "$marker_bytes" -ne "${#deployed_sha}" && "$marker_bytes" -ne $(( ${#deployed_sha} + 1 )) ) ]]; then
+            echo "ERROR: $marker must contain exactly one SHA line" >&2
             exit 1
           fi
           vps_sha="$(git -C /opt/gofin rev-parse --verify HEAD)"

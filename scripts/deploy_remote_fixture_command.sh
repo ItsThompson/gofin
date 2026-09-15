@@ -3,6 +3,27 @@ set -euo pipefail
 
 command_name=$(basename "$0")
 case "$command_name" in
+  ssh)
+    if [[ "$*" == *"rm -f --"* ]]; then
+      printf '%s\n' "$*" >>"$FAKE_SSH_EVENTS_FILE"
+    fi
+    exit 0
+    ;;
+  scp)
+    source_path=${1:-}
+    if [[ "$source_path" == *"gofin-app.json" || "$source_path" == *"gofin-grafana.json" || "$source_path" == *"cert.pem" ]]; then
+      count=0
+      if [[ -f "$FAKE_SCP_COUNT_FILE" ]]; then
+        count=$(<"$FAKE_SCP_COUNT_FILE")
+      fi
+      count=$((count + 1))
+      printf '%s\n' "$count" >"$FAKE_SCP_COUNT_FILE"
+      if [[ "${FAIL_SCP_NUMBER:-0}" == "$count" ]]; then
+        exit 1
+      fi
+    fi
+    exit 0
+    ;;
   git)
     repo_root=""
     if [[ "${1:-}" == "-C" ]]; then
@@ -67,11 +88,18 @@ case "$command_name" in
       exit 1
     fi
     if [[ "$*" == *"config --format json"* ]]; then
-      cat "$COMPOSE_CONFIG_FILE"
+      if [[ -f "${COMPOSE_INITIAL_CONFIG_FILE:-}" && "$(<"$FAKE_HEAD_FILE")" == "$PREVIOUS_SHA" ]]; then
+        cat "$COMPOSE_INITIAL_CONFIG_FILE"
+      else
+        cat "$COMPOSE_CONFIG_FILE"
+      fi
       exit 0
     fi
     if [[ "$*" == *"config --services"* ]]; then
       printf 'expense-service\n'
+      if [[ "${REMOVED_SERVICE:-0}" == 1 ]]; then
+        printf 'legacy-service\n'
+      fi
       exit 0
     fi
     if [[ "$*" == *"ps -q"* ]]; then
@@ -82,6 +110,8 @@ case "$command_name" in
       printf '%s\n' "$*" >>"$FAKE_EVENTS_FILE"
       if [[ "${FAIL_HEALTH:-0}" == 1 && "$*" != *"gofin-rollback"* ]]; then
         printf '[{"State":"running","Health":"unhealthy"}]\n'
+      elif [[ "${REMOVED_SERVICE:-0}" == 1 ]]; then
+        printf '[{"State":"running","Health":"healthy"},{"State":"running","Health":"healthy"}]\n'
       else
         printf '[{"State":"running","Health":"healthy"}]\n'
       fi

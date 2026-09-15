@@ -81,6 +81,39 @@ func TestGetExportMetrics_DBFailureMakesMetricUnavailable(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+func TestGetExportMetrics_PreCanceledContextSkipsRepository(t *testing.T) {
+	repo := new(mockExportMetricsRepository)
+	windowSet, _, _, _, _, _, _ := testWindowSet()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := NewExportMetricsService(repo).GetExportMetrics(ctx, windowSet)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, context.Canceled)
+	repo.AssertNotCalled(t, "CountCompletedExports", mock.Anything, mock.Anything)
+}
+
+func TestGetExportMetrics_ContextCanceledAfterQueryDoesNotSucceed(t *testing.T) {
+	repo := new(mockExportMetricsRepository)
+	windowSet, reportStart, reportEnd, previousStart, previousEnd, trailingStart, trailingEnd := testWindowSet()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	repo.On("CountCompletedExports", mock.Anything, repository.ExportMetricsWindowSet{
+		ReportWeekStart: reportStart, ReportWeekEnd: reportEnd,
+		PreviousWeekStart: previousStart, PreviousWeekEnd: previousEnd,
+		TrailingFourWeeksStart: trailingStart, TrailingFourWeeksEnd: trailingEnd,
+	}).Return(repository.CompletedExportCounts{ReportWeek: 4}, nil).Run(func(mock.Arguments) {
+		cancel()
+	})
+
+	result, err := NewExportMetricsService(repo).GetExportMetrics(ctx, windowSet)
+
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, context.Canceled)
+	repo.AssertExpectations(t)
+}
+
 func TestGetExportMetrics_ContextErrorIsReturned(t *testing.T) {
 	repo := new(mockExportMetricsRepository)
 	windowSet, reportStart, reportEnd, previousStart, previousEnd, trailingStart, trailingEnd := testWindowSet()

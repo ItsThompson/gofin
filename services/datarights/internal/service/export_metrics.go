@@ -29,6 +29,9 @@ func (s *ExportMetricsService) GetExportMetrics(ctx context.Context, windowSet *
 	reportWeek := windowSet.GetReportWeek()
 	previousWeek := windowSet.GetPreviousWeek()
 	trailingFourWeeks := windowSet.GetTrailingFourWeeks()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	counts, err := s.repo.CountCompletedExports(ctx, repository.ExportMetricsWindowSet{
 		ReportWeekStart:        reportWeek.GetStart().AsTime(),
 		ReportWeekEnd:          reportWeek.GetEnd().AsTime(),
@@ -42,6 +45,9 @@ func (s *ExportMetricsService) GetExportMetrics(ctx context.Context, windowSet *
 			return nil, ctxErr
 		}
 		return unavailableCountResult(), nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	return &reportingpb.CountResult{

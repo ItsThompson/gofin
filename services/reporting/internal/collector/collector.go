@@ -137,6 +137,9 @@ func newMetric(name string, result *reportingpb.CountResult) MetricResult {
 		return MetricResult{Name: name, UnavailableCode: sharedreporting.MetricErrorCodeInternal}
 	}
 	if values := result.GetAvailable(); values != nil {
+		if values.GetReportWeek() < 0 || values.GetPreviousWeek() < 0 || values.GetTrailingFourWeeksTotal() < 0 {
+			return MetricResult{Name: name, UnavailableCode: sharedreporting.MetricErrorCodeInternal}
+		}
 		return MetricResult{Name: name, Values: values}
 	}
 	if unavailable := result.GetUnavailable(); unavailable != nil {

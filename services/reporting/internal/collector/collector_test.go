@@ -58,6 +58,21 @@ func TestCollectorRunsAllGroupsConcurrentlyAndPreservesFailures(t *testing.T) {
 	}
 }
 
+func TestNewMetricRejectsNegativeCounts(t *testing.T) {
+	for _, values := range []*reportingpb.CountValues{
+		{ReportWeek: -1},
+		{PreviousWeek: -1},
+		{TrailingFourWeeksTotal: -1},
+	} {
+		metric := newMetric("new_users", &reportingpb.CountResult{
+			State: &reportingpb.CountResult_Available{Available: values},
+		})
+		if metric.IsAvailable() || metric.UnavailableCode != reportingpb.MetricErrorCode_METRIC_ERROR_CODE_INTERNAL {
+			t.Fatalf("metric = %+v, want internal unavailable result", metric)
+		}
+	}
+}
+
 func TestCollectorRecoversClientPanic(t *testing.T) {
 	groups := []GroupClient{
 		fakeGroup{name: "auth", call: func(context.Context) { panic("test panic") }},

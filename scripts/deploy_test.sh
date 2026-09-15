@@ -31,6 +31,7 @@ require_literal 'restore_tmp="$(mktemp "${env_file}.rollback.XXXXXX")"'
 require_literal 'current_ref="$(docker inspect --format '\''{{.Config.Image}}'\'' "$container")"'
 require_literal 'if [[ ! "$current_ref" =~ :sha-[0-9a-f]{40}$ ]]; then'
 require_literal 'previous_ref="${current_ref%:latest}:sha-${PREVIOUS_SHA}"'
+require_literal 'running_snapshot="$(mktemp /tmp/gofin-running-refs.XXXXXX)"'
 require_literal 'mutable image does not match the deployed marker'
 require_literal 'current_ref_id="$(docker image inspect --format '\''{{.Id}}'\'' "$current_ref")"'
 require_literal 'has("expense-service")'
@@ -44,14 +45,16 @@ require_literal 'restore_marker'
 require_literal 'FATAL: rollback failed; original deployment error was'
 require_literal 'docker compose exec -T auth-service /service seed-admin'
 require_literal 'transaction_committed=true'
+require_literal 'trap cleanup_staged_credentials EXIT'
+require_literal 'chmod 600 ${CREDENTIAL_APP_TMP}'
+require_literal 'chmod 600 ${CREDENTIAL_GRAFANA_TMP}'
+require_literal 'chmod 600 ${CREDENTIAL_CERT_TMP}'
+require_literal 'rm -f -- '\''${CREDENTIAL_APP_TMP}'\'' '\''${CREDENTIAL_GRAFANA_TMP}'\'' '\''${CREDENTIAL_CERT_TMP}'\'''
 
-pull_match=$(grep -m1 -n 'docker pull "$target_ref"' "$SCRIPT" || true)
-old_pull_match=$(grep -m1 -n 'docker pull "$old_ref"' "$SCRIPT" || true)
-env_rewrite_match=$(grep -m1 -n 'mv -f "$env_tmp" "$env_file"' "$SCRIPT" || true)
-pull_line=${pull_match%%:*}
-old_pull_line=${old_pull_match%%:*}
-env_rewrite_line=${env_rewrite_match%%:*}
-if [[ -z "$pull_line" || -z "$old_pull_line" || -z "$env_rewrite_line" || "$pull_line" -ge "$env_rewrite_line" || "$old_pull_line" -ge "$env_rewrite_line" ]]; then
+pull_line=$(awk '/docker pull "\$target_ref"/ {line=NR} END {print line + 0}' "$SCRIPT")
+old_pull_line=$(awk '/docker pull "\$old_ref"/ {line=NR} END {print line + 0}' "$SCRIPT")
+env_rewrite_line=$(awk '/mv -f "\$env_tmp" "\$env_file"/ {line=NR} END {print line + 0}' "$SCRIPT")
+if [[ "$pull_line" -eq 0 || "$old_pull_line" -eq 0 || "$env_rewrite_line" -eq 0 || "$pull_line" -ge "$env_rewrite_line" || "$old_pull_line" -ge "$env_rewrite_line" ]]; then
   echo "Image preflight must complete before .env mutation" >&2
   exit 1
 fi
@@ -68,10 +71,10 @@ if [[ -z "$previous_reset_line" || -z "$rollback_start_line" || "$previous_reset
   echo "Rollback must reset the checkout before restarting containers" >&2
   exit 1
 fi
-marker_line=$(grep -m1 -n 'mv -f "$marker_tmp" "$marker"' "$SCRIPT" | cut -d: -f1 || true)
-seed_line=$(grep -m1 -n 'docker compose exec -T auth-service /service seed-admin' "$SCRIPT" | cut -d: -f1 || true)
-commit_line=$(grep -m1 -n 'transaction_committed=true' "$SCRIPT" | cut -d: -f1 || true)
-if [[ -z "$marker_line" || -z "$seed_line" || -z "$commit_line" || "$marker_line" -ge "$seed_line" || "$seed_line" -ge "$commit_line" ]]; then
+marker_line=$(awk '/deployment_started=true/ {started=1} started && /mv -f "\$marker_tmp" "\$marker"/ {print NR; exit}' "$SCRIPT")
+seed_line=$(awk '/docker compose exec -T auth-service \/service seed-admin/ {print NR; exit}' "$SCRIPT")
+commit_line=$(awk '/transaction_committed=true/ {print NR; exit}' "$SCRIPT")
+if [[ "$marker_line" -eq 0 || "$seed_line" -eq 0 || "$commit_line" -eq 0 || "$marker_line" -ge "$seed_line" || "$seed_line" -ge "$commit_line" ]]; then
   echo "Marker and admin seed must remain rollback-covered until commit" >&2
   exit 1
 fi
@@ -91,4 +94,5 @@ if grep -Fq 'docker compose pull' "$SCRIPT"; then
 fi
 
 bash "${SCRIPT_DIR}/deploy_remote_test.sh"
+bash "${SCRIPT_DIR}/deploy_scp_cleanup_test.sh"
 echo "deploy.sh: all tests passed"
