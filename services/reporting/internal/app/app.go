@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/ItsThompson/gofin/services/reporting/internal/aggregator"
 	"github.com/ItsThompson/gofin/services/reporting/internal/collector"
 	"github.com/ItsThompson/gofin/services/reporting/internal/config"
+	"github.com/ItsThompson/gofin/services/reporting/internal/discord"
 	"github.com/ItsThompson/gofin/services/reporting/internal/formatter"
 	reportingpb "github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 )
@@ -22,6 +24,7 @@ type Dependencies struct {
 	Groups []collector.GroupClient
 	Sender Sender
 	Output io.Writer
+	Logger *slog.Logger
 	Now    func() time.Time
 }
 
@@ -80,8 +83,10 @@ func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config,
 	if cfg.CollectionTimeout > 0 {
 		collectionContext, cancelCollection = context.WithTimeout(runContext, cfg.CollectionTimeout)
 	}
+	collectionStartedAt := time.Now()
 	collection := (collector.Collector{Clients: deps.Groups, Timeout: cfg.RPCTimeout}).Collect(collectionContext, windows)
 	cancelCollection()
+	logCollection(deps.Logger, collection, time.Since(collectionStartedAt))
 	report := aggregator.Aggregate(collection, windows)
 	report.GeneratedAt = generatedAt
 	text := formatter.Format(report)
@@ -92,7 +97,7 @@ func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config,
 		return Result{Report: report, Text: text, Partial: hasGroupFailure(report)}, &LifecycleError{Stage: "output", Cause: err}
 	}
 	result := Result{Report: report, Text: text, Partial: hasGroupFailure(report)}
-	if err := formatter.ValidateRuneLimit(text); err != nil {
+	if err := discord.ValidateRuneLimit(text); err != nil {
 		return result, &LifecycleError{Stage: "size", Cause: err}
 	}
 	if runContext.Err() != nil {
@@ -110,10 +115,16 @@ func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config,
 		err := deps.Sender.Send(deliveryContext, text)
 		cancelDelivery()
 		if err != nil {
+			if deps.Logger != nil {
+				deps.Logger.Warn("reporting delivery failed", slog.String("stage", "discord"))
+			}
 			if runContext.Err() != nil {
 				return result, &LifecycleError{Stage: "context", Cause: runContext.Err()}
 			}
 			return result, &LifecycleError{Stage: "discord", Cause: err}
+		}
+		if deps.Logger != nil {
+			deps.Logger.Info("reporting delivery confirmed", slog.String("stage", "discord"))
 		}
 		result.Delivered = true
 	}
@@ -121,6 +132,58 @@ func Run(ctx context.Context, reportDate string, dryRun bool, cfg config.Config,
 		return result, &PartialError{Groups: failedGroups(report)}
 	}
 	return result, nil
+}
+
+func logCollection(logger *slog.Logger, collection collector.Collection, duration time.Duration) {
+	if logger == nil {
+		return
+	}
+	logger.Info("reporting collection completed", slog.Duration("duration", duration), slog.Int("group_count", len(collection.Groups)))
+	for _, group := range collection.Groups {
+		outcome := "available"
+		if group.Err != nil {
+			outcome = "failed"
+		} else {
+			for _, metric := range group.Metrics {
+				if !metric.IsAvailable() {
+					outcome = "partial"
+					break
+				}
+			}
+		}
+		logger.Info("reporting group collection completed",
+			slog.String("service", group.Name),
+			slog.String("rpc", reportingRPCName(group.Name)),
+			slog.String("outcome", outcome),
+			slog.Int("metric_count", len(group.Metrics)),
+		)
+		for _, metric := range group.Metrics {
+			if metric.IsAvailable() {
+				continue
+			}
+			logger.Warn("reporting metric unavailable",
+				slog.String("service", group.Name),
+				slog.String("rpc", reportingRPCName(group.Name)),
+				slog.String("metric", metric.Name),
+				slog.String("code", metric.UnavailableCode.String()),
+			)
+		}
+	}
+}
+
+func reportingRPCName(group string) string {
+	switch group {
+	case "auth":
+		return "GetGrowthMetrics"
+	case "expense":
+		return "GetActivityMetrics"
+	case "finance":
+		return "GetProductUsageMetrics"
+	case "datarights":
+		return "GetExportMetrics"
+	default:
+		return "unknown"
+	}
 }
 
 func hasGroupFailure(report aggregator.Report) bool {

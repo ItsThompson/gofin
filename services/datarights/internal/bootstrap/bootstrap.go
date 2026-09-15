@@ -164,7 +164,7 @@ func start(ctx context.Context, cfg *config.Config, grpcLis net.Listener) error 
 	handler.RegisterRoutes(router, handler.NewRESTHandler(exportSvc, logger), handler.NewDeletionHandler(deletionSvc, logger))
 	httpServer := &http.Server{Addr: ":" + cfg.RESTPort, Handler: router}
 
-	exportMetricsService := service.NewExportMetricsService(repo)
+	exportMetricsService := service.NewExportMetricsService(repo, logger)
 	grpcServer := serverkit.NewGRPCServer()
 	datarightspb.RegisterDatarightsServiceServer(grpcServer, handler.NewGRPCHandler(exportMetricsService))
 

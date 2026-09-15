@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -70,9 +71,10 @@ func run(parent context.Context, args []string, output, errorOutput io.Writer) i
 		return classifyError(err)
 	}
 
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	var sender app.Sender
 	if !*dryRun {
-		sender, err = discord.NewSender(cfg.DiscordWebhookURL, cfg.DiscordTimeout)
+		sender, err = discord.NewSender(cfg.DiscordWebhookURL, cfg.DiscordTimeout, logger)
 		if err != nil {
 			_ = clientSet.Close()
 			fmt.Fprintln(errorOutput, "reporting: Discord configuration failed")
@@ -89,6 +91,7 @@ func run(parent context.Context, args []string, output, errorOutput io.Writer) i
 		},
 		Sender: sender,
 		Output: output,
+		Logger: logger,
 	})
 	closeErr := clientSet.Close()
 	if runErr != nil {

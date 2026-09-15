@@ -1,9 +1,11 @@
 package discord
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,6 +47,35 @@ func TestSendUsesWaitAndDisablesMentions(t *testing.T) {
 	payload := <-requestSeen
 	if payload.Content != "hello" || len(payload.AllowedMentions.Parse) != 0 {
 		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestSendLogsRetryAndSafeConfirmation(t *testing.T) {
+	var calls atomic.Int32
+	var logs bytes.Buffer
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			writer.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"id":"message-1"}`))
+	}))
+	defer server.Close()
+
+	sender, err := NewSender(server.URL+"/secret-token", time.Second, slog.New(slog.NewJSONHandler(&logs, nil)))
+	if err != nil {
+		t.Fatalf("NewSender: %v", err)
+	}
+	sender.Sleep = func(context.Context, time.Duration) error { return nil }
+	if err := sender.Send(context.Background(), "hello"); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	if !strings.Contains(logs.String(), `"status_class":"5xx"`) || !strings.Contains(logs.String(), `"message_id":"message-1"`) {
+		t.Fatalf("logs missing safe delivery fields: %s", logs.String())
+	}
+	if strings.Contains(logs.String(), "secret-token") || strings.Contains(logs.String(), server.URL) {
+		t.Fatalf("logs expose webhook details: %s", logs.String())
 	}
 }
 

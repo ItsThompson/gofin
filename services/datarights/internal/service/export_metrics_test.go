@@ -1,8 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -78,6 +81,32 @@ func TestGetExportMetrics_DBFailureMakesMetricUnavailable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, result.GetAvailable())
 	assert.Equal(t, reportingpb.MetricErrorCode_METRIC_ERROR_CODE_QUERY_FAILED, result.GetUnavailable().GetCode())
+	repo.AssertExpectations(t)
+}
+
+func TestGetExportMetrics_LogsSafeMetricFailure(t *testing.T) {
+	repo := new(mockExportMetricsRepository)
+	windowSet, reportStart, reportEnd, previousStart, previousEnd, trailingStart, trailingEnd := testWindowSet()
+	repo.On("CountCompletedExports", mock.Anything, repository.ExportMetricsWindowSet{
+		ReportWeekStart: reportStart, ReportWeekEnd: reportEnd,
+		PreviousWeekStart: previousStart, PreviousWeekEnd: previousEnd,
+		TrailingFourWeeksStart: trailingStart, TrailingFourWeeksEnd: trailingEnd,
+	}).Return(repository.CompletedExportCounts{}, errors.New("database unavailable"))
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+	result, err := NewExportMetricsService(repo, logger).GetExportMetrics(context.Background(), windowSet)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.GetUnavailable())
+	var event map[string]any
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &event))
+	assert.Equal(t, "datarights", event["service"])
+	assert.Equal(t, "GetExportMetrics", event["rpc"])
+	assert.Equal(t, "completed_exports", event["metric"])
+	assert.Equal(t, "QUERY_FAILED", event["code"])
+	assert.Equal(t, "dependency", event["error_class"])
+	assert.NotContains(t, logs.String(), "database unavailable")
 	repo.AssertExpectations(t)
 }
 

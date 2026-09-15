@@ -3,7 +3,9 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -52,6 +54,49 @@ func testConfig() config.Config {
 	return config.Config{RPCTimeout: time.Second, CollectionTimeout: time.Second, DeliveryTimeout: time.Second, AppTimeout: time.Second}
 }
 
+func TestRunRendersAllRequiredMetricsInOrder(t *testing.T) {
+	groupMetrics := []struct {
+		name    string
+		metrics []string
+	}{
+		{name: "auth", metrics: []string{"new_users", "onboarding_completions"}},
+		{name: "expense", metrics: []string{"total_expenses", "manual_expenses", "correction_expenses", "prorata_expenses", "active_expenses"}},
+		{name: "finance", metrics: []string{"budget_periods", "tags", "prorata_schedules"}},
+		{name: "datarights", metrics: []string{"completed_exports"}},
+	}
+	groups := make([]collector.GroupClient, 0, len(groupMetrics))
+	for _, group := range groupMetrics {
+		metrics := make([]collector.MetricResult, 0, len(group.metrics))
+		for _, name := range group.metrics {
+			metrics = append(metrics, collector.MetricResult{Name: name, Values: &reportingpb.CountValues{ReportWeek: 1, PreviousWeek: 1, TrailingFourWeeksTotal: 4}})
+		}
+		groups = append(groups, appGroup{name: group.name, group: collector.GroupResult{Name: group.name, Metrics: metrics}})
+	}
+	var output bytes.Buffer
+	result, err := Run(context.Background(), "2026-09-07", true, testConfig(), Dependencies{
+		Groups: groups,
+		Output: &output,
+		Now:    func() time.Time { return time.Date(2026, time.September, 14, 0, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	last := -1
+	for _, name := range []string{
+		"New users", "Onboarding completions", "Total expenses", "Manual expenses", "Correction expenses",
+		"Pro-rata expenses", "Active expenses", "Budget periods", "Tags", "Pro-rata schedules", "Completed exports",
+	} {
+		position := strings.Index(output.String(), name+":")
+		if position <= last {
+			t.Fatalf("metric %q is missing or out of order in report:\n%s", name, output.String())
+		}
+		last = position
+	}
+	if result.Partial {
+		t.Fatal("complete metric fixture returned a partial result")
+	}
+}
+
 func TestRunDeliversPartialReportBeforeReturningFailure(t *testing.T) {
 	sender := &appSender{}
 	var output bytes.Buffer
@@ -70,6 +115,45 @@ func TestRunDeliversPartialReportBeforeReturningFailure(t *testing.T) {
 	var partial *PartialError
 	if !errors.As(err, &partial) {
 		t.Fatalf("error = %T, want PartialError", err)
+	}
+}
+
+func TestRunLogsCollectionDurationAndGroupOutcomes(t *testing.T) {
+	var output bytes.Buffer
+	var logs bytes.Buffer
+	result, err := Run(context.Background(), "2026-09-07", true, testConfig(), Dependencies{
+		Groups: completeGroups(availableMetric()),
+		Output: &output,
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+		Now:    func() time.Time { return time.Date(2026, time.September, 14, 0, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Text == "" {
+		t.Fatal("expected report text")
+	}
+	var collectionEvent map[string]any
+	var authEvent map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var event map[string]any
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("invalid structured log %q: %v", line, err)
+		}
+		switch event["msg"] {
+		case "reporting collection completed":
+			collectionEvent = event
+		case "reporting group collection completed":
+			if event["service"] == "auth" {
+				authEvent = event
+			}
+		}
+	}
+	if collectionEvent["duration"] == nil || collectionEvent["group_count"] != float64(4) {
+		t.Fatalf("collection log = %v", collectionEvent)
+	}
+	if authEvent["outcome"] != "available" || authEvent["metric_count"] != float64(1) {
+		t.Fatalf("auth log = %v", authEvent)
 	}
 }
 

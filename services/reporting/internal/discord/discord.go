@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,9 +35,10 @@ type Sender struct {
 	Timeout    time.Duration
 	Sleep      func(context.Context, time.Duration) error
 	Now        func() time.Time
+	logger     *slog.Logger
 }
 
-func NewSender(webhookURL string, timeout time.Duration) (*Sender, error) {
+func NewSender(webhookURL string, timeout time.Duration, logger ...*slog.Logger) (*Sender, error) {
 	if strings.TrimSpace(webhookURL) == "" {
 		return nil, &ConfigError{Kind: "missing_webhook"}
 	}
@@ -46,6 +49,10 @@ func NewSender(webhookURL string, timeout time.Duration) (*Sender, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
+	var senderLogger *slog.Logger
+	if len(logger) > 0 {
+		senderLogger = logger[0]
+	}
 	return &Sender{
 		WebhookURL: webhookURL,
 		Timeout:    timeout,
@@ -55,8 +62,9 @@ func NewSender(webhookURL string, timeout time.Duration) (*Sender, error) {
 				return http.ErrUseLastResponse
 			},
 		},
-		Sleep: sleepContext,
-		Now:   time.Now,
+		Sleep:  sleepContext,
+		Now:    time.Now,
+		logger: senderLogger,
 	}, nil
 }
 
@@ -79,7 +87,8 @@ func (s *Sender) Send(ctx context.Context, report string) error {
 	}
 	var last *SendError
 	for attempt := 1; attempt <= MaxAttempts; attempt++ {
-		err := s.sendAttempt(ctx, endpoint, body)
+		err := s.sendAttempt(ctx, endpoint, body, attempt)
+		s.logAttempt(attempt, err)
 		if err == nil {
 			return nil
 		}
@@ -105,7 +114,7 @@ func (s *Sender) Send(ctx context.Context, report string) error {
 	return last
 }
 
-func (s *Sender) sendAttempt(ctx context.Context, endpoint string, body []byte) error {
+func (s *Sender) sendAttempt(ctx context.Context, endpoint string, body []byte, attempt int) error {
 	attemptContext := ctx
 	cancel := func() {}
 	if s.Timeout > 0 {
@@ -172,7 +181,65 @@ func (s *Sender) sendAttempt(ctx context.Context, endpoint string, body []byte) 
 	if err := json.Unmarshal(responseBody, &confirmation); err != nil || strings.TrimSpace(confirmation.ID) == "" {
 		return &SendError{Kind: "invalid_confirmation", StatusCode: response.StatusCode}
 	}
+	if s.logger != nil {
+		s.logger.Info("reporting delivery confirmation received",
+			slog.String("service", "reporting"),
+			slog.String("component", "discord"),
+			slog.String("outcome", "confirmed"),
+			slog.Int("attempt", attempt),
+			slog.String("message_id", safeMessageID(confirmation.ID)),
+		)
+	}
 	return nil
+}
+
+func safeMessageID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 128 {
+		return "redacted"
+	}
+	for _, character := range value {
+		if (character < 'a' || character > 'z') &&
+			(character < 'A' || character > 'Z') &&
+			(character < '0' || character > '9') && character != '-' && character != '_' {
+			return "redacted"
+		}
+	}
+	return value
+}
+
+func (s *Sender) logAttempt(attempt int, err error) {
+	if s.logger == nil {
+		return
+	}
+	attrs := []any{
+		slog.String("service", "reporting"),
+		slog.String("component", "discord"),
+		slog.Int("attempt", attempt),
+	}
+	if err == nil {
+		s.logger.Info("reporting delivery attempt completed", append(attrs, slog.String("outcome", "success"))...)
+		return
+	}
+	var sendErr *SendError
+	if errors.As(err, &sendErr) {
+		attrs = append(attrs,
+			slog.String("outcome", "failure"),
+			slog.String("code", sendErr.Kind),
+			slog.String("status_class", statusClass(sendErr.StatusCode)),
+			slog.Bool("retryable", sendErr.Retryable),
+		)
+	} else {
+		attrs = append(attrs, slog.String("outcome", "failure"), slog.String("code", "unknown"))
+	}
+	s.logger.Warn("reporting delivery attempt failed", attrs...)
+}
+
+func statusClass(statusCode int) string {
+	if statusCode < 100 {
+		return "none"
+	}
+	return fmt.Sprintf("%dxx", statusCode/100)
 }
 
 func webhookEndpoint(raw string) (string, error) {

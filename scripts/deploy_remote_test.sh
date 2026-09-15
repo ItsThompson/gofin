@@ -2,13 +2,18 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="${SCRIPT_DIR}/deploy.sh"
+COMMON_SCRIPT="${SCRIPT_DIR}/deploy_remote_common.sh"
+ROLLBACK_SCRIPT="${SCRIPT_DIR}/deploy_remote_rollback.sh"
+TRANSACTION_SCRIPT="${SCRIPT_DIR}/deploy_remote_transaction.sh"
 FIXTURE_COMMAND="${SCRIPT_DIR}/deploy_remote_fixture_command.sh"
 
 remote_script=$(mktemp)
 trap 'rm -f "$remote_script"' EXIT
-awk 'capture { if ($0 == "REMOTE_DEPLOY") exit; print } /<<'"'"'REMOTE_DEPLOY'"'"'/ { capture=1; next }' "$SCRIPT" >"$remote_script"
+cat "$COMMON_SCRIPT" "$ROLLBACK_SCRIPT" "$TRANSACTION_SCRIPT" >"$remote_script"
 chmod +x "$remote_script"
+for script in "$COMMON_SCRIPT" "$ROLLBACK_SCRIPT" "$TRANSACTION_SCRIPT"; do
+  bash -n "$script"
+done
 
 PREVIOUS_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 DEPLOY_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
@@ -49,6 +54,9 @@ run_failure_fixture() {
   mkdir -p "$root/.git" "$root/deployments/cloudflare"
   printf '%s\n' "$initial_head" >"$root/.fake-head"
   printf 'SENTRY_DSN_BACKEND=backend\nSENTRY_DSN_FRONTEND=frontend\nSENTRY_RELEASE=%s\n' "$PREVIOUS_SHA" >"$root/.env"
+  if [[ "$name" == RESERVED_ENV ]]; then
+    printf 'DEPLOY_SHA=malicious\n' >>"$root/.env"
+  fi
   printf 'old-app\n' >"$root/deployments/cloudflare/gofin-app.json"
   printf 'old-grafana\n' >"$root/deployments/cloudflare/gofin-grafana.json"
   printf 'old-cert\n' >"$root/deployments/cloudflare/cert.pem"
@@ -142,6 +150,7 @@ EOF
   rm -rf "$root" "$fake_bin"
 }
 
+run_failure_fixture RESERVED_ENV no-rollback
 run_failure_fixture FAIL_PULL
 run_failure_fixture FAIL_START
 run_failure_fixture FAIL_START removed-service

@@ -5,12 +5,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/ItsThompson/gofin/services/reporting/internal/aggregator"
 )
-
-const MaxReportRunes = 2000
 
 func Format(report aggregator.Report) string {
 	var output strings.Builder
@@ -113,13 +110,4 @@ func reportRange(report aggregator.Report) (time.Time, time.Time) {
 		return time.Time{}, time.Time{}
 	}
 	return window.GetStart().AsTime().UTC(), window.GetEnd().AsTime().UTC()
-}
-
-func RuneCount(value string) int { return utf8.RuneCountInString(value) }
-
-func ValidateRuneLimit(value string) error {
-	if count := RuneCount(value); count > MaxReportRunes {
-		return fmt.Errorf("report exceeds %d runes (%d)", MaxReportRunes, count)
-	}
-	return nil
 }
