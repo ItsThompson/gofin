@@ -90,6 +90,15 @@ func TestGRPC_GetActivityMetrics_ValidatesAndUsesInjectedActivityService(t *test
 	activityService.AssertExpectations(t)
 }
 
+func TestGRPC_GetActivityMetrics_RejectsNilRequest(t *testing.T) {
+	handler := NewGRPCHandler(nil, nil)
+
+	response, err := handler.GetActivityMetrics(context.Background(), nil)
+
+	require.Nil(t, response)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestGRPC_GetActivityMetrics_RejectsInvalidWindowBeforeServiceCall(t *testing.T) {
 	activityService := new(mockActivityService)
 	repo := new(mockExpenseRepository)

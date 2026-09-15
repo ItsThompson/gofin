@@ -16,6 +16,7 @@ use (
 	./metrics
 	./perf
 	./pgutil
+	./reporting
 	./serverkit
 	./shared/currency
 	./shared/exchangesource

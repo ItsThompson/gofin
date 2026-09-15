@@ -14,6 +14,9 @@ import (
 )
 
 func (h *GRPCHandler) GetActivityMetrics(ctx context.Context, req *pb.GetActivityMetricsRequest) (*pb.ActivityMetricsResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
 	windowSet := req.GetWindowSet()
 	if err := reporting.ValidateWindowSet(windowSet); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())

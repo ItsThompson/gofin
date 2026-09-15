@@ -73,6 +73,25 @@ func TestRunDeliversPartialReportBeforeReturningFailure(t *testing.T) {
 	}
 }
 
+func TestRunReturnsDeliveryFailureBeforePartialStatus(t *testing.T) {
+	sender := &appSender{err: errors.New("transport failed")}
+	var output bytes.Buffer
+	result, err := Run(context.Background(), "2026-09-07", false, testConfig(), Dependencies{
+		Groups: completeGroups(collector.MetricResult{UnavailableCode: reportingpb.MetricErrorCode_METRIC_ERROR_CODE_QUERY_FAILED}),
+		Sender: sender,
+		Output: &output,
+		Now:    func() time.Time { return time.Date(2026, time.September, 14, 0, 0, 0, 0, time.UTC) },
+	})
+
+	if err == nil || !result.Partial || result.Delivered || sender.calls != 1 || output.Len() == 0 {
+		t.Fatalf("result=%+v calls=%d output=%d err=%v", result, sender.calls, output.Len(), err)
+	}
+	var lifecycle *LifecycleError
+	if !errors.As(err, &lifecycle) || lifecycle.Stage != "discord" {
+		t.Fatalf("error = %v, want discord lifecycle error", err)
+	}
+}
+
 func TestRunDryRunDoesNotConstructOrCallSender(t *testing.T) {
 	var output bytes.Buffer
 	result, err := Run(context.Background(), "2026-09-07", true, testConfig(), Dependencies{

@@ -13,8 +13,9 @@
 //	docker run -d --rm -p 3322:3322 codenotary/immudb:1.11.0
 //	go test -tags integration -run Integration ./internal/repository/...
 //
-// Set TEST_IMMUDB_ADDR (default localhost:3322) to point elsewhere. The test
-// skips if immudb is unreachable.
+// Set TEST_IMMUDB_ADDR (default localhost:3322) to point elsewhere. An
+// explicitly configured address is required to be reachable; the test skips
+// only when no address is configured.
 package repository
 
 import (
@@ -96,9 +97,12 @@ func (v realSQLValue) GetBool() bool     { return v.b }
 
 func connectRealImmudb(t *testing.T) *recordingRealClient {
 	t.Helper()
-	addr := os.Getenv("TEST_IMMUDB_ADDR")
-	if addr == "" {
+	addr, configured := os.LookupEnv("TEST_IMMUDB_ADDR")
+	if !configured {
 		addr = "localhost:3322"
+	}
+	if addr == "" {
+		t.Fatal("TEST_IMMUDB_ADDR must not be empty when configured")
 	}
 	host := addr
 	port := 3322
@@ -115,7 +119,10 @@ func connectRealImmudb(t *testing.T) *recordingRealClient {
 	opts := immudb.DefaultOptions().WithAddress(host).WithPort(port)
 	client := immudb.NewClient().WithOptions(opts)
 	if err := client.OpenSession(ctx, []byte("immudb"), []byte("immudb"), "defaultdb"); err != nil {
-		t.Skipf("immudb not reachable at %s (%v); start it with `docker run -d --rm -p 3322:3322 codenotary/immudb:1.11.0`", addr, err)
+		if configured {
+			require.NoError(t, err, "immudb is not reachable at the configured TEST_IMMUDB_ADDR")
+		}
+		t.Skipf("immudb not reachable at the default address; start it with `docker run -d --rm -p 3322:3322 codenotary/immudb:1.11.0`")
 	}
 	t.Cleanup(func() { _ = client.CloseSession(context.Background()) })
 	return &recordingRealClient{client: client}
@@ -128,6 +135,9 @@ func TestGetExpensesByUserAfter_Integration_KeysetOrderingAndNoOffset(t *testing
 	ctx := context.Background()
 
 	require.NoError(t, repo.InitSchema(ctx))
+	assert.Contains(t, strings.ToUpper(strings.Join(client.recordedQueries(), "\n")),
+		"IDX_EXPENSES_REPORTING_CREATED_AT",
+		"InitSchema must create the named reporting index")
 
 	// Unique user + id prefix so repeated runs against the persistent immudb
 	// volume don't collide (id is the primary key).

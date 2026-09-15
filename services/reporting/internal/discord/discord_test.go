@@ -74,7 +74,17 @@ func TestSendRetriesOnlyTransientResponses(t *testing.T) {
 }
 
 func TestSendRejectsInvalidConfirmationAndUnexpectedStatus(t *testing.T) {
-	for _, status := range []int{http.StatusNoContent, http.StatusMovedPermanently} {
+	for _, status := range []int{
+		http.StatusCreated,
+		http.StatusAccepted,
+		http.StatusNoContent,
+		http.StatusPartialContent,
+		http.StatusMultipleChoices,
+		http.StatusMovedPermanently,
+		http.StatusNotModified,
+		http.StatusBadRequest,
+		http.StatusOK,
+	} {
 		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 			writer.WriteHeader(status)
 		}))

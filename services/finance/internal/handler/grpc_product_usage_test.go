@@ -84,6 +84,15 @@ func TestGetProductUsageMetricsValidatesThenInjectsService(t *testing.T) {
 	assert.Equal(t, int64(8), response.ProrataSchedules.GetAvailable().GetPreviousWeek())
 }
 
+func TestGetProductUsageMetricsRejectsNilRequest(t *testing.T) {
+	handler := NewGRPCHandler(nil)
+
+	response, err := handler.GetProductUsageMetrics(context.Background(), nil)
+
+	assert.Nil(t, response)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestGetProductUsageMetricsRejectsInvalidWindowBeforeService(t *testing.T) {
 	stub := &productUsageMetricsServiceStub{}
 	windowSet := validHandlerProductUsageWindowSet()

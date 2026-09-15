@@ -64,3 +64,20 @@ if (( day_of_week != 1 )); then
   echo "ERROR: report_week_start must be a Monday" >&2
   exit 1
 fi
+
+# Compare the UTC end of the requested week with the current instant. A week
+# is complete only after its Monday 00:00 UTC boundary has passed.
+if report_week_start_epoch=$(date -u -d "$report_week_start" +%s 2>/dev/null); then
+  :
+elif report_week_start_epoch=$(date -u -j -f "%Y-%m-%d" "$report_week_start" +%s 2>/dev/null); then
+  :
+else
+  echo "ERROR: unable to evaluate report_week_start" >&2
+  exit 1
+fi
+
+report_week_end_epoch=$((report_week_start_epoch + 7 * 24 * 60 * 60))
+if (( report_week_end_epoch > $(date -u +%s) )); then
+  echo "ERROR: report_week_start must be a completed UTC week" >&2
+  exit 1
+fi

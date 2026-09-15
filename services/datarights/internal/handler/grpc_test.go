@@ -84,6 +84,15 @@ func TestGetExportMetrics_QueryFailureReturnsUnavailableResult(t *testing.T) {
 	assert.Same(t, req.WindowSet, resp.WindowSet)
 }
 
+func TestGetExportMetrics_NilRequestReturnsInvalidArgument(t *testing.T) {
+	handler := NewGRPCHandler(nil)
+
+	resp, err := handler.GetExportMetrics(context.Background(), nil)
+
+	assert.Nil(t, resp)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestGetExportMetrics_InvalidWindowReturnsInvalidArgument(t *testing.T) {
 	handler := NewGRPCHandler(nil)
 

@@ -12,22 +12,30 @@ import (
 	"github.com/ItsThompson/gofin/services/datarights/internal/config"
 )
 
-func TestRunWithDependencies_BindFailureDoesNotStartService(t *testing.T) {
+func TestRunWithDependencies_BindFailureSuppressesEveryStartupSideEffect(t *testing.T) {
 	bindErr := errors.New("address already in use")
-	started := false
 	cfg := &config.Config{GRPCPort: config.DefaultGRPCPort}
+	var migrations, recovery, email, serving int
 
+	// The starter is the injected boundary for migrations, recovery, email,
+	// and serving. None may run when binding fails.
 	err := runWithDependencies(
 		context.Background(), cfg,
 		func(string, string) (net.Listener, error) { return nil, bindErr },
 		func(context.Context, *config.Config, net.Listener) error {
-			started = true
+			migrations++
+			recovery++
+			email++
+			serving++
 			return nil
 		},
 	)
 
 	require.ErrorIs(t, err, bindErr)
-	assert.False(t, started)
+	assert.Zero(t, migrations)
+	assert.Zero(t, recovery)
+	assert.Zero(t, email)
+	assert.Zero(t, serving)
 }
 
 func TestRunWithDependencies_ClosesListenerBeforeStartErrorReturns(t *testing.T) {

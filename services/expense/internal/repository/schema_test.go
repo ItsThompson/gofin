@@ -25,6 +25,8 @@ func TestInitSchema_ReconcilesSnapshotColumns(t *testing.T) {
 
 	assert.Equal(t, 9, client.countQueriesContaining("ALTER TABLE EXPENSES ADD COLUMN"),
 		"expected one ALTER per snapshot/idempotency column")
+	assert.Equal(t, 1, client.countQueriesContaining("IDX_EXPENSES_REPORTING_CREATED_AT"),
+		"expected the required reporting index to have a stable name")
 }
 
 // addColumnFailingImmudbClient wraps the recording client and fails every

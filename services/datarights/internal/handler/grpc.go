@@ -25,6 +25,9 @@ func NewGRPCHandler(exportMetricsService *service.ExportMetricsService) *GRPCHan
 
 // GetExportMetrics returns export counts for the validated reporting windows.
 func (h *GRPCHandler) GetExportMetrics(ctx context.Context, req *pb.GetExportMetricsRequest) (*pb.ExportMetricsResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
+	}
 	windowSet := req.GetWindowSet()
 	if err := reporting.ValidateWindowSet(windowSet); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
