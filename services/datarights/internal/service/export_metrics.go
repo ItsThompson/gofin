@@ -38,7 +38,7 @@ func (s *ExportMetricsService) GetExportMetrics(ctx context.Context, windowSet *
 	previousWeek := windowSet.GetPreviousWeek()
 	trailingFourWeeks := windowSet.GetTrailingFourWeeks()
 	if err := ctx.Err(); err != nil {
-		s.logMetricFailure("canceled", time.Since(startedAt))
+		s.logMetricFailure("CANCELED", "canceled", time.Since(startedAt))
 		return nil, err
 	}
 	counts, err := s.repo.CountCompletedExports(ctx, repository.ExportMetricsWindowSet{
@@ -51,14 +51,14 @@ func (s *ExportMetricsService) GetExportMetrics(ctx context.Context, windowSet *
 	})
 	if err != nil {
 		if ctxErr := contextError(ctx, err); ctxErr != nil {
-			s.logMetricFailure("canceled", time.Since(startedAt))
+			s.logMetricFailure("CANCELED", "canceled", time.Since(startedAt))
 			return nil, ctxErr
 		}
-		s.logMetricFailure("dependency", time.Since(startedAt))
+		s.logMetricFailure("QUERY_FAILED", "dependency", time.Since(startedAt))
 		return unavailableCountResult(), nil
 	}
 	if err := ctx.Err(); err != nil {
-		s.logMetricFailure("canceled", time.Since(startedAt))
+		s.logMetricFailure("CANCELED", "canceled", time.Since(startedAt))
 		return nil, err
 	}
 	s.logMetricSuccess(time.Since(startedAt))
@@ -85,7 +85,7 @@ func (s *ExportMetricsService) logMetricSuccess(duration time.Duration) {
 	)
 }
 
-func (s *ExportMetricsService) logMetricFailure(class string, duration time.Duration) {
+func (s *ExportMetricsService) logMetricFailure(code, class string, duration time.Duration) {
 	if s.logger == nil {
 		return
 	}
@@ -93,7 +93,7 @@ func (s *ExportMetricsService) logMetricFailure(class string, duration time.Dura
 		slog.String("service", "datarights"),
 		slog.String("rpc", "GetExportMetrics"),
 		slog.String("metric", "completed_exports"),
-		slog.String("code", "QUERY_FAILED"),
+		slog.String("code", code),
 		slog.String("error_class", class),
 		slog.Duration("duration", duration),
 	)
