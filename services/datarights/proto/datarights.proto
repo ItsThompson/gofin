@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package datarights;
+
+option go_package = "github.com/ItsThompson/gofin/services/datarights/proto/datarightspb";
+
+import "shared/reporting/proto/reporting.proto";
+
+service DatarightsService {
+  rpc GetExportMetrics(GetExportMetricsRequest) returns (ExportMetricsResponse);
+}
+
+message GetExportMetricsRequest {
+  reporting.ReportWindowSet window_set = 1;
+}
+
+message ExportMetricsResponse {
+  reporting.ReportWindowSet window_set = 1;
+  reporting.CountResult completed_exports = 2;
+}

@@ -19,5 +19,6 @@ use (
 	./serverkit
 	./shared/currency
 	./shared/exchangesource
+	./shared/reporting
 	./shared/validator
 )

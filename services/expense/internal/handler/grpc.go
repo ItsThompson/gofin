@@ -13,6 +13,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
+	"github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 )
 
 // operation bundles a logical operation name with the gRPC method that surfaced
@@ -33,16 +34,27 @@ var (
 	opCountByTag         = operation{opName: "expense.count_by_tag", rpcMethod: "CountExpensesByTag"}
 	opStreamAll          = operation{opName: "expense.stream_all", rpcMethod: "StreamAllUserExpenses"}
 	opAnonymize          = operation{opName: "expense.anonymize", rpcMethod: "AnonymizeAllUserExpenses"}
+	opActivity           = operation{opName: "expense.get_activity_metrics", rpcMethod: "GetActivityMetrics"}
 )
+
+type ActivityService interface {
+	GetMetrics(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*service.ActivityMetrics, error)
+}
 
 type GRPCHandler struct {
 	pb.UnimplementedExpenseServiceServer
-	expenseService *service.ExpenseService
+	expenseService  *service.ExpenseService
+	activityService ActivityService
 }
 
-func NewGRPCHandler(expenseService *service.ExpenseService) *GRPCHandler {
+func NewGRPCHandler(expenseService *service.ExpenseService, activityServices ...ActivityService) *GRPCHandler {
+	var activityService ActivityService
+	if len(activityServices) > 0 {
+		activityService = activityServices[0]
+	}
 	return &GRPCHandler{
-		expenseService: expenseService,
+		expenseService:  expenseService,
+		activityService: activityService,
 	}
 }
 
@@ -86,12 +98,12 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 	}
 	if pc := req.GetPeriodContext(); pc != nil {
 		reqModel.PeriodContext = service.TrustedPeriodContext{
-			PeriodID:          pc.GetPeriodId(),
-			UserID:            pc.GetUserId(),
-			Year:              pc.GetYear(),
-			Month:             pc.GetMonth(),
+			PeriodID:              pc.GetPeriodId(),
+			UserID:                pc.GetUserId(),
+			Year:                  pc.GetYear(),
+			Month:                 pc.GetMonth(),
 			ReportingCurrencyCode: pc.GetReportingCurrencyCode(),
-			Source:            pc.GetSource(),
+			Source:                pc.GetSource(),
 		}
 	}
 	if snap := req.GetCapturedRateSnapshot(); snap != nil {

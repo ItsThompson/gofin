@@ -69,7 +69,7 @@ func (r *ImmudbExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context
 		WHERE user_id = @user_id
 		AND period_year = @year
 		AND period_month = @month
-		AND status = 'active';`
+		AND status = '` + model.StatusActive + `';`
 
 	countParams := map[string]interface{}{
 		"user_id": userID,
@@ -94,7 +94,7 @@ func (r *ImmudbExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context
 		WHERE user_id = @user_id
 		AND period_year = @year
 		AND period_month = @month
-		AND status = 'active'
+		AND status = '`+model.StatusActive+`'
 		ORDER BY expense_date DESC, created_at DESC
 		LIMIT @limit OFFSET @offset;`, expenseSelectColumns)
 
@@ -173,7 +173,7 @@ func (r *ImmudbExpenseRepository) GetExpenseByIdempotencyKey(ctx context.Context
 }
 
 func (r *ImmudbExpenseRepository) DeactivateExpense(ctx context.Context, expenseID string, userID string) error {
-	query := `UPDATE expenses SET status = 'corrected' WHERE id = @id AND user_id = @user_id;`
+	query := `UPDATE expenses SET status = '` + model.StatusCorrected + `' WHERE id = @id AND user_id = @user_id;`
 	_, err := r.client.SQLExec(ctx, query, map[string]interface{}{
 		"id":      expenseID,
 		"user_id": userID,
@@ -190,7 +190,7 @@ func (r *ImmudbExpenseRepository) CountExpensesByTag(ctx context.Context, userID
 	query := `SELECT COUNT(*) FROM expenses
 		WHERE user_id = @user_id
 		AND tag_id = @tag_id
-		AND status = 'active';`
+		AND status = '` + model.StatusActive + `';`
 
 	result, err := r.client.SQLQuery(ctx, query, map[string]interface{}{
 		"user_id": userID,
@@ -245,7 +245,7 @@ func (r *ImmudbExpenseRepository) AnonymizeAllUserExpenses(ctx context.Context, 
 		expense_type = '',
 		tag_id = '',
 		expense_date = '',
-		status = 'redacted',
+		status = '` + model.StatusRedacted + `',
 		transaction_amount = 0,
 		transaction_currency = '',
 		reporting_amount = 0,

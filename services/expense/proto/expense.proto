@@ -4,6 +4,8 @@ package expense;
 
 option go_package = "github.com/ItsThompson/gofin/services/expense/proto/expensepb";
 
+import "shared/reporting/proto/reporting.proto";
+
 service ExpenseService {
   rpc CreateExpense(CreateExpenseRequest) returns (ExpenseResponse);
   rpc CreateProRataInstallment(CreateProRataInstallmentRequest) returns (ExpenseResponse);
@@ -24,6 +26,7 @@ service ExpenseService {
 
   // Correction flow (mutates the ledger; REST is the primary consumer).
   rpc CorrectExpense(CorrectExpenseRequest) returns (ExpenseResponse);
+  rpc GetActivityMetrics(GetActivityMetricsRequest) returns (ActivityMetricsResponse);
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +87,23 @@ message CreateExpenseRequest {
 
 message ExpenseResponse {
   ExpenseData expense = 1;
+}
+
+// ---------------------------------------------------------------------------
+// GetActivityMetrics
+// ---------------------------------------------------------------------------
+
+message GetActivityMetricsRequest {
+  reporting.ReportWindowSet window_set = 1;
+}
+
+message ActivityMetricsResponse {
+  reporting.ReportWindowSet window_set = 1;
+  reporting.CountResult total_expenses = 2;
+  reporting.CountResult manual_expenses = 3;
+  reporting.CountResult correction_expenses = 4;
+  reporting.CountResult prorata_expenses = 5;
+  reporting.CountResult active_expenses = 6;
 }
 
 // TrustedPeriodContext is period context Finance resolved before asking Expense

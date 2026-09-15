@@ -175,6 +175,9 @@ func (m *mockAuthServiceClient) Login(_ context.Context, _ *authpb.LoginRequest,
 func (m *mockAuthServiceClient) ValidateToken(_ context.Context, _ *authpb.ValidateTokenRequest, _ ...grpc.CallOption) (*authpb.ValidateTokenResponse, error) {
 	return nil, nil
 }
+func (m *mockAuthServiceClient) GetGrowthMetrics(_ context.Context, _ *authpb.GetGrowthMetricsRequest, _ ...grpc.CallOption) (*authpb.GrowthMetricsResponse, error) {
+	return nil, nil
+}
 func (m *mockAuthServiceClient) DeleteUserData(_ context.Context, _ *authpb.DeleteUserDataRequest, _ ...grpc.CallOption) (*authpb.DeleteUserDataResponse, error) {
 	return nil, nil
 }

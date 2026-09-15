@@ -1,5 +1,11 @@
 package model
 
+const (
+	StatusActive    = "active"
+	StatusCorrected = "corrected"
+	StatusRedacted  = "redacted"
+)
+
 // Expense represents an entry in the immutable ledger.
 type Expense struct {
 	ID                      string `json:"id"`
@@ -11,7 +17,7 @@ type Expense struct {
 	ExpenseDateIso          string `json:"expenseDateIso"`
 	PeriodYear              int32  `json:"periodYear"`
 	PeriodMonth             int32  `json:"periodMonth"`
-	Status                  string `json:"status"` // "active" or "corrected"
+	Status                  string `json:"status"`
 	CorrectsID              string `json:"correctsId,omitempty"`
 	IsProRata               bool   `json:"isProRata"`
 	ProRataGroup            string `json:"proRataGroup,omitempty"`

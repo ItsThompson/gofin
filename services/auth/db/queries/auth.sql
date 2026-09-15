@@ -28,9 +28,28 @@ DELETE FROM auth.refresh_token_blacklist WHERE expires_at < now();
 
 -- name: CompleteOnboarding :one
 UPDATE auth.users
-SET has_completed_onboarding = true, currency = $1, updated_at = now()
+SET has_completed_onboarding = true,
+    onboarding_completed_at = COALESCE(onboarding_completed_at, now()),
+    currency = $1,
+    updated_at = now()
 WHERE id = $2
 RETURNING *;
+
+-- name: CountUsersCreatedInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM auth.users
+WHERE created_at >= $5 AND created_at < $2;
+
+-- name: CountOnboardingCompletionsInWindows :one
+SELECT
+    count(*) FILTER (WHERE onboarding_completed_at >= $1 AND onboarding_completed_at < $2) AS report_week,
+    count(*) FILTER (WHERE onboarding_completed_at >= $3 AND onboarding_completed_at < $4) AS previous_week,
+    count(*) FILTER (WHERE onboarding_completed_at >= $5 AND onboarding_completed_at < $6) AS trailing_four_weeks_total
+FROM auth.users
+WHERE onboarding_completed_at >= $5 AND onboarding_completed_at < $2;
 
 -- name: ListAllUsers :many
 SELECT id, username, email, role, created_at

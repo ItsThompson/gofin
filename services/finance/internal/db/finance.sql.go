@@ -11,6 +11,82 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countBudgetPeriodsInWindows = `-- name: CountBudgetPeriodsInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM finance.budget_periods
+WHERE created_at >= $5 AND created_at < $2
+`
+
+type CountBudgetPeriodsInWindowsParams struct {
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreatedAt_2 pgtype.Timestamptz `json:"created_at_2"`
+	CreatedAt_3 pgtype.Timestamptz `json:"created_at_3"`
+	CreatedAt_4 pgtype.Timestamptz `json:"created_at_4"`
+	CreatedAt_5 pgtype.Timestamptz `json:"created_at_5"`
+	CreatedAt_6 pgtype.Timestamptz `json:"created_at_6"`
+}
+
+type CountBudgetPeriodsInWindowsRow struct {
+	ReportWeek             int64 `json:"report_week"`
+	PreviousWeek           int64 `json:"previous_week"`
+	TrailingFourWeeksTotal int64 `json:"trailing_four_weeks_total"`
+}
+
+func (q *Queries) CountBudgetPeriodsInWindows(ctx context.Context, arg CountBudgetPeriodsInWindowsParams) (CountBudgetPeriodsInWindowsRow, error) {
+	row := q.db.QueryRow(ctx, countBudgetPeriodsInWindows,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.CreatedAt_3,
+		arg.CreatedAt_4,
+		arg.CreatedAt_5,
+		arg.CreatedAt_6,
+	)
+	var i CountBudgetPeriodsInWindowsRow
+	err := row.Scan(&i.ReportWeek, &i.PreviousWeek, &i.TrailingFourWeeksTotal)
+	return i, err
+}
+
+const countProRataSchedulesInWindows = `-- name: CountProRataSchedulesInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM finance.pro_rata_schedules
+WHERE created_at >= $5 AND created_at < $2
+`
+
+type CountProRataSchedulesInWindowsParams struct {
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreatedAt_2 pgtype.Timestamptz `json:"created_at_2"`
+	CreatedAt_3 pgtype.Timestamptz `json:"created_at_3"`
+	CreatedAt_4 pgtype.Timestamptz `json:"created_at_4"`
+	CreatedAt_5 pgtype.Timestamptz `json:"created_at_5"`
+	CreatedAt_6 pgtype.Timestamptz `json:"created_at_6"`
+}
+
+type CountProRataSchedulesInWindowsRow struct {
+	ReportWeek             int64 `json:"report_week"`
+	PreviousWeek           int64 `json:"previous_week"`
+	TrailingFourWeeksTotal int64 `json:"trailing_four_weeks_total"`
+}
+
+func (q *Queries) CountProRataSchedulesInWindows(ctx context.Context, arg CountProRataSchedulesInWindowsParams) (CountProRataSchedulesInWindowsRow, error) {
+	row := q.db.QueryRow(ctx, countProRataSchedulesInWindows,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.CreatedAt_3,
+		arg.CreatedAt_4,
+		arg.CreatedAt_5,
+		arg.CreatedAt_6,
+	)
+	var i CountProRataSchedulesInWindowsRow
+	err := row.Scan(&i.ReportWeek, &i.PreviousWeek, &i.TrailingFourWeeksTotal)
+	return i, err
+}
+
 const countTagInProRata = `-- name: CountTagInProRata :one
 SELECT count(*) FROM finance.pro_rata_schedules
 WHERE tag_id = $1 AND user_id = $2 AND status = 'pending'
@@ -26,6 +102,44 @@ func (q *Queries) CountTagInProRata(ctx context.Context, arg CountTagInProRataPa
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countTagsInWindows = `-- name: CountTagsInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM finance.tags
+WHERE created_at >= $5 AND created_at < $2
+`
+
+type CountTagsInWindowsParams struct {
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreatedAt_2 pgtype.Timestamptz `json:"created_at_2"`
+	CreatedAt_3 pgtype.Timestamptz `json:"created_at_3"`
+	CreatedAt_4 pgtype.Timestamptz `json:"created_at_4"`
+	CreatedAt_5 pgtype.Timestamptz `json:"created_at_5"`
+	CreatedAt_6 pgtype.Timestamptz `json:"created_at_6"`
+}
+
+type CountTagsInWindowsRow struct {
+	ReportWeek             int64 `json:"report_week"`
+	PreviousWeek           int64 `json:"previous_week"`
+	TrailingFourWeeksTotal int64 `json:"trailing_four_weeks_total"`
+}
+
+func (q *Queries) CountTagsInWindows(ctx context.Context, arg CountTagsInWindowsParams) (CountTagsInWindowsRow, error) {
+	row := q.db.QueryRow(ctx, countTagsInWindows,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.CreatedAt_3,
+		arg.CreatedAt_4,
+		arg.CreatedAt_5,
+		arg.CreatedAt_6,
+	)
+	var i CountTagsInWindowsRow
+	err := row.Scan(&i.ReportWeek, &i.PreviousWeek, &i.TrailingFourWeeksTotal)
+	return i, err
 }
 
 const countUserTags = `-- name: CountUserTags :one

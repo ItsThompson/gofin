@@ -2,9 +2,32 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/ItsThompson/gofin/services/datarights/internal/model"
 )
+
+// ExportMetricsWindowSet contains the UTC ranges used by the export metric.
+type ExportMetricsWindowSet struct {
+	ReportWeekStart        time.Time
+	ReportWeekEnd          time.Time
+	PreviousWeekStart      time.Time
+	PreviousWeekEnd        time.Time
+	TrailingFourWeeksStart time.Time
+	TrailingFourWeeksEnd   time.Time
+}
+
+// CompletedExportCounts contains one count for each reporting range.
+type CompletedExportCounts struct {
+	ReportWeek             int64
+	PreviousWeek           int64
+	TrailingFourWeeksTotal int64
+}
+
+// ExportMetricsRepository defines the data access contract for export metrics.
+type ExportMetricsRepository interface {
+	CountCompletedExports(ctx context.Context, windows ExportMetricsWindowSet) (CompletedExportCounts, error)
+}
 
 // JobRepository defines the data access contract for export job operations.
 type JobRepository interface {

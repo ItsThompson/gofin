@@ -131,7 +131,7 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 		ExpenseDateIso:                        req.ExpenseDateIso,
 		PeriodYear:                            req.PeriodYear,
 		PeriodMonth:                           req.PeriodMonth,
-		Status:                                "active",
+		Status:                                model.StatusActive,
 		CorrectsID:                            "",
 		IsProRata:                             req.IsProRata,
 		ProRataGroup:                          req.ProRataGroup,
@@ -257,7 +257,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		return nil, apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
 	}
 
-	if original.Status != "active" {
+	if original.Status != model.StatusActive {
 		return nil, apierr.Conflict(model.ErrAlreadyCorrected, "this expense has already been corrected")
 	}
 
@@ -326,7 +326,7 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 		ExpenseDateIso:                        req.ExpenseDateIso,
 		PeriodYear:                            original.PeriodYear,
 		PeriodMonth:                           original.PeriodMonth,
-		Status:                                "active",
+		Status:                                model.StatusActive,
 		CorrectsID:                            original.ID,
 		IsProRata:                             original.IsProRata,
 		ProRataGroup:                          original.ProRataGroup,
@@ -378,7 +378,7 @@ func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expen
 		return apierr.NotFound(fmt.Sprintf("expense %s not found", expenseID))
 	}
 
-	if expense.Status != "active" {
+	if expense.Status != model.StatusActive {
 		return apierr.Conflict(model.ErrAlreadyCorrected, "this expense has already been corrected or deleted")
 	}
 

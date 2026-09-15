@@ -69,7 +69,7 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 		ExpenseDateIso:                        req.ExpenseDate,
 		PeriodYear:                            req.PeriodContext.Year,
 		PeriodMonth:                           req.PeriodContext.Month,
-		Status:                                "active",
+		Status:                                model.StatusActive,
 		CorrectsID:                            "",
 		IsProRata:                             true,
 		ProRataGroup:                          req.ProRataGroup,

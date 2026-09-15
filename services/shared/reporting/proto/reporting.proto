@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package reporting;
+
+option go_package = "github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb";
+
+import "google/protobuf/timestamp.proto";
+
+message UtcWindow {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+}
+
+message ReportWindowSet {
+  google.protobuf.Timestamp requested_report_week_start = 1;
+  UtcWindow report_week = 2;
+  UtcWindow previous_week = 3;
+  UtcWindow trailing_four_weeks = 4;
+}
+
+message CountValues {
+  int64 report_week = 1;
+  int64 previous_week = 2;
+  int64 trailing_four_weeks_total = 3;
+}
+
+enum MetricErrorCode {
+  METRIC_ERROR_CODE_UNSPECIFIED = 0;
+  METRIC_ERROR_CODE_QUERY_FAILED = 1;
+  METRIC_ERROR_CODE_INVALID_WINDOW = 2;
+  METRIC_ERROR_CODE_INTERNAL = 3;
+}
+
+message MetricUnavailable {
+  MetricErrorCode code = 1;
+}
+
+message CountResult {
+  oneof state {
+    CountValues available = 1;
+    MetricUnavailable unavailable = 2;
+  }
+}

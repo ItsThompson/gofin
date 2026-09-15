@@ -14,16 +14,28 @@ import (
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
 	pb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
+	reportingpb "github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 )
+
+type ProductUsageMetricsService interface {
+	GetProductUsageMetrics(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*service.ProductUsageMetrics, error)
+}
 
 type GRPCHandler struct {
 	pb.UnimplementedFinanceServiceServer
-	financeService *service.FinanceService
+	financeService             *service.FinanceService
+	productUsageMetricsService ProductUsageMetricsService
 }
 
-func NewGRPCHandler(financeService *service.FinanceService) *GRPCHandler {
+func NewGRPCHandler(financeService *service.FinanceService, productUsageMetricsServices ...ProductUsageMetricsService) *GRPCHandler {
+	var productUsageMetricsService ProductUsageMetricsService
+	if len(productUsageMetricsServices) > 0 {
+		productUsageMetricsService = productUsageMetricsServices[0]
+	}
+
 	return &GRPCHandler{
-		financeService: financeService,
+		financeService:             financeService,
+		productUsageMetricsService: productUsageMetricsService,
 	}
 }
 

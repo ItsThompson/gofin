@@ -11,10 +11,12 @@ require (
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/pgutil v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
+	github.com/ItsThompson/gofin/services/shared/reporting v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.52.0
 	google.golang.org/grpc v1.80.0
@@ -22,7 +24,7 @@ require (
 )
 
 require (
-	github.com/getsentry/sentry-go v0.48.0 // indirect
+	github.com/getsentry/sentry-go v0.48.0
 	github.com/getsentry/sentry-go/gin v0.48.0 // indirect
 	github.com/getsentry/sentry-go/grpc v0.48.0 // indirect
 )
@@ -36,6 +38,8 @@ replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 replace github.com/ItsThompson/gofin/services/dbmigrate => ../dbmigrate
 
 replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
+
+replace github.com/ItsThompson/gofin/services/shared/reporting => ../shared/reporting
 
 replace github.com/ItsThompson/gofin/services/apierr => ../apierr
 
@@ -67,6 +71,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
@@ -75,7 +80,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect

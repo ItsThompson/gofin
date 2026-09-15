@@ -62,12 +62,14 @@ dev-infra:
 
 # Run all backend tests
 test-backend:
-    cd services && go work sync && \
-    cd auth && go test ./... && \
-    cd ../expense && go test ./... && \
-    cd ../finance && go test ./... && \
-    cd ../fx && go test ./... && \
-    cd ../gateway && go test ./...
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd services
+    go work sync
+    for dir in $(go work edit -json | jq -r '.Use[].DiskPath'); do
+        echo "==> Testing ${dir}"
+        (cd "${dir}" && go test ./...)
+    done
 
 # Run frontend tests
 test-frontend:
@@ -129,20 +131,34 @@ sqlc service:
 proto service:
     cd services/{{service}} && \
     protoc \
+    -I . -I .. \
     --go_out=. --go_opt=module=github.com/ItsThompson/gofin/services/{{service}} \
     --go-grpc_out=. --go-grpc_opt=module=github.com/ItsThompson/gofin/services/{{service}} \
     proto/*.proto
 
+# Generate protobuf code for the shared reporting contract
+proto-reporting:
+    cd services/shared/reporting && \
+    protoc \
+    --go_out=. --go_opt=module=github.com/ItsThompson/gofin/services/shared/reporting \
+    proto/*.proto
+
 # Generate all protobuf code
 proto-all:
+    just proto-reporting
     just proto auth
+    just proto datarights
     just proto expense
     just proto finance
     just proto fx
 
 # Lint backend
 lint-backend:
-    cd services && golangci-lint run ./...
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd services
+    targets=$(go work edit -json | jq -r '[.Use[].DiskPath + "/..."] | join(" ")')
+    golangci-lint run ${targets}
 
 # Lint frontend
 lint-frontend:

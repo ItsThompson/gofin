@@ -20,6 +20,7 @@ type Config struct {
 	LogLevel           string
 	Environment        string
 	RESTPort           string
+	GRPCPort           string
 	AuthServiceAddr    string
 	ExpenseServiceAddr string
 	FinanceServiceAddr string
@@ -37,6 +38,10 @@ type Config struct {
 // unset. It is the single source of truth shared by the server listener and the
 // --healthcheck probe so a REST_PORT override never desyncs them.
 const DefaultRESTPort = "8084"
+
+// DefaultGRPCPort is the internal gRPC listener port used when GRPC_PORT is
+// unset.
+const DefaultGRPCPort = "9084"
 
 // RESTPort returns the configured REST port, honoring REST_PORT with
 // DefaultRESTPort as the fallback. Both Load (the listener) and the
@@ -83,6 +88,10 @@ func Load() (*Config, error) {
 	}
 
 	restPort := RESTPort()
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = DefaultGRPCPort
+	}
 
 	authServiceAddr := os.Getenv("AUTH_SERVICE_ADDR")
 	if authServiceAddr == "" {
@@ -143,6 +152,7 @@ func Load() (*Config, error) {
 		LogLevel:           logLevel,
 		Environment:        environment,
 		RESTPort:           restPort,
+		GRPCPort:           grpcPort,
 		AuthServiceAddr:    authServiceAddr,
 		ExpenseServiceAddr: expenseServiceAddr,
 		FinanceServiceAddr: financeServiceAddr,

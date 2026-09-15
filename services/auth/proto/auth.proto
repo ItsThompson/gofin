@@ -4,10 +4,13 @@ package auth;
 
 option go_package = "github.com/ItsThompson/gofin/services/auth/proto/authpb";
 
+import "shared/reporting/proto/reporting.proto";
+
 service AuthService {
   rpc Register(RegisterRequest) returns (AuthResponse);
   rpc Login(LoginRequest) returns (AuthResponse);
   rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  rpc GetGrowthMetrics(GetGrowthMetricsRequest) returns (GrowthMetricsResponse);
 
   // GDPR deletion support
   rpc VerifyPassword(VerifyPasswordRequest) returns (VerifyPasswordResponse);
@@ -75,6 +78,20 @@ message ValidateTokenResponse {
   string role = 2;
   string username = 3;
   string assumed_by = 4;
+}
+
+// ---------------------------------------------------------------------------
+// Growth metrics
+// ---------------------------------------------------------------------------
+
+message GetGrowthMetricsRequest {
+  reporting.ReportWindowSet window_set = 1;
+}
+
+message GrowthMetricsResponse {
+  reporting.ReportWindowSet window_set = 1;
+  reporting.CountResult new_users = 2;
+  reporting.CountResult onboarding_completions = 3;
 }
 
 // ---------------------------------------------------------------------------

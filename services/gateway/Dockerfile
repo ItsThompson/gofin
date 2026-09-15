@@ -16,6 +16,7 @@ COPY serverkit/go.mod serverkit/go.sum* ./serverkit/
 COPY apierr/go.mod apierr/go.sum* ./apierr/
 COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY dbmigrate/go.mod dbmigrate/go.sum* ./dbmigrate/
+COPY shared/reporting/go.mod shared/reporting/go.sum* ./shared/reporting/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd gateway && GOWORK=off go mod download
 
@@ -31,6 +32,7 @@ COPY serverkit/ ./serverkit/
 COPY apierr/ ./apierr/
 COPY errkit/ ./errkit/
 COPY dbmigrate/ ./dbmigrate/
+COPY shared/reporting/ ./shared/reporting/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

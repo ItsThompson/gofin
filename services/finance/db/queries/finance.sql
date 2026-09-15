@@ -145,3 +145,27 @@ DELETE FROM finance.default_settings WHERE user_id = $1;
 
 -- name: DeleteAllUserHealthScores :exec
 DELETE FROM finance.health_scores WHERE user_id = $1;
+
+-- name: CountBudgetPeriodsInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM finance.budget_periods
+WHERE created_at >= $5 AND created_at < $2;
+
+-- name: CountTagsInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM finance.tags
+WHERE created_at >= $5 AND created_at < $2;
+
+-- name: CountProRataSchedulesInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM finance.pro_rata_schedules
+WHERE created_at >= $5 AND created_at < $2;

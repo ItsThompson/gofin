@@ -14,7 +14,7 @@ import (
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
-		"DATARIGHTS_DB_URL", "LOG_LEVEL", "ENVIRONMENT", "REST_PORT",
+		"DATARIGHTS_DB_URL", "LOG_LEVEL", "ENVIRONMENT", "REST_PORT", "GRPC_PORT",
 		"AUTH_SERVICE_ADDR", "EXPENSE_SERVICE_ADDR", "FINANCE_SERVICE_ADDR",
 		"EXPORT_MAX_CONCURRENT", "EXPORT_TIMEOUT_SECONDS", "DELETION_TIMEOUT_SECONDS",
 		"EMAIL_ENABLED", "RESEND_API_KEY", "EMAIL_FROM", "BRAND_TOKENS_PATH",
@@ -48,6 +48,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "development", cfg.Environment)
 	assert.Equal(t, DefaultRESTPort, cfg.RESTPort)
+	assert.Equal(t, DefaultGRPCPort, cfg.GRPCPort)
 	assert.Equal(t, "auth-service:9081", cfg.AuthServiceAddr)
 	assert.Equal(t, "expense-service:9082", cfg.ExpenseServiceAddr)
 	assert.Equal(t, "finance-service:9083", cfg.FinanceServiceAddr)
@@ -67,6 +68,7 @@ func TestLoad_Overrides(t *testing.T) {
 		"LOG_LEVEL":                "debug",
 		"ENVIRONMENT":              "production",
 		"REST_PORT":                "1234",
+		"GRPC_PORT":                "9234",
 		"EXPORT_MAX_CONCURRENT":    "9",
 		"EXPORT_TIMEOUT_SECONDS":   "30",
 		"DELETION_TIMEOUT_SECONDS": "45",
@@ -79,6 +81,7 @@ func TestLoad_Overrides(t *testing.T) {
 	assert.Equal(t, "production", cfg.Environment)
 	assert.True(t, cfg.IsProduction())
 	assert.Equal(t, "1234", cfg.RESTPort)
+	assert.Equal(t, "9234", cfg.GRPCPort)
 	assert.Equal(t, 9, cfg.MaxConcurrent)
 	assert.Equal(t, 30*time.Second, cfg.ExportTimeout)
 	assert.Equal(t, 45*time.Second, cfg.DeletionTimeout)

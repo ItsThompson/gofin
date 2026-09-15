@@ -5,7 +5,21 @@ import (
 	"time"
 
 	"github.com/ItsThompson/gofin/services/auth/internal/model"
+	reportingpb "github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 )
+
+// GrowthCounts holds aggregate values for the report week windows.
+type GrowthCounts struct {
+	ReportWeek             int64
+	PreviousWeek           int64
+	TrailingFourWeeksTotal int64
+}
+
+// GrowthRepository defines aggregate reporting queries for auth-owned metrics.
+type GrowthRepository interface {
+	CountUsersCreated(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (GrowthCounts, error)
+	CountOnboardingCompletions(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (GrowthCounts, error)
+}
 
 // UserRepository defines the data access contract for user operations.
 // Implementations can be backed by PostgreSQL (production) or mocks (tests).

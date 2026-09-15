@@ -13,7 +13,7 @@ import (
 // multi-statement ExecAll; each statement is individually atomic in its MVCC
 // model. For a single-user personal finance app, sequential execution is safe.
 func (r *ImmudbExpenseRepository) CorrectExpense(ctx context.Context, original *model.Expense, correction *model.Expense) (*model.Expense, error) {
-	updateQuery := `UPDATE expenses SET status = 'corrected' WHERE id = @id;`
+	updateQuery := `UPDATE expenses SET status = '` + model.StatusCorrected + `' WHERE id = @id;`
 	_, err := r.client.SQLExec(ctx, updateQuery, map[string]interface{}{
 		"id": original.ID,
 	})

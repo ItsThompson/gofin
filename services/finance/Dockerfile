@@ -20,6 +20,7 @@ COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY httpx/go.mod httpx/go.sum* ./httpx/
 COPY pgutil/go.mod pgutil/go.sum* ./pgutil/
 COPY shared/currency/go.mod ./shared/currency/
+COPY shared/reporting/go.mod shared/reporting/go.sum* ./shared/reporting/
 COPY shared/validator/go.mod ./shared/validator/
 COPY fx/go.mod fx/go.sum* ./fx/
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -39,6 +40,7 @@ COPY errkit/ ./errkit/
 COPY httpx/ ./httpx/
 COPY pgutil/ ./pgutil/
 COPY shared/currency/ ./shared/currency/
+COPY shared/reporting/ ./shared/reporting/
 COPY shared/validator/ ./shared/validator/
 COPY fx/proto/ ./fx/proto/
 

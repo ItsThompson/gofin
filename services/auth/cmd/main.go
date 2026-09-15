@@ -87,13 +87,14 @@ func run() error {
 	)
 	pwdSvc := service.NewPasswordService(cfg.BcryptCost)
 	authSvc := service.NewAuthService(repo, blacklistRepo, jwtSvc, pwdSvc, logger)
+	growthSvc := service.NewGrowthService(repo, logger)
 
 	// Start background workers
 	authSvc.StartPeriodicCleanup(ctx, cfg.CleanupInterval, cfg.CleanupTimeout)
 
 	// Build the gRPC server
 	grpcServer := serverkit.NewGRPCServer()
-	grpcHandler := handler.NewGRPCHandler(authSvc, logger)
+	grpcHandler := handler.NewGRPCHandler(authSvc, logger, handler.NewGrowthGRPCAdapter(growthSvc))
 	pb.RegisterAuthServiceServer(grpcServer, grpcHandler)
 
 	grpcLis, err := net.Listen("tcp", ":"+cfg.GRPCPort)

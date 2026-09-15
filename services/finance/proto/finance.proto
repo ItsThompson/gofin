@@ -4,6 +4,8 @@ package finance;
 
 option go_package = "github.com/ItsThompson/gofin/services/finance/proto/financepb";
 
+import "shared/reporting/proto/reporting.proto";
+
 service FinanceService {
   // Default settings
   rpc GetDefaults(GetDefaultsRequest) returns (DefaultsResponse);
@@ -42,6 +44,9 @@ service FinanceService {
   rpc GetSpendingByTag(GetSpendingByTagRequest) returns (TagSpendingListResponse);
   rpc GetCumulativeSpend(GetCumulativeSpendRequest) returns (CumulativeSpendResponse);
   rpc GetHistoricalComparison(GetHistoricalComparisonRequest) returns (HistoricalComparisonResponse);
+
+  // Product usage metrics
+  rpc GetProductUsageMetrics(GetProductUsageMetricsRequest) returns (ProductUsageMetricsResponse);
 }
 
 // ---------------------------------------------------------------------------
@@ -319,4 +324,19 @@ message GetHistoricalComparisonRequest {
 
 message HistoricalComparisonResponse {
   string message = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Product usage metrics
+// ---------------------------------------------------------------------------
+
+message GetProductUsageMetricsRequest {
+  reporting.ReportWindowSet window_set = 1;
+}
+
+message ProductUsageMetricsResponse {
+  reporting.ReportWindowSet window_set = 1;
+  reporting.CountResult budget_periods = 2;
+  reporting.CountResult tags = 3;
+  reporting.CountResult prorata_schedules = 4;
 }

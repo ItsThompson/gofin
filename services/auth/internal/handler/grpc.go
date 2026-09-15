@@ -12,23 +12,28 @@ import (
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/auth/internal/config"
 	"github.com/ItsThompson/gofin/services/auth/internal/service"
-	"github.com/ItsThompson/gofin/services/errkit"
 	pb "github.com/ItsThompson/gofin/services/auth/proto/authpb"
+	"github.com/ItsThompson/gofin/services/errkit"
 )
 
 // GRPCHandler serves the AuthService gRPC surface; Register and Login are
 // intentionally Unimplemented (use the REST endpoints).
 type GRPCHandler struct {
 	pb.UnimplementedAuthServiceServer
-	authService *service.AuthService
-	logger      *slog.Logger
+	authService   *service.AuthService
+	growthService growthMetricsRPC
+	logger        *slog.Logger
 }
 
-func NewGRPCHandler(authService *service.AuthService, logger *slog.Logger) *GRPCHandler {
-	return &GRPCHandler{
+func NewGRPCHandler(authService *service.AuthService, logger *slog.Logger, growthService ...growthMetricsRPC) *GRPCHandler {
+	handler := &GRPCHandler{
 		authService: authService,
 		logger:      logger,
 	}
+	if len(growthService) > 0 {
+		handler.growthService = growthService[0]
+	}
+	return handler
 }
 
 // isMissingUser reports whether err is the service's "user not found" signal,
@@ -45,6 +50,13 @@ func reportServerFailure(ctx context.Context, err error, meta errkit.Meta) {
 	if apierr.IsServerError(err) {
 		_ = errkit.Report(ctx, err, meta)
 	}
+}
+
+func (h *GRPCHandler) GetGrowthMetrics(ctx context.Context, req *pb.GetGrowthMetricsRequest) (*pb.GrowthMetricsResponse, error) {
+	if h.growthService == nil {
+		return nil, status.Error(codes.Unimplemented, "growth metrics are not configured")
+	}
+	return h.growthService.GetGrowthMetrics(ctx, req)
 }
 
 func (h *GRPCHandler) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {

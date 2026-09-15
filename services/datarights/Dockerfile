@@ -23,6 +23,7 @@ COPY httpx/go.mod httpx/go.sum* ./httpx/
 COPY pgutil/go.mod pgutil/go.sum* ./pgutil/
 COPY shared/currency/go.mod ./shared/currency/
 COPY shared/exchangesource/go.mod ./shared/exchangesource/
+COPY shared/reporting/go.mod shared/reporting/go.sum* ./shared/reporting/
 RUN --mount=type=cache,target=/go/pkg/mod \
     cd datarights && GOWORK=off go mod download
 
@@ -43,6 +44,7 @@ COPY httpx/ ./httpx/
 COPY pgutil/ ./pgutil/
 COPY shared/currency/ ./shared/currency/
 COPY shared/exchangesource/ ./shared/exchangesource/
+COPY shared/reporting/ ./shared/reporting/
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

@@ -10,15 +10,16 @@ const (
 
 // User represents a user in the auth domain.
 type User struct {
-	ID                     string    `json:"id"`
-	Username               string    `json:"username"`
-	Email                  string    `json:"email"`
-	PasswordHash           string    `json:"-"`
-	Role                   string    `json:"role"`
-	Currency               string    `json:"currency"`
-	HasCompletedOnboarding bool      `json:"hasCompletedOnboarding"`
-	CreatedAt              time.Time `json:"createdAt"`
-	UpdatedAt              time.Time `json:"updatedAt"`
+	ID                     string     `json:"id"`
+	Username               string     `json:"username"`
+	Email                  string     `json:"email"`
+	PasswordHash           string     `json:"-"`
+	Role                   string     `json:"role"`
+	Currency               string     `json:"currency"`
+	HasCompletedOnboarding bool       `json:"hasCompletedOnboarding"`
+	OnboardingCompletedAt  *time.Time `json:"onboardingCompletedAt,omitempty"`
+	CreatedAt              time.Time  `json:"createdAt"`
+	UpdatedAt              time.Time  `json:"updatedAt"`
 }
 
 // UserResponse is the public-facing user representation (no password hash).

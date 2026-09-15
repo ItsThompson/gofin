@@ -16,12 +16,14 @@ require (
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
 	github.com/ItsThompson/gofin/services/shared/currency v0.0.0
 	github.com/ItsThompson/gofin/services/shared/exchangesource v0.0.0-00010101000000-000000000000
+	github.com/ItsThompson/gofin/services/shared/reporting v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/prometheus/client_golang v1.22.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.20.0
 	google.golang.org/grpc v1.80.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -57,6 +59,8 @@ replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
 replace github.com/ItsThompson/gofin/services/shared/currency => ../shared/currency
 
 replace github.com/ItsThompson/gofin/services/shared/exchangesource => ../shared/exchangesource
+
+replace github.com/ItsThompson/gofin/services/shared/reporting => ../shared/reporting
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect
@@ -108,7 +112,6 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

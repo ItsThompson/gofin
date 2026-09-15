@@ -26,4 +26,5 @@ type AuthUser struct {
 	TokensRevokedAt        pgtype.Timestamptz `json:"tokens_revoked_at"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	OnboardingCompletedAt  pgtype.Timestamptz `json:"onboarding_completed_at"`
 }

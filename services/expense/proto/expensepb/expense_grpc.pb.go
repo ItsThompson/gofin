@@ -27,6 +27,7 @@ const (
 	ExpenseService_StreamAllUserExpenses_FullMethodName      = "/expense.ExpenseService/StreamAllUserExpenses"
 	ExpenseService_AnonymizeAllUserExpenses_FullMethodName   = "/expense.ExpenseService/AnonymizeAllUserExpenses"
 	ExpenseService_CorrectExpense_FullMethodName             = "/expense.ExpenseService/CorrectExpense"
+	ExpenseService_GetActivityMetrics_FullMethodName         = "/expense.ExpenseService/GetActivityMetrics"
 )
 
 // ExpenseServiceClient is the client API for ExpenseService service.
@@ -48,6 +49,7 @@ type ExpenseServiceClient interface {
 	AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error)
 	// Correction flow (mutates the ledger; REST is the primary consumer).
 	CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
+	GetActivityMetrics(ctx context.Context, in *GetActivityMetricsRequest, opts ...grpc.CallOption) (*ActivityMetricsResponse, error)
 }
 
 type expenseServiceClient struct {
@@ -147,6 +149,16 @@ func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectEx
 	return out, nil
 }
 
+func (c *expenseServiceClient) GetActivityMetrics(ctx context.Context, in *GetActivityMetricsRequest, opts ...grpc.CallOption) (*ActivityMetricsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ActivityMetricsResponse)
+	err := c.cc.Invoke(ctx, ExpenseService_GetActivityMetrics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ExpenseServiceServer is the server API for ExpenseService service.
 // All implementations must embed UnimplementedExpenseServiceServer
 // for forward compatibility.
@@ -166,6 +178,7 @@ type ExpenseServiceServer interface {
 	AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error)
 	// Correction flow (mutates the ledger; REST is the primary consumer).
 	CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error)
+	GetActivityMetrics(context.Context, *GetActivityMetricsRequest) (*ActivityMetricsResponse, error)
 	mustEmbedUnimplementedExpenseServiceServer()
 }
 
@@ -199,6 +212,9 @@ func (UnimplementedExpenseServiceServer) AnonymizeAllUserExpenses(context.Contex
 }
 func (UnimplementedExpenseServiceServer) CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CorrectExpense not implemented")
+}
+func (UnimplementedExpenseServiceServer) GetActivityMetrics(context.Context, *GetActivityMetricsRequest) (*ActivityMetricsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActivityMetrics not implemented")
 }
 func (UnimplementedExpenseServiceServer) mustEmbedUnimplementedExpenseServiceServer() {}
 func (UnimplementedExpenseServiceServer) testEmbeddedByValue()                        {}
@@ -358,6 +374,24 @@ func _ExpenseService_CorrectExpense_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExpenseService_GetActivityMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActivityMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExpenseServiceServer).GetActivityMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExpenseService_GetActivityMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExpenseServiceServer).GetActivityMetrics(ctx, req.(*GetActivityMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ExpenseService_ServiceDesc is the grpc.ServiceDesc for ExpenseService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -392,6 +426,10 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CorrectExpense",
 			Handler:    _ExpenseService_CorrectExpense_Handler,
+		},
+		{
+			MethodName: "GetActivityMetrics",
+			Handler:    _ExpenseService_GetActivityMetrics_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

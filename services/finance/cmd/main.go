@@ -97,10 +97,11 @@ func run() error {
 	)
 
 	financeSvc := service.NewFinanceServiceWithFx(repo, txBeginner, expenseClient, fxClient, time.Now, logger)
+	productUsageService := service.NewProductUsageService(repo)
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()
-	grpcHandler := handler.NewGRPCHandler(financeSvc)
+	grpcHandler := handler.NewGRPCHandler(financeSvc, productUsageService)
 	pb.RegisterFinanceServiceServer(grpcServer, grpcHandler)
 
 	grpcLis, err := net.Listen("tcp", ":"+cfg.GRPCPort)

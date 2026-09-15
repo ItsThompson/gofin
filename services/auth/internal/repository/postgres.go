@@ -83,6 +83,12 @@ func dbUserToModel(u db.AuthUser) *model.User {
 		id = uuid.UUID(u.ID.Bytes).String()
 	}
 
+	var onboardingCompletedAt *time.Time
+	if u.OnboardingCompletedAt.Valid {
+		completedAt := u.OnboardingCompletedAt.Time
+		onboardingCompletedAt = &completedAt
+	}
+
 	return &model.User{
 		ID:                     id,
 		Username:               u.Username,
@@ -91,6 +97,7 @@ func dbUserToModel(u db.AuthUser) *model.User {
 		Role:                   u.Role,
 		Currency:               u.Currency,
 		HasCompletedOnboarding: u.HasCompletedOnboarding,
+		OnboardingCompletedAt:  onboardingCompletedAt,
 		CreatedAt:              u.CreatedAt.Time,
 		UpdatedAt:              u.UpdatedAt.Time,
 	}

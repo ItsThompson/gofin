@@ -11,8 +11,8 @@ import (
 
 // NewGRPCServer builds a *grpc.Server preloaded with the Sentry hub
 // interceptors, the shared recovery interceptors, and the metrics interceptors.
-// Services that expose no gRPC surface (gateway, datarights) skip this and pass a
-// nil server to Serve.
+// Services that expose no gRPC surface, such as the gateway, skip this and
+// pass a nil server to Serve.
 //
 // The recoveries record panics through slog.Default(), so callers install their
 // logger (slog.SetDefault) before building the server.

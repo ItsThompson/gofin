@@ -58,6 +58,29 @@ func TestInitSchema_SwallowsAddColumnExistsError(t *testing.T) {
 
 // --- InitSchema reconciles idempotency_key column ---
 
+func TestInitSchema_ReportsRequiredReportingIndexFailure(t *testing.T) {
+	client := &reportingIndexFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	repo := NewImmudbExpenseRepository(client, logger)
+
+	err := repo.InitSchema(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "creating reporting index")
+}
+
+type reportingIndexFailingImmudbClient struct {
+	*recordingImmudbClient
+}
+
+func (c *reportingIndexFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+	if strings.Contains(strings.ToUpper(sql), "CREATED_AT, STATUS, CORRECTS_ID, IS_PRO_RATA") {
+		c.record(sql, params)
+		return nil, errors.New("reporting index creation failed")
+	}
+	return c.recordingImmudbClient.SQLExec(ctx, sql, params)
+}
+
 func TestInitSchema_ReconcilesIdempotencyKeyColumn(t *testing.T) {
 	client := newRecordingImmudbClient()
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

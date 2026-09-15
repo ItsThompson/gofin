@@ -52,6 +52,7 @@ func setupIntegrationTestDB(t *testing.T) *pgxpool.Pool {
 			role VARCHAR(10) NOT NULL DEFAULT 'user',
 			currency VARCHAR(3) NOT NULL DEFAULT 'USD',
 			has_completed_onboarding BOOLEAN NOT NULL DEFAULT false,
+			onboarding_completed_at TIMESTAMPTZ,
 			tokens_revoked_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

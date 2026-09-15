@@ -12,6 +12,7 @@ require (
 	github.com/ItsThompson/gofin/services/healthcheck v0.0.0
 	github.com/ItsThompson/gofin/services/metrics v0.0.0
 	github.com/ItsThompson/gofin/services/serverkit v0.0.0
+	github.com/ItsThompson/gofin/services/shared/reporting v0.0.0 // indirect
 	github.com/gin-gonic/gin v1.12.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
@@ -32,6 +33,8 @@ replace github.com/ItsThompson/gofin/services/healthcheck => ../healthcheck
 replace github.com/ItsThompson/gofin/services/metrics => ../metrics
 
 replace github.com/ItsThompson/gofin/services/serverkit => ../serverkit
+
+replace github.com/ItsThompson/gofin/services/shared/reporting => ../shared/reporting
 
 require (
 	github.com/ItsThompson/gofin/services/dbmigrate v0.0.0 // indirect

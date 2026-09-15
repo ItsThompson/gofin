@@ -134,3 +134,33 @@ func loadCatalogCodes(t *testing.T) map[string]bool {
 	}
 	return codes
 }
+
+func TestProductUsageIndexesCoverCreatedAtColumns(t *testing.T) {
+	upSQL, err := FS.ReadFile("000008_add_product_usage_indexes.up.sql")
+	require.NoError(t, err)
+	up := string(upSQL)
+
+	for _, index := range []string{
+		"idx_budget_periods_created_at",
+		"idx_tags_created_at",
+		"idx_pro_rata_schedules_created_at",
+	} {
+		assert.Contains(t, up, index)
+	}
+	assert.Equal(t, 3, strings.Count(up, "CREATE INDEX"))
+	assert.Contains(t, up, "budget_periods (created_at)")
+	assert.Contains(t, up, "tags (created_at)")
+	assert.Contains(t, up, "pro_rata_schedules (created_at)")
+
+	downSQL, err := FS.ReadFile("000008_add_product_usage_indexes.down.sql")
+	require.NoError(t, err)
+	down := string(downSQL)
+	for _, index := range []string{
+		"idx_budget_periods_created_at",
+		"idx_tags_created_at",
+		"idx_pro_rata_schedules_created_at",
+	} {
+		assert.Contains(t, down, index)
+	}
+	assert.Equal(t, 3, strings.Count(down, "DROP INDEX"))
+}

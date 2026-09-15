@@ -39,9 +39,12 @@ func (q *Queries) CleanupExpiredBlacklist(ctx context.Context) error {
 
 const completeOnboarding = `-- name: CompleteOnboarding :one
 UPDATE auth.users
-SET has_completed_onboarding = true, currency = $1, updated_at = now()
+SET has_completed_onboarding = true,
+    onboarding_completed_at = COALESCE(onboarding_completed_at, now()),
+    currency = $1,
+    updated_at = now()
 WHERE id = $2
-RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at
+RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at, onboarding_completed_at
 `
 
 type CompleteOnboardingParams struct {
@@ -63,6 +66,7 @@ func (q *Queries) CompleteOnboarding(ctx context.Context, arg CompleteOnboarding
 		&i.TokensRevokedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingCompletedAt,
 	)
 	return i, err
 }
@@ -87,10 +91,86 @@ func (q *Queries) ConsumeRefreshToken(ctx context.Context, arg ConsumeRefreshTok
 	return jti, err
 }
 
+const countOnboardingCompletionsInWindows = `-- name: CountOnboardingCompletionsInWindows :one
+SELECT
+    count(*) FILTER (WHERE onboarding_completed_at >= $1 AND onboarding_completed_at < $2) AS report_week,
+    count(*) FILTER (WHERE onboarding_completed_at >= $3 AND onboarding_completed_at < $4) AS previous_week,
+    count(*) FILTER (WHERE onboarding_completed_at >= $5 AND onboarding_completed_at < $6) AS trailing_four_weeks_total
+FROM auth.users
+WHERE onboarding_completed_at >= $5 AND onboarding_completed_at < $2
+`
+
+type CountOnboardingCompletionsInWindowsParams struct {
+	OnboardingCompletedAt   pgtype.Timestamptz `json:"onboarding_completed_at"`
+	OnboardingCompletedAt_2 pgtype.Timestamptz `json:"onboarding_completed_at_2"`
+	OnboardingCompletedAt_3 pgtype.Timestamptz `json:"onboarding_completed_at_3"`
+	OnboardingCompletedAt_4 pgtype.Timestamptz `json:"onboarding_completed_at_4"`
+	OnboardingCompletedAt_5 pgtype.Timestamptz `json:"onboarding_completed_at_5"`
+	OnboardingCompletedAt_6 pgtype.Timestamptz `json:"onboarding_completed_at_6"`
+}
+
+type CountOnboardingCompletionsInWindowsRow struct {
+	ReportWeek             int64 `json:"report_week"`
+	PreviousWeek           int64 `json:"previous_week"`
+	TrailingFourWeeksTotal int64 `json:"trailing_four_weeks_total"`
+}
+
+func (q *Queries) CountOnboardingCompletionsInWindows(ctx context.Context, arg CountOnboardingCompletionsInWindowsParams) (CountOnboardingCompletionsInWindowsRow, error) {
+	row := q.db.QueryRow(ctx, countOnboardingCompletionsInWindows,
+		arg.OnboardingCompletedAt,
+		arg.OnboardingCompletedAt_2,
+		arg.OnboardingCompletedAt_3,
+		arg.OnboardingCompletedAt_4,
+		arg.OnboardingCompletedAt_5,
+		arg.OnboardingCompletedAt_6,
+	)
+	var i CountOnboardingCompletionsInWindowsRow
+	err := row.Scan(&i.ReportWeek, &i.PreviousWeek, &i.TrailingFourWeeksTotal)
+	return i, err
+}
+
+const countUsersCreatedInWindows = `-- name: CountUsersCreatedInWindows :one
+SELECT
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS report_week,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $4) AS previous_week,
+    count(*) FILTER (WHERE created_at >= $5 AND created_at < $6) AS trailing_four_weeks_total
+FROM auth.users
+WHERE created_at >= $5 AND created_at < $2
+`
+
+type CountUsersCreatedInWindowsParams struct {
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreatedAt_2 pgtype.Timestamptz `json:"created_at_2"`
+	CreatedAt_3 pgtype.Timestamptz `json:"created_at_3"`
+	CreatedAt_4 pgtype.Timestamptz `json:"created_at_4"`
+	CreatedAt_5 pgtype.Timestamptz `json:"created_at_5"`
+	CreatedAt_6 pgtype.Timestamptz `json:"created_at_6"`
+}
+
+type CountUsersCreatedInWindowsRow struct {
+	ReportWeek             int64 `json:"report_week"`
+	PreviousWeek           int64 `json:"previous_week"`
+	TrailingFourWeeksTotal int64 `json:"trailing_four_weeks_total"`
+}
+
+func (q *Queries) CountUsersCreatedInWindows(ctx context.Context, arg CountUsersCreatedInWindowsParams) (CountUsersCreatedInWindowsRow, error) {
+	row := q.db.QueryRow(ctx, countUsersCreatedInWindows,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.CreatedAt_3,
+		arg.CreatedAt_4,
+		arg.CreatedAt_5,
+		arg.CreatedAt_6,
+	)
+	var i CountUsersCreatedInWindowsRow
+	err := row.Scan(&i.ReportWeek, &i.PreviousWeek, &i.TrailingFourWeeksTotal)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO auth.users (username, email, password_hash, role, currency)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at
+RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at, onboarding_completed_at
 `
 
 type CreateUserParams struct {
@@ -121,6 +201,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (AuthUse
 		&i.TokensRevokedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingCompletedAt,
 	)
 	return i, err
 }
@@ -155,7 +236,7 @@ func (q *Queries) GetTokensRevokedAt(ctx context.Context, id pgtype.UUID) (pgtyp
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at FROM auth.users WHERE email = $1
+SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at, onboarding_completed_at FROM auth.users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (AuthUser, error) {
@@ -172,12 +253,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (AuthUser, e
 		&i.TokensRevokedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingCompletedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at FROM auth.users WHERE id = $1
+SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at, onboarding_completed_at FROM auth.users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (AuthUser, error) {
@@ -194,12 +276,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (AuthUser, er
 		&i.TokensRevokedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingCompletedAt,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at FROM auth.users WHERE username = $1
+SELECT id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at, onboarding_completed_at FROM auth.users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (AuthUser, error) {
@@ -216,6 +299,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (AuthU
 		&i.TokensRevokedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingCompletedAt,
 	)
 	return i, err
 }
@@ -291,7 +375,7 @@ const updateUser = `-- name: UpdateUser :one
 UPDATE auth.users
 SET username = $1, email = $2, currency = $3, updated_at = now()
 WHERE id = $4
-RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at
+RETURNING id, username, email, password_hash, role, currency, has_completed_onboarding, tokens_revoked_at, created_at, updated_at, onboarding_completed_at
 `
 
 type UpdateUserParams struct {
@@ -320,6 +404,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (AuthUse
 		&i.TokensRevokedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingCompletedAt,
 	)
 	return i, err
 }

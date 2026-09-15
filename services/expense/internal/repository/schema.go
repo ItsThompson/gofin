@@ -68,6 +68,13 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		}
 	}
 
+	// Activity metrics scan the immutable current head by creation time and
+	// classify rows by their current status and correction/pro-rata fields.
+	reportingIndex := `CREATE INDEX IF NOT EXISTS ON expenses (created_at, status, corrects_id, is_pro_rata);`
+	if _, err := r.client.SQLExec(ctx, reportingIndex, nil); err != nil {
+		return fmt.Errorf("creating reporting index: %w", err)
+	}
+
 	indexes := []string{
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,

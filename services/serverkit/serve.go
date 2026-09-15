@@ -39,8 +39,8 @@ const (
 // shutting the other server down, so the caller's run() can exit non-zero
 // instead of lingering with no listener.
 //
-// grpcSrv and grpcLis may both be nil for the HTTP-only path (gateway,
-// datarights). http.ErrServerClosed and the gRPC graceful-stop signal are
+// grpcSrv and grpcLis may both be nil for HTTP-only services such as the
+// gateway. http.ErrServerClosed and the gRPC graceful-stop signal are
 // treated as clean exits.
 //
 // Buffered Sentry events are flushed once both servers have stopped accepting and

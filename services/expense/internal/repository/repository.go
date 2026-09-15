@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/reporting/proto/reportingpb"
 )
 
 // ExpenseRepository defines the data access contract for expense operations.
@@ -54,6 +55,17 @@ type ExpenseRepository interface {
 	// retains old values. Idempotent: re-calling for an already-redacted user
 	// produces the same result. Returns nil when zero rows match.
 	AnonymizeAllUserExpenses(ctx context.Context, userID string) error
+}
+
+// ActivityRepository defines the independent reporting reads. Keeping this
+// contract separate from ExpenseRepository prevents reporting changes from
+// widening the expense lifecycle dependency.
+type ActivityRepository interface {
+	CountTotal(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*ActivityMetricCounts, error)
+	CountManual(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*ActivityMetricCounts, error)
+	CountCorrections(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*ActivityMetricCounts, error)
+	CountProRata(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*ActivityMetricCounts, error)
+	CountActive(ctx context.Context, windowSet *reportingpb.ReportWindowSet) (*ActivityMetricCounts, error)
 }
 
 // ExpenseCursor identifies the last row seen during a keyset walk, used to seek
