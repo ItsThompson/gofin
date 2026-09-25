@@ -1,8 +1,8 @@
-import { formatCurrency, toMinorUnits } from "@gofin/core";
+import { formatCurrency, getMinorUnitDigits } from "@gofin/core";
 
 /**
  * Tooltip value formatter for the cumulative spend chart.
- * Returns null for array values (range area tuples) to suppress them in tooltip.
+ * Returns null for range tuples and invalid scalar values.
  */
 export function tooltipFormatter(
   value: unknown,
@@ -10,7 +10,14 @@ export function tooltipFormatter(
   currency: string,
 ): [string, string] | null {
   if (Array.isArray(value)) return null;
-  return [formatCurrency(toMinorUnits(String(value), currency), currency), name];
+  if (typeof value !== "number" && typeof value !== "string") return null;
+
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return null;
+
+  const minorUnitDigits = getMinorUnitDigits(currency);
+  const amountMinorUnits = Math.round(numericValue * 10 ** minorUnitDigits);
+  return [formatCurrency(amountMinorUnits, currency), name];
 }
 
 /**
