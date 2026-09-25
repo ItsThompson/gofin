@@ -48,11 +48,22 @@ describe("tooltipFormatter", () => {
     expect(tooltipFormatter([100, 200], "surplus", "GBP")).toBeNull();
   });
 
+  it("returns null for non-numeric values", () => {
+    expect(tooltipFormatter("not-a-number", "Actual", "GBP")).toBeNull();
+  });
+
   it("formats scalar values as currency", () => {
     const result = tooltipFormatter(150, "Actual", "GBP");
     expect(result).not.toBeNull();
     expect(result![0]).toContain("£");
     expect(result![1]).toBe("Actual");
+  });
+
+  it("rounds interpolated values to the currency minor unit", () => {
+    expect(tooltipFormatter(17.166, "Actual", "GBP")).toEqual([
+      "£17.17",
+      "Actual",
+    ]);
   });
 });
 
