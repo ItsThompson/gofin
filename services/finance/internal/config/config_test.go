@@ -82,6 +82,18 @@ func TestLoad_CustomResultCacheConfig(t *testing.T) {
 	assert.Equal(t, 30*time.Second, cfg.ResultCacheLease)
 }
 
+func TestLoad_RejectsLeaseAtOrBelowExpenseCallbackBound(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_VALIDATION_LEASE", "1s")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_VALIDATION_LEASE must be greater than")
+}
+
 func TestLoad_Production(t *testing.T) {
 	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
 	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")

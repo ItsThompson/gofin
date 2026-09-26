@@ -105,6 +105,18 @@ func TestLoad_CustomReadCacheConfig(t *testing.T) {
 	assert.Equal(t, 750*time.Millisecond, cfg.FinanceEvictionTimeout)
 }
 
+func TestLoad_RejectsFinanceEvictionTimeoutAboveSafeBound(t *testing.T) {
+	t.Setenv("IMMUDB_ADDR", "localhost:3322")
+	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("EXPENSE_FINANCE_EVICTION_TIMEOUT", "2s")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EXPENSE_FINANCE_EVICTION_TIMEOUT must be at most")
+}
+
 func TestLoad_CustomPorts(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")

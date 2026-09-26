@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
+	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 	financecache "github.com/ItsThompson/gofin/services/finance/internal/cache"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 const (
-	defaultResultCacheLease = 2 * time.Minute
+	defaultResultCacheLease = financeconfig.FinanceValidationLease
 	operationPeriod         = "periods/current"
 	operationSummary        = "summary"
 	operationByTag          = "spending/by-tag"

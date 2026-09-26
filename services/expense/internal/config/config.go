@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 )
 
 // DefaultRESTPort is the single source of truth for the expense REST port
@@ -23,7 +25,7 @@ const (
 	defaultReadCacheMaxBytes      = 64 * 1024 * 1024
 	defaultReadCacheMaxEntryBytes = 16 * 1024 * 1024
 	defaultReadCacheMaxAge        = 48 * time.Hour
-	defaultFinanceEvictionTimeout = 1 * time.Second
+	defaultFinanceEvictionTimeout = financeconfig.MaxExpenseFinanceEvictionTimeout
 )
 
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
@@ -123,6 +125,9 @@ func Load() (*Config, error) {
 	financeEvictionTimeout, err := readCacheDuration("EXPENSE_FINANCE_EVICTION_TIMEOUT", defaultFinanceEvictionTimeout)
 	if err != nil {
 		return nil, err
+	}
+	if financeEvictionTimeout > financeconfig.MaxExpenseFinanceEvictionTimeout {
+		return nil, fmt.Errorf("EXPENSE_FINANCE_EVICTION_TIMEOUT must be at most %s", financeconfig.MaxExpenseFinanceEvictionTimeout)
 	}
 
 	return &Config{

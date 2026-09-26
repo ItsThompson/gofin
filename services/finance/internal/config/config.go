@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 )
 
 // DefaultRESTPort is the single source of truth for the finance REST port
@@ -24,7 +26,7 @@ const (
 	defaultResultCacheMaxBytes      = 64 * 1024 * 1024
 	defaultResultCacheMaxEntryBytes = 16 * 1024 * 1024
 	defaultResultCacheMaxAge        = 48 * time.Hour
-	defaultResultCacheLease         = 2 * time.Minute
+	defaultResultCacheLease         = financeconfig.FinanceValidationLease
 )
 
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
@@ -112,6 +114,9 @@ func Load() (*Config, error) {
 	resultCacheLease, err := readCacheDuration("FINANCE_RESULT_CACHE_VALIDATION_LEASE", defaultResultCacheLease)
 	if err != nil {
 		return nil, err
+	}
+	if resultCacheLease <= financeconfig.MaxExpenseFinanceEvictionTimeout {
+		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_VALIDATION_LEASE must be greater than %s", financeconfig.MaxExpenseFinanceEvictionTimeout)
 	}
 
 	return &Config{

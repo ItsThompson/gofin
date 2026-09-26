@@ -16,6 +16,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
+	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/serverkit"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
@@ -49,7 +50,7 @@ func NewExpenseService(
 	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
-	return NewExpenseServiceWithCacheAndEviction(repo, periodClient, fxClient, clock, logger, defaultReadCacheConfig(), defaultFinanceEvictionTimeout)
+	return NewExpenseServiceWithCacheAndEviction(repo, periodClient, fxClient, clock, logger, defaultReadCacheConfig(), financeconfig.MaxExpenseFinanceEvictionTimeout)
 }
 
 // NewExpenseServiceWithCache creates an expense service with explicit read-cache policy.
@@ -61,7 +62,7 @@ func NewExpenseServiceWithCache(
 	logger *slog.Logger,
 	cacheConfig ReadCacheConfig,
 ) *ExpenseService {
-	return NewExpenseServiceWithCacheAndEviction(repo, periodClient, fxClient, clock, logger, cacheConfig, defaultFinanceEvictionTimeout)
+	return NewExpenseServiceWithCacheAndEviction(repo, periodClient, fxClient, clock, logger, cacheConfig, financeconfig.MaxExpenseFinanceEvictionTimeout)
 }
 
 // NewExpenseServiceWithCacheAndEviction creates an expense service with an explicit
@@ -82,7 +83,7 @@ func NewExpenseServiceWithCacheAndEviction(
 		clock = time.Now
 	}
 	if financeEvictionTimeout <= 0 {
-		financeEvictionTimeout = defaultFinanceEvictionTimeout
+		financeEvictionTimeout = financeconfig.MaxExpenseFinanceEvictionTimeout
 	}
 	return &ExpenseService{
 		repo:                   repo,
