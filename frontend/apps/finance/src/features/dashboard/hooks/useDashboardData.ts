@@ -9,6 +9,7 @@ import type {
 import { dashboardApi } from "../api";
 import { fetchDashboardSection } from "./dashboardDataRequests";
 import type {
+  BreakdownChart,
   DashboardControllerStatus,
   DashboardPeriodRecovery,
   DashboardSectionKey,
@@ -68,6 +69,8 @@ export interface DashboardDataResult {
   replacePeriodAfterEdit: (period: BudgetPeriod) => void;
   trendMonths: 6 | 12;
   setTrendMonths: (months: 6 | 12) => void;
+  breakdownChart: BreakdownChart;
+  selectBreakdown: (chart: BreakdownChart) => void;
 }
 
 function isDesktopViewport(): boolean {
@@ -87,6 +90,7 @@ function initialSectionState(desktopVisible: boolean): DashboardSectionState {
     trends: initial(),
     healthScore: initial(),
     healthScoreTrend: initial(),
+    suggestions: { status: "idle", suggestions: [], errorMessage: null },
   };
   for (const section of BASE_SECTIONS) sections[section] = { status: "loading" };
   if (desktopVisible) {
@@ -117,11 +121,13 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const [desktopVisible, setDesktopVisible] = useState(isDesktopViewport);
   const [sections, setSections] = useState<DashboardSectionState>(() => initialSectionState(desktopVisible));
   const [trendMonths, setTrendMonthsState] = useState<6 | 12>(6);
+  const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
   const generationRef = useRef(0);
   const periodRef = useRef(period);
   const desktopVisibleRef = useRef(desktopVisible);
   desktopVisibleRef.current = desktopVisible;
   const trendMonthsRef = useRef<6 | 12>(6);
+  const breakdownChartRef = useRef<BreakdownChart>("tag-spending");
   const requestedRef = useRef(new Set<DashboardSectionKey>());
   const controllersRef = useRef(new Map<DashboardSectionKey, AbortController>());
 
@@ -131,6 +137,13 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   }, []);
 
   const setSectionLoading = useCallback((section: DashboardSectionKey) => {
+    if (section === "suggestions") {
+      setSections((current) => ({
+        ...current,
+        suggestions: { status: "loading", suggestions: [], errorMessage: null },
+      }));
+      return;
+    }
     setSections((current) => ({ ...current, [section]: { status: "loading" } }));
   }, []);
 
@@ -156,6 +169,14 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       );
       if (generation !== generationRef.current || controller.signal.aborted) return;
       setSections((current) => {
+        if (result.section === "suggestions") {
+          return {
+            ...current,
+            suggestions: result.data.length === 0
+              ? { status: "empty", suggestions: [], errorMessage: null }
+              : { status: "success", suggestions: result.data, errorMessage: null },
+          };
+        }
         if (result.section === "summary" || result.section === "comparison" || result.section === "healthScore") {
           return { ...current, [result.section]: { status: "success", data: result.data } };
         }
@@ -165,6 +186,17 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       if (controller.signal.aborted || generation !== generationRef.current) return;
       if (section === "comparison" && error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
         setSections((current) => ({ ...current, comparison: { status: "empty" } }));
+        return;
+      }
+      if (section === "suggestions") {
+        setSections((current) => ({
+          ...current,
+          suggestions: {
+            status: "error",
+            suggestions: [],
+            errorMessage: sectionError(error).message,
+          },
+        }));
         return;
       }
       setSections((current) => ({ ...current, [section]: { status: "error", error: sectionError(error) } }));
@@ -177,6 +209,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     requestedRef.current.clear();
     setSections(initialSectionState(desktopVisibleRef.current));
     const eligible = desktopVisibleRef.current ? [...BASE_SECTIONS, ...DESKTOP_SECTIONS] : BASE_SECTIONS;
+    if (breakdownChartRef.current === "repeated-expenses") eligible.push("suggestions");
     for (const section of eligible) void loadSection(section, forceRefresh);
   }, [loadSection]);
 
@@ -259,6 +292,21 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     submitCreatePeriod(() => dashboardApi.createPeriod(body));
   }, [submitCreatePeriod]);
 
+  const selectBreakdown = useCallback((nextChart: BreakdownChart) => {
+    breakdownChartRef.current = nextChart;
+    setBreakdownChart(nextChart);
+    if (nextChart === "repeated-expenses" && periodStatus === "active") {
+      void loadSection("suggestions", true);
+      return;
+    }
+    controllersRef.current.get("suggestions")?.abort();
+    requestedRef.current.delete("suggestions");
+    setSections((current) => ({
+      ...current,
+      suggestions: { status: "idle", suggestions: [], errorMessage: null },
+    }));
+  }, [loadSection, periodStatus]);
+
   const retry = useCallback((section: DashboardSectionKey) => {
     if (section === "summary") {
       refresh();
@@ -312,5 +360,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     replacePeriodAfterEdit,
     trendMonths,
     setTrendMonths,
+    breakdownChart,
+    selectBreakdown,
   };
 }

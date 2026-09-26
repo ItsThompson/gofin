@@ -1,13 +1,10 @@
-import type { ExpenseSuggestion } from "../../../expense-autocomplete/types";
+import type {
+  ActiveExpenseSuggestion,
+  ActiveRecencyBucket,
+  ExpenseSuggestion,
+} from "../../../expense-autocomplete/types";
 
-export type ActiveRecencyBucket = Exclude<
-  ExpenseSuggestion["recencyBucket"],
-  "older"
->;
-
-export type ActiveExpenseSuggestion = ExpenseSuggestion & {
-  recencyBucket: ActiveRecencyBucket;
-};
+export type { ActiveExpenseSuggestion, ActiveRecencyBucket } from "../../../expense-autocomplete/types";
 
 export interface ExpenseFrecencyChartDatum {
   name: string;

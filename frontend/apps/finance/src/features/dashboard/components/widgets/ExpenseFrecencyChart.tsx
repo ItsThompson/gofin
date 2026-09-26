@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@gofin/ui/components/card";
+import { Button } from "@gofin/ui/components/button";
 import type { ExpenseFrecencyDataState } from "../../hooks/useExpenseFrecencyData";
 import { ExpenseFrecencyTooltip } from "./ExpenseFrecencyTooltip";
 import {
@@ -23,10 +24,15 @@ import {
 } from "./expenseFrecencyChartData";
 import type { ExpenseFrecencyChartDatum } from "./expenseFrecencyChartData";
 
+interface ExpenseFrecencyChartProps extends ExpenseFrecencyDataState {
+  onRetry?: () => void;
+}
+
 export function ExpenseFrecencyChart({
   status,
   suggestions,
-}: ExpenseFrecencyDataState) {
+  onRetry,
+}: ExpenseFrecencyChartProps) {
   const chartData: ExpenseFrecencyChartDatum[] = suggestions.map((suggestion) => ({
     name: suggestion.name,
     frequency: suggestion.frequency,
@@ -49,9 +55,12 @@ export function ExpenseFrecencyChart({
           </p>
         )}
         {status === "error" && (
-          <p className="text-sm text-muted-foreground">
-            Repeated expenses are unavailable right now.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {"Repeated expenses are unavailable right now."}
+            </p>
+            {onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry}>Retry</Button>}
+          </div>
         )}
         {status === "empty" && (
           <p className="text-sm text-muted-foreground">

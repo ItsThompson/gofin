@@ -4,12 +4,9 @@ import {
   isActiveExpenseSuggestion,
   type ActiveExpenseSuggestion,
 } from "../components/widgets/expenseFrecencyChartData";
+import type { ExpenseSuggestionsState } from "../types";
 
-export interface ExpenseFrecencyDataState {
-  status: "loading" | "success" | "empty" | "error";
-  suggestions: ActiveExpenseSuggestion[];
-  errorMessage: string | null;
-}
+export type ExpenseFrecencyDataState = ExpenseSuggestionsState;
 
 export interface UseExpenseFrecencyDataOptions {
   pageSize?: number;

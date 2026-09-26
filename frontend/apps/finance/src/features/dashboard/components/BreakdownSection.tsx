@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { TagSpending } from "@gofin/core";
+import type { BreakdownChart, ExpenseSuggestionsState } from "../types";
+export type { BreakdownChart } from "../types";
 import {
   Select,
   SelectContent,
@@ -9,14 +11,12 @@ import {
 } from "@gofin/ui/components/select";
 import { TagSpendingChart } from "./widgets/TagSpendingChart";
 import { ExpenseFrecencyChart } from "./widgets/ExpenseFrecencyChart";
-import type { ExpenseFrecencyDataState } from "../hooks/useExpenseFrecencyData";
-
-export type BreakdownChart = "tag-spending" | "repeated-expenses";
 
 interface BreakdownSectionProps {
   tagSpending: TagSpending[];
-  expenseFrecencyData: ExpenseFrecencyDataState;
+  expenseFrecencyData: ExpenseSuggestionsState;
   currency: string;
+  onSuggestionsRetry?: () => void;
   selectedChart?: BreakdownChart;
   onChartChange?: (chart: BreakdownChart) => void;
 }
@@ -27,6 +27,7 @@ export function BreakdownSection({
   currency,
   selectedChart: selectedChartProp,
   onChartChange,
+  onSuggestionsRetry,
 }: BreakdownSectionProps) {
   const [uncontrolledChart, setUncontrolledChart] = useState<BreakdownChart>("tag-spending");
   const selectedChart = selectedChartProp ?? uncontrolledChart;
@@ -40,7 +41,11 @@ export function BreakdownSection({
       <div className="flex items-center justify-between">
         <Select
           value={selectedChart}
-          onValueChange={(value) => handleChartChange(value as BreakdownChart)}
+          onValueChange={(value) => {
+            if (value === "tag-spending" || value === "repeated-expenses") {
+              handleChartChange(value);
+            }
+          }}
         >
           <SelectTrigger aria-label="Select breakdown chart" className="text-base">
             <SelectValue />
@@ -55,7 +60,7 @@ export function BreakdownSection({
         <TagSpendingChart tagSpending={tagSpending} currency={currency} />
       )}
       {selectedChart === "repeated-expenses" && (
-        <ExpenseFrecencyChart {...expenseFrecencyData} />
+        <ExpenseFrecencyChart {...expenseFrecencyData} onRetry={onSuggestionsRetry} />
       )}
     </div>
   );

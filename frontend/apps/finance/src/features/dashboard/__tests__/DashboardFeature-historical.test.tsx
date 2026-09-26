@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMockApi } from "@gofin/test-utils";
+import { createMockApi, renderWithRouter } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
+import { ActiveDashboard } from "../components/ActiveDashboard";
 import {
   testPeriod,
   testSummary,
@@ -13,6 +14,23 @@ import {
 } from "./fixtures";
 
 describe("DashboardFeature", () => {
+  it("keeps an empty historical expense state read-only", async () => {
+    globalThis.fetch = createMockApi({
+      "/api/finance/summary": { body: { summary: testSummary } },
+      "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+      "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
+      "/api/finance/spending/cumulative": { body: { points: [] } },
+      "/api/finance/spending/comparison": { status: 404, body: { code: "PERIOD_NOT_FOUND", message: "No comparison" } },
+      "/api/finance/prorata/upcoming": { body: { schedules: [] } },
+      "/api/finance/spending/trends": { body: { trends: [] } },
+    }) as unknown as typeof fetch;
+    renderWithRouter(<ActiveDashboard period={testPeriod} readOnly />, { route: "/history" });
+
+    await waitFor(() => expect(screen.getByText("No expenses recorded for this period.")).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: /log expense/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("No expenses yet")).not.toBeInTheDocument();
+  });
+
   describe("budget settings editor", () => {
     it("shows budget settings editor when gear button is clicked", async () => {
       globalThis.fetch = createMockApi({

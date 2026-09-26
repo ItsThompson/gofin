@@ -157,6 +157,50 @@ describe("useDashboardData", () => {
     expect(requestedUrls.some((url) => url.includes("/defaults"))).toBe(false);
   });
 
+  it("retries selected suggestions and rejects an older selection response", async () => {
+    let suggestionRequestCount = 0;
+    let resolveFirst!: (value: Response) => void;
+    let resolveSecond!: (value: Response) => void;
+    installBaseApi((url) => {
+      if (url.includes("/expenses/suggestions")) {
+        suggestionRequestCount += 1;
+        return new Promise<Response>((resolve) => {
+          if (suggestionRequestCount === 1) resolveFirst = resolve;
+          else resolveSecond = resolve;
+        });
+      }
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+
+    act(() => result.current.selectBreakdown("repeated-expenses"));
+    await waitFor(() => expect(suggestionRequestCount).toBe(1));
+    act(() => {
+      result.current.selectBreakdown("tag-spending");
+      result.current.selectBreakdown("repeated-expenses");
+    });
+    await waitFor(() => expect(suggestionRequestCount).toBe(2));
+
+    await act(async () => {
+      resolveFirst(response({ data: [{ name: "Old", recencyBucket: "today" }], hasMore: false }));
+      resolveSecond(response({ data: [{ name: "New", recencyBucket: "today" }], hasMore: false }));
+    });
+
+    await waitFor(() => {
+      expect(result.current.sections.suggestions.status).toBe("success");
+    });
+    if (result.current.sections.suggestions.status === "success") {
+      expect(result.current.sections.suggestions.suggestions[0].name).toBe("New");
+    }
+  });
+
   it("keeps a failed section explicit while unrelated sections complete", async () => {
     installBaseApi((url) => {
       if (url.includes("/summary")) return response({ code: "INTERNAL_SERVER_ERROR", message: "Summary failed" }, 500);

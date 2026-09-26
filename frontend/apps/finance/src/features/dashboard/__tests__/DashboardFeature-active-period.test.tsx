@@ -182,14 +182,15 @@ describe("DashboardFeature", () => {
     });
 
     it("keeps other dashboard sections rendering when repeated-expenses fetch fails", async () => {
-      globalThis.fetch = createMockApi({
+      const mockApi = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataWithExpensesRoutes(),
         "/api/expenses/suggestions": {
           status: 500,
           body: { code: "INTERNAL_SERVER_ERROR", message: "Suggestions failed" },
         },
-      }) as unknown as typeof fetch;
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
       const user = userEvent.setup();
       renderDashboard();
 
@@ -208,6 +209,33 @@ describe("DashboardFeature", () => {
         ).toBeInTheDocument();
       });
       expect(screen.queryByText("Suggestions failed")).not.toBeInTheDocument();
+      const errorMessage = screen.getByText("Repeated expenses are unavailable right now.");
+      const retryButton = errorMessage.parentElement?.querySelector("button");
+      expect(retryButton).not.toBeNull();
+      const requestCount = mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length;
+      await user.click(retryButton as HTMLElement);
+      await waitFor(() => {
+        expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length).toBeGreaterThan(requestCount);
+      });
+    });
+
+    it("refreshes selected suggestions with Refresh all data", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataWithExpensesRoutes(),
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+      await waitFor(() => expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument());
+      await user.click(screen.getByLabelText("Select breakdown chart"));
+      await user.click(await screen.findByRole("option", { name: "Repeated Expenses" }));
+      await waitFor(() => expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument());
+      const requestCount = mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length;
+      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+      await waitFor(() => {
+        expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length).toBeGreaterThan(requestCount);
+      });
     });
 
     it("displays currency symbol and precision from the period", async () => {

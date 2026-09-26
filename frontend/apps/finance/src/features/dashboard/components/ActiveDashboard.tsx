@@ -7,12 +7,10 @@ import { SectionErrorBoundary } from "@gofin/ui/components/SectionErrorBoundary"
 import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
 import { LayoutDashboard, PlusCircle, Settings2, Wallet, RefreshCw } from "lucide-react";
 import { useDashboardData } from "../hooks/useDashboardData";
-import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 import { BudgetSettingsEditor } from "./BudgetSettingsEditor";
 import { CreatePeriodPrompt } from "./CreatePeriodPrompt";
 import { TrendsSection } from "./TrendsSection";
-import { BreakdownSection, type BreakdownChart } from "./BreakdownSection";
-import { DashboardOutline } from "./DashboardOutline";
+import { BreakdownSection } from "./BreakdownSection";import { DashboardOutline } from "./DashboardOutline";
 import { SectionState } from "./SectionState";
 import { SummaryBar } from "./widgets/SummaryBar";
 import { CategoryGauges } from "./widgets/CategoryGauges";
@@ -31,14 +29,10 @@ export interface ActiveDashboardProps {
 
 export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashboardProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
   const dashboardContentRef = useRef<HTMLDivElement | null>(null);
   const controller = useDashboardData(period, readOnly);
-  const expenseFrecencyData = useExpenseFrecencyData({
-    pageSize: 10,
-    enabled: breakdownChart === "repeated-expenses",
-  });
   const { sections, period: renderedPeriod } = controller;
+  const breakdownChart = controller.breakdownChart;
   const currency = renderedPeriod.reportingCurrencyCode;
   const monthName = new Date(renderedPeriod.year, renderedPeriod.month - 1).toLocaleString("en-US", {
     month: "long",
@@ -161,8 +155,8 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
             </SectionState>
           </section> : <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">{() => null}</SectionState>}
           {sections.byTag.status === "success" || sections.byTag.status === "empty" ? <section id="breakdown" data-outline-title="Breakdown">
-            <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available." emptyContent={<BreakdownSection tagSpending={[]} expenseFrecencyData={expenseFrecencyData} currency={currency} selectedChart={breakdownChart} onChartChange={setBreakdownChart} />}>
-              {(tagSpending) => <SectionErrorBoundary sectionName="Breakdown"><BreakdownSection tagSpending={[...tagSpending]} expenseFrecencyData={expenseFrecencyData} currency={currency} selectedChart={breakdownChart} onChartChange={setBreakdownChart} /></SectionErrorBoundary>}
+            <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available." emptyContent={<BreakdownSection tagSpending={[]} expenseFrecencyData={sections.suggestions} currency={currency} selectedChart={breakdownChart} onChartChange={controller.selectBreakdown} onSuggestionsRetry={() => controller.retry("suggestions")} />}>
+              {(tagSpending) => <SectionErrorBoundary sectionName="Breakdown"><BreakdownSection tagSpending={[...tagSpending]} expenseFrecencyData={sections.suggestions} currency={currency} selectedChart={breakdownChart} onChartChange={controller.selectBreakdown} onSuggestionsRetry={() => controller.retry("suggestions")} /></SectionErrorBoundary>}
             </SectionState>
           </section> : <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available.">{() => null}</SectionState>}
           {sections.cumulative.status === "success" ? <section id="cumulative-spending" data-outline-title="Cumulative Spending">
@@ -175,7 +169,11 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
 
         <section id="recent-expenses" data-outline-title="Recent Expenses">
           <SectionState label="Recent expenses" state={sections.recentExpenses} onRetry={() => controller.retry("recentExpenses")} emptyMessage={readOnly ? "No expenses recorded for this period." : "No expenses yet."} emptyContent={!readOnly ? <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center"><Wallet className="mb-4 size-12 text-muted-foreground/50" /><h2 className="mb-2 text-lg font-semibold">No expenses yet</h2><p className="mb-6 max-w-sm text-sm text-muted-foreground">Start tracking your spending by logging your first expense for this month.</p><Button asChild><Link to="/expenses/new"><PlusCircle className="size-4" />Log your first expense</Link></Button></CardContent></Card> : undefined}>
-            {(expenses) => expenses.length === 0 ? <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center"><Wallet className="mb-4 size-12 text-muted-foreground/50" /><h2 className="mb-2 text-lg font-semibold">No expenses yet</h2><p className="mb-6 max-w-sm text-sm text-muted-foreground">Start tracking your spending by logging your first expense for this month.</p><Button asChild><Link to="/expenses/new"><PlusCircle className="size-4" />Log your first expense</Link></Button></CardContent></Card> : <SectionErrorBoundary sectionName="Recent Expenses"><RecentExpenses expenses={[...expenses]} currency={currency} /></SectionErrorBoundary>}
+            {(expenses) => expenses.length === 0
+              ? readOnly
+                ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No expenses recorded for this period.</CardContent></Card>
+                : <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center"><Wallet className="mb-4 size-12 text-muted-foreground/50" /><h2 className="mb-2 text-lg font-semibold">No expenses yet</h2><p className="mb-6 max-w-sm text-sm text-muted-foreground">Start tracking your spending by logging your first expense for this month.</p><Button asChild><Link to="/expenses/new"><PlusCircle className="size-4" />Log your first expense</Link></Button></CardContent></Card>
+              : <SectionErrorBoundary sectionName="Recent Expenses"><RecentExpenses expenses={[...expenses]} currency={currency} /></SectionErrorBoundary>}
           </SectionState>
         </section>
       </div>

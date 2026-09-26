@@ -8,6 +8,15 @@ export interface ExpenseSuggestionPatch {
   tagId: string | null;
 }
 
+export type ActiveRecencyBucket = Exclude<
+  ExpenseSuggestion["recencyBucket"],
+  "older"
+>;
+
+export type ActiveExpenseSuggestion = ExpenseSuggestion & {
+  recencyBucket: ActiveRecencyBucket;
+};
+
 export interface ExpenseSuggestion {
   name: string;
   originalTransactionAmountInMinorUnits: number;

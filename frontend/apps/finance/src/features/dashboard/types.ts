@@ -12,8 +12,8 @@ import type {
   HealthScore,
   HealthScoreConfigureBudget,
   HealthScoreTrendPoint,
-  CreatePeriodRequest,
 } from "@gofin/core";
+import type { ActiveExpenseSuggestion } from "../expense-autocomplete/types";
 
 /** Base properties available in all period states. */
 interface PeriodStateBase {
@@ -67,6 +67,14 @@ export type SectionState<T> =
   | { status: "empty" }
   | { status: "error"; error: SectionError };
 
+export type BreakdownChart = "tag-spending" | "repeated-expenses";
+
+export interface ExpenseSuggestionsState {
+  status: "idle" | "loading" | "success" | "empty" | "error";
+  suggestions: readonly ActiveExpenseSuggestion[];
+  errorMessage: string | null;
+}
+
 export type DashboardSectionKey =
   | "summary"
   | "byTag"
@@ -76,7 +84,8 @@ export type DashboardSectionKey =
   | "upcomingProRata"
   | "trends"
   | "healthScore"
-  | "healthScoreTrend";
+  | "healthScoreTrend"
+  | "suggestions";
 
 export interface DashboardSectionState {
   summary: SectionState<PeriodSummary>;
@@ -88,6 +97,7 @@ export interface DashboardSectionState {
   trends: SectionState<readonly TrendPoint[]>;
   healthScore: SectionState<HealthScore | HealthScoreConfigureBudget>;
   healthScoreTrend: SectionState<readonly HealthScoreTrendPoint[]>;
+  suggestions: ExpenseSuggestionsState;
 }
 
 export type DashboardControllerStatus =
