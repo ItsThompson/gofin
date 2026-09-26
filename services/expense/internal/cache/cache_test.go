@@ -240,7 +240,11 @@ func TestCacheBypassAndDisabledReadSourceDirectly(t *testing.T) {
 	_, status, err := cache.Load(context.Background(), "key", LoadOptions{Bypass: true}, loader)
 	require.NoError(t, err)
 	assert.Equal(t, StatusBypassed, status)
-	assert.Equal(t, 0, cache.Len())
+	assert.Equal(t, 1, cache.Len())
+	ordinary, status, err := cache.Load(context.Background(), "key", LoadOptions{}, loader)
+	require.NoError(t, err)
+	assert.Equal(t, StatusHit, status)
+	assert.Equal(t, map[string][]string{"value": {"source"}}, ordinary)
 
 	disabled := DefaultConfig()
 	disabled.Enabled = false

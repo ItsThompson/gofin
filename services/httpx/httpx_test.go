@@ -55,6 +55,9 @@ func TestIsCacheBypassMatchesNoCacheDirective(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Set("Cache-Control", "no-store")
 	assert.False(t, httpx.IsCacheBypass(request))
+
+	request.Header.Add("Cache-Control", "no-cache")
+	assert.True(t, httpx.IsCacheBypass(request))
 }
 
 func TestRequireUserID_PresentHeaderReturnsValue(t *testing.T) {

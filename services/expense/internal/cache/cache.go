@@ -42,7 +42,8 @@ const (
 	StatusError       LoadStatus = "error"
 )
 
-// LoadOptions controls one read. Bypass skips both lookup and storage.
+// LoadOptions controls one read. Bypass skips retained values but stores a
+// successful source result when the cache generation remains current.
 type LoadOptions struct {
 	Bypass bool
 }
@@ -56,6 +57,7 @@ type entry[K comparable, V any] struct {
 
 type flight[V any] struct {
 	generation uint64
+	bypass     bool
 	done       chan struct{}
 	value      V
 	status     LoadStatus
@@ -103,15 +105,6 @@ func New[K comparable, V any](config Config, now func() time.Time, clone func(V)
 // Load returns a cached value or invokes loader once for concurrent ordinary
 // reads of the same key. The loader runs without the cache lock held.
 func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, loader func(context.Context) (V, error)) (V, LoadStatus, error) {
-	if options.Bypass {
-		value, err := loader(ctx)
-		if err != nil {
-			var zero V
-			return zero, StatusError, err
-		}
-		return c.clone(value), StatusBypassed, nil
-	}
-
 	c.mu.Lock()
 	if !c.config.Enabled {
 		c.mu.Unlock()
@@ -120,28 +113,38 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 			var zero V
 			return zero, StatusError, err
 		}
-		return c.clone(value), StatusDisabled, nil
-	}
-
-	now := c.now()
-	if element, ok := c.entries[key]; ok {
-		cached := element.Value.(*entry[K, V])
-		if now.Before(cached.expiresAt) {
-			c.lru.MoveToFront(element)
-			value := c.clone(cached.value)
-			c.mu.Unlock()
-			return value, StatusHit, nil
+		status := StatusDisabled
+		if options.Bypass {
+			status = StatusBypassed
 		}
-		c.removeElementLocked(element)
+		return c.clone(value), status, nil
 	}
 
 	if current, ok := c.flights[key]; ok {
-		c.mu.Unlock()
-		return c.waitForFlight(ctx, current)
+		if !options.Bypass || current.bypass {
+			c.mu.Unlock()
+			return c.waitForFlight(ctx, current)
+		}
+		c.generations[key]++
+		delete(c.flights, key)
+	}
+
+	if !options.Bypass {
+		now := c.now()
+		if element, ok := c.entries[key]; ok {
+			cached := element.Value.(*entry[K, V])
+			if now.Before(cached.expiresAt) {
+				c.lru.MoveToFront(element)
+				value := c.clone(cached.value)
+				c.mu.Unlock()
+				return value, StatusHit, nil
+			}
+			c.removeElementLocked(element)
+		}
 	}
 
 	generation := c.generations[key]
-	current := &flight[V]{generation: generation, done: make(chan struct{})}
+	current := &flight[V]{generation: generation, bypass: options.Bypass, done: make(chan struct{})}
 	c.flights[key] = current
 	c.mu.Unlock()
 
@@ -162,8 +165,17 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 
 	current.value = c.clone(value)
 	current.status = StatusLoaded
-	if c.canStoreLocked(current.value) && c.generations[key] == generation {
-		c.storeLocked(key, current.value, c.now().Add(c.config.MaxAge))
+	if c.generations[key] == generation {
+		if c.canStoreLocked(current.value) {
+			c.storeLocked(key, current.value, c.now().Add(c.config.MaxAge))
+		} else if current.bypass {
+			if element, ok := c.entries[key]; ok {
+				c.removeElementLocked(element)
+			}
+		}
+	}
+	if current.bypass {
+		current.status = StatusBypassed
 	}
 	if c.flights[key] == current {
 		delete(c.flights, key)

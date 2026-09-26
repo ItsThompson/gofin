@@ -62,6 +62,42 @@ func TestCacheCoalescesLoadsAndReturnsCopy(t *testing.T) {
 	require.Equal(t, []string{"source"}, *second)
 }
 
+func TestCacheBypassReplacesValueAndKeepsPriorValueOnFailure(t *testing.T) {
+	cache := New[string, string](testConfig(), time.Now, nil, nil)
+
+	value, status, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+		return "old", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusLoaded, status)
+	require.Equal(t, "old", value)
+
+	value, status, err = cache.Load(context.Background(), "key", LoadOptions{Bypass: true}, func(context.Context) (string, error) {
+		return "fresh", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusBypassed, status)
+	require.Equal(t, "fresh", value)
+
+	value, status, err = cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+		return "unexpected", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusHit, status)
+	require.Equal(t, "fresh", value)
+
+	_, _, err = cache.Load(context.Background(), "key", LoadOptions{Bypass: true}, func(context.Context) (string, error) {
+		return "", errors.New("forced failure")
+	})
+	require.EqualError(t, err, "forced failure")
+	value, status, err = cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+		return "unexpected", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusHit, status)
+	require.Equal(t, "fresh", value)
+}
+
 func TestCacheEvictionRetainsGenerationAcrossFailedReplacement(t *testing.T) {
 	cache := New[string, string](testConfig(), time.Now, nil, nil)
 	oldStarted := make(chan struct{})

@@ -281,10 +281,20 @@ func TestFinanceResultCache_ForcedReadBypassesCachedResultAndDoesNotFallback(t *
 	require.Equal(t, int64(200), fresh.TotalSpent)
 	require.Equal(t, 2, expense.expenseCalls)
 
+	ordinary, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), ordinary.TotalSpent)
+	require.Equal(t, 2, expense.expenseCalls)
+
 	expense.expenseErr = errors.New("forced source unavailable")
 	_, err = svc.GetPeriodSummary(WithCacheBypass(t.Context()), "user-1", 2026, 1)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "forced source unavailable")
+	require.Equal(t, 3, expense.expenseCalls)
+
+	ordinary, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), ordinary.TotalSpent)
 	require.Equal(t, 3, expense.expenseCalls)
 }
 

@@ -78,6 +78,10 @@ func TestGetActiveExpensesForPeriod_ExpiryAndBypassReadSourceDirectly(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, "bypass", bypassed.Data[0].ID)
 
+	ordinary, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	assert.Equal(t, "bypass", ordinary.Data[0].ID)
+
 	now = now.Add(2 * time.Hour)
 	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(9), int32(1), int32(50)).Return([]*model.Expense{{ID: "expired"}}, int64(1), nil).Once()
 	expired, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50})
@@ -99,6 +103,32 @@ func TestGetExpenseSuggestions_CachesEmptyInputs(t *testing.T) {
 	second, err := svc.GetExpenseSuggestions(context.Background(), request)
 	require.NoError(t, err)
 	assert.Empty(t, second.Data)
+	repo.AssertExpectations(t)
+}
+
+func TestGetExpenseSuggestions_BypassReplacesInputsForOrdinaryReads(t *testing.T) {
+	now := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	repo := new(mockExpenseRepository)
+	svc := newCachedTestService(repo, &now, cache.DefaultConfig())
+	request := &model.ExpenseSuggestionRequest{UserID: "user-1", Page: 1, PageSize: 50}
+	firstInput := []*model.ExpenseSuggestionInput{{ID: "input-1", Name: "Old", CreatedAt: "2026-09-26T11:00:00Z"}}
+	freshInput := []*model.ExpenseSuggestionInput{{ID: "input-2", Name: "Fresh", CreatedAt: "2026-09-26T11:30:00Z"}}
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return(firstInput, nil).Once()
+	repo.On("GetActiveExpenseSuggestionInputs", mock.Anything, "user-1").Return(freshInput, nil).Once()
+
+	first, err := svc.GetExpenseSuggestions(context.Background(), request)
+	require.NoError(t, err)
+	assert.Equal(t, "Old", first.Data[0].Name)
+
+	request.BypassCache = true
+	fresh, err := svc.GetExpenseSuggestions(context.Background(), request)
+	require.NoError(t, err)
+	assert.Equal(t, "Fresh", fresh.Data[0].Name)
+
+	request.BypassCache = false
+	ordinary, err := svc.GetExpenseSuggestions(context.Background(), request)
+	require.NoError(t, err)
+	assert.Equal(t, "Fresh", ordinary.Data[0].Name)
 	repo.AssertExpectations(t)
 }
 

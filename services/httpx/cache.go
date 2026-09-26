@@ -22,10 +22,12 @@ func NoStore(handler gin.HandlerFunc) gin.HandlerFunc {
 // IsCacheBypass reports whether Cache-Control contains the no-cache directive.
 // Directive matching is case-insensitive and ignores optional parameters.
 func IsCacheBypass(request *http.Request) bool {
-	for _, directive := range strings.Split(request.Header.Get("Cache-Control"), ",") {
-		name := strings.TrimSpace(strings.SplitN(directive, "=", 2)[0])
-		if strings.EqualFold(name, "no-cache") {
-			return true
+	for _, headerValue := range request.Header.Values("Cache-Control") {
+		for _, directive := range strings.Split(headerValue, ",") {
+			name := strings.TrimSpace(strings.SplitN(directive, "=", 2)[0])
+			if strings.EqualFold(name, "no-cache") {
+				return true
+			}
 		}
 	}
 	return false

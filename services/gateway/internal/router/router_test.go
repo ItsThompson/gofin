@@ -316,6 +316,61 @@ func TestRouter_AuthenticatedRoute_NoCookie_Returns401(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
+func TestRouter_PersonalGatewayErrorsSetNoStore(t *testing.T) {
+	for name, validator := range map[string]access.TokenValidator{
+		"missing cookie": userValidator(),
+		"role denied":    adminValidator(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			doRequest := setupGateway(t, validator)
+			cookie := (*http.Cookie)(nil)
+			if name == "role denied" {
+				cookie = validCookie()
+			}
+
+			resp, _ := doRequest(http.MethodGet, "/api/finance/summary", cookie)
+			assert.Contains(t, []int{http.StatusUnauthorized, http.StatusForbidden}, resp.StatusCode)
+			assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
+		})
+	}
+}
+
+func TestRouter_PersonalProxyErrorSetsNoStore(t *testing.T) {
+	newHealthyURL := func() *url.URL {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+		parsed, err := url.Parse(server.URL)
+		require.NoError(t, err)
+		return parsed
+	}
+
+	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	financeURL, err := url.Parse(closed.URL)
+	require.NoError(t, err)
+	closed.Close()
+
+	engine := router.New(userValidator(), &router.ServiceURLs{
+		AuthREST:       newHealthyURL(),
+		ExpenseREST:    newHealthyURL(),
+		FinanceREST:    financeURL,
+		DatarightsREST: newHealthyURL(),
+	}, sharedaccess.Prefixes(), newSilentLogger(), false)
+	server := httptest.NewServer(engine)
+	t.Cleanup(server.Close)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/finance/summary", nil)
+	require.NoError(t, err)
+	req.AddCookie(validCookie())
+	resp, err := server.Client().Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
+}
+
 func TestRouter_HealthEndpoint(t *testing.T) {
 	doRequest := setupGateway(t, userValidator())
 

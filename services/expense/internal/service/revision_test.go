@@ -379,7 +379,7 @@ func TestPurgeFencesOrdinaryAndForcedServiceReads(t *testing.T) {
 
 	_, err := svc.GetActiveExpensesForPeriod(context.Background(), request)
 	require.NoError(t, err)
-	assert.Equal(t, int32(3), calls.Load())
+	assert.Equal(t, int32(2), calls.Load())
 }
 
 func newRevisionTestService(repo *mockExpenseRepository) *ExpenseService {
