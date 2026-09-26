@@ -1,4 +1,18 @@
-import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest } from "@gofin/core";
+import type {
+  BudgetPeriod,
+  DefaultSettings,
+  CreatePeriodRequest,
+  PeriodSummary,
+  TagSpending,
+  CumulativeSpendPoint,
+  Expense,
+  HistoricalComparison,
+  ProRataSchedule,
+  TrendPoint,
+  HealthScore,
+  HealthScoreConfigureBudget,
+  HealthScoreTrendPoint,
+} from "@gofin/core";
 
 /** Base properties available in all period states. */
 interface PeriodStateBase {
@@ -40,3 +54,39 @@ export interface PeriodError extends PeriodStateBase {
 
 /** Discriminated union of all possible period states. */
 export type PeriodStateResult = PeriodLoading | PeriodNotFound | PeriodActive | PeriodError;
+
+export interface SectionError {
+  message: string;
+}
+
+export type SectionState<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "success"; data: T }
+  | { status: "empty" }
+  | { status: "error"; error: SectionError };
+
+export type DashboardSectionKey =
+  | "summary"
+  | "byTag"
+  | "cumulative"
+  | "recentExpenses"
+  | "comparison"
+  | "upcomingProRata"
+  | "trends"
+  | "healthScore"
+  | "healthScoreTrend";
+
+export interface DashboardSectionState {
+  summary: SectionState<PeriodSummary>;
+  byTag: SectionState<readonly TagSpending[]>;
+  cumulative: SectionState<readonly CumulativeSpendPoint[]>;
+  recentExpenses: SectionState<readonly Expense[]>;
+  comparison: SectionState<HistoricalComparison>;
+  upcomingProRata: SectionState<readonly ProRataSchedule[]>;
+  trends: SectionState<readonly TrendPoint[]>;
+  healthScore: SectionState<HealthScore | HealthScoreConfigureBudget>;
+  healthScoreTrend: SectionState<readonly HealthScoreTrendPoint[]>;
+}
+
+export type DashboardControllerStatus = "active" | "loading" | "error";

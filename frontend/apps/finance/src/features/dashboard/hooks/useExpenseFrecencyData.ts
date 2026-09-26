@@ -13,6 +13,7 @@ export interface ExpenseFrecencyDataState {
 
 export interface UseExpenseFrecencyDataOptions {
   pageSize?: number;
+  enabled?: boolean;
 }
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -41,13 +42,19 @@ export function useExpenseFrecencyData(
   options: UseExpenseFrecencyDataOptions = {},
 ): ExpenseFrecencyDataState {
   const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
+  const enabled = options.enabled ?? true;
   const [state, setState] = useState<ExpenseFrecencyDataState>({
-    status: "loading",
+    status: enabled ? "loading" : "empty",
     suggestions: [],
     errorMessage: null,
   });
 
   useEffect(() => {
+    if (!enabled) {
+      setState({ status: "empty", suggestions: [], errorMessage: null });
+      return;
+    }
+
     const controller = new AbortController();
     setState({ status: "loading", suggestions: [], errorMessage: null });
 
@@ -74,7 +81,7 @@ export function useExpenseFrecencyData(
     void fetchSuggestions();
 
     return () => controller.abort();
-  }, [pageSize]);
+  }, [enabled, pageSize]);
 
   return state;
 }

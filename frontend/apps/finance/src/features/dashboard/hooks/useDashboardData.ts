@@ -1,36 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
-import { useApiToast } from "@gofin/api";
-import type {
-  PeriodSummary,
-  SummaryResponse,
-  TagSpending,
-  TagSpendingResponse,
-  CumulativeSpendPoint,
-  CumulativeSpendResponse,
-  Expense,
-  HistoricalComparison,
-  ProRataSchedule,
-  TrendPoint,
-  HealthScore,
-  HealthScoreConfigureBudget,
-  HealthScoreTrendPoint,
-} from "@gofin/core";
-import type { PaginatedResponse } from "@gofin/core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiRequestError } from "@gofin/api";
+import type { BudgetPeriod } from "@gofin/core";
 import { dashboardApi } from "../api";
+import { fetchDashboardSection } from "./dashboardDataRequests";
+import type {
+  DashboardControllerStatus,
+  DashboardSectionKey,
+  DashboardSectionState,
+  SectionState,
+} from "../types";
 
-// The health-score sparkline always shows the last 6 monthly scores.
-const HEALTH_SCORE_TREND_MONTHS = 6;
+const BASE_SECTIONS: DashboardSectionKey[] = [
+  "summary",
+  "recentExpenses",
+  "upcomingProRata",
+  "healthScore",
+  "healthScoreTrend",
+];
+const DESKTOP_SECTIONS: DashboardSectionKey[] = [
+  "byTag",
+  "cumulative",
+  "comparison",
+  "trends",
+];
 
 export interface DashboardData {
-  summary: PeriodSummary | null;
-  tagSpending: TagSpending[];
-  cumulativeData: CumulativeSpendPoint[];
-  recentExpenses: Expense[];
-  comparison: HistoricalComparison | null;
-  upcomingProRata: ProRataSchedule[];
-  trendData: TrendPoint[] | null;
-  healthScore: HealthScore | HealthScoreConfigureBudget | null;
-  healthScoreTrend: HealthScoreTrendPoint[] | null;
+  summary: import("@gofin/core").PeriodSummary | null;
+  tagSpending: import("@gofin/core").TagSpending[];
+  cumulativeData: import("@gofin/core").CumulativeSpendPoint[];
+  recentExpenses: import("@gofin/core").Expense[];
+  comparison: import("@gofin/core").HistoricalComparison | null;
+  upcomingProRata: import("@gofin/core").ProRataSchedule[];
+  trendData: import("@gofin/core").TrendPoint[] | null;
+  healthScore: import("@gofin/core").HealthScore | import("@gofin/core").HealthScoreConfigureBudget | null;
+  healthScoreTrend: import("@gofin/core").HealthScoreTrendPoint[] | null;
 }
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
@@ -47,87 +50,221 @@ export const EMPTY_DASHBOARD_DATA: DashboardData = {
 
 export interface DashboardDataResult {
   data: DashboardData;
+  sections: DashboardSectionState;
+  period: BudgetPeriod;
+  periodStatus: DashboardControllerStatus;
+  periodError: string | null;
+  desktopVisible: boolean;
   loading: boolean;
   refresh: () => void;
+  retry: (section: DashboardSectionKey) => void;
+  replacePeriodAfterEdit: (period: BudgetPeriod) => void;
   trendMonths: 6 | 12;
   setTrendMonths: (months: 6 | 12) => void;
 }
 
-export function useDashboardData(
-  year: number,
-  month: number,
-): DashboardDataResult {
-  const [data, setData] = useState<DashboardData>(EMPTY_DASHBOARD_DATA);
-  const [loading, setLoading] = useState(true);
-  const [trendMonths, setTrendMonths] = useState<6 | 12>(6);
-  const { call: toastCall } = useApiToast();
+function isDesktopViewport(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return true;
+  return window.matchMedia("(min-width: 768px)").matches;
+}
 
-  const fetchDashboardData = useCallback(async () => {
-    setLoading(true);
-    setData(EMPTY_DASHBOARD_DATA);
+function initialSectionState(desktopVisible: boolean): DashboardSectionState {
+  const initial = <T>(): SectionState<T> => ({ status: "idle" });
+  const sections: DashboardSectionState = {
+    summary: initial(),
+    byTag: initial(),
+    cumulative: initial(),
+    recentExpenses: initial(),
+    comparison: initial(),
+    upcomingProRata: initial(),
+    trends: initial(),
+    healthScore: initial(),
+    healthScoreTrend: initial(),
+  };
+  for (const section of BASE_SECTIONS) sections[section] = { status: "loading" };
+  if (desktopVisible) {
+    for (const section of DESKTOP_SECTIONS) sections[section] = { status: "loading" };
+  }
+  return sections;
+}
 
-    // Fetch each section independently so a single endpoint failure
-    // doesn't prevent the rest of the dashboard from rendering.
-    // Critical sections use toastCall (shows error toast to user).
-    // Non-critical sections (comparison, proRata) fail silently with fallbacks.
-    const [summaryRes, tagRes, cumulativeRes, expensesRes, comparisonRes, upcomingRes, healthRes] =
-      await Promise.all([
-        toastCall(() => dashboardApi.getSummary(year, month)) as Promise<SummaryResponse | undefined>,
-        toastCall(() => dashboardApi.getTagSpending(year, month)) as Promise<TagSpendingResponse | undefined>,
-        toastCall(() => dashboardApi.getCumulative(year, month)) as Promise<CumulativeSpendResponse | undefined>,
-        toastCall(() => dashboardApi.getRecentExpenses(year, month, 5)) as Promise<PaginatedResponse<Expense> | undefined>,
-        dashboardApi.getComparison(year, month).catch(() => null),
-        dashboardApi.getUpcomingProRata().catch(() => ({ schedules: [] as ProRataSchedule[] })),
-        dashboardApi.getHealthScore(year, month).catch(() => null),
-      ]);
+function sectionError(error: unknown): { message: string } {
+  if (error instanceof ApiRequestError) return { message: error.message };
+  if (error instanceof Error) return { message: error.message };
+  return { message: "This section is unavailable right now." };
+}
 
-    setData((prev) => ({
-      ...prev,
-      summary: summaryRes?.summary ?? null,
-      tagSpending: tagRes?.tagSpending ?? [],
-      cumulativeData: cumulativeRes?.points ?? [],
-      recentExpenses: expensesRes?.data ?? [],
-      comparison: comparisonRes?.comparison ?? null,
-      upcomingProRata: upcomingRes?.schedules ?? [],
-      healthScore: healthRes?.healthScore ?? null,
-    }));
+function stateData<T>(state: SectionState<T>): T | null {
+  return state.status === "success" ? state.data : null;
+}
 
-    setLoading(false);
-  }, [year, month, toastCall]);
+function arrayState<T>(value: readonly T[]): SectionState<readonly T[]> {
+  return value.length === 0 ? { status: "empty" } : { status: "success", data: value };
+}
 
-  const fetchTrendData = useCallback(async () => {
-    const trendRes = await dashboardApi
-      .getTrend(year, month, trendMonths)
-      .catch(() => null);
-    setData(prev => ({ ...prev, trendData: trendRes?.trends ?? null }));
-  }, [year, month, trendMonths]);
+export function useDashboardData(period: BudgetPeriod): DashboardDataResult {
+  const [renderedPeriod, setRenderedPeriod] = useState(period);
+  const [periodStatus, setPeriodStatus] = useState<DashboardControllerStatus>("active");
+  const [periodError, setPeriodError] = useState<string | null>(null);
+  const [desktopVisible, setDesktopVisible] = useState(isDesktopViewport);
+  const [sections, setSections] = useState<DashboardSectionState>(() => initialSectionState(desktopVisible));
+  const [trendMonths, setTrendMonthsState] = useState<6 | 12>(6);
+  const generationRef = useRef(0);
+  const periodRef = useRef(period);
+  const desktopVisibleRef = useRef(desktopVisible);
+  desktopVisibleRef.current = desktopVisible;
+  const trendMonthsRef = useRef<6 | 12>(6);
+  const requestedRef = useRef(new Set<DashboardSectionKey>());
+  const controllersRef = useRef(new Map<DashboardSectionKey, AbortController>());
 
-  // The health-score sparkline is a non-critical fetch: a failure leaves the
-  // score card intact. It always shows the last 6 monthly scores, independent
-  // of the 6|12 spending-trend selector.
-  const fetchHealthScoreTrend = useCallback(async () => {
-    const res = await dashboardApi
-      .getHealthScoreTrend(year, month, HEALTH_SCORE_TREND_MONTHS)
-      .catch(() => null);
-    setData((prev) => ({ ...prev, healthScoreTrend: res?.trends ?? null }));
-  }, [year, month]);
+  const abortRequests = useCallback(() => {
+    for (const controller of controllersRef.current.values()) controller.abort();
+    controllersRef.current.clear();
+  }, []);
+
+  const setSectionLoading = useCallback((section: DashboardSectionKey) => {
+    setSections((current) => ({ ...current, [section]: { status: "loading" } }));
+  }, []);
+
+  const loadSection = useCallback(async (section: DashboardSectionKey, force = false) => {
+    if (section === "byTag" || section === "cumulative" || section === "comparison" || section === "trends") {
+      if (!desktopVisibleRef.current && !force) return;
+    }
+    if (requestedRef.current.has(section) && !force) return;
+    requestedRef.current.add(section);
+    const generation = generationRef.current;
+    const controller = new AbortController();
+    controllersRef.current.get(section)?.abort();
+    controllersRef.current.set(section, controller);
+    setSectionLoading(section);
+
+    try {
+      const result = await fetchDashboardSection(
+        section,
+        periodRef.current,
+        trendMonthsRef.current,
+        controller.signal,
+      );
+      if (generation !== generationRef.current || controller.signal.aborted) return;
+      setSections((current) => {
+        if (result.section === "summary" || result.section === "comparison" || result.section === "healthScore") {
+          return { ...current, [result.section]: { status: "success", data: result.data } };
+        }
+        return { ...current, [result.section]: arrayState(result.data) };
+      });
+    } catch (error) {
+      if (controller.signal.aborted || generation !== generationRef.current) return;
+      if (section === "comparison" && error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
+        setSections((current) => ({ ...current, comparison: { status: "empty" } }));
+        return;
+      }
+      setSections((current) => ({ ...current, [section]: { status: "error", error: sectionError(error) } }));
+    } finally {
+      if (controllersRef.current.get(section) === controller) controllersRef.current.delete(section);
+    }
+  }, [setSectionLoading]);
+
+  const startPeriodSections = useCallback(() => {
+    requestedRef.current.clear();
+    setSections(initialSectionState(desktopVisibleRef.current));
+    const eligible = desktopVisibleRef.current ? [...BASE_SECTIONS, ...DESKTOP_SECTIONS] : BASE_SECTIONS;
+    for (const section of eligible) void loadSection(section);
+  }, [loadSection]);
+
+  const activatePeriod = useCallback((nextPeriod: BudgetPeriod) => {
+    abortRequests();
+    generationRef.current += 1;
+    periodRef.current = nextPeriod;
+    setRenderedPeriod(nextPeriod);
+    setPeriodStatus("active");
+    setPeriodError(null);
+    startPeriodSections();
+  }, [abortRequests, startPeriodSections]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    setDesktopVisible(isDesktopViewport());
+    const mediaQuery = typeof window === "undefined" || !window.matchMedia
+      ? null
+      : window.matchMedia("(min-width: 768px)");
+    if (!mediaQuery) return;
+    const onChange = (event: MediaQueryListEvent) => setDesktopVisible(event.matches);
+    mediaQuery.addEventListener("change", onChange);
+    return () => mediaQuery.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
-    fetchTrendData();
-  }, [fetchTrendData]);
+    activatePeriod(period);
+  }, [activatePeriod, period]);
 
   useEffect(() => {
-    fetchHealthScoreTrend();
-  }, [fetchHealthScoreTrend]);
+    if (desktopVisible && periodStatus === "active") {
+      for (const section of DESKTOP_SECTIONS) void loadSection(section);
+    }
+  }, [desktopVisible, loadSection, periodStatus]);
+
+  const refresh = useCallback(() => {
+    abortRequests();
+    const requestGeneration = ++generationRef.current;
+    requestedRef.current.clear();
+    setPeriodStatus("loading");
+    setPeriodError(null);
+    setSections(initialSectionState(false));
+    const currentPeriod = periodRef.current;
+    void dashboardApi.getCurrentPeriod(currentPeriod.year, currentPeriod.month, { forceRefresh: true })
+      .then((response) => {
+        if (requestGeneration !== generationRef.current) return;
+        activatePeriod(response.period);
+      })
+      .catch((error: unknown) => {
+        if (requestGeneration !== generationRef.current) return;
+        setSections(initialSectionState(false));
+        setPeriodStatus("error");
+        setPeriodError(sectionError(error).message);
+      });
+  }, [abortRequests, activatePeriod]);
+
+  const retry = useCallback((section: DashboardSectionKey) => {
+    if (section === "summary") {
+      refresh();
+      return;
+    }
+    if (periodStatus === "active") void loadSection(section, true);
+  }, [loadSection, periodStatus, refresh]);
+
+  const replacePeriodAfterEdit = useCallback((nextPeriod: BudgetPeriod) => {
+    activatePeriod(nextPeriod);
+  }, [activatePeriod]);
+
+  const setTrendMonths = useCallback((months: 6 | 12) => {
+    trendMonthsRef.current = months;
+    setTrendMonthsState(months);
+    if (periodStatus === "active" && desktopVisible) void loadSection("trends", true);
+  }, [desktopVisible, loadSection, periodStatus]);
+
+  const data: DashboardData = {
+    summary: stateData(sections.summary),
+    tagSpending: stateData(sections.byTag) ?? [],
+    cumulativeData: stateData(sections.cumulative) ?? [],
+    recentExpenses: stateData(sections.recentExpenses) ?? [],
+    comparison: stateData(sections.comparison),
+    upcomingProRata: stateData(sections.upcomingProRata) ?? [],
+    trendData: stateData(sections.trends),
+    healthScore: stateData(sections.healthScore),
+    healthScoreTrend: stateData(sections.healthScoreTrend),
+  };
+  const loading = periodStatus !== "active" || Object.values(sections).some((section) => section.status === "loading");
 
   return {
     data,
+    sections,
+    period: renderedPeriod,
+    periodStatus,
+    periodError,
+    desktopVisible,
     loading,
-    refresh: fetchDashboardData,
+    refresh,
+    retry,
+    replacePeriodAfterEdit,
     trendMonths,
     setTrendMonths,
   };

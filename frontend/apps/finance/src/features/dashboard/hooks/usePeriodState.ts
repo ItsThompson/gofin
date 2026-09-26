@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ApiRequestError, useApiToast, useFormMutation } from "@gofin/api";
 import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse, DefaultsResponse } from "@gofin/core";
 import type { PeriodStateResult } from "../types";
@@ -12,6 +12,7 @@ type PeriodState =
 
 export function usePeriodState(): PeriodStateResult {
   const [state, setState] = useState<PeriodState>({ status: "loading" });
+  const requestGenerationRef = useRef(0);
   const { call: toastCall } = useApiToast();
   // The prompt works without saved defaults, but a failed load used to look
   // identical to having none. useApiToast owns the report and the message;
@@ -40,15 +41,16 @@ export function usePeriodState(): PeriodStateResult {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
-  const fetchPeriod = useCallback(async () => {
-    // A fresh fetch owns no prior data: resetting to loading atomically drops
-    // any stale period or defaults instead of letting them survive a retry.
+  const fetchPeriod = useCallback(async (forceRefresh = false) => {
+    const requestGeneration = ++requestGenerationRef.current;
     setState({ status: "loading" });
     try {
       const response = await dashboardApi.getCurrentPeriod(
         currentYear,
         currentMonth,
+        forceRefresh ? { forceRefresh: true } : undefined,
       );
+      if (requestGeneration !== requestGenerationRef.current) return;
       setState({ status: "active", period: response.period });
     } catch (error) {
       if (
@@ -58,24 +60,31 @@ export function usePeriodState(): PeriodStateResult {
         const defaultsResponse = await defaultsCall(() =>
           dashboardApi.getDefaults(),
         );
+        if (requestGeneration !== requestGenerationRef.current) return;
         setState({
           status: "no-period",
           defaults: defaultsResponse?.defaults ?? null,
         });
         return;
       }
+      if (requestGeneration !== requestGenerationRef.current) return;
       await toastCall(() => Promise.reject(error));
+      if (requestGeneration !== requestGenerationRef.current) return;
       setState({ status: "error" });
     }
   }, [currentYear, currentMonth, toastCall, defaultsCall]);
 
+  const retry = useCallback(() => {
+    void fetchPeriod(true);
+  }, [fetchPeriod]);
+
   useEffect(() => {
-    fetchPeriod();
+    void fetchPeriod();
   }, [fetchPeriod]);
 
   switch (state.status) {
     case "loading":
-      return { status: "loading", retry: fetchPeriod };
+      return { status: "loading", retry };
 
     case "no-period":
       return {
@@ -85,17 +94,17 @@ export function usePeriodState(): PeriodStateResult {
         creating: createMutation.submitting,
         createError: createMutation.error,
         clearCreateError: createMutation.clearError,
-        retry: fetchPeriod,
+        retry,
       };
 
     case "active":
       return {
         status: "active",
         period: state.period,
-        retry: fetchPeriod,
+        retry,
       };
 
     case "error":
-      return { status: "error", retry: fetchPeriod };
+      return { status: "error", retry };
   }
 }

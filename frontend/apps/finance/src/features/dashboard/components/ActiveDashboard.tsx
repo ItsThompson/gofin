@@ -2,24 +2,17 @@ import { useRef, useState } from "react";
 import { Link } from "react-router";
 import type { BudgetPeriod } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
-import {
-  Card,
-  CardContent,
-} from "@gofin/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@gofin/ui/components/card";
 import { SectionErrorBoundary } from "@gofin/ui/components/SectionErrorBoundary";
 import { DashboardSkeleton } from "@gofin/ui/components/skeletons";
-import {
-  LayoutDashboard,
-  PlusCircle,
-  Wallet,
-  Settings2,
-} from "lucide-react";
+import { LayoutDashboard, PlusCircle, Settings2, Wallet, RefreshCw } from "lucide-react";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 import { BudgetSettingsEditor } from "./BudgetSettingsEditor";
 import { TrendsSection } from "./TrendsSection";
-import { BreakdownSection } from "./BreakdownSection";
+import { BreakdownSection, type BreakdownChart } from "./BreakdownSection";
 import { DashboardOutline } from "./DashboardOutline";
+import { SectionState } from "./SectionState";
 import { SummaryBar } from "./widgets/SummaryBar";
 import { CategoryGauges } from "./widgets/CategoryGauges";
 import { PacingIndicator } from "./widgets/PacingIndicator";
@@ -31,223 +24,130 @@ import { HealthScoreCard } from "./widgets/HealthScoreCard";
 
 export interface ActiveDashboardProps {
   period: BudgetPeriod;
-  /** When true, hides editing controls and Log Expense CTA. */
   readOnly?: boolean;
 }
 
 export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardProps) {
   const [showSettings, setShowSettings] = useState(false);
-  const [currentPeriod, setCurrentPeriod] = useState(period);
+  const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
   const dashboardContentRef = useRef<HTMLDivElement | null>(null);
-
-  const { data, loading, trendMonths, setTrendMonths, refresh } =
-    useDashboardData(currentPeriod.year, currentPeriod.month);
-  const expenseFrecencyData = useExpenseFrecencyData({ pageSize: 10 });
-
-  function handlePeriodUpdated(updatedPeriod: BudgetPeriod) {
-    setCurrentPeriod(updatedPeriod);
-    setShowSettings(false);
-    refresh();
-  }
-
-  const totalSpent = data.summary?.totalSpent ?? 0;
-  const remaining = data.summary?.remaining ?? currentPeriod.budgetAmount;
-  const reportingCurrencyCode = currentPeriod.reportingCurrencyCode;
-
-  const monthName = new Date(currentPeriod.year, currentPeriod.month - 1).toLocaleString("en-US", {
+  const controller = useDashboardData(period);
+  const expenseFrecencyData = useExpenseFrecencyData({
+    pageSize: 10,
+    enabled: breakdownChart === "repeated-expenses",
+  });
+  const { sections, period: renderedPeriod } = controller;
+  const currency = renderedPeriod.reportingCurrencyCode;
+  const monthName = new Date(renderedPeriod.year, renderedPeriod.month - 1).toLocaleString("en-US", {
     month: "long",
     year: "numeric",
   });
+
+  if (controller.periodStatus === "loading") return <DashboardSkeleton />;
+  if (controller.periodStatus === "error") {
+    return (
+      <Card role="alert">
+        <CardHeader><CardTitle className="text-destructive">Could not load the dashboard</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{controller.periodError}</p>
+          <Button variant="outline" onClick={controller.refresh}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  function handlePeriodUpdated(updatedPeriod: BudgetPeriod) {
+    setShowSettings(false);
+    controller.replacePeriodAfterEdit(updatedPeriod);
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LayoutDashboard className="size-6 text-primary" />
-          <h1 className="text-2xl font-bold">
-            {readOnly ? monthName : "Dashboard"}
-          </h1>
+          <h1 className="text-2xl font-bold">{readOnly ? monthName : "Dashboard"}</h1>
         </div>
         <div className="flex items-center gap-2">
-          {!readOnly && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSettings(!showSettings)}
-                aria-label="Budget Settings"
-              >
-                <Settings2 className="size-4" />
-                <span className="hidden sm:inline ml-1">Budget Settings</span>
-              </Button>
-              {/* Desktop-only Log Expense button (FAB handles mobile) */}
-              <Button asChild className="hidden md:inline-flex">
-                <Link to="/expenses/new">
-                  <PlusCircle className="size-4" />
-                  Log Expense
-                </Link>
-              </Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" onClick={controller.refresh} aria-label="Refresh all data">
+            <RefreshCw className="size-4" />
+            <span className="hidden sm:inline ml-1">Refresh all data</span>
+          </Button>
+          {!readOnly && <>
+            <Button variant="outline" size="sm" onClick={() => setShowSettings((visible) => !visible)} aria-label="Budget Settings">
+              <Settings2 className="size-4" />
+              <span className="hidden sm:inline ml-1">Budget Settings</span>
+            </Button>
+            <Button asChild className="hidden md:inline-flex">
+              <Link to="/expenses/new"><PlusCircle className="size-4" />Log Expense</Link>
+            </Button>
+          </>}
         </div>
       </div>
 
-      {showSettings && !readOnly && (
-        <SectionErrorBoundary sectionName="Budget Settings">
-          <BudgetSettingsEditor
-            period={currentPeriod}
-            onSaved={handlePeriodUpdated}
-            onCancel={() => setShowSettings(false)}
-          />
-        </SectionErrorBoundary>
-      )}
+      {showSettings && !readOnly && <SectionErrorBoundary sectionName="Budget Settings">
+        <BudgetSettingsEditor period={renderedPeriod} onSaved={handlePeriodUpdated} onCancel={() => setShowSettings(false)} />
+      </SectionErrorBoundary>}
 
-      {loading ? (
-        <DashboardSkeleton />
-      ) : (
-        <>
-          <div ref={dashboardContentRef} className="space-y-6">
-            {/* Financial Health Score: first section, visible on mobile. */}
-            {data.healthScore && (
-              <section id="health-score" data-outline-title="Health Score">
-                <SectionErrorBoundary sectionName="Health Score">
-                  <HealthScoreCard score={data.healthScore} trend={data.healthScoreTrend} />
-                </SectionErrorBoundary>
-              </section>
-            )}
+      <div ref={dashboardContentRef} className="space-y-6">
+        <section id="health-score" data-outline-title="Health Score">
+          <SectionState label="Health Score" state={sections.healthScore} onRetry={() => controller.retry("healthScore")} emptyMessage="No health score is available for this period.">
+            {(score) => <SectionErrorBoundary sectionName="Health Score"><HealthScoreCard score={score} trend={sections.healthScoreTrend.status === "success" ? [...sections.healthScoreTrend.data] : null} /></SectionErrorBoundary>}
+          </SectionState>
+          {sections.healthScoreTrend.status === "error" && <SectionState label="Health score trend" state={sections.healthScoreTrend} onRetry={() => controller.retry("healthScoreTrend")} emptyMessage="No health score trend is available." >{() => null}</SectionState>}
+        </section>
 
-            <section id="summary" data-outline-title="Summary" className="space-y-6">
-              <SectionErrorBoundary sectionName="Summary">
-                <SummaryBar
-                  budgetAmount={currentPeriod.budgetAmount}
-                  totalSpent={totalSpent}
-                  remaining={remaining}
-                  daysLeft={
-                    data.summary
-                      ? data.summary.daysInPeriod - data.summary.daysElapsed
-                      : Math.max(
-                          0,
-                          new Date(currentPeriod.year, currentPeriod.month, 0).getDate() -
-                            new Date().getDate(),
-                        )
-                  }
-                  currency={reportingCurrencyCode}
-                />
-              </SectionErrorBoundary>
+        <section id="summary" data-outline-title="Summary" className="space-y-6">
+          <SectionState label="Summary" state={sections.summary} onRetry={() => controller.retry("summary")} emptyMessage="No summary data is available for this period.">
+            {(summary) => <>
+              <SectionErrorBoundary sectionName="Summary"><SummaryBar budgetAmount={renderedPeriod.budgetAmount} totalSpent={summary.totalSpent} remaining={summary.remaining} daysLeft={summary.daysInPeriod - summary.daysElapsed} currency={currency} /></SectionErrorBoundary>
+              <section id="budget-allocations" data-outline-title="Budget Allocations"><SectionErrorBoundary sectionName="Category Gauges"><CategoryGauges summary={summary} currency={currency} /></SectionErrorBoundary></section>
+              <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                <section id="spending-pace" data-outline-title="Spending Pace"><SectionErrorBoundary sectionName="Spending Pace"><PacingIndicator summary={summary} currency={currency} /></SectionErrorBoundary></section>
+              </div>
+            </>}
+          </SectionState>
+        </section>
 
-              {data.summary && (
-                <section id="budget-allocations" data-outline-title="Budget Allocations">
-                  <SectionErrorBoundary sectionName="Category Gauges">
-                    <CategoryGauges summary={data.summary} currency={reportingCurrencyCode} />
-                  </SectionErrorBoundary>
-                </section>
-              )}
+        {sections.comparison.status === "success" ? <section id="historical-comparison" data-outline-title="Historical Comparison">
+          <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">
+            {(comparison) => <SectionErrorBoundary sectionName="Historical Comparison"><HistoricalComparisonWidget comparison={comparison} currency={currency} /></SectionErrorBoundary>}
+          </SectionState>
+        </section> : <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">{() => null}</SectionState>}
 
-              {/* Spending Pace + Historical Comparison: side-by-side on desktop */}
-              {(data.summary || data.comparison) && (
-                <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-                  {data.summary && (
-                    <section id="spending-pace" data-outline-title="Spending Pace">
-                      <SectionErrorBoundary sectionName="Spending Pace">
-                        <PacingIndicator summary={data.summary} currency={reportingCurrencyCode} />
-                      </SectionErrorBoundary>
-                    </section>
-                  )}
-                  {data.comparison && (
-                    <section id="historical-comparison" data-outline-title="Historical Comparison">
-                      <SectionErrorBoundary sectionName="Historical Comparison">
-                        <HistoricalComparisonWidget
-                          comparison={data.comparison}
-                          currency={reportingCurrencyCode}
-                        />
-                      </SectionErrorBoundary>
-                    </section>
-                  )}
-                </div>
-              )}
-            </section>
+        <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
+          <SectionState label="Upcoming pro-rata" state={sections.upcomingProRata} onRetry={() => controller.retry("upcomingProRata")} emptyMessage="No upcoming pro-rata payments.">
+            {(schedules) => <SectionErrorBoundary sectionName="Upcoming Pro-rata"><UpcomingProRataSection schedules={[...schedules]} currency={currency} /></SectionErrorBoundary>}
+          </SectionState>
+        </section>
 
-            <SectionErrorBoundary sectionName="Upcoming Pro-rata">
-              {data.upcomingProRata.length > 0 && (
-                <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
-                  <UpcomingProRataSection
-                    schedules={data.upcomingProRata}
-                    currency={reportingCurrencyCode}
-                  />
-                </section>
-              )}
-            </SectionErrorBoundary>
+        <div className="hidden md:block space-y-6">
+          {controller.desktopVisible && <>
+          {sections.trends.status === "success" ? <section id="trends" data-outline-title="Trends">
+            <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">
+              {(trendData) => <SectionErrorBoundary sectionName="Monthly Trends"><TrendsSection trendData={[...trendData]} trendMonths={controller.trendMonths} onToggle={controller.setTrendMonths} currency={currency} /></SectionErrorBoundary>}
+            </SectionState>
+          </section> : <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">{() => null}</SectionState>}
+          {sections.byTag.status === "success" || sections.byTag.status === "empty" ? <section id="breakdown" data-outline-title="Breakdown">
+            <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available." emptyContent={<BreakdownSection tagSpending={[]} expenseFrecencyData={expenseFrecencyData} currency={currency} selectedChart={breakdownChart} onChartChange={setBreakdownChart} />}>
+              {(tagSpending) => <SectionErrorBoundary sectionName="Breakdown"><BreakdownSection tagSpending={[...tagSpending]} expenseFrecencyData={expenseFrecencyData} currency={currency} selectedChart={breakdownChart} onChartChange={setBreakdownChart} /></SectionErrorBoundary>}
+            </SectionState>
+          </section> : <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available.">{() => null}</SectionState>}
+          {sections.cumulative.status === "success" ? <section id="cumulative-spending" data-outline-title="Cumulative Spending">
+            <SectionState label="Cumulative spending" state={sections.cumulative} onRetry={() => controller.retry("cumulative")} emptyMessage="No cumulative spending data is available.">
+              {(points) => <SectionErrorBoundary sectionName="Cumulative Spending"><CumulativeSpendChart data={[...points]} currency={currency} /></SectionErrorBoundary>}
+            </SectionState>
+          </section> : <SectionState label="Cumulative spending" state={sections.cumulative} onRetry={() => controller.retry("cumulative")} emptyMessage="No cumulative spending data is available.">{() => null}</SectionState>}
+          </>}
+        </div>
 
-            {/* Charts: hidden on mobile */}
-            <div className="hidden md:block space-y-6">
-              {data.trendData && data.trendData.length > 0 && (
-                <section id="trends" data-outline-title="Trends">
-                  <SectionErrorBoundary sectionName="Monthly Trends">
-                    <TrendsSection
-                      trendData={data.trendData}
-                      trendMonths={trendMonths}
-                      onToggle={setTrendMonths}
-                      currency={reportingCurrencyCode}
-                    />
-                  </SectionErrorBoundary>
-                </section>
-              )}
-
-              <section id="breakdown" data-outline-title="Breakdown">
-                <SectionErrorBoundary sectionName="Breakdown">
-                  <BreakdownSection
-                    tagSpending={data.tagSpending}
-                    expenseFrecencyData={expenseFrecencyData}
-                    currency={reportingCurrencyCode}
-                  />
-                </SectionErrorBoundary>
-              </section>
-
-              {data.cumulativeData.length > 0 && (
-                <section id="cumulative-spending" data-outline-title="Cumulative Spending">
-                  <SectionErrorBoundary sectionName="Cumulative Spending">
-                    <CumulativeSpendChart
-                      data={data.cumulativeData}
-                      currency={reportingCurrencyCode}
-                    />
-                  </SectionErrorBoundary>
-                </section>
-              )}
-            </div>
-
-            {/* Recent Expenses or Empty State */}
-            {(data.recentExpenses.length > 0 || !readOnly) && (
-              <section id="recent-expenses" data-outline-title="Recent Expenses">
-                <SectionErrorBoundary sectionName="Recent Expenses">
-                  {data.recentExpenses.length === 0 ? (
-                    <Card>
-                      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                        <Wallet className="mb-4 size-12 text-muted-foreground/50" />
-                        <h2 className="mb-2 text-lg font-semibold">No expenses yet</h2>
-                        <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-                          Start tracking your spending by logging your first expense for this
-                          month.
-                        </p>
-                        <Button asChild>
-                          <Link to="/expenses/new">
-                            <PlusCircle className="size-4" />
-                            Log your first expense
-                          </Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <RecentExpenses expenses={data.recentExpenses} currency={reportingCurrencyCode} />
-                  )}
-                </SectionErrorBoundary>
-              </section>
-            )}
-          </div>
-
-          {/* Dashboard Outline (TOC) - fixed positioned, renders on 2xl+ viewports */}
-          <DashboardOutline rootRef={dashboardContentRef} />
-        </>
-      )}
+        <section id="recent-expenses" data-outline-title="Recent Expenses">
+          <SectionState label="Recent expenses" state={sections.recentExpenses} onRetry={() => controller.retry("recentExpenses")} emptyMessage={readOnly ? "No expenses recorded for this period." : "No expenses yet."} emptyContent={!readOnly ? <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center"><Wallet className="mb-4 size-12 text-muted-foreground/50" /><h2 className="mb-2 text-lg font-semibold">No expenses yet</h2><p className="mb-6 max-w-sm text-sm text-muted-foreground">Start tracking your spending by logging your first expense for this month.</p><Button asChild><Link to="/expenses/new"><PlusCircle className="size-4" />Log your first expense</Link></Button></CardContent></Card> : undefined}>
+            {(expenses) => expenses.length === 0 ? <Card><CardContent className="flex flex-col items-center justify-center py-12 text-center"><Wallet className="mb-4 size-12 text-muted-foreground/50" /><h2 className="mb-2 text-lg font-semibold">No expenses yet</h2><p className="mb-6 max-w-sm text-sm text-muted-foreground">Start tracking your spending by logging your first expense for this month.</p><Button asChild><Link to="/expenses/new"><PlusCircle className="size-4" />Log your first expense</Link></Button></CardContent></Card> : <SectionErrorBoundary sectionName="Recent Expenses"><RecentExpenses expenses={[...expenses]} currency={currency} /></SectionErrorBoundary>}
+          </SectionState>
+        </section>
+      </div>
+      <DashboardOutline rootRef={dashboardContentRef} />
     </div>
   );
 }

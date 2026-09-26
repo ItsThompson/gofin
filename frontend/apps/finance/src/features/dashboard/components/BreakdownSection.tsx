@@ -11,27 +11,36 @@ import { TagSpendingChart } from "./widgets/TagSpendingChart";
 import { ExpenseFrecencyChart } from "./widgets/ExpenseFrecencyChart";
 import type { ExpenseFrecencyDataState } from "../hooks/useExpenseFrecencyData";
 
-type BreakdownChart = "tag-spending" | "repeated-expenses";
+export type BreakdownChart = "tag-spending" | "repeated-expenses";
 
 interface BreakdownSectionProps {
   tagSpending: TagSpending[];
   expenseFrecencyData: ExpenseFrecencyDataState;
   currency: string;
+  selectedChart?: BreakdownChart;
+  onChartChange?: (chart: BreakdownChart) => void;
 }
 
 export function BreakdownSection({
   tagSpending,
   expenseFrecencyData,
   currency,
+  selectedChart: selectedChartProp,
+  onChartChange,
 }: BreakdownSectionProps) {
-  const [selectedChart, setSelectedChart] = useState<BreakdownChart>("tag-spending");
+  const [uncontrolledChart, setUncontrolledChart] = useState<BreakdownChart>("tag-spending");
+  const selectedChart = selectedChartProp ?? uncontrolledChart;
+  const handleChartChange = (chart: BreakdownChart) => {
+    setUncontrolledChart(chart);
+    onChartChange?.(chart);
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Select
           value={selectedChart}
-          onValueChange={(value) => setSelectedChart(value as BreakdownChart)}
+          onValueChange={(value) => handleChartChange(value as BreakdownChart)}
         >
           <SelectTrigger aria-label="Select breakdown chart" className="text-base">
             <SelectValue />
