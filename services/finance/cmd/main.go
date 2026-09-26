@@ -96,7 +96,14 @@ func run() error {
 		slog.String("addr", cfg.FxServiceAddr),
 	)
 
-	financeSvc := service.NewFinanceServiceWithFx(repo, txBeginner, expenseClient, fxClient, time.Now, logger)
+	financeSvc := service.NewFinanceServiceWithFxAndCache(repo, txBeginner, expenseClient, fxClient, time.Now, logger, service.ResultCacheConfig{
+		Enabled:         cfg.ResultCacheEnabled,
+		MaxEntries:      cfg.ResultCacheMaxEntries,
+		MaxBytes:        cfg.ResultCacheMaxBytes,
+		MaxEntryBytes:   cfg.ResultCacheMaxEntryBytes,
+		MaxAge:          cfg.ResultCacheMaxAge,
+		ValidationLease: cfg.ResultCacheLease,
+	})
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

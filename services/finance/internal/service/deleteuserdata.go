@@ -25,6 +25,7 @@ func (s *FinanceService) DeleteAllUserData(ctx context.Context, userID string) e
 		return fmt.Errorf("committing transaction: %w", err)
 	}
 
+	s.invalidateFinanceUser(userID)
 	s.logger.Info("all user data deleted",
 		"method", "DeleteAllUserData",
 		"user_id", userID,

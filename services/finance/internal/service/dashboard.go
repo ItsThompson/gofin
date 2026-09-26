@@ -16,63 +16,85 @@ import (
 // It fetches the period from the repository and expenses from the expense service,
 // then computes totals, pacing, and category breakdowns.
 func (s *FinanceService) GetPeriodSummary(ctx context.Context, userID string, year, month int32) (*model.PeriodSummary, error) {
-	period, err := s.GetCurrentPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, err
-	}
-
-	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, fmt.Errorf("fetching expenses: %w", err)
-	}
-
-	return ComputePeriodSummary(period, expenses, year, month, s.nowFunc()), nil
+	key := dashboardResultKey(operationSummary, userID, year, month)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationSummary)
+	return loadResult(s, ctx, operationSummary, key, s.resultCaches.summary, expiresAt, true, func(loadCtx context.Context) (*model.PeriodSummary, error) {
+		period, err := s.GetCurrentPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, err
+		}
+		expenses, err := s.expenseClient.GetActiveExpensesForPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, fmt.Errorf("fetching expenses: %w", err)
+		}
+		return ComputePeriodSummary(period, expenses, year, month, s.nowFunc()), nil
+	})
 }
 
 // GetSpendingByTag computes per-tag spending for a budget period.
 func (s *FinanceService) GetSpendingByTag(ctx context.Context, userID string, year, month int32) ([]model.TagSpending, error) {
-	_, err := s.GetCurrentPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, err
-	}
-
-	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, fmt.Errorf("fetching expenses: %w", err)
-	}
-
-	tags, err := s.repo.ListTags(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("listing tags: %w", err)
-	}
-
-	tagNameMap := make(map[string]string, len(tags))
-	for _, tag := range tags {
-		tagNameMap[tag.ID] = tag.Name
-	}
-
-	return ComputeTagSpending(expenses, tagNameMap), nil
+	key := dashboardResultKey(operationByTag, userID, year, month)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationByTag)
+	return loadResult(s, ctx, operationByTag, key, s.resultCaches.byTag, expiresAt, true, func(loadCtx context.Context) ([]model.TagSpending, error) {
+		if _, err := s.GetCurrentPeriod(loadCtx, userID, year, month); err != nil {
+			return nil, err
+		}
+		expenses, err := s.expenseClient.GetActiveExpensesForPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, fmt.Errorf("fetching expenses: %w", err)
+		}
+		tags, err := s.repo.ListTags(loadCtx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("listing tags: %w", err)
+		}
+		tagNameMap := make(map[string]string, len(tags))
+		for _, tag := range tags {
+			tagNameMap[tag.ID] = tag.Name
+		}
+		return ComputeTagSpending(expenses, tagNameMap), nil
+	})
 }
 
 // GetCumulativeSpend computes daily cumulative spending data points for the chart.
 func (s *FinanceService) GetCumulativeSpend(ctx context.Context, userID string, year, month int32) ([]model.CumulativeSpendPoint, error) {
-	period, err := s.GetCurrentPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, err
-	}
+	key := dashboardResultKey(operationCumulative, userID, year, month)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationCumulative)
+	return loadResult(s, ctx, operationCumulative, key, s.resultCaches.cumulative, expiresAt, true, func(loadCtx context.Context) ([]model.CumulativeSpendPoint, error) {
+		period, err := s.GetCurrentPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, err
+		}
+		expenses, err := s.expenseClient.GetActiveExpensesForPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, fmt.Errorf("fetching expenses: %w", err)
+		}
+		days := daysInMonth(year, month)
+		return ComputeCumulativeSpend(expenses, period.BudgetAmount, year, month, days), nil
+	})
+}
 
-	expenses, err := s.expenseClient.GetActiveExpensesForPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, fmt.Errorf("fetching expenses: %w", err)
+func normalizeTrendMonths(months int32) int32 {
+	if months < 1 {
+		return 6
 	}
-
-	daysInMonth := daysInMonth(year, month)
-	return ComputeCumulativeSpend(expenses, period.BudgetAmount, year, month, daysInMonth), nil
+	if months > 12 {
+		return 12
+	}
+	return months
 }
 
 // GetSpendingTrends computes multi-month trend data for the spending trends charts.
 // It returns up to `months` data points ending at the specified year/month, ordered chronologically.
 func (s *FinanceService) GetSpendingTrends(ctx context.Context, userID string, year, month int32, months int32) ([]model.TrendPoint, error) {
+	months = normalizeTrendMonths(months)
+	key := trendResultKey(operationTrends, userID, year, month, months)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationTrends)
+	return loadResult(s, ctx, operationTrends, key, s.resultCaches.trends, expiresAt, true, func(loadCtx context.Context) ([]model.TrendPoint, error) {
+		return s.computeSpendingTrends(loadCtx, userID, year, month, months)
+	})
+}
+
+func (s *FinanceService) computeSpendingTrends(ctx context.Context, userID string, year, month int32, months int32) ([]model.TrendPoint, error) {
 	if months < 1 {
 		months = 6
 	}
@@ -185,6 +207,14 @@ func ComputeSpendingTrends(periods []*model.BudgetPeriod, expensesByMonth [][]Ex
 // GetHistoricalComparison computes the historical spending comparison for a period.
 // Returns current vs previous period spending, rolling 3-period average, and change percent.
 func (s *FinanceService) GetHistoricalComparison(ctx context.Context, userID string, year, month int32) (*model.HistoricalComparison, error) {
+	key := dashboardResultKey(operationComparison, userID, year, month)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationComparison)
+	return loadResult(s, ctx, operationComparison, key, s.resultCaches.comparison, expiresAt, true, func(loadCtx context.Context) (*model.HistoricalComparison, error) {
+		return s.computeHistoricalComparisonResult(loadCtx, userID, year, month)
+	})
+}
+
+func (s *FinanceService) computeHistoricalComparisonResult(ctx context.Context, userID string, year, month int32) (*model.HistoricalComparison, error) {
 	// Validate the requested period exists
 	_, err := s.GetCurrentPeriod(ctx, userID, year, month)
 	if err != nil {

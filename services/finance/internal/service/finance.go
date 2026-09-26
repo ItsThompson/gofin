@@ -39,6 +39,7 @@ type FinanceService struct {
 	fxClient      FxClient
 	nowFunc       func() time.Time
 	logger        *slog.Logger
+	resultCaches  *financeResultCaches
 }
 
 // NewFinanceService creates a new FinanceService with all dependencies injected.
@@ -68,6 +69,32 @@ func NewFinanceServiceWithFx(
 	nowFunc func() time.Time,
 	logger *slog.Logger,
 ) *FinanceService {
+	return NewFinanceServiceWithFxAndCache(repo, txBeginner, expenseClient, fxClient, nowFunc, logger, ResultCacheConfig{Enabled: false})
+}
+
+// NewFinanceServiceWithCache creates a finance service with explicit result-cache policy.
+func NewFinanceServiceWithCache(
+	repo repository.FinanceRepository,
+	txBeginner repository.TxBeginner,
+	expenseClient ExpenseClient,
+	nowFunc func() time.Time,
+	logger *slog.Logger,
+	cacheConfig ResultCacheConfig,
+) *FinanceService {
+	return NewFinanceServiceWithFxAndCache(repo, txBeginner, expenseClient, nil, nowFunc, logger, cacheConfig)
+}
+
+// NewFinanceServiceWithFxAndCache creates a FinanceService with explicit
+// dashboard result-cache policy. Production wiring supplies its runtime limits.
+func NewFinanceServiceWithFxAndCache(
+	repo repository.FinanceRepository,
+	txBeginner repository.TxBeginner,
+	expenseClient ExpenseClient,
+	fxClient FxClient,
+	nowFunc func() time.Time,
+	logger *slog.Logger,
+	cacheConfig ResultCacheConfig,
+) *FinanceService {
 	if nowFunc == nil {
 		nowFunc = time.Now
 	}
@@ -78,6 +105,7 @@ func NewFinanceServiceWithFx(
 		fxClient:      fxClient,
 		nowFunc:       nowFunc,
 		logger:        logger,
+		resultCaches:  newFinanceResultCaches(cacheConfig, nowFunc),
 	}
 }
 
@@ -249,19 +277,21 @@ func (s *FinanceService) GetCurrentPeriod(ctx context.Context, userID string, ye
 	if v.HasErrors() {
 		return nil, apierr.Validation("validation failed", v.Errors())
 	}
-
-	period, err := s.repo.GetCurrentPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, fmt.Errorf("getting current period: %w", err)
-	}
-	if period == nil {
-		return nil, &apierr.Error{
-			Code:    model.ErrPeriodNotFound,
-			Message: fmt.Sprintf("No budget period found for %d-%02d", year, month),
-			Status:  http.StatusNotFound,
+	key := periodResultKey(userID, year, month)
+	return loadResult(s, ctx, operationPeriod, key, s.resultCaches.periods, s.nowFunc().Add(s.resultCaches.maxAge), false, func(loadCtx context.Context) (*model.BudgetPeriod, error) {
+		period, err := s.repo.GetCurrentPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, fmt.Errorf("getting current period: %w", err)
 		}
-	}
-	return period, nil
+		if period == nil {
+			return nil, &apierr.Error{
+				Code:    model.ErrPeriodNotFound,
+				Message: fmt.Sprintf("No budget period found for %d-%02d", year, month),
+				Status:  http.StatusNotFound,
+			}
+		}
+		return period, nil
+	})
 }
 
 // ListPeriods returns all budget periods for a user, ordered by year/month descending.
@@ -340,6 +370,7 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 		return nil, apierr.NotFound("Budget period not found")
 	}
 
+	s.invalidateFinanceUser(userID)
 	s.logger.Info("budget period updated",
 		slog.String("method", "UpdatePeriod"),
 		slog.String("user_id", userID),
@@ -403,6 +434,7 @@ func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *mode
 		return nil, fmt.Errorf("creating tag: %w", err)
 	}
 
+	s.invalidateFinanceUser(userID)
 	s.logger.Info("tag created", slog.String("method", "CreateTag"), slog.String("user_id", userID), slog.String("tag_name", name))
 	return tag, nil
 }
@@ -424,6 +456,7 @@ func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, re
 		return nil, apierr.NotFound("Tag not found")
 	}
 
+	s.invalidateFinanceUser(userID)
 	s.logger.Info("tag updated", slog.String("method", "UpdateTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
 	return tag, nil
 }
@@ -489,6 +522,7 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 		return fmt.Errorf("deleting tag: %w", err)
 	}
 
+	s.invalidateFinanceUser(userID)
 	s.logger.Info("tag deleted", slog.String("method", "DeleteTag"), slog.String("user_id", userID), slog.String("tag_id", tagID))
 	return nil
 }

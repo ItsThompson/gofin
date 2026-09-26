@@ -15,14 +15,59 @@ import (
 // zero-budget case with a configure-budget response, then applies the
 // persistence policy in resolveHealthScore.
 func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year, month int32) (*model.HealthScore, error) {
-	period, err := s.GetCurrentPeriod(ctx, userID, year, month)
-	if err != nil {
-		return nil, err
-	}
-	if period.BudgetAmount == 0 {
-		return &model.HealthScore{Year: year, Month: month, ConfigureBudget: true, ReportingCurrencyCode: period.ReportingCurrencyCode}, nil
-	}
-	return s.resolveHealthScore(ctx, userID, period, year, month)
+	key := dashboardResultKey(operationHealth, userID, year, month)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationHealth)
+	return loadCachedResult(s, ctx, operationHealth, key, s.resultCaches.health, func(loadCtx context.Context) (*cachedResult[*model.HealthScore], error) {
+		period, err := s.GetCurrentPeriod(loadCtx, userID, year, month)
+		if err != nil {
+			return nil, err
+		}
+		if period.BudgetAmount == 0 {
+			return &cachedResult[*model.HealthScore]{
+				Value:     &model.HealthScore{Year: year, Month: month, ConfigureBudget: true, ReportingCurrencyCode: period.ReportingCurrencyCode},
+				ExpiresAt: expiresAt,
+			}, nil
+		}
+
+		if !isProvisional(year, month, s.nowFunc()) {
+			stored, storedErr := s.repo.GetHealthScore(loadCtx, userID, year, month)
+			if storedErr != nil {
+				return nil, fmt.Errorf("getting stored health score: %w", storedErr)
+			}
+			if stored != nil && stored.FormulaVersion == model.FormulaVersion {
+				if stored.ReportingCurrencyCode == "" {
+					stored.ReportingCurrencyCode = period.ReportingCurrencyCode
+				}
+				return &cachedResult[*model.HealthScore]{Value: stored, ExpiresAt: expiresAt}, nil
+			}
+		}
+
+		var revision ExpenseRevision
+		available := false
+		if s.resultCaches.enabled {
+			revision, available, err = s.expenseRevision(loadCtx, userID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		score, err := s.resolveHealthScore(loadCtx, userID, period, year, month)
+		if err != nil {
+			return nil, err
+		}
+		result := &cachedResult[*model.HealthScore]{Value: score, ExpiresAt: expiresAt}
+		if available {
+			current, _, revisionErr := s.expenseRevision(loadCtx, userID)
+			if revisionErr != nil {
+				return nil, revisionErr
+			}
+			if !sameExpenseRevision(revision, current) {
+				return nil, fmt.Errorf("expense revision changed during %s load", operationHealth)
+			}
+			result.Dependency = &revision
+			result.ValidatedAt = s.nowFunc()
+		}
+		return result, nil
+	})
 }
 
 // resolveHealthScore applies the persistence policy for one budgeted month. The

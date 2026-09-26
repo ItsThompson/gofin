@@ -20,6 +20,30 @@ import (
 // compute-and-upsert path (resolveHealthScore), which the single-month card also
 // warms.
 func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string, year, month, months int32) ([]model.HealthScoreTrendPoint, error) {
+	months = normalizeTrendMonths(months)
+	key := trendResultKey(operationHealthTrend, userID, year, month, months)
+	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationHealthTrend)
+	return loadCachedResult(s, ctx, operationHealthTrend, key, s.resultCaches.healthTrend, func(loadCtx context.Context) (*cachedResult[[]model.HealthScoreTrendPoint], error) {
+		points, usesLiveExpenses, err := s.computeHealthScoreTrend(loadCtx, userID, year, month, months)
+		if err != nil {
+			return nil, err
+		}
+		result := &cachedResult[[]model.HealthScoreTrendPoint]{Value: points, ExpiresAt: expiresAt}
+		if usesLiveExpenses && s.resultCaches.enabled {
+			revision, available, revisionErr := s.expenseRevision(loadCtx, userID)
+			if revisionErr != nil {
+				return nil, revisionErr
+			}
+			if available {
+				result.Dependency = &revision
+				result.ValidatedAt = s.nowFunc()
+			}
+		}
+		return result, nil
+	})
+}
+
+func (s *FinanceService) computeHealthScoreTrend(ctx context.Context, userID string, year, month, months int32) ([]model.HealthScoreTrendPoint, bool, error) {
 	if months < 1 {
 		months = 6
 	}
@@ -29,12 +53,12 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 
 	periods, err := s.repo.ListPeriods(ctx, userID) // year DESC, month DESC
 	if err != nil {
-		return nil, fmt.Errorf("listing periods: %w", err)
+		return nil, false, fmt.Errorf("listing periods: %w", err)
 	}
 
 	scalars, err := s.repo.ListHealthScoreScalars(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("listing health score scalars: %w", err)
+		return nil, false, fmt.Errorf("listing health score scalars: %w", err)
 	}
 	scalarByMonth := make(map[[2]int32]*model.HealthScoreTrendPoint, len(scalars))
 	for _, scalar := range scalars {
@@ -62,6 +86,7 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 
 	now := s.nowFunc()
 	points := make([]model.HealthScoreTrendPoint, len(selected))
+	usesLiveExpenses := false
 	for i, period := range selected {
 		// A stored current-version scalar for a closed month is used directly (no
 		// JSONB deserialize, no compute). The provisional month is never stored, so
@@ -74,19 +99,20 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 			}
 		}
 
+		usesLiveExpenses = true
 		score, err := s.resolveHealthScore(ctx, userID, period, period.Year, period.Month)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		points[i] = model.HealthScoreTrendPoint{
-			Year:              score.Year,
-			Month:             score.Month,
-			Total:             score.Total,
-			Band:              score.Band,
-			Provisional:       score.Provisional,
-			FormulaVersion:    score.FormulaVersion,
+			Year:                  score.Year,
+			Month:                 score.Month,
+			Total:                 score.Total,
+			Band:                  score.Band,
+			Provisional:           score.Provisional,
+			FormulaVersion:        score.FormulaVersion,
 			ReportingCurrencyCode: period.ReportingCurrencyCode,
 		}
 	}
-	return points, nil
+	return points, usesLiveExpenses, nil
 }

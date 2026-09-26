@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
 // DefaultRESTPort is the single source of truth for the finance REST port
@@ -16,6 +18,15 @@ const DefaultRESTPort = "8083"
 // domain. The closed set is documented in docs/error-handling.md.
 const ReportDomain = "budgets"
 
+const (
+	defaultResultCacheEnabled       = true
+	defaultResultCacheMaxEntries    = 256
+	defaultResultCacheMaxBytes      = 64 * 1024 * 1024
+	defaultResultCacheMaxEntryBytes = 16 * 1024 * 1024
+	defaultResultCacheMaxAge        = 48 * time.Hour
+	defaultResultCacheLease         = 2 * time.Minute
+)
+
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
 // DefaultRESTPort. The --healthcheck branch runs before Load, so it calls this
 // to probe the same port the listener will bind.
@@ -28,13 +39,19 @@ func ResolveRESTPort() string {
 
 // Config holds all configuration for the finance service, loaded from environment variables.
 type Config struct {
-	DBUrl              string
-	ExpenseServiceAddr string // gRPC address for expense service (e.g., "expense-service:9082")
-	FxServiceAddr      string // gRPC address for fx service (e.g., "fx-service:9085")
-	LogLevel           string
-	Environment        string
-	RESTPort           string
-	GRPCPort           string
+	DBUrl                    string
+	ExpenseServiceAddr       string // gRPC address for expense service (e.g., "expense-service:9082")
+	FxServiceAddr            string // gRPC address for fx service (e.g., "fx-service:9085")
+	LogLevel                 string
+	Environment              string
+	RESTPort                 string
+	GRPCPort                 string
+	ResultCacheEnabled       bool
+	ResultCacheMaxEntries    int
+	ResultCacheMaxBytes      int64
+	ResultCacheMaxEntryBytes int64
+	ResultCacheMaxAge        time.Duration
+	ResultCacheLease         time.Duration
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -72,15 +89,97 @@ func Load() (*Config, error) {
 		grpcPort = "9083"
 	}
 
+	resultCacheEnabled, err := readCacheBool("FINANCE_RESULT_CACHE_ENABLED", defaultResultCacheEnabled)
+	if err != nil {
+		return nil, err
+	}
+	resultCacheMaxEntries, err := readCacheInt("FINANCE_RESULT_CACHE_MAX_ENTRIES", defaultResultCacheMaxEntries)
+	if err != nil {
+		return nil, err
+	}
+	resultCacheMaxBytes, err := readCacheInt64("FINANCE_RESULT_CACHE_MAX_BYTES", defaultResultCacheMaxBytes)
+	if err != nil {
+		return nil, err
+	}
+	resultCacheMaxEntryBytes, err := readCacheInt64("FINANCE_RESULT_CACHE_MAX_ENTRY_BYTES", defaultResultCacheMaxEntryBytes)
+	if err != nil {
+		return nil, err
+	}
+	resultCacheMaxAge, err := readCacheDuration("FINANCE_RESULT_CACHE_MAX_AGE", defaultResultCacheMaxAge)
+	if err != nil {
+		return nil, err
+	}
+	resultCacheLease, err := readCacheDuration("FINANCE_RESULT_CACHE_VALIDATION_LEASE", defaultResultCacheLease)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		DBUrl:              dbURL,
-		ExpenseServiceAddr: expenseAddr,
-		FxServiceAddr:      fxAddr,
-		LogLevel:           logLevel,
-		Environment:        environment,
-		RESTPort:           restPort,
-		GRPCPort:           grpcPort,
+		DBUrl:                    dbURL,
+		ExpenseServiceAddr:       expenseAddr,
+		FxServiceAddr:            fxAddr,
+		LogLevel:                 logLevel,
+		Environment:              environment,
+		RESTPort:                 restPort,
+		GRPCPort:                 grpcPort,
+		ResultCacheEnabled:       resultCacheEnabled,
+		ResultCacheMaxEntries:    resultCacheMaxEntries,
+		ResultCacheMaxBytes:      resultCacheMaxBytes,
+		ResultCacheMaxEntryBytes: resultCacheMaxEntryBytes,
+		ResultCacheMaxAge:        resultCacheMaxAge,
+		ResultCacheLease:         resultCacheLease,
 	}, nil
+}
+
+func readCacheBool(name string, defaultValue bool) (bool, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func readCacheInt(name string, defaultValue int) (int, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	return parsed, nil
+}
+
+func readCacheInt64(name string, defaultValue int64) (int64, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	return parsed, nil
+}
+
+func readCacheDuration(name string, defaultValue time.Duration) (time.Duration, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid duration: %w", name, err)
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", name)
+	}
+	return parsed, nil
 }
 
 // IsProduction returns true if the environment is not "development".

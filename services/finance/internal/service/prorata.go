@@ -143,6 +143,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	if err != nil {
 		return nil, fmt.Errorf("creating first installment via expense service: %w", err)
 	}
+	s.invalidateFinanceUser(userID)
 
 	schedules := make([]*model.ProRataSchedule, 0, req.SpreadOverMonths-1)
 	targetYear, targetMonth := req.PeriodYear, req.PeriodMonth
@@ -230,11 +231,13 @@ func (s *FinanceService) validateProRataTransactionCurrency(currencyCode string)
 
 // GetUpcomingProRata returns all pending pro-rata schedules for the user.
 func (s *FinanceService) GetUpcomingProRata(ctx context.Context, userID string) ([]*model.ProRataSchedule, error) {
-	schedules, err := s.repo.GetUpcomingProRata(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("getting upcoming pro-rata: %w", err)
-	}
-	return schedules, nil
+	return loadResult(s, ctx, operationUpcoming, upcomingResultKey(userID), s.resultCaches.upcoming, s.nowFunc().Add(s.resultCaches.maxAge), false, func(loadCtx context.Context) ([]*model.ProRataSchedule, error) {
+		schedules, err := s.repo.GetUpcomingProRata(loadCtx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("getting upcoming pro-rata: %w", err)
+		}
+		return schedules, nil
+	})
 }
 
 // applyPendingProRata applies pending schedules for a just-created target period.
@@ -339,6 +342,7 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 		return nil
 	}
 
+	s.invalidateFinanceUser(userID)
 	if err := s.repo.MarkProRataApplied(ctx, schedule.ID); err != nil {
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "finance.prorata_apply",
@@ -391,18 +395,20 @@ func classifyProRataExpenseError(err error) string {
 // emits a diagnostic log so operators can see failed pro-rata rows. A repo
 // failure during the status update is logged but does not roll back the decision.
 func (s *FinanceService) markProRataFailed(ctx context.Context, schedule *model.ProRataSchedule, failureReason string) {
+	s.invalidateFinanceUser(schedule.UserID)
 	if err := s.repo.MarkProRataFailed(ctx, schedule.ID, failureReason); err != nil {
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "finance.prorata_apply",
 			Domain: "budgets",
 			Msg:    "failed to mark pro-rata schedule as failed",
 			Data: map[string]any{
-				"schedule_id":            schedule.ID,
+				"schedule_id":             schedule.ID,
 				"intended_failure_reason": failureReason,
 			},
 		})
 		return
 	}
+	s.invalidateFinanceUser(schedule.UserID)
 	schedule.Status = "failed"
 	schedule.FailureReason = failureReason
 	s.logger.Warn("pro-rata schedule marked failed",
@@ -466,6 +472,7 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 	if err != nil {
 		return nil, fmt.Errorf("creating period: %w", err)
 	}
+	s.invalidateFinanceUser(userID)
 
 	// Apply pro-rata for the current month. applyPendingProRata never returns a
 	// fatal error: deterministic failures mark individual rows failed and
@@ -541,6 +548,7 @@ func (s *FinanceService) createMissedPeriods(
 		if err != nil {
 			return nil, nil, fmt.Errorf("auto-creating period for %d-%02d: %w", missed.year, missed.month, err)
 		}
+		s.invalidateFinanceUser(userID)
 
 		// Apply pro-rata for the missed month. applyPendingProRata never
 		// returns a fatal error: deterministic failures mark individual rows

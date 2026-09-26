@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +53,33 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "development", cfg.Environment)
 	assert.Equal(t, "8083", cfg.RESTPort)
 	assert.Equal(t, "9083", cfg.GRPCPort)
+	assert.True(t, cfg.ResultCacheEnabled)
+	assert.Equal(t, 256, cfg.ResultCacheMaxEntries)
+	assert.Equal(t, int64(64*1024*1024), cfg.ResultCacheMaxBytes)
+	assert.Equal(t, 48*time.Hour, cfg.ResultCacheMaxAge)
+	assert.Equal(t, 2*time.Minute, cfg.ResultCacheLease)
 	assert.False(t, cfg.IsProduction())
+}
+
+func TestLoad_CustomResultCacheConfig(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_ENABLED", "false")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRIES", "8")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_BYTES", "4096")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRY_BYTES", "1024")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_AGE", "3h")
+	t.Setenv("FINANCE_RESULT_CACHE_VALIDATION_LEASE", "30s")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.ResultCacheEnabled)
+	assert.Equal(t, 8, cfg.ResultCacheMaxEntries)
+	assert.Equal(t, int64(4096), cfg.ResultCacheMaxBytes)
+	assert.Equal(t, int64(1024), cfg.ResultCacheMaxEntryBytes)
+	assert.Equal(t, 3*time.Hour, cfg.ResultCacheMaxAge)
+	assert.Equal(t, 30*time.Second, cfg.ResultCacheLease)
 }
 
 func TestLoad_Production(t *testing.T) {
