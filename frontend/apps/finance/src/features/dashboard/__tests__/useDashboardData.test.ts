@@ -219,6 +219,110 @@ describe("useDashboardData", () => {
     expect(result.current.data.summary).toBeNull();
   });
 
+  it("gates stale sections when Summary Retry finds the current period missing", async () => {
+    let periodLookupFailed = false;
+    const requestedUrls: string[] = [];
+    installBaseApi((url) => {
+      requestedUrls.push(url);
+      if (url.includes("/periods/current")) {
+        return periodLookupFailed
+          ? response({ code: "PERIOD_NOT_FOUND", message: "No period" }, 404)
+          : response({ period });
+      }
+      if (url.includes("/defaults")) return response({ defaults: null });
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    periodLookupFailed = true;
+    act(() => result.current.retry("summary"));
+
+    await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
+    expect(result.current.data.summary).toBeNull();
+    expect(result.current.data.recentExpenses).toEqual([]);
+    expect(requestedUrls.some((url) => url.includes("/defaults"))).toBe(true);
+  });
+
+  it("gates stale sections when Summary Retry cannot read the historical period", async () => {
+    let periodLookupFailed = false;
+    const requestedUrls: string[] = [];
+    installBaseApi((url) => {
+      requestedUrls.push(url);
+      if (url.includes("/periods/current")) {
+        return periodLookupFailed
+          ? response({ code: "PERIOD_NOT_FOUND", message: "No period" }, 404)
+          : response({ period });
+      }
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period, true));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    periodLookupFailed = true;
+    act(() => result.current.retry("summary"));
+
+    await waitFor(() => expect(result.current.periodStatus).toBe("not-found"));
+    expect(result.current.data.summary).toBeNull();
+    expect(requestedUrls.some((url) => url.includes("/defaults"))).toBe(false);
+  });
+
+  it("gates stale sections when Summary Retry period verification fails", async () => {
+    let periodLookupFailed = false;
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) {
+        return periodLookupFailed
+          ? response({ code: "INTERNAL_SERVER_ERROR", message: "Period unavailable" }, 500)
+          : response({ period });
+      }
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    periodLookupFailed = true;
+    act(() => result.current.retry("summary"));
+
+    await waitFor(() => expect(result.current.periodStatus).toBe("error"));
+    expect(result.current.data.summary).toBeNull();
+    expect(result.current.data.recentExpenses).toEqual([]);
+  });
+
+  it("gates old period data immediately while a new period activates", async () => {
+    installBaseApi((url) => {
+      if (url.includes("/summary")) return new Promise<Response>(() => {});
+      if (url.includes("/health-score?")) return new Promise<Response>(() => {});
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result, rerender } = renderHook(({ selectedPeriod }) => useDashboardData(selectedPeriod), {
+      initialProps: { selectedPeriod: period },
+    });
+    const nextPeriod = buildPeriod({ ...period, id: "period-2", month: 6 });
+    act(() => rerender({ selectedPeriod: nextPeriod }));
+
+    expect(result.current.data.summary).toBeNull();
+    expect(result.current.data.recentExpenses).toEqual([]);
+  });
+
   it("verifies period metadata before retrying summary without reloading completed sections", async () => {
     let summaryRequestCount = 0;
     const requestedUrls: string[] = [];
