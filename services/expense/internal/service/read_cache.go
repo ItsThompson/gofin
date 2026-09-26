@@ -25,12 +25,7 @@ const (
 )
 
 func recordExpenseReadCacheEvent(operation string, status cache.LoadStatus) {
-	event := string(status)
-	switch status {
-	case cache.StatusOversize, cache.StatusUncacheable:
-		event = string(cache.EventCapacityBypass)
-	}
-	metrics.ExpenseReadCacheEventsTotal.WithLabelValues(operation, event).Inc()
+	metrics.ExpenseReadCacheEventsTotal.WithLabelValues(operation, string(status)).Inc()
 }
 
 func recordExpenseReadSourceDuration(operation string, startedAt time.Time) {

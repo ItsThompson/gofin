@@ -25,11 +25,13 @@ const (
 	operationUpcoming       = "prorata/upcoming"
 	operationHealth         = "health-score"
 	operationHealthTrend    = "health-score/trend"
+	financeResultCacheCount = 9
 )
 
 type ResultCacheConfig struct {
-	Enabled         bool
-	MaxEntries      int
+	Enabled    bool
+	MaxEntries int
+	// MaxBytes is the aggregate byte budget shared by all result caches.
 	MaxBytes        int64
 	MaxEntryBytes   int64
 	MaxAge          time.Duration
@@ -56,18 +58,21 @@ type cachedResult[T any] struct {
 }
 
 type financeResultCaches struct {
-	enabled     bool
-	lease       time.Duration
-	maxAge      time.Duration
-	periods     *financecache.Cache[string, *cachedResult[*model.BudgetPeriod]]
-	summary     *financecache.Cache[string, *cachedResult[*model.PeriodSummary]]
-	byTag       *financecache.Cache[string, *cachedResult[[]model.TagSpending]]
-	cumulative  *financecache.Cache[string, *cachedResult[[]model.CumulativeSpendPoint]]
-	comparison  *financecache.Cache[string, *cachedResult[*model.HistoricalComparison]]
-	trends      *financecache.Cache[string, *cachedResult[[]model.TrendPoint]]
-	upcoming    *financecache.Cache[string, *cachedResult[[]*model.ProRataSchedule]]
-	health      *financecache.Cache[string, *cachedResult[*model.HealthScore]]
-	healthTrend *financecache.Cache[string, *cachedResult[[]model.HealthScoreTrendPoint]]
+	enabled               bool
+	lease                 time.Duration
+	maxAge                time.Duration
+	maxBytesPerCache      int64
+	maxEntriesPerCache    int
+	maxEntryBytesPerCache int64
+	periods               *financecache.Cache[string, *cachedResult[*model.BudgetPeriod]]
+	summary               *financecache.Cache[string, *cachedResult[*model.PeriodSummary]]
+	byTag                 *financecache.Cache[string, *cachedResult[[]model.TagSpending]]
+	cumulative            *financecache.Cache[string, *cachedResult[[]model.CumulativeSpendPoint]]
+	comparison            *financecache.Cache[string, *cachedResult[*model.HistoricalComparison]]
+	trends                *financecache.Cache[string, *cachedResult[[]model.TrendPoint]]
+	upcoming              *financecache.Cache[string, *cachedResult[[]*model.ProRataSchedule]]
+	health                *financecache.Cache[string, *cachedResult[*model.HealthScore]]
+	healthTrend           *financecache.Cache[string, *cachedResult[[]model.HealthScoreTrendPoint]]
 }
 
 func newFinanceResultCaches(config ResultCacheConfig, now func() time.Time) *financeResultCaches {
@@ -90,11 +95,21 @@ func newFinanceResultCaches(config ResultCacheConfig, now func() time.Time) *fin
 	if config.ValidationLease <= 0 {
 		config.ValidationLease = defaults.ValidationLease
 	}
+	totalCacheBytes := config.MaxBytes
+	if totalCacheBytes > financeconfig.MaxFinanceResultCacheBytes {
+		totalCacheBytes = financeconfig.MaxFinanceResultCacheBytes
+	}
+	perCacheEntries := config.MaxEntries / financeResultCacheCount
+	perCacheBytes := totalCacheBytes / financeResultCacheCount
+	perCacheEntryBytes := config.MaxEntryBytes
+	if perCacheEntryBytes > perCacheBytes {
+		perCacheEntryBytes = perCacheBytes
+	}
 	cacheConfig := financecache.Config{
 		Enabled:       config.Enabled,
-		MaxEntries:    config.MaxEntries,
-		MaxBytes:      config.MaxBytes,
-		MaxEntryBytes: config.MaxEntryBytes,
+		MaxEntries:    perCacheEntries,
+		MaxBytes:      perCacheBytes,
+		MaxEntryBytes: perCacheEntryBytes,
 		MaxAge:        config.MaxAge,
 	}
 	cacheConfigFor := func(operation string) financecache.Config {
@@ -103,9 +118,12 @@ func newFinanceResultCaches(config ResultCacheConfig, now func() time.Time) *fin
 		return observed
 	}
 	return &financeResultCaches{
-		enabled: config.Enabled,
-		lease:   config.ValidationLease,
-		maxAge:  config.MaxAge,
+		enabled:               config.Enabled,
+		lease:                 config.ValidationLease,
+		maxAge:                config.MaxAge,
+		maxBytesPerCache:      perCacheBytes,
+		maxEntriesPerCache:    perCacheEntries,
+		maxEntryBytesPerCache: perCacheEntryBytes,
 		periods: financecache.New[string, *cachedResult[*model.BudgetPeriod]](cacheConfigFor(operationPeriod), now, func(value *cachedResult[*model.BudgetPeriod]) *cachedResult[*model.BudgetPeriod] {
 			return cloneCachedResult(value, cloneBudgetPeriod)
 		}, jsonSize[*cachedResult[*model.BudgetPeriod]]),
@@ -182,11 +200,7 @@ func cacheExpiry(now time.Time, maxAge time.Duration, year, month int32, operati
 }
 
 func recordFinanceCacheEvent(operation string, status financecache.LoadStatus) {
-	event := string(status)
-	if status == financecache.StatusOversize {
-		event = string(financecache.EventCapacityBypass)
-	}
-	metrics.FinanceResultCacheEventsTotal.WithLabelValues(operation, event).Inc()
+	metrics.FinanceResultCacheEventsTotal.WithLabelValues(operation, string(status)).Inc()
 }
 
 func recordFinanceCacheLifecycleEvent(operation string, event string) {
@@ -281,9 +295,7 @@ func loadResult[T any](s *FinanceService, ctx context.Context, operation, key st
 				return nil, err
 			}
 		}
-		startedAt := time.Now()
 		value, err := source(loadCtx)
-		recordFinanceReadSourceDuration(operation, startedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -307,8 +319,14 @@ func loadResult[T any](s *FinanceService, ctx context.Context, operation, key st
 
 func loadCachedResult[T any](s *FinanceService, ctx context.Context, operation, key string, store *financecache.Cache[string, *cachedResult[T]], source func(context.Context) (*cachedResult[T], error)) (T, error) {
 	var zero T
+	timedSource := func(loadCtx context.Context) (*cachedResult[T], error) {
+		startedAt := time.Now()
+		result, err := source(loadCtx)
+		recordFinanceReadSourceDuration(operation, startedAt)
+		return result, err
+	}
 	if !s.resultCaches.enabled {
-		result, err := source(ctx)
+		result, err := timedSource(ctx)
 		if err != nil {
 			return zero, err
 		}
@@ -344,7 +362,7 @@ func loadCachedResult[T any](s *FinanceService, ctx context.Context, operation, 
 		}
 	}
 
-	result, status, err := store.Load(ctx, key, financecache.LoadOptions{Bypass: cacheBypass(ctx)}, source)
+	result, status, err := store.Load(ctx, key, financecache.LoadOptions{Bypass: cacheBypass(ctx)}, timedSource)
 	if err != nil {
 		recordFinanceCacheEvent(operation, financecache.StatusError)
 		return zero, err

@@ -21,7 +21,7 @@ const DefaultRESTPort = "8083"
 const ReportDomain = "budgets"
 
 const (
-	defaultResultCacheEnabled       = true
+	defaultResultCacheEnabled       = false
 	defaultResultCacheMaxEntries    = 256
 	defaultResultCacheMaxBytes      = 64 * 1024 * 1024
 	defaultResultCacheMaxEntryBytes = 16 * 1024 * 1024
@@ -102,6 +102,9 @@ func Load() (*Config, error) {
 	resultCacheMaxBytes, err := readCacheInt64("FINANCE_RESULT_CACHE_MAX_BYTES", defaultResultCacheMaxBytes)
 	if err != nil {
 		return nil, err
+	}
+	if resultCacheMaxBytes > financeconfig.MaxFinanceResultCacheBytes {
+		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_MAX_BYTES must be at most %d", financeconfig.MaxFinanceResultCacheBytes)
 	}
 	resultCacheMaxEntryBytes, err := readCacheInt64("FINANCE_RESULT_CACHE_MAX_ENTRY_BYTES", defaultResultCacheMaxEntryBytes)
 	if err != nil {

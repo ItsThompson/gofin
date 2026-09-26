@@ -45,8 +45,10 @@ func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year
 		var revision ExpenseRevision
 		available := false
 		if s.validateRevisions {
+			recordFinanceCacheLifecycleEvent(operationHealth, "freshness_check")
 			revision, available, err = s.expenseRevision(loadCtx, userID)
 			if err != nil {
+				recordFinanceCacheLifecycleEvent(operationHealth, "freshness_failure")
 				return nil, err
 			}
 		}
@@ -56,11 +58,14 @@ func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year
 		}
 		result := &cachedResult[*model.HealthScore]{Value: score, ExpiresAt: expiresAt}
 		if available {
+			recordFinanceCacheLifecycleEvent(operationHealth, "freshness_check")
 			current, _, revisionErr := s.expenseRevision(loadCtx, userID)
 			if revisionErr != nil {
+				recordFinanceCacheLifecycleEvent(operationHealth, "freshness_failure")
 				return nil, revisionErr
 			}
 			if !sameExpenseRevision(revision, current) {
+				recordFinanceCacheLifecycleEvent(operationHealth, "freshness_failure")
 				s.invalidateFinanceExpenseUser(userID)
 				return nil, fmt.Errorf("expense revision changed during %s load", operationHealth)
 			}

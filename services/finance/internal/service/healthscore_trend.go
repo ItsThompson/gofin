@@ -30,11 +30,14 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 		}
 		result := &cachedResult[[]model.HealthScoreTrendPoint]{Value: points, ExpiresAt: expiresAt}
 		if usesLiveExpenses && s.validateRevisions && revision != nil {
+			recordFinanceCacheLifecycleEvent(operationHealthTrend, "freshness_check")
 			current, _, revisionErr := s.expenseRevision(loadCtx, userID)
 			if revisionErr != nil {
+				recordFinanceCacheLifecycleEvent(operationHealthTrend, "freshness_failure")
 				return nil, revisionErr
 			}
 			if !sameExpenseRevision(*revision, current) {
+				recordFinanceCacheLifecycleEvent(operationHealthTrend, "freshness_failure")
 				s.invalidateFinanceExpenseUser(userID)
 				return nil, fmt.Errorf("expense revision changed during %s load", operationHealthTrend)
 			}
@@ -104,8 +107,10 @@ func (s *FinanceService) computeHealthScoreTrend(ctx context.Context, userID str
 
 		usesLiveExpenses = true
 		if revision == nil && s.validateRevisions {
+			recordFinanceCacheLifecycleEvent(operationHealthTrend, "freshness_check")
 			currentRevision, available, revisionErr := s.expenseRevision(ctx, userID)
 			if revisionErr != nil {
+				recordFinanceCacheLifecycleEvent(operationHealthTrend, "freshness_failure")
 				return nil, false, nil, revisionErr
 			}
 			if available {

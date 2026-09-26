@@ -20,7 +20,7 @@ const DefaultRESTPort = "8082"
 const ReportDomain = "expenses"
 
 const (
-	defaultReadCacheEnabled       = true
+	defaultReadCacheEnabled       = false
 	defaultReadCacheMaxEntries    = 256
 	defaultReadCacheMaxBytes      = 64 * 1024 * 1024
 	defaultReadCacheMaxEntryBytes = 16 * 1024 * 1024

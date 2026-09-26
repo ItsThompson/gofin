@@ -373,6 +373,7 @@ func (c *Cache[K, V]) Evict(key K) {
 	}
 	c.generations[key]++
 	c.detachFlightLocked(key)
+	c.cleanupGenerationLocked(key)
 	c.mu.Unlock()
 	c.emit(events)
 }
@@ -393,6 +394,11 @@ func (c *Cache[K, V]) Purge(match func(K) bool) {
 			c.detachFlightLocked(key)
 		}
 	}
+	for key := range c.generations {
+		if match(key) {
+			c.cleanupGenerationLocked(key)
+		}
+	}
 	c.mu.Unlock()
 	c.emit(events)
 }
@@ -401,4 +407,10 @@ func (c *Cache[K, V]) Len() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return len(c.entries)
+}
+
+func (c *Cache[K, V]) Bytes() int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.bytes
 }
