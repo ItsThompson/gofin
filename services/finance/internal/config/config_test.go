@@ -58,6 +58,8 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, int64(64*1024*1024), cfg.ResultCacheMaxBytes)
 	assert.Equal(t, 48*time.Hour, cfg.ResultCacheMaxAge)
 	assert.Equal(t, 2*time.Minute, cfg.ResultCacheLease)
+	assert.Equal(t, 5*time.Second, cfg.ResultCacheTimeout)
+	assert.Less(t, cfg.ResultCacheTimeout, cfg.ResultCacheLease)
 	assert.False(t, cfg.IsProduction())
 }
 
@@ -71,6 +73,7 @@ func TestLoad_CustomResultCacheConfig(t *testing.T) {
 	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRY_BYTES", "1024")
 	t.Setenv("FINANCE_RESULT_CACHE_MAX_AGE", "3h")
 	t.Setenv("FINANCE_RESULT_CACHE_VALIDATION_LEASE", "30s")
+	t.Setenv("FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT", "2s")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -80,6 +83,7 @@ func TestLoad_CustomResultCacheConfig(t *testing.T) {
 	assert.Equal(t, int64(1024), cfg.ResultCacheMaxEntryBytes)
 	assert.Equal(t, 3*time.Hour, cfg.ResultCacheMaxAge)
 	assert.Equal(t, 30*time.Second, cfg.ResultCacheLease)
+	assert.Equal(t, 2*time.Second, cfg.ResultCacheTimeout)
 }
 
 func TestLoad_RejectsResultCacheBudgetAboveProcessSafeLimit(t *testing.T) {
@@ -104,6 +108,19 @@ func TestLoad_RejectsLeaseAtOrBelowExpenseCallbackBound(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_VALIDATION_LEASE must be greater than")
+}
+
+func TestLoad_RejectsValidationTimeoutAtOrAboveLease(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_VALIDATION_LEASE", "5s")
+	t.Setenv("FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT", "5s")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT must be less than")
 }
 
 func TestLoad_Production(t *testing.T) {

@@ -27,6 +27,7 @@ const (
 	defaultResultCacheMaxEntryBytes = 16 * 1024 * 1024
 	defaultResultCacheMaxAge        = 48 * time.Hour
 	defaultResultCacheLease         = financeconfig.FinanceValidationLease
+	defaultResultCacheTimeout       = financeconfig.FinanceValidationTimeout
 )
 
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
@@ -54,6 +55,7 @@ type Config struct {
 	ResultCacheMaxEntryBytes int64
 	ResultCacheMaxAge        time.Duration
 	ResultCacheLease         time.Duration
+	ResultCacheTimeout       time.Duration
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -121,6 +123,13 @@ func Load() (*Config, error) {
 	if resultCacheLease <= financeconfig.MaxExpenseFinanceEvictionTimeout {
 		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_VALIDATION_LEASE must be greater than %s", financeconfig.MaxExpenseFinanceEvictionTimeout)
 	}
+	resultCacheTimeout, err := readCacheDuration("FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT", defaultResultCacheTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if resultCacheTimeout >= resultCacheLease {
+		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT must be less than FINANCE_RESULT_CACHE_VALIDATION_LEASE")
+	}
 
 	return &Config{
 		DBUrl:                    dbURL,
@@ -136,6 +145,7 @@ func Load() (*Config, error) {
 		ResultCacheMaxEntryBytes: resultCacheMaxEntryBytes,
 		ResultCacheMaxAge:        resultCacheMaxAge,
 		ResultCacheLease:         resultCacheLease,
+		ResultCacheTimeout:       resultCacheTimeout,
 	}, nil
 }
 

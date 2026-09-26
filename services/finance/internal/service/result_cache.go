@@ -15,38 +15,41 @@ import (
 )
 
 const (
-	defaultResultCacheLease = financeconfig.FinanceValidationLease
-	operationPeriod         = "periods/current"
-	operationSummary        = "summary"
-	operationByTag          = "spending/by-tag"
-	operationCumulative     = "spending/cumulative"
-	operationComparison     = "spending/comparison"
-	operationTrends         = "spending/trends"
-	operationUpcoming       = "prorata/upcoming"
-	operationHealth         = "health-score"
-	operationHealthTrend    = "health-score/trend"
-	financeResultCacheCount = 9
+	defaultResultCacheLease   = financeconfig.FinanceValidationLease
+	defaultResultCacheTimeout = financeconfig.FinanceValidationTimeout
+	operationPeriod           = "periods/current"
+	operationSummary          = "summary"
+	operationByTag            = "spending/by-tag"
+	operationCumulative       = "spending/cumulative"
+	operationComparison       = "spending/comparison"
+	operationTrends           = "spending/trends"
+	operationUpcoming         = "prorata/upcoming"
+	operationHealth           = "health-score"
+	operationHealthTrend      = "health-score/trend"
+	financeResultCacheCount   = 9
 )
 
 type ResultCacheConfig struct {
 	Enabled    bool
 	MaxEntries int
 	// MaxBytes is the aggregate byte budget shared by all result caches.
-	MaxBytes        int64
-	MaxEntryBytes   int64
-	MaxAge          time.Duration
-	ValidationLease time.Duration
+	MaxBytes          int64
+	MaxEntryBytes     int64
+	MaxAge            time.Duration
+	ValidationLease   time.Duration
+	ValidationTimeout time.Duration
 }
 
 func DefaultResultCacheConfig() ResultCacheConfig {
 	config := financecache.DefaultConfig()
 	return ResultCacheConfig{
-		Enabled:         config.Enabled,
-		MaxEntries:      config.MaxEntries,
-		MaxBytes:        config.MaxBytes,
-		MaxEntryBytes:   config.MaxEntryBytes,
-		MaxAge:          config.MaxAge,
-		ValidationLease: defaultResultCacheLease,
+		Enabled:           config.Enabled,
+		MaxEntries:        config.MaxEntries,
+		MaxBytes:          config.MaxBytes,
+		MaxEntryBytes:     config.MaxEntryBytes,
+		MaxAge:            config.MaxAge,
+		ValidationLease:   defaultResultCacheLease,
+		ValidationTimeout: defaultResultCacheTimeout,
 	}
 }
 
@@ -60,6 +63,7 @@ type cachedResult[T any] struct {
 type financeResultCaches struct {
 	enabled               bool
 	lease                 time.Duration
+	validationTimeout     time.Duration
 	maxAge                time.Duration
 	maxBytesPerCache      int64
 	maxEntriesPerCache    int
@@ -95,6 +99,15 @@ func newFinanceResultCaches(config ResultCacheConfig, now func() time.Time) *fin
 	if config.ValidationLease <= 0 {
 		config.ValidationLease = defaults.ValidationLease
 	}
+	if config.ValidationTimeout <= 0 || config.ValidationTimeout >= config.ValidationLease {
+		config.ValidationTimeout = defaults.ValidationTimeout
+		if config.ValidationTimeout >= config.ValidationLease {
+			config.ValidationTimeout = config.ValidationLease / 2
+		}
+		if config.ValidationTimeout <= 0 {
+			config.ValidationTimeout = time.Nanosecond
+		}
+	}
 	totalCacheBytes := config.MaxBytes
 	if totalCacheBytes > financeconfig.MaxFinanceResultCacheBytes {
 		totalCacheBytes = financeconfig.MaxFinanceResultCacheBytes
@@ -120,6 +133,7 @@ func newFinanceResultCaches(config ResultCacheConfig, now func() time.Time) *fin
 	return &financeResultCaches{
 		enabled:               config.Enabled,
 		lease:                 config.ValidationLease,
+		validationTimeout:     config.ValidationTimeout,
 		maxAge:                config.MaxAge,
 		maxBytesPerCache:      perCacheBytes,
 		maxEntriesPerCache:    perCacheEntries,
@@ -227,7 +241,9 @@ func (s *FinanceService) expenseRevision(ctx context.Context, userID string) (Ex
 	if !ok {
 		return ExpenseRevision{}, false, fmt.Errorf("expense revision client unavailable")
 	}
-	revision, err := client.GetExpenseRevision(ctx, userID)
+	validationCtx, cancel := context.WithTimeout(ctx, s.resultCaches.validationTimeout)
+	defer cancel()
+	revision, err := client.GetExpenseRevision(validationCtx, userID)
 	if err != nil {
 		return ExpenseRevision{}, true, fmt.Errorf("validating expense revision: %w", err)
 	}

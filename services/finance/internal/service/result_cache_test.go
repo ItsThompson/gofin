@@ -79,14 +79,16 @@ func (r *resultCacheRepo) GetUpcomingProRata(context.Context, string) ([]*model.
 }
 
 type resultCacheExpenseClient struct {
-	expenses       []ExpenseData
-	revision       ExpenseRevision
-	revisionErr    error
-	expenseErr     error
-	expenseStarted chan struct{}
-	expenseRelease chan struct{}
-	expenseCalls   int
-	revisionCalls  int
+	expenses        []ExpenseData
+	revision        ExpenseRevision
+	revisionErr     error
+	revisionStarted chan struct{}
+	revisionRelease chan struct{}
+	expenseErr      error
+	expenseStarted  chan struct{}
+	expenseRelease  chan struct{}
+	expenseCalls    int
+	revisionCalls   int
 }
 
 func (c *resultCacheExpenseClient) GetActiveExpensesForPeriod(context.Context, string, int32, int32) ([]ExpenseData, error) {
@@ -101,8 +103,16 @@ func (c *resultCacheExpenseClient) GetActiveExpensesForPeriod(context.Context, s
 	return c.expenses, nil
 }
 
-func (c *resultCacheExpenseClient) GetExpenseRevision(context.Context, string) (ExpenseRevision, error) {
+func (c *resultCacheExpenseClient) GetExpenseRevision(ctx context.Context, _ string) (ExpenseRevision, error) {
 	c.revisionCalls++
+	if c.revisionStarted != nil {
+		close(c.revisionStarted)
+		select {
+		case <-c.revisionRelease:
+		case <-ctx.Done():
+			return ExpenseRevision{}, ctx.Err()
+		}
+	}
 	return c.revision, c.revisionErr
 }
 
@@ -126,6 +136,42 @@ func newResultCacheTestService(now *time.Time, repo *resultCacheRepo, expense *r
 	config.MaxAge = 48 * time.Hour
 	config.ValidationLease = 2 * time.Minute
 	return NewFinanceServiceWithCache(repo, nil, expense, func() time.Time { return *now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+}
+
+func TestFinanceResultCache_RevisionValidationTimeout(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{revisionStarted: make(chan struct{}), revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	config := DefaultResultCacheConfig()
+	config.ValidationTimeout = 10 * time.Millisecond
+	svc := NewFinanceServiceWithCache(repo, nil, expense, func() time.Time { return now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+
+	startedAt := time.Now()
+	_, err := svc.GetPeriodSummary(context.Background(), "user-1", 2026, 1)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(startedAt), time.Second)
+}
+
+func TestFinanceResultCache_RevisionValidationHonorsCallerCancellation(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{revisionStarted: make(chan struct{}), revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := svc.GetPeriodSummary(ctx, "user-1", 2026, 1)
+		errCh <- err
+	}()
+	<-expense.revisionStarted
+	cancel()
+
+	err := <-errCh
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestFinanceResultCachesUseAggregateBudget(t *testing.T) {
