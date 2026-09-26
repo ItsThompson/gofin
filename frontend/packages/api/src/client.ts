@@ -96,9 +96,14 @@ async function executeFetch<T>(
   const requestHeaders: Record<string, string> = Object.fromEntries(
     new Headers(headers).entries(),
   );
-  requestHeaders["Content-Type"] = "application/json";
+  if (!Object.keys(requestHeaders).some((name) => name.toLowerCase() === "content-type")) {
+    requestHeaders["Content-Type"] = "application/json";
+  }
   if (forceRefresh) {
-    requestHeaders["Cache-Control"] = "no-cache";
+    const cacheControlName = Object.keys(requestHeaders).find(
+      (name) => name.toLowerCase() === "cache-control",
+    ) ?? "Cache-Control";
+    requestHeaders[cacheControlName] = "no-cache";
   }
 
   const response = await fetch(url, {

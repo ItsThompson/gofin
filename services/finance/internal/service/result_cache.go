@@ -282,26 +282,28 @@ func loadCachedResult[T any](s *FinanceService, ctx context.Context, operation, 
 		return result.Value, nil
 	}
 
-	if cached, generation, ok := store.Peek(key); ok {
-		now := s.nowFunc()
-		if !now.Before(cached.ExpiresAt) {
-			store.Evict(key)
-		} else if cached.Dependency == nil || now.Sub(cached.ValidatedAt) < s.resultCaches.lease {
-			recordFinanceCacheEvent(operation, financecache.StatusHit)
-			return cached.Value, nil
-		} else {
-			revision, available, err := s.expenseRevision(ctx, userIDFromResultKey(key))
-			if err != nil {
+	if !cacheBypass(ctx) {
+		if cached, generation, ok := store.Peek(key); ok {
+			now := s.nowFunc()
+			if !now.Before(cached.ExpiresAt) {
 				store.Evict(key)
-				return zero, err
-			}
-			if !available || !sameExpenseRevision(*cached.Dependency, revision) {
-				s.invalidateFinanceExpenseUser(userIDFromResultKey(key))
+			} else if cached.Dependency == nil || now.Sub(cached.ValidatedAt) < s.resultCaches.lease {
+				recordFinanceCacheEvent(operation, financecache.StatusHit)
+				return cached.Value, nil
 			} else {
-				cached.ValidatedAt = now
-				if store.Refresh(key, cached, generation) {
-					recordFinanceCacheEvent(operation, financecache.StatusHit)
-					return cached.Value, nil
+				revision, available, err := s.expenseRevision(ctx, userIDFromResultKey(key))
+				if err != nil {
+					store.Evict(key)
+					return zero, err
+				}
+				if !available || !sameExpenseRevision(*cached.Dependency, revision) {
+					s.invalidateFinanceExpenseUser(userIDFromResultKey(key))
+				} else {
+					cached.ValidatedAt = now
+					if store.Refresh(key, cached, generation) {
+						recordFinanceCacheEvent(operation, financecache.StatusHit)
+						return cached.Value, nil
+					}
 				}
 			}
 		}

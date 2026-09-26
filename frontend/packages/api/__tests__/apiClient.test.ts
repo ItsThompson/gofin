@@ -129,6 +129,22 @@ describe("apiClient", () => {
       });
     });
 
+    it("preserves an explicit content-type header", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      });
+
+      await apiClient("/api/upload", {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      expect(
+        new Headers(fetchMock.mock.calls[0][1].headers).get("Content-Type"),
+      ).toBe("multipart/form-data");
+    });
+
     it("returns undefined for 204 No Content responses", async () => {
       fetchMock.mockResolvedValue({
         ok: true,

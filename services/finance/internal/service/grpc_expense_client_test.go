@@ -64,7 +64,8 @@ func TestGRPCExpenseClient_RejectsEmptyRevisionResponse(t *testing.T) {
 
 func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	stub := &stubExpenseClient{
-		getActiveExpensesForPeriodPage: func(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
+		getActiveExpensesForPeriodPage: func(_ context.Context, request *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
+			assert.False(t, request.GetBypassCache())
 			return &expensepb.CompleteExpensePageResponse{
 				Data: []*expensepb.ExpenseData{
 					{

@@ -265,6 +265,29 @@ func TestFinanceResultCache_RevisionChangePurgesAllDependentOperations(t *testin
 	require.Equal(t, 1, repo.upcomingCalls)
 }
 
+func TestFinanceResultCache_ForcedReadBypassesCachedResultAndDoesNotFallback(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{expenses: []ExpenseData{{ReportingAmount: 100, ExpenseType: "essentials"}}, revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+
+	cached, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(100), cached.TotalSpent)
+
+	expense.expenses[0].ReportingAmount = 200
+	fresh, err := svc.GetPeriodSummary(WithCacheBypass(t.Context()), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), fresh.TotalSpent)
+	require.Equal(t, 2, expense.expenseCalls)
+
+	expense.expenseErr = errors.New("forced source unavailable")
+	_, err = svc.GetPeriodSummary(WithCacheBypass(t.Context()), "user-1", 2026, 1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "forced source unavailable")
+	require.Equal(t, 3, expense.expenseCalls)
+}
+
 func TestFinanceResultCache_MutationErrorPurgesCachedResults(t *testing.T) {
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	period := &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}
