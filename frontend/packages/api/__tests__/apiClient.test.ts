@@ -71,6 +71,64 @@ describe("apiClient", () => {
       });
     });
 
+    it("sends no-cache only when forceRefresh is enabled", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      });
+
+      await apiClient("/api/dashboard", { forceRefresh: true });
+
+      expect(fetchMock).toHaveBeenCalledWith("/api/dashboard", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+      });
+    });
+
+    it("leaves ordinary requests without a cache-control header", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      });
+
+      await apiClient("/api/dashboard");
+
+      expect(fetchMock.mock.calls[0][1].headers).toEqual({
+        "Content-Type": "application/json",
+      });
+    });
+
+    it("preserves force-refresh on the post-refresh retry", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "Expired" }),
+        })
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ refreshed: true }),
+        });
+
+      await apiClient("/api/dashboard", { forceRefresh: true });
+
+      expect(fetchMock.mock.calls[0][1].headers).toEqual({
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      });
+      expect(fetchMock.mock.calls[2][1].headers).toEqual({
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      });
+    });
+
     it("returns undefined for 204 No Content responses", async () => {
       fetchMock.mockResolvedValue({
         ok: true,

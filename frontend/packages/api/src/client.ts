@@ -84,17 +84,27 @@ function refreshTokens(): Promise<boolean> {
 /**
  * Core fetch logic shared by the initial request and the retry after refresh.
  */
+export type ApiClientOptions = RequestInit & {
+  forceRefresh?: boolean;
+};
+
 async function executeFetch<T>(
   url: string,
-  options: RequestInit,
+  options: ApiClientOptions,
 ): Promise<{ response: Response; data?: T }> {
+  const { forceRefresh, headers, ...requestInit } = options;
+  const requestHeaders: Record<string, string> = Object.fromEntries(
+    new Headers(headers).entries(),
+  );
+  requestHeaders["Content-Type"] = "application/json";
+  if (forceRefresh) {
+    requestHeaders["Cache-Control"] = "no-cache";
+  }
+
   const response = await fetch(url, {
-    ...options,
+    ...requestInit,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers: requestHeaders,
   });
 
   if (!response.ok) {
@@ -136,7 +146,7 @@ async function parseErrorResponse(response: Response): Promise<ApiRequestError> 
  */
 export async function apiClient<T>(
   url: string,
-  options: RequestInit = {},
+  options: ApiClientOptions = {},
 ): Promise<T> {
   const result = await executeFetch<T>(url, options);
 

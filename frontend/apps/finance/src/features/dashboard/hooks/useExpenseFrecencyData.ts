@@ -27,7 +27,7 @@ async function fetchActiveSuggestions(
   let hasMore = true;
 
   while (suggestions.length < pageSize && hasMore && !signal.aborted) {
-    const response = await expenseSuggestionsApi.getSuggestions(page, pageSize, signal);
+    const response = await expenseSuggestionsApi.getSuggestions(page, pageSize, { signal });
     suggestions.push(...response.data.filter(isActiveExpenseSuggestion));
     hasMore = response.hasMore;
     page += 1;

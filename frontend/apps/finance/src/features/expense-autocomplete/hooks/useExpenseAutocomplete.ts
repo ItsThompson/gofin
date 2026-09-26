@@ -125,7 +125,7 @@ export function useExpenseAutocomplete(): {
         const response = await expenseSuggestionsApi.getSuggestions(
           INITIAL_PAGE,
           PAGE_SIZE,
-          abortController.signal,
+          { signal: abortController.signal },
         );
 
         if (!isMountedRef.current) {
