@@ -56,7 +56,7 @@ func TestGetActiveExpensesByPeriodAfter_IntegrationTransportDecision(t *testing.
 	otherPeriod.PeriodMonth = 6
 	require.NoError(t, createIntegrationExpense(ctx, repo, otherPeriod))
 
-	firstRead, firstPages, firstPageBytes, err := readAllActivePeriod(repo, userID, 2026, 5)
+	firstRead, firstPages, firstPageMessageBytes, err := readAllActivePeriod(repo, userID, 2026, 5)
 	require.NoError(t, err)
 	secondRead, secondPages, _, err := readAllActivePeriod(repo, userID, 2026, 5)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestGetActiveExpensesByPeriodAfter_IntegrationTransportDecision(t *testing.
 	assert.Equal(t, firstPages, secondPages)
 	assert.Equal(t, expenseIDs(firstRead), expenseIDs(secondRead), "cursor walk must be deterministic")
 	assert.Equal(t, 3, firstPages, "123 rows at a 50-row page size require three bounded pages")
-	assert.Less(t, firstPageBytes, grpcDefaultMaxReceiveBytes, "one bounded response must fit grpc-go's default receive limit")
+	assert.Less(t, firstPageMessageBytes, grpcDefaultMaxReceiveBytes, "one complete-period page message must fit grpc-go's default receive limit")
 
 	seen := make(map[string]struct{}, len(firstRead))
 	for i, row := range firstRead {
@@ -101,7 +101,7 @@ func TestGetActiveExpensesByPeriodAfter_IntegrationTransportDecision(t *testing.
 
 	peakMemory := measureConcurrentPeriodReadMemory(t, repo, userID)
 	memoryLimitBytes := uint64(256 * 1024 * 1024)
-	t.Logf("transport=bounded-keyset page_size=%d pages=%d grpc_response_bytes=%d grpc_default_receive_limit_bytes=%d concurrent_reads=%d peak_heap_inuse_bytes=%d peak_runtime_sys_bytes=%d expense_memory_limit_bytes=%d", CompletePeriodPageSize, firstPages, firstPageBytes, grpcDefaultMaxReceiveBytes, concurrentCompleteReads, peakMemory.heapInuseBytes, peakMemory.runtimeSysBytes, memoryLimitBytes)
+	t.Logf("transport=bounded-keyset page_size=%d pages=%d complete_page_message_bytes=%d grpc_default_receive_limit_bytes=%d concurrent_reads=%d peak_heap_inuse_bytes=%d peak_runtime_sys_bytes=%d expense_memory_limit_bytes=%d", CompletePeriodPageSize, firstPages, firstPageMessageBytes, grpcDefaultMaxReceiveBytes, concurrentCompleteReads, peakMemory.heapInuseBytes, peakMemory.runtimeSysBytes, memoryLimitBytes)
 	assert.Less(t, peakMemory.heapInuseBytes, memoryLimitBytes, "absolute peak heap in use must stay below expense service memory limit")
 	assert.Less(t, peakMemory.runtimeSysBytes, memoryLimitBytes, "absolute Go runtime memory must stay below expense service memory limit")
 }
@@ -219,19 +219,25 @@ func readAllActivePeriod(repo *ImmudbExpenseRepository, userID string, year, mon
 	cursor := ActivePeriodCursor{}
 	all := make([]*model.Expense, 0, 123)
 	pages := 0
-	firstPageBytes := 0
+	firstPageMessageBytes := 0
 	for {
 		page, next, hasMore, err := repo.GetActiveExpensesByPeriodAfter(context.Background(), userID, year, month, cursor, CompletePeriodPageSize)
 		if err != nil {
 			return nil, 0, 0, err
 		}
 		if pages == 0 {
-			firstPageBytes = proto.Size(&pb.ExpenseListResponse{Data: expensesToProto(page)})
+			firstPageMessageBytes = proto.Size(&pb.CompleteExpensePageResponse{
+				Data:            expensesToProto(page),
+				NextExpenseDate: next.ExpenseDate,
+				NextCreatedAt:   next.CreatedAt,
+				NextId:          next.ID,
+				HasMore:         hasMore,
+			})
 		}
 		all = append(all, page...)
 		pages++
 		if !hasMore {
-			return all, pages, firstPageBytes, nil
+			return all, pages, firstPageMessageBytes, nil
 		}
 		cursor = next
 		if pages > 100 {
