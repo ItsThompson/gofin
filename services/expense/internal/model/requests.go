@@ -52,6 +52,27 @@ type ExpenseListResponse struct {
 	HasMore  bool       `json:"hasMore"`
 }
 
+// GetActiveExpensesForPeriodPageRequest carries the cursor for one internal
+// complete-period read page.
+type GetActiveExpensesForPeriodPageRequest struct {
+	UserID            string
+	Year              int32
+	Month             int32
+	CursorExpenseDate string
+	CursorCreatedAt   string
+	CursorID          string
+	PageSize          int32
+}
+
+// CompleteExpensePageResponse is one internal complete-period read page.
+type CompleteExpensePageResponse struct {
+	Data            []*Expense
+	NextExpenseDate string
+	NextCreatedAt   string
+	NextID          string
+	HasMore         bool
+}
+
 // CorrectExpenseRequest is the input for POST /api/expenses/:id/correct.
 type CorrectExpenseRequest struct {
 	Name                                  string `json:"name"`

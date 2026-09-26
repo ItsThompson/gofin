@@ -17,6 +17,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/expense/internal/service"
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
@@ -79,11 +80,50 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	// The rest of the gRPC surface is unchanged.
 	assert.Contains(t, registered, "CreateExpense")
 	assert.Contains(t, registered, "GetActiveExpensesForPeriod")
+	assert.Contains(t, registered, "GetActiveExpensesForPeriodPage")
 	assert.Contains(t, registered, "GetExpense")
 	assert.Contains(t, registered, "CorrectExpense")
 	assert.Contains(t, registered, "CountExpensesByTag")
 	assert.Contains(t, registered, "AnonymizeAllUserExpenses")
 	assert.Contains(t, registered, "StreamAllUserExpenses")
+}
+
+func TestGRPC_GetActiveExpensesForPeriodPage_MapsCompleteRows(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	repo.On("GetActiveExpensesByPeriodAfter", mock.Anything, "user-1", int32(2026), int32(5), repository.ActivePeriodCursor{}, int32(50)).Return(
+		[]*model.Expense{{ID: "e-1", Status: "active", ReportingAmountInMinorUnits: 1200}},
+		repository.ActivePeriodCursor{ExpenseDate: "2026-05-01", CreatedAt: "2026-05-01T00:00:00Z", ID: "e-1"},
+		true,
+		nil,
+	)
+
+	response, err := newTestGRPCHandler(repo).GetActiveExpensesForPeriodPage(context.Background(), &pb.GetActiveExpensesForPeriodPageRequest{
+		UserId: "user-1", Year: 2026, Month: 5, PageSize: 50,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, response.GetData(), 1)
+	assert.Equal(t, "e-1", response.GetData()[0].GetId())
+	assert.Equal(t, int64(1200), response.GetData()[0].GetReportingAmountInMinorUnits())
+	assert.True(t, response.GetHasMore())
+	assert.Equal(t, "e-1", response.GetNextId())
+	repo.AssertExpectations(t)
+}
+
+func TestGRPC_GetActiveExpensesForPeriodPage_MapsRepositoryError(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	repo.On("GetActiveExpensesByPeriodAfter", mock.Anything, "user-1", int32(2026), int32(5), repository.ActivePeriodCursor{}, int32(50)).Return(
+		nil, repository.ActivePeriodCursor{}, false, fmt.Errorf("payload limit exceeded"),
+	)
+
+	response, err := newTestGRPCHandler(repo).GetActiveExpensesForPeriodPage(context.Background(), &pb.GetActiveExpensesForPeriodPageRequest{
+		UserId: "user-1", Year: 2026, Month: 5, PageSize: 50,
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, response)
+	assert.Equal(t, codes.Internal, status.Code(err))
+	repo.AssertExpectations(t)
 }
 
 func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {

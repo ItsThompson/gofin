@@ -14,6 +14,10 @@ type ExpenseRepository interface {
 	// and period, ordered by expense_date DESC, created_at DESC.
 	GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month, page, pageSize int32) (expenses []*model.Expense, totalCount int64, err error)
 
+	// GetActiveExpensesByPeriodAfter returns one bounded keyset page of active
+	// expenses for a user period. It preserves a stable cursor across pages.
+	GetActiveExpensesByPeriodAfter(ctx context.Context, userID string, year, month int32, cursor ActivePeriodCursor, pageSize int32) (expenses []*model.Expense, next ActivePeriodCursor, hasMore bool, err error)
+
 	// Returns nil if the expense doesn't exist or belongs to a different user.
 	GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error)
 

@@ -44,6 +44,15 @@ func (m *mockExpenseRepository) GetActiveExpensesForPeriod(ctx context.Context, 
 	return args.Get(0).([]*model.Expense), args.Get(1).(int64), args.Error(2)
 }
 
+func (m *mockExpenseRepository) GetActiveExpensesByPeriodAfter(ctx context.Context, userID string, year, month int32, cursor repository.ActivePeriodCursor, pageSize int32) ([]*model.Expense, repository.ActivePeriodCursor, bool, error) {
+	args := m.Called(ctx, userID, year, month, cursor, pageSize)
+	var expenses []*model.Expense
+	if args.Get(0) != nil {
+		expenses = args.Get(0).([]*model.Expense)
+	}
+	return expenses, args.Get(1).(repository.ActivePeriodCursor), args.Bool(2), args.Error(3)
+}
+
 func (m *mockExpenseRepository) GetExpenseByID(ctx context.Context, expenseID string, userID string) (*model.Expense, error) {
 	args := m.Called(ctx, expenseID, userID)
 	if args.Get(0) == nil {

@@ -200,6 +200,34 @@ func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *mo
 	}, nil
 }
 
+// GetActiveExpensesForPeriodPage returns one bounded page for internal
+// consumers that need the complete active period. The public paginated read
+// remains separate so its offset and response behavior stay unchanged.
+func (s *ExpenseService) GetActiveExpensesForPeriodPage(ctx context.Context, req *model.GetActiveExpensesForPeriodPageRequest) (*model.CompleteExpensePageResponse, error) {
+	v := validator.New()
+	v.Check(req.Year >= 1, "year", "year must be positive")
+	v.Check(req.Month >= 1 && req.Month <= 12, "month", "month must be between 1 and 12")
+	if v.HasErrors() {
+		return nil, apierr.Validation("validation failed", v.Errors())
+	}
+
+	expenses, next, hasMore, err := s.repo.GetActiveExpensesByPeriodAfter(ctx, req.UserID, req.Year, req.Month, repository.ActivePeriodCursor{
+		ExpenseDate: req.CursorExpenseDate,
+		CreatedAt:   req.CursorCreatedAt,
+		ID:          req.CursorID,
+	}, req.PageSize)
+	if err != nil {
+		return nil, fmt.Errorf("getting active expenses page for period: %w", err)
+	}
+	return &model.CompleteExpensePageResponse{
+		Data:            expenses,
+		NextExpenseDate: next.ExpenseDate,
+		NextCreatedAt:   next.CreatedAt,
+		NextID:          next.ID,
+		HasMore:         hasMore,
+	}, nil
+}
+
 // GetExpense returns a single expense by ID, scoped to the requesting user.
 func (s *ExpenseService) GetExpense(ctx context.Context, userID string, id string) (*model.Expense, error) {
 	v := validator.New()

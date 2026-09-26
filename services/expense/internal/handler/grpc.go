@@ -28,6 +28,7 @@ var (
 	opCreate             = operation{opName: "expense.create", rpcMethod: "CreateExpense"}
 	opProRataInstallment = operation{opName: "expense.create_pro_rata_installment", rpcMethod: "CreateProRataInstallment"}
 	opList               = operation{opName: "expense.list", rpcMethod: "GetActiveExpensesForPeriod"}
+	opCompletePeriod     = operation{opName: "expense.complete_period", rpcMethod: "GetActiveExpensesForPeriodPage"}
 	opGet                = operation{opName: "expense.get", rpcMethod: "GetExpense"}
 	opCorrect            = operation{opName: "expense.correct", rpcMethod: "CorrectExpense"}
 	opCountByTag         = operation{opName: "expense.count_by_tag", rpcMethod: "CountExpensesByTag"}
@@ -139,6 +140,34 @@ func (h *GRPCHandler) GetActiveExpensesForPeriod(ctx context.Context, req *pb.Ge
 		Page:     result.Page,
 		PageSize: result.PageSize,
 		HasMore:  result.HasMore,
+	}, nil
+}
+
+func (h *GRPCHandler) GetActiveExpensesForPeriodPage(ctx context.Context, req *pb.GetActiveExpensesForPeriodPageRequest) (*pb.CompleteExpensePageResponse, error) {
+	result, err := h.expenseService.GetActiveExpensesForPeriodPage(ctx, &model.GetActiveExpensesForPeriodPageRequest{
+		UserID:            req.GetUserId(),
+		Year:              req.GetYear(),
+		Month:             req.GetMonth(),
+		CursorExpenseDate: req.GetCursorExpenseDate(),
+		CursorCreatedAt:   req.GetCursorCreatedAt(),
+		CursorID:          req.GetCursorId(),
+		PageSize:          req.GetPageSize(),
+	})
+	if err != nil {
+		return nil, h.mapServiceError(ctx, err, opCompletePeriod, req.GetUserId())
+	}
+
+	protoExpenses := make([]*pb.ExpenseData, len(result.Data))
+	for i, expense := range result.Data {
+		protoExpenses[i] = expenseToProto(expense)
+	}
+
+	return &pb.CompleteExpensePageResponse{
+		Data:            protoExpenses,
+		NextExpenseDate: result.NextExpenseDate,
+		NextCreatedAt:   result.NextCreatedAt,
+		NextId:          result.NextID,
+		HasMore:         result.HasMore,
 	}, nil
 }
 
