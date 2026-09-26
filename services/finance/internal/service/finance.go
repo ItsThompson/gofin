@@ -239,6 +239,21 @@ func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, 
 	return defaults, nil
 }
 
+// EvictUserCache removes all finance results for one user. Expense calls this
+// after a committed or uncertain ledger mutation, so a missed callback remains
+// recoverable through the expense revision lease.
+func (s *FinanceService) EvictUserCache(_ context.Context, userID string) error {
+	if userID == "" {
+		return apierr.Validation("validation failed", map[string]string{"userId": "user_id is required"})
+	}
+	s.invalidateFinanceUser(userID)
+	s.logger.Info("finance cache evicted",
+		slog.String("method", "EvictUserCache"),
+		slog.String("user_id", userID),
+	)
+	return nil
+}
+
 // GetDefaults retrieves the user's default budget settings.
 func (s *FinanceService) GetDefaults(ctx context.Context, userID string) (*model.DefaultSettings, error) {
 	defaults, err := s.repo.GetDefaults(ctx, userID)

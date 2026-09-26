@@ -511,3 +511,26 @@ func (h *GRPCHandler) DeleteAllUserData(ctx context.Context, req *pb.DeleteAllUs
 
 	return &pb.DeleteAllUserDataResponse{}, nil
 }
+
+func (h *GRPCHandler) EvictUserCache(ctx context.Context, req *pb.EvictUserCacheRequest) (*pb.EvictUserCacheResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if err := h.financeService.EvictUserCache(ctx, userID); err != nil {
+		if statusErr := financeErrorStatus(err); statusErr != nil {
+			return nil, statusErr
+		}
+		reportServerFailure(ctx, err, errkit.Meta{
+			Op:     "finance.evict_user_cache",
+			Domain: config.ReportDomain,
+			Msg:    "failed to evict user cache",
+			Data: map[string]any{
+				"method":  "EvictUserCache",
+				"user_id": userID,
+			},
+		})
+		return nil, status.Error(codes.Internal, "failed to evict user cache")
+	}
+	return &pb.EvictUserCacheResponse{}, nil
+}

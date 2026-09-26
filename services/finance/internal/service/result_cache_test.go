@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
@@ -116,6 +117,26 @@ func TestFinanceResultCacheKeysIncludeOperationAndCanonicalTrendWindow(t *testin
 	require.Equal(t, int32(6), normalizeTrendMonths(-4))
 	require.Equal(t, int32(12), normalizeTrendMonths(99))
 	require.Contains(t, dashboardResultKey(operationSummary, "user-1", 2026, 1), "summary|user-1|2026|1")
+}
+
+func TestEvictUserCacheLeavesUnrelatedUserWarm(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", Year: 2026, Month: 1}}
+	expense := &resultCacheExpenseClient{revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+
+	_, err := svc.GetCurrentPeriod(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	_, err = svc.GetCurrentPeriod(t.Context(), "user-2", 2026, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 2, repo.calls)
+
+	require.NoError(t, svc.EvictUserCache(t.Context(), "user-1"))
+	_, err = svc.GetCurrentPeriod(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	_, err = svc.GetCurrentPeriod(t.Context(), "user-2", 2026, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 3, repo.calls)
 }
 
 func TestFinanceResultCache_IsolatesUsersAndRenewsLease(t *testing.T) {

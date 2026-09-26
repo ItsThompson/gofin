@@ -71,6 +71,17 @@ func TestGetDefaults_WrappedTypedErrorClassifies(t *testing.T) {
 	assert.Equal(t, codes.NotFound, st.Code())
 }
 
+func TestEvictUserCache_ValidatesUserAndSucceeds(t *testing.T) {
+	handler := setupGRPCHandler(new(mockFinanceRepository))
+
+	_, err := handler.EvictUserCache(context.Background(), &pb.EvictUserCacheRequest{})
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	response, err := handler.EvictUserCache(context.Background(), &pb.EvictUserCacheRequest{UserId: "user-1"})
+	require.NoError(t, err)
+	assert.NotNil(t, response)
+}
+
 func TestGetPeriodContextGrpc_Success(t *testing.T) {
 	repo := new(mockFinanceRepository)
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
