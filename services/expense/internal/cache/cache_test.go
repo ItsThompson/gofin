@@ -265,6 +265,62 @@ func TestCachePurgeFencesPendingLoads(t *testing.T) {
 	assert.Eventually(t, func() bool { return cache.Len() == 0 }, time.Second, time.Millisecond)
 }
 
+func TestCacheLifecycleObserverReportsCapacityAndEviction(t *testing.T) {
+	now := time.Now()
+	var events []Event
+	config := DefaultConfig()
+	config.MaxEntries = 1
+	config.Observer = func(event Event) { events = append(events, event) }
+	cache := testCache(&now, config)
+	loader := func(value string) func(context.Context) (map[string][]string, error) {
+		return func(context.Context) (map[string][]string, error) {
+			return map[string][]string{"value": {value}}, nil
+		}
+	}
+
+	_, _, err := cache.Load(context.Background(), "first", LoadOptions{}, loader("first"))
+	require.NoError(t, err)
+	_, _, err = cache.Load(context.Background(), "second", LoadOptions{}, loader("second"))
+	require.NoError(t, err)
+	assert.Contains(t, events, EventEviction)
+
+	config.MaxEntryBytes = 1
+	oversized := testCache(&now, config)
+	_, _, err = oversized.Load(context.Background(), "large", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+		return map[string][]string{"value": {"too-large", "still-large"}}, nil
+	})
+	require.NoError(t, err)
+	assert.Contains(t, events, EventCapacityBypass)
+}
+
+func TestCacheSingleFlightReportsJoinStatus(t *testing.T) {
+	now := time.Now()
+	cache := testCache(&now, DefaultConfig())
+	started := make(chan struct{})
+	release := make(chan struct{})
+	first := make(chan LoadStatus, 1)
+	second := make(chan LoadStatus, 1)
+	loader := func(context.Context) (map[string][]string, error) {
+		close(started)
+		<-release
+		return map[string][]string{"value": {"shared"}}, nil
+	}
+	go func() {
+		_, status, _ := cache.Load(context.Background(), "shared", LoadOptions{}, loader)
+		first <- status
+	}()
+	<-started
+	secondContext := &signallingContext{Context: context.Background(), entered: make(chan struct{})}
+	go func() {
+		_, status, _ := cache.Load(secondContext, "shared", LoadOptions{}, loader)
+		second <- status
+	}()
+	<-secondContext.entered
+	close(release)
+	assert.Equal(t, StatusLoaded, <-first)
+	assert.Equal(t, StatusSingleFlightJoin, <-second)
+}
+
 func TestCacheBypassAndDisabledReadSourceDirectly(t *testing.T) {
 	now := time.Now()
 	cache := testCache(&now, DefaultConfig())

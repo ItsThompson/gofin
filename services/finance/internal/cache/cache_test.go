@@ -62,6 +62,32 @@ func TestCacheCoalescesLoadsAndReturnsCopy(t *testing.T) {
 	require.Equal(t, []string{"source"}, *second)
 }
 
+func TestCacheObserverReportsCapacityBypassAndEviction(t *testing.T) {
+	var events []Event
+	config := testConfig()
+	config.MaxEntries = 1
+	config.MaxEntryBytes = 2
+	config.Observer = func(event Event) { events = append(events, event) }
+	cache := New[string, string](config, time.Now, nil, func(value string) (int64, bool) { return int64(len(value)), true })
+
+	_, _, err := cache.Load(context.Background(), "first", LoadOptions{}, func(context.Context) (string, error) {
+		return "ok", nil
+	})
+	require.NoError(t, err)
+	_, _, err = cache.Load(context.Background(), "second", LoadOptions{}, func(context.Context) (string, error) {
+		return "ok", nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, events, EventEviction)
+
+	_, status, err := cache.Load(context.Background(), "oversized", LoadOptions{}, func(context.Context) (string, error) {
+		return "too-large", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusOversize, status)
+	require.Contains(t, events, EventCapacityBypass)
+}
+
 func TestCacheBypassReplacesValueAndKeepsPriorValueOnFailure(t *testing.T) {
 	cache := New[string, string](testConfig(), time.Now, nil, nil)
 

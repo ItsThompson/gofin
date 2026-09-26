@@ -36,6 +36,8 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 	metrics.GRPCRequestDuration.WithLabelValues("/test.Service/Method").Observe(0.01)
 	metrics.TokenRefreshTotal.WithLabelValues("success").Inc()
 	metrics.RecoveredPanicsTotal.WithLabelValues("http").Inc()
+	metrics.ExpenseReadSourceDuration.WithLabelValues("complete_period").Observe(0.01)
+	metrics.FinanceReadSourceDuration.WithLabelValues("summary").Observe(0.01)
 
 	// Now scrape /metrics.
 	req = httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -56,6 +58,10 @@ func TestMetricsEndpoint_ReturnsPrometheusFormat(t *testing.T) {
 	assert.Contains(t, body, "# HELP token_refresh_total")
 	assert.Contains(t, body, "# HELP recovered_panics_total")
 	assert.Contains(t, body, "# TYPE recovered_panics_total counter")
+	assert.Contains(t, body, "# HELP expense_read_source_duration_seconds")
+	assert.Contains(t, body, "# TYPE expense_read_source_duration_seconds histogram")
+	assert.Contains(t, body, "# HELP finance_read_source_duration_seconds")
+	assert.Contains(t, body, "# TYPE finance_read_source_duration_seconds histogram")
 	assert.Contains(t, body, `recovered_panics_total{site="http"}`)
 	// active_connections is not a defined metric and must never be exported.
 	assert.NotContains(t, body, "active_connections")
@@ -155,4 +161,3 @@ func TestCustomMetrics_IncrementAndAppear(t *testing.T) {
 	assert.Contains(t, body, `token_refresh_total{status="success"}`)
 	assert.Contains(t, body, `token_refresh_total{status="failure"}`)
 }
-
