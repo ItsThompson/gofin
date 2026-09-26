@@ -129,6 +129,14 @@ var (
 		},
 		[]string{"operation", "event"},
 	)
+
+	FinanceResultCacheEventsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "finance_result_cache_events_total",
+			Help: "Total finance result-cache events by operation and outcome",
+		},
+		[]string{"operation", "event"},
+	)
 )
 
 // ---------------------------------------------------------------------------
