@@ -73,7 +73,7 @@ func NewExpenseServiceWithCache(
 		logger:        logger,
 		clock:         clock,
 		readCaches:    newExpenseReadCaches(cacheConfig, clock),
-		revisionOwner: newExpenseRevisionOwner(),
+		revisionOwner: newExpenseRevisionOwner(cacheConfig.MaxEntries),
 	}
 }
 

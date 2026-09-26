@@ -34,6 +34,18 @@ func TestExpenseRevisionOwnerUsesProcessWideMonotonicTokens(t *testing.T) {
 	assert.Equal(t, uint64(4), recreated.Revision)
 }
 
+func TestExpenseRevisionOwnerBoundsMetadata(t *testing.T) {
+	owner := newExpenseRevisionOwner(2)
+
+	owner.observe("user-1")
+	owner.observe("user-2")
+	owner.observe("user-3")
+
+	assert.Len(t, owner.revisions, 2)
+	newRevision := owner.observe("user-1")
+	assert.Equal(t, uint64(4), newRevision.Revision)
+}
+
 func TestGetExpenseRevisionDoesNotQueryRepository(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newRevisionTestService(repo)

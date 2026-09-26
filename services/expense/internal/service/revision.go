@@ -16,17 +16,28 @@ type ExpenseRevision struct {
 	Revision uint64
 }
 
+const defaultRevisionMetadataLimit = 256
+
 type expenseRevisionOwner struct {
-	mu        sync.Mutex
-	epoch     string
-	next      uint64
-	revisions map[string]uint64
+	mu           sync.Mutex
+	epoch        string
+	next         uint64
+	maxUsers     int
+	observedAt   uint64
+	revisions    map[string]uint64
+	lastObserved map[string]uint64
 }
 
-func newExpenseRevisionOwner() *expenseRevisionOwner {
+func newExpenseRevisionOwner(maxUsers ...int) *expenseRevisionOwner {
+	limit := defaultRevisionMetadataLimit
+	if len(maxUsers) > 0 && maxUsers[0] > 0 {
+		limit = maxUsers[0]
+	}
 	return &expenseRevisionOwner{
-		epoch:     uuid.NewString(),
-		revisions: make(map[string]uint64),
+		epoch:        uuid.NewString(),
+		maxUsers:     limit,
+		revisions:    make(map[string]uint64),
+		lastObserved: make(map[string]uint64),
 	}
 }
 
@@ -35,6 +46,7 @@ func (o *expenseRevisionOwner) observe(userID string) ExpenseRevision {
 	defer o.mu.Unlock()
 
 	if revision, ok := o.revisions[userID]; ok {
+		o.touchLocked(userID)
 		return ExpenseRevision{Epoch: o.epoch, Revision: revision}
 	}
 	return ExpenseRevision{Epoch: o.epoch, Revision: o.advanceLocked(userID)}
@@ -44,7 +56,8 @@ func (o *expenseRevisionOwner) advance(userID string) ExpenseRevision {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	return ExpenseRevision{Epoch: o.epoch, Revision: o.advanceLocked(userID)}
+	revision := o.advanceLocked(userID)
+	return ExpenseRevision{Epoch: o.epoch, Revision: revision}
 }
 
 func (o *expenseRevisionOwner) retire(userID string) {
@@ -52,6 +65,7 @@ func (o *expenseRevisionOwner) retire(userID string) {
 	defer o.mu.Unlock()
 
 	delete(o.revisions, userID)
+	delete(o.lastObserved, userID)
 }
 
 func (o *expenseRevisionOwner) advanceLocked(userID string) uint64 {
@@ -59,10 +73,33 @@ func (o *expenseRevisionOwner) advanceLocked(userID string) uint64 {
 		o.epoch = uuid.NewString()
 		o.next = 0
 		o.revisions = make(map[string]uint64)
+		o.lastObserved = make(map[string]uint64)
 	}
 	o.next++
 	o.revisions[userID] = o.next
+	o.touchLocked(userID)
+	o.evictMetadataLocked()
 	return o.next
+}
+
+func (o *expenseRevisionOwner) touchLocked(userID string) {
+	o.observedAt++
+	o.lastObserved[userID] = o.observedAt
+}
+
+func (o *expenseRevisionOwner) evictMetadataLocked() {
+	for len(o.revisions) > o.maxUsers {
+		var leastRecentlyObserved string
+		var leastObserved uint64
+		for userID, observedAt := range o.lastObserved {
+			if leastRecentlyObserved == "" || observedAt < leastObserved {
+				leastRecentlyObserved = userID
+				leastObserved = observedAt
+			}
+		}
+		delete(o.revisions, leastRecentlyObserved)
+		delete(o.lastObserved, leastRecentlyObserved)
+	}
 }
 
 func (s *ExpenseService) invalidateUser(userID string) {
