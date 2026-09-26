@@ -97,31 +97,37 @@ func newFinanceResultCaches(config ResultCacheConfig, now func() time.Time) *fin
 		MaxAge:        config.MaxAge,
 	}
 	return &financeResultCaches{
-		enabled:     config.Enabled,
-		lease:       config.ValidationLease,
-		maxAge:      config.MaxAge,
-		periods:     financecache.New[string, *cachedResult[*model.BudgetPeriod]](cacheConfig, now, cloneJSON[*cachedResult[*model.BudgetPeriod]], jsonSize[*cachedResult[*model.BudgetPeriod]]),
-		summary:     financecache.New[string, *cachedResult[*model.PeriodSummary]](cacheConfig, now, cloneJSON[*cachedResult[*model.PeriodSummary]], jsonSize[*cachedResult[*model.PeriodSummary]]),
-		byTag:       financecache.New[string, *cachedResult[[]model.TagSpending]](cacheConfig, now, cloneJSON[*cachedResult[[]model.TagSpending]], jsonSize[*cachedResult[[]model.TagSpending]]),
-		cumulative:  financecache.New[string, *cachedResult[[]model.CumulativeSpendPoint]](cacheConfig, now, cloneJSON[*cachedResult[[]model.CumulativeSpendPoint]], jsonSize[*cachedResult[[]model.CumulativeSpendPoint]]),
-		comparison:  financecache.New[string, *cachedResult[*model.HistoricalComparison]](cacheConfig, now, cloneJSON[*cachedResult[*model.HistoricalComparison]], jsonSize[*cachedResult[*model.HistoricalComparison]]),
-		trends:      financecache.New[string, *cachedResult[[]model.TrendPoint]](cacheConfig, now, cloneJSON[*cachedResult[[]model.TrendPoint]], jsonSize[*cachedResult[[]model.TrendPoint]]),
-		upcoming:    financecache.New[string, *cachedResult[[]*model.ProRataSchedule]](cacheConfig, now, cloneJSON[*cachedResult[[]*model.ProRataSchedule]], jsonSize[*cachedResult[[]*model.ProRataSchedule]]),
-		health:      financecache.New[string, *cachedResult[*model.HealthScore]](cacheConfig, now, cloneJSON[*cachedResult[*model.HealthScore]], jsonSize[*cachedResult[*model.HealthScore]]),
-		healthTrend: financecache.New[string, *cachedResult[[]model.HealthScoreTrendPoint]](cacheConfig, now, cloneJSON[*cachedResult[[]model.HealthScoreTrendPoint]], jsonSize[*cachedResult[[]model.HealthScoreTrendPoint]]),
+		enabled: config.Enabled,
+		lease:   config.ValidationLease,
+		maxAge:  config.MaxAge,
+		periods: financecache.New[string, *cachedResult[*model.BudgetPeriod]](cacheConfig, now, func(value *cachedResult[*model.BudgetPeriod]) *cachedResult[*model.BudgetPeriod] {
+			return cloneCachedResult(value, cloneBudgetPeriod)
+		}, jsonSize[*cachedResult[*model.BudgetPeriod]]),
+		summary: financecache.New[string, *cachedResult[*model.PeriodSummary]](cacheConfig, now, func(value *cachedResult[*model.PeriodSummary]) *cachedResult[*model.PeriodSummary] {
+			return cloneCachedResult(value, clonePeriodSummary)
+		}, jsonSize[*cachedResult[*model.PeriodSummary]]),
+		byTag: financecache.New[string, *cachedResult[[]model.TagSpending]](cacheConfig, now, func(value *cachedResult[[]model.TagSpending]) *cachedResult[[]model.TagSpending] {
+			return cloneCachedResult(value, cloneTagSpending)
+		}, jsonSize[*cachedResult[[]model.TagSpending]]),
+		cumulative: financecache.New[string, *cachedResult[[]model.CumulativeSpendPoint]](cacheConfig, now, func(value *cachedResult[[]model.CumulativeSpendPoint]) *cachedResult[[]model.CumulativeSpendPoint] {
+			return cloneCachedResult(value, cloneCumulativeSpend)
+		}, jsonSize[*cachedResult[[]model.CumulativeSpendPoint]]),
+		comparison: financecache.New[string, *cachedResult[*model.HistoricalComparison]](cacheConfig, now, func(value *cachedResult[*model.HistoricalComparison]) *cachedResult[*model.HistoricalComparison] {
+			return cloneCachedResult(value, cloneHistoricalComparison)
+		}, jsonSize[*cachedResult[*model.HistoricalComparison]]),
+		trends: financecache.New[string, *cachedResult[[]model.TrendPoint]](cacheConfig, now, func(value *cachedResult[[]model.TrendPoint]) *cachedResult[[]model.TrendPoint] {
+			return cloneCachedResult(value, cloneTrendPoints)
+		}, jsonSize[*cachedResult[[]model.TrendPoint]]),
+		upcoming: financecache.New[string, *cachedResult[[]*model.ProRataSchedule]](cacheConfig, now, func(value *cachedResult[[]*model.ProRataSchedule]) *cachedResult[[]*model.ProRataSchedule] {
+			return cloneCachedResult(value, cloneProRataSchedules)
+		}, jsonSize[*cachedResult[[]*model.ProRataSchedule]]),
+		health: financecache.New[string, *cachedResult[*model.HealthScore]](cacheConfig, now, func(value *cachedResult[*model.HealthScore]) *cachedResult[*model.HealthScore] {
+			return cloneCachedResult(value, cloneHealthScore)
+		}, jsonSize[*cachedResult[*model.HealthScore]]),
+		healthTrend: financecache.New[string, *cachedResult[[]model.HealthScoreTrendPoint]](cacheConfig, now, func(value *cachedResult[[]model.HealthScoreTrendPoint]) *cachedResult[[]model.HealthScoreTrendPoint] {
+			return cloneCachedResult(value, cloneHealthTrendPoints)
+		}, jsonSize[*cachedResult[[]model.HealthScoreTrendPoint]]),
 	}
-}
-
-func cloneJSON[T any](value T) T {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return value
-	}
-	var cloned T
-	if err := json.Unmarshal(encoded, &cloned); err != nil {
-		return value
-	}
-	return cloned
 }
 
 func jsonSize[T any](value T) (int64, bool) {
@@ -191,19 +197,28 @@ func sameExpenseRevision(left, right ExpenseRevision) bool {
 	return left.Epoch == right.Epoch && left.Revision == right.Revision
 }
 
-func (s *FinanceService) invalidateFinanceUser(userID string) {
-	match := func(key string) bool {
+func financeUserCacheKeyMatches(userID string) func(string) bool {
+	return func(key string) bool {
 		return strings.Contains(key, "|"+userID+"|") || strings.HasSuffix(key, "|"+userID)
 	}
-	s.resultCaches.periods.Purge(match)
+}
+
+func (s *FinanceService) invalidateFinanceExpenseUser(userID string) {
+	match := financeUserCacheKeyMatches(userID)
 	s.resultCaches.summary.Purge(match)
 	s.resultCaches.byTag.Purge(match)
 	s.resultCaches.cumulative.Purge(match)
 	s.resultCaches.comparison.Purge(match)
 	s.resultCaches.trends.Purge(match)
-	s.resultCaches.upcoming.Purge(match)
 	s.resultCaches.health.Purge(match)
 	s.resultCaches.healthTrend.Purge(match)
+}
+
+func (s *FinanceService) invalidateFinanceUser(userID string) {
+	match := financeUserCacheKeyMatches(userID)
+	s.resultCaches.periods.Purge(match)
+	s.invalidateFinanceExpenseUser(userID)
+	s.resultCaches.upcoming.Purge(match)
 }
 
 func loadResult[T any](s *FinanceService, ctx context.Context, operation, key string, store *financecache.Cache[string, *cachedResult[T]], expiresAt time.Time, dependent bool, source func(context.Context) (T, error)) (T, error) {
@@ -227,6 +242,7 @@ func loadResult[T any](s *FinanceService, ctx context.Context, operation, key st
 				return nil, revisionErr
 			}
 			if !sameExpenseRevision(revision, current) {
+				s.invalidateFinanceExpenseUser(userIDFromResultKey(key))
 				return nil, fmt.Errorf("expense revision changed during %s load", operation)
 			}
 			return &cachedResult[T]{Value: value, Dependency: &revision, ValidatedAt: s.nowFunc(), ExpiresAt: expiresAt}, nil
@@ -259,7 +275,7 @@ func loadCachedResult[T any](s *FinanceService, ctx context.Context, operation, 
 				return zero, err
 			}
 			if !available || !sameExpenseRevision(*cached.Dependency, revision) {
-				store.Evict(key)
+				s.invalidateFinanceExpenseUser(userIDFromResultKey(key))
 			} else {
 				cached.ValidatedAt = now
 				if store.Refresh(key, cached, generation) {

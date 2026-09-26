@@ -61,6 +61,7 @@ func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year
 				return nil, revisionErr
 			}
 			if !sameExpenseRevision(revision, current) {
+				s.invalidateFinanceExpenseUser(userID)
 				return nil, fmt.Errorf("expense revision changed during %s load", operationHealth)
 			}
 			result.Dependency = &revision

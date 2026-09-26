@@ -113,6 +113,32 @@ func TestFinanceResultCache_IsolatesUsersAndRenewsLease(t *testing.T) {
 	require.Equal(t, 3, expense.expenseCalls)
 }
 
+func TestFinanceResultCache_RevisionChangePurgesEveryDependentOperation(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{expenses: []ExpenseData{{ReportingAmount: 100, TagID: "tag-1", ExpenseType: "essentials"}}, revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+
+	_, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	_, err = svc.GetSpendingByTag(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, 2, expense.expenseCalls)
+
+	expense.expenses[0].ReportingAmount = 200
+	expense.revision.Revision = 2
+	now = now.Add(3 * time.Minute)
+	freshSummary, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), freshSummary.TotalSpent)
+
+	freshByTag, err := svc.GetSpendingByTag(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Len(t, freshByTag, 1)
+	require.Equal(t, int64(200), freshByTag[0].Amount)
+	require.Equal(t, 4, expense.expenseCalls)
+}
+
 func TestFinanceResultCache_FailedRevisionCheckFailsClosed(t *testing.T) {
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
@@ -180,6 +206,7 @@ func TestFinanceResultCache_CachesValidEmptyResults(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, first)
 	require.Empty(t, second)
+	require.NotNil(t, second)
 	require.Equal(t, 1, expense.expenseCalls)
 }
 
