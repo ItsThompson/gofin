@@ -12,15 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/service"
-	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
 
 type completePeriodExpenseClient struct {
 	expensepb.ExpenseServiceClient
-	rows  []*expensepb.ExpenseData
-	calls int
+	rows        []*expensepb.ExpenseData
+	calls       int
+	consumedIDs map[string]int
 }
 
 func (c *completePeriodExpenseClient) GetActiveExpensesForPeriodPage(_ context.Context, request *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
@@ -42,6 +43,12 @@ func (c *completePeriodExpenseClient) GetActiveExpensesForPeriodPage(_ context.C
 		end = len(c.rows)
 	}
 	response := &expensepb.CompleteExpensePageResponse{Data: c.rows[start:end]}
+	if c.consumedIDs == nil {
+		c.consumedIDs = make(map[string]int)
+	}
+	for _, row := range response.GetData() {
+		c.consumedIDs[row.GetId()]++
+	}
 	if end < len(c.rows) {
 		last := c.rows[end-1]
 		response.HasMore = true
@@ -89,6 +96,11 @@ func TestDashboardRESTUsesEveryCompletePeriodPage(t *testing.T) {
 	require.Len(t, tags.TagSpending, 1)
 	assert.Equal(t, int64(19900), tags.TagSpending[0].Amount)
 	assert.Equal(t, 6, expenseClient.calls)
+	require.Len(t, expenseClient.consumedIDs, 101)
+	for i := 1; i <= 101; i++ {
+		rowID := "expense-" + formatThreeDigits(i)
+		assert.Equal(t, 2, expenseClient.consumedIDs[rowID], "row %s should reach both REST calculations", rowID)
+	}
 }
 
 func formatThreeDigits(value int) string {
