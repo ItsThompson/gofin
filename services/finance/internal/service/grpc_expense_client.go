@@ -67,13 +67,24 @@ func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, user
 			nextCursor.GetCursorId() != lastExpense.GetId() {
 			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: next cursor does not match last row")
 		}
-		if nextCursor.GetCursorExpenseDate() == cursor.GetCursorExpenseDate() &&
-			nextCursor.GetCursorCreatedAt() == cursor.GetCursorCreatedAt() &&
-			nextCursor.GetCursorId() == cursor.GetCursorId() {
-			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: non-advancing next cursor")
+		if !isCursorStrictlyAfter(cursor, nextCursor) {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: non-advancing or regressing next cursor")
 		}
 		cursor = nextCursor
 	}
+}
+
+func isCursorStrictlyAfter(previous, next *expensepb.GetActiveExpensesForPeriodPageRequest) bool {
+	if previous.GetCursorExpenseDate() == "" && previous.GetCursorCreatedAt() == "" && previous.GetCursorId() == "" {
+		return true
+	}
+	if next.GetCursorExpenseDate() != previous.GetCursorExpenseDate() {
+		return next.GetCursorExpenseDate() > previous.GetCursorExpenseDate()
+	}
+	if next.GetCursorCreatedAt() != previous.GetCursorCreatedAt() {
+		return next.GetCursorCreatedAt() > previous.GetCursorCreatedAt()
+	}
+	return next.GetCursorId() > previous.GetCursorId()
 }
 
 func mapExpenseData(exp *expensepb.ExpenseData) ExpenseData {

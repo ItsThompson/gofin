@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	expensepb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 )
@@ -115,6 +117,86 @@ func TestGRPCExpenseClient_ReturnsSourceErrors(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sourceErr)
+	assert.Nil(t, expenses)
+}
+
+func TestGRPCExpenseClient_RejectsDuplicateCursorWithoutRetryLoop(t *testing.T) {
+	calls := 0
+	stub := &stubExpenseClient{
+		getActiveExpensesForPeriodPage: func(_ context.Context, request *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
+			calls++
+			if calls == 1 {
+				return &expensepb.CompleteExpensePageResponse{
+					Data:            []*expensepb.ExpenseData{{Id: "e-1", ExpenseDateIso: "2026-05-01", CreatedAt: "2026-05-01T00:00:00Z"}},
+					NextExpenseDate: "2026-05-01",
+					NextCreatedAt:   "2026-05-01T00:00:00Z",
+					NextId:          "e-1",
+					HasMore:         true,
+				}, nil
+			}
+			assert.Equal(t, "e-1", request.GetCursorId())
+			return &expensepb.CompleteExpensePageResponse{
+				Data:            []*expensepb.ExpenseData{{Id: "e-1", ExpenseDateIso: "2026-05-01", CreatedAt: "2026-05-01T00:00:00Z"}},
+				NextExpenseDate: "2026-05-01",
+				NextCreatedAt:   "2026-05-01T00:00:00Z",
+				NextId:          "e-1",
+				HasMore:         true,
+			}, nil
+		},
+	}
+
+	expenses, err := NewGRPCExpenseClient(stub).GetActiveExpensesForPeriod(context.Background(), "user-1", 2026, 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-advancing or regressing next cursor")
+	assert.Nil(t, expenses)
+	assert.Equal(t, 2, calls)
+}
+
+func TestGRPCExpenseClient_RejectsRegressingCursor(t *testing.T) {
+	calls := 0
+	stub := &stubExpenseClient{
+		getActiveExpensesForPeriodPage: func(_ context.Context, request *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
+			calls++
+			if calls == 1 {
+				return &expensepb.CompleteExpensePageResponse{
+					Data:            []*expensepb.ExpenseData{{Id: "e-2", ExpenseDateIso: "2026-05-02", CreatedAt: "2026-05-02T00:00:00Z"}},
+					NextExpenseDate: "2026-05-02",
+					NextCreatedAt:   "2026-05-02T00:00:00Z",
+					NextId:          "e-2",
+					HasMore:         true,
+				}, nil
+			}
+			assert.Equal(t, "e-2", request.GetCursorId())
+			return &expensepb.CompleteExpensePageResponse{
+				Data:            []*expensepb.ExpenseData{{Id: "e-1", ExpenseDateIso: "2026-05-01", CreatedAt: "2026-05-01T00:00:00Z"}},
+				NextExpenseDate: "2026-05-01",
+				NextCreatedAt:   "2026-05-01T00:00:00Z",
+				NextId:          "e-1",
+				HasMore:         true,
+			}, nil
+		},
+	}
+
+	expenses, err := NewGRPCExpenseClient(stub).GetActiveExpensesForPeriod(context.Background(), "user-1", 2026, 5)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-advancing or regressing next cursor")
+	assert.Nil(t, expenses)
+	assert.Equal(t, 2, calls)
+}
+
+func TestGRPCExpenseClient_PreservesResourceExhausted(t *testing.T) {
+	stub := &stubExpenseClient{
+		getActiveExpensesForPeriodPage: func(context.Context, *expensepb.GetActiveExpensesForPeriodPageRequest, ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
+			return nil, status.Error(codes.ResourceExhausted, "response exceeds message limit")
+		},
+	}
+
+	expenses, err := NewGRPCExpenseClient(stub).GetActiveExpensesForPeriod(context.Background(), "user-1", 2026, 5)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 	assert.Nil(t, expenses)
 }
 

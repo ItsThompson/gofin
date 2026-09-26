@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -120,7 +121,7 @@ func TestDashboardEndpointsUseAllActiveExpenses(t *testing.T) {
 	}
 	expenses := make([]service.ExpenseData, 0, 101)
 	for i := 0; i < 100; i++ {
-		expenses = append(expenses, service.ExpenseData{ID: "active", ReportingAmount: 100, ExpenseType: "desires", TagID: "tag-food"})
+		expenses = append(expenses, service.ExpenseData{ID: "active-" + strconv.Itoa(i+1), ReportingAmount: 100, ExpenseType: "desires", TagID: "tag-food"})
 	}
 	expenses = append(expenses, service.ExpenseData{ID: "active-101", ReportingAmount: 9900, ExpenseType: "desires", TagID: "tag-food"})
 
