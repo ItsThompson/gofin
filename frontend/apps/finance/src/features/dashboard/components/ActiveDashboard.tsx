@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import type { BudgetPeriod } from "@gofin/core";
+import type { BudgetPeriod, User } from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@gofin/ui/components/card";
 import { SectionErrorBoundary } from "@gofin/ui/components/SectionErrorBoundary";
@@ -9,6 +9,7 @@ import { LayoutDashboard, PlusCircle, Settings2, Wallet, RefreshCw } from "lucid
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useExpenseFrecencyData } from "../hooks/useExpenseFrecencyData";
 import { BudgetSettingsEditor } from "./BudgetSettingsEditor";
+import { CreatePeriodPrompt } from "./CreatePeriodPrompt";
 import { TrendsSection } from "./TrendsSection";
 import { BreakdownSection, type BreakdownChart } from "./BreakdownSection";
 import { DashboardOutline } from "./DashboardOutline";
@@ -24,14 +25,15 @@ import { HealthScoreCard } from "./widgets/HealthScoreCard";
 
 export interface ActiveDashboardProps {
   period: BudgetPeriod;
+  user?: User;
   readOnly?: boolean;
 }
 
-export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardProps) {
+export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashboardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
   const dashboardContentRef = useRef<HTMLDivElement | null>(null);
-  const controller = useDashboardData(period);
+  const controller = useDashboardData(period, readOnly);
   const expenseFrecencyData = useExpenseFrecencyData({
     pageSize: 10,
     enabled: breakdownChart === "repeated-expenses",
@@ -44,6 +46,30 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
   });
 
   if (controller.periodStatus === "loading") return <DashboardSkeleton />;
+  if (controller.periodStatus === "no-period") {
+    if (!user || !controller.periodRecovery) {
+      return <Card role="alert"><CardContent>Could not restore this budget period.</CardContent></Card>;
+    }
+    return (
+      <CreatePeriodPrompt
+        defaults={controller.periodRecovery.defaults}
+        user={user}
+        year={period.year}
+        month={period.month}
+        onCreatePeriod={controller.periodRecovery.createPeriod}
+        creating={controller.periodRecovery.creating}
+        createError={controller.periodRecovery.createError}
+      />
+    );
+  }
+  if (controller.periodStatus === "not-found") {
+    return (
+      <Card role="alert">
+        <CardHeader><CardTitle className="text-destructive">Historical period not found</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">{controller.periodError}</p></CardContent>
+      </Card>
+    );
+  }
   if (controller.periodStatus === "error") {
     return (
       <Card role="alert">
@@ -94,7 +120,14 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
           <SectionState label="Health Score" state={sections.healthScore} onRetry={() => controller.retry("healthScore")} emptyMessage="No health score is available for this period.">
             {(score) => <SectionErrorBoundary sectionName="Health Score"><HealthScoreCard score={score} trend={sections.healthScoreTrend.status === "success" ? [...sections.healthScoreTrend.data] : null} /></SectionErrorBoundary>}
           </SectionState>
-          {sections.healthScoreTrend.status === "error" && <SectionState label="Health score trend" state={sections.healthScoreTrend} onRetry={() => controller.retry("healthScoreTrend")} emptyMessage="No health score trend is available." >{() => null}</SectionState>}
+          <SectionState
+            label="Health score trend"
+            state={sections.healthScoreTrend}
+            onRetry={() => controller.retry("healthScoreTrend")}
+            emptyMessage="No health score trend is available."
+          >
+            {() => null}
+          </SectionState>
         </section>
 
         <section id="summary" data-outline-title="Summary" className="space-y-6">
@@ -109,12 +142,6 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
           </SectionState>
         </section>
 
-        {sections.comparison.status === "success" ? <section id="historical-comparison" data-outline-title="Historical Comparison">
-          <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">
-            {(comparison) => <SectionErrorBoundary sectionName="Historical Comparison"><HistoricalComparisonWidget comparison={comparison} currency={currency} /></SectionErrorBoundary>}
-          </SectionState>
-        </section> : <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">{() => null}</SectionState>}
-
         <section id="upcoming-prorata" data-outline-title="Upcoming Pro-rata">
           <SectionState label="Upcoming pro-rata" state={sections.upcomingProRata} onRetry={() => controller.retry("upcomingProRata")} emptyMessage="No upcoming pro-rata payments.">
             {(schedules) => <SectionErrorBoundary sectionName="Upcoming Pro-rata"><UpcomingProRataSection schedules={[...schedules]} currency={currency} /></SectionErrorBoundary>}
@@ -123,6 +150,11 @@ export function ActiveDashboard({ period, readOnly = false }: ActiveDashboardPro
 
         <div className="hidden md:block space-y-6">
           {controller.desktopVisible && <>
+          {sections.comparison.status === "success" ? <section id="historical-comparison" data-outline-title="Historical Comparison">
+            <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">
+              {(comparison) => <SectionErrorBoundary sectionName="Historical Comparison"><HistoricalComparisonWidget comparison={comparison} currency={currency} /></SectionErrorBoundary>}
+            </SectionState>
+          </section> : <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">{() => null}</SectionState>}
           {sections.trends.status === "success" ? <section id="trends" data-outline-title="Trends">
             <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">
               {(trendData) => <SectionErrorBoundary sectionName="Monthly Trends"><TrendsSection trendData={[...trendData]} trendMonths={controller.trendMonths} onToggle={controller.setTrendMonths} currency={currency} /></SectionErrorBoundary>}

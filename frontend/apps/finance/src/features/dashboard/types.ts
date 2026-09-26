@@ -12,6 +12,7 @@ import type {
   HealthScore,
   HealthScoreConfigureBudget,
   HealthScoreTrendPoint,
+  CreatePeriodRequest,
 } from "@gofin/core";
 
 /** Base properties available in all period states. */
@@ -89,4 +90,17 @@ export interface DashboardSectionState {
   healthScoreTrend: SectionState<readonly HealthScoreTrendPoint[]>;
 }
 
-export type DashboardControllerStatus = "active" | "loading" | "error";
+export type DashboardControllerStatus =
+  | "active"
+  | "loading"
+  | "error"
+  | "no-period"
+  | "not-found";
+
+export interface DashboardPeriodRecovery {
+  defaults: DefaultSettings | null;
+  createPeriod: (body: CreatePeriodRequest) => void;
+  creating: boolean;
+  createError: string | null;
+  clearCreateError: () => void;
+}

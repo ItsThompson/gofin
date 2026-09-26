@@ -91,6 +91,72 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true));
   });
 
+  it("propagates force refresh when retrying one section", async () => {
+    const sectionHeaders: string[] = [];
+    installBaseApi((url) => {
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) {
+        sectionHeaders.push("expenses");
+        return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      }
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/expenses?")) {
+        sectionHeaders.push(new Headers(init?.headers).get("Cache-Control") ?? "");
+      }
+      return originalFetch(input, init);
+    }) as typeof fetch;
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.recentExpenses.status).toBe("empty"));
+    act(() => result.current.retry("recentExpenses"));
+    await waitFor(() => expect(sectionHeaders).toContain("no-cache"));
+  });
+
+  it("restores the current-period creation flow after a refresh 404", async () => {
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) return response({ code: "PERIOD_NOT_FOUND", message: "No period" }, 404);
+      if (url.includes("/defaults")) return response({ defaults: null });
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
+    expect(result.current.periodRecovery?.defaults).toBeNull();
+  });
+
+  it("reports a historical refresh 404 as not found without requesting defaults", async () => {
+    const requestedUrls: string[] = [];
+    installBaseApi((url) => {
+      requestedUrls.push(url);
+      if (url.includes("/periods/current")) return response({ code: "PERIOD_NOT_FOUND", message: "No period" }, 404);
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period, true));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.periodStatus).toBe("not-found"));
+    expect(requestedUrls.some((url) => url.includes("/defaults"))).toBe(false);
+  });
+
   it("keeps a failed section explicit while unrelated sections complete", async () => {
     installBaseApi((url) => {
       if (url.includes("/summary")) return response({ code: "INTERNAL_SERVER_ERROR", message: "Summary failed" }, 500);

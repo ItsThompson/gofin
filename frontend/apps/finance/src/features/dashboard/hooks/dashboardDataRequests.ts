@@ -30,42 +30,43 @@ export async function fetchDashboardSection(
   period: BudgetPeriod,
   trendMonths: 6 | 12,
   signal: AbortSignal,
+  forceRefresh = false,
 ): Promise<DashboardSectionPayload> {
   switch (section) {
     case "summary": {
-      const response = await dashboardApi.getSummary(period.year, period.month, { signal });
+      const response = await dashboardApi.getSummary(period.year, period.month, { signal, forceRefresh });
       return { section, data: response.summary };
     }
     case "byTag": {
-      const response = await dashboardApi.getTagSpending(period.year, period.month, { signal });
+      const response = await dashboardApi.getTagSpending(period.year, period.month, { signal, forceRefresh });
       return { section, data: response.tagSpending };
     }
     case "cumulative": {
-      const response = await dashboardApi.getCumulative(period.year, period.month, { signal });
+      const response = await dashboardApi.getCumulative(period.year, period.month, { signal, forceRefresh });
       return { section, data: response.points };
     }
     case "recentExpenses": {
-      const response = await dashboardApi.getRecentExpenses(period.year, period.month, 5, { signal });
+      const response = await dashboardApi.getRecentExpenses(period.year, period.month, 5, { signal, forceRefresh });
       return { section, data: response.data };
     }
     case "comparison": {
-      const response = await dashboardApi.getComparison(period.year, period.month, { signal });
+      const response = await dashboardApi.getComparison(period.year, period.month, { signal, forceRefresh });
       return { section, data: response.comparison };
     }
     case "upcomingProRata": {
-      const response = await dashboardApi.getUpcomingProRata({ signal });
+      const response = await dashboardApi.getUpcomingProRata({ signal, forceRefresh });
       return { section, data: response.schedules };
     }
     case "trends": {
-      const response = await dashboardApi.getTrend(period.year, period.month, trendMonths, { signal });
+      const response = await dashboardApi.getTrend(period.year, period.month, trendMonths, { signal, forceRefresh });
       return { section, data: response.trends };
     }
     case "healthScore": {
-      const response = await dashboardApi.getHealthScore(period.year, period.month, { signal });
+      const response = await dashboardApi.getHealthScore(period.year, period.month, { signal, forceRefresh });
       return { section, data: response.healthScore };
     }
     case "healthScoreTrend": {
-      const response = await dashboardApi.getHealthScoreTrend(period.year, period.month, 6, { signal });
+      const response = await dashboardApi.getHealthScoreTrend(period.year, period.month, 6, { signal, forceRefresh });
       return { section, data: response.trends };
     }
   }

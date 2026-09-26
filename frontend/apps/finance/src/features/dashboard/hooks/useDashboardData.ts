@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiRequestError } from "@gofin/api";
-import type { BudgetPeriod } from "@gofin/core";
+import { ApiRequestError, useFormMutation } from "@gofin/api";
+import type {
+  BudgetPeriod,
+  CreatePeriodRequest,
+  CreatePeriodResponse,
+  DefaultSettings,
+} from "@gofin/core";
 import { dashboardApi } from "../api";
 import { fetchDashboardSection } from "./dashboardDataRequests";
 import type {
   DashboardControllerStatus,
+  DashboardPeriodRecovery,
   DashboardSectionKey,
   DashboardSectionState,
   SectionState,
@@ -54,6 +60,7 @@ export interface DashboardDataResult {
   period: BudgetPeriod;
   periodStatus: DashboardControllerStatus;
   periodError: string | null;
+  periodRecovery: DashboardPeriodRecovery | null;
   desktopVisible: boolean;
   loading: boolean;
   refresh: () => void;
@@ -102,10 +109,11 @@ function arrayState<T>(value: readonly T[]): SectionState<readonly T[]> {
   return value.length === 0 ? { status: "empty" } : { status: "success", data: value };
 }
 
-export function useDashboardData(period: BudgetPeriod): DashboardDataResult {
+export function useDashboardData(period: BudgetPeriod, readOnly = false): DashboardDataResult {
   const [renderedPeriod, setRenderedPeriod] = useState(period);
   const [periodStatus, setPeriodStatus] = useState<DashboardControllerStatus>("active");
   const [periodError, setPeriodError] = useState<string | null>(null);
+  const [periodDefaults, setPeriodDefaults] = useState<DefaultSettings | null>(null);
   const [desktopVisible, setDesktopVisible] = useState(isDesktopViewport);
   const [sections, setSections] = useState<DashboardSectionState>(() => initialSectionState(desktopVisible));
   const [trendMonths, setTrendMonthsState] = useState<6 | 12>(6);
@@ -144,6 +152,7 @@ export function useDashboardData(period: BudgetPeriod): DashboardDataResult {
         periodRef.current,
         trendMonthsRef.current,
         controller.signal,
+        force,
       );
       if (generation !== generationRef.current || controller.signal.aborted) return;
       setSections((current) => {
@@ -164,21 +173,22 @@ export function useDashboardData(period: BudgetPeriod): DashboardDataResult {
     }
   }, [setSectionLoading]);
 
-  const startPeriodSections = useCallback(() => {
+  const startPeriodSections = useCallback((forceRefresh = false) => {
     requestedRef.current.clear();
     setSections(initialSectionState(desktopVisibleRef.current));
     const eligible = desktopVisibleRef.current ? [...BASE_SECTIONS, ...DESKTOP_SECTIONS] : BASE_SECTIONS;
-    for (const section of eligible) void loadSection(section);
+    for (const section of eligible) void loadSection(section, forceRefresh);
   }, [loadSection]);
 
-  const activatePeriod = useCallback((nextPeriod: BudgetPeriod) => {
+  const activatePeriod = useCallback((nextPeriod: BudgetPeriod, forceRefresh = false) => {
     abortRequests();
     generationRef.current += 1;
     periodRef.current = nextPeriod;
     setRenderedPeriod(nextPeriod);
     setPeriodStatus("active");
     setPeriodError(null);
-    startPeriodSections();
+    setPeriodDefaults(null);
+    startPeriodSections(forceRefresh);
   }, [abortRequests, startPeriodSections]);
 
   useEffect(() => {
@@ -213,15 +223,41 @@ export function useDashboardData(period: BudgetPeriod): DashboardDataResult {
     void dashboardApi.getCurrentPeriod(currentPeriod.year, currentPeriod.month, { forceRefresh: true })
       .then((response) => {
         if (requestGeneration !== generationRef.current) return;
-        activatePeriod(response.period);
+        activatePeriod(response.period, true);
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         if (requestGeneration !== generationRef.current) return;
         setSections(initialSectionState(false));
+        if (error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
+          if (readOnly) {
+            setPeriodStatus("not-found");
+            setPeriodError("This historical period is no longer available.");
+            return;
+          }
+          let defaults: DefaultSettings | null = null;
+          try {
+            defaults = (await dashboardApi.getDefaults()).defaults;
+          } catch {
+            defaults = null;
+          }
+          if (requestGeneration !== generationRef.current) return;
+          setPeriodDefaults(defaults);
+          setPeriodStatus("no-period");
+          setPeriodError(null);
+          return;
+        }
         setPeriodStatus("error");
         setPeriodError(sectionError(error).message);
       });
-  }, [abortRequests, activatePeriod]);
+  }, [abortRequests, activatePeriod, readOnly]);
+
+  const createMutation = useFormMutation<CreatePeriodResponse>({
+    onSuccess: (response) => activatePeriod(response.period, true),
+  });
+  const { submit: submitCreatePeriod, submitting, error: createError, clearError } = createMutation;
+  const createPeriod = useCallback((body: CreatePeriodRequest) => {
+    submitCreatePeriod(() => dashboardApi.createPeriod(body));
+  }, [submitCreatePeriod]);
 
   const retry = useCallback((section: DashboardSectionKey) => {
     if (section === "summary") {
@@ -260,6 +296,15 @@ export function useDashboardData(period: BudgetPeriod): DashboardDataResult {
     period: renderedPeriod,
     periodStatus,
     periodError,
+    periodRecovery: periodStatus === "no-period"
+      ? {
+          defaults: periodDefaults,
+          createPeriod,
+          creating: submitting,
+          createError,
+          clearCreateError: clearError,
+        }
+      : null,
     desktopVisible,
     loading,
     refresh,

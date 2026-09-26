@@ -51,6 +51,19 @@ describe("DashboardFeature", () => {
       expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
     });
 
+    it("renders an explicit empty state for a health trend with no points", async () => {
+      globalThis.fetch = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/health-score/trend": { body: { trends: [] } },
+      }) as unknown as typeof fetch;
+      renderDashboard();
+
+      await waitFor(() => {
+        expect(screen.getByText("No health score trend is available.")).toBeInTheDocument();
+      });
+    });
+
     it("renders summary bar with budget values", async () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
