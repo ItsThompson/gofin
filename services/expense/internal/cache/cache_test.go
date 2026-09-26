@@ -210,6 +210,43 @@ func TestCacheSingleFlightAndEvictionFence(t *testing.T) {
 	assert.Equal(t, 0, fencedCache.Len())
 }
 
+func TestCacheFailedForcedReplacementRetainsGenerationFence(t *testing.T) {
+	now := time.Now()
+	cache := testCache(&now, DefaultConfig())
+	ordinaryStarted := make(chan struct{})
+	ordinaryRelease := make(chan struct{})
+	ordinaryDone := make(chan struct{})
+
+	go func() {
+		_, _, _ = cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+			close(ordinaryStarted)
+			<-ordinaryRelease
+			return map[string][]string{"value": {"stale"}}, nil
+		})
+		close(ordinaryDone)
+	}()
+	<-ordinaryStarted
+
+	_, _, err := cache.Load(context.Background(), "key", LoadOptions{Bypass: true}, func(context.Context) (map[string][]string, error) {
+		return nil, errors.New("forced failure")
+	})
+	require.EqualError(t, err, "forced failure")
+
+	close(ordinaryRelease)
+	<-ordinaryDone
+	assert.Equal(t, 0, cache.Len())
+
+	loads := 0
+	value, status, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+		loads++
+		return map[string][]string{"value": {"fresh"}}, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusLoaded, status)
+	assert.Equal(t, []string{"fresh"}, value["value"])
+	assert.Equal(t, 1, loads)
+}
+
 func TestCachePurgeFencesPendingLoads(t *testing.T) {
 	now := time.Now()
 	cache := testCache(&now, DefaultConfig())
