@@ -27,12 +27,13 @@ var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // ExpenseService contains the business logic for expense operations.
 type ExpenseService struct {
-	repo         repository.ExpenseRepository
-	periodClient PeriodContextClient
-	fxClient     FxClient
-	logger       *slog.Logger
-	clock        func() time.Time
-	readCaches   *expenseReadCaches
+	repo          repository.ExpenseRepository
+	periodClient  PeriodContextClient
+	fxClient      FxClient
+	logger        *slog.Logger
+	clock         func() time.Time
+	readCaches    *expenseReadCaches
+	revisionOwner *expenseRevisionOwner
 }
 
 // NewExpenseService creates a new ExpenseService. The clock seam supplies the
@@ -66,12 +67,13 @@ func NewExpenseServiceWithCache(
 		clock = time.Now
 	}
 	return &ExpenseService{
-		repo:         repo,
-		periodClient: periodClient,
-		fxClient:     fxClient,
-		logger:       logger,
-		clock:        clock,
-		readCaches:   newExpenseReadCaches(cacheConfig, clock),
+		repo:          repo,
+		periodClient:  periodClient,
+		fxClient:      fxClient,
+		logger:        logger,
+		clock:         clock,
+		readCaches:    newExpenseReadCaches(cacheConfig, clock),
+		revisionOwner: newExpenseRevisionOwner(),
 	}
 }
 
@@ -168,9 +170,11 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 
 	created, err := s.repo.CreateExpense(ctx, expense)
 	if err != nil {
+		s.invalidateUser(userID)
 		return nil, fmt.Errorf("creating expense: %w", err)
 	}
 
+	s.invalidateUser(userID)
 	s.logger.Info("expense created",
 		slog.String("method", "CreateExpense"),
 		slog.String("user_id", userID),
@@ -415,9 +419,11 @@ func (s *ExpenseService) CorrectExpense(ctx context.Context, userID string, expe
 
 	created, err := s.repo.CorrectExpense(ctx, original, correction)
 	if err != nil {
+		s.invalidateUser(userID)
 		return nil, fmt.Errorf("correcting expense: %w", err)
 	}
 
+	s.invalidateUser(userID)
 	s.logger.Info("expense corrected",
 		slog.String("method", "CorrectExpense"),
 		slog.String("user_id", userID),
@@ -466,9 +472,11 @@ func (s *ExpenseService) DeleteExpense(ctx context.Context, userID string, expen
 	}
 
 	if err := s.repo.DeactivateExpense(ctx, expenseID, userID); err != nil {
+		s.invalidateUser(userID)
 		return fmt.Errorf("deleting expense: %w", err)
 	}
 
+	s.invalidateUser(userID)
 	s.logger.Info("expense deleted",
 		slog.String("method", "DeleteExpense"),
 		slog.String("user_id", userID),
@@ -623,9 +631,11 @@ func (s *ExpenseService) AnonymizeAllUserExpenses(ctx context.Context, userID st
 	}
 
 	if err := s.repo.AnonymizeAllUserExpenses(ctx, userID); err != nil {
+		s.invalidateUser(userID)
 		return fmt.Errorf("anonymizing user expenses: %w", err)
 	}
 
+	s.retireUser(userID)
 	s.logger.Info("user expenses anonymized",
 		slog.String("method", "AnonymizeAllUserExpenses"),
 		slog.String("user_id", userID),

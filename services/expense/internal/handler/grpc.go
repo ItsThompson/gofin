@@ -34,6 +34,7 @@ var (
 	opCountByTag         = operation{opName: "expense.count_by_tag", rpcMethod: "CountExpensesByTag"}
 	opStreamAll          = operation{opName: "expense.stream_all", rpcMethod: "StreamAllUserExpenses"}
 	opAnonymize          = operation{opName: "expense.anonymize", rpcMethod: "AnonymizeAllUserExpenses"}
+	opRevision           = operation{opName: "expense.revision", rpcMethod: "GetExpenseRevision"}
 )
 
 type GRPCHandler struct {
@@ -87,12 +88,12 @@ func (h *GRPCHandler) CreateProRataInstallment(ctx context.Context, req *pb.Crea
 	}
 	if pc := req.GetPeriodContext(); pc != nil {
 		reqModel.PeriodContext = service.TrustedPeriodContext{
-			PeriodID:          pc.GetPeriodId(),
-			UserID:            pc.GetUserId(),
-			Year:              pc.GetYear(),
-			Month:             pc.GetMonth(),
+			PeriodID:              pc.GetPeriodId(),
+			UserID:                pc.GetUserId(),
+			Year:                  pc.GetYear(),
+			Month:                 pc.GetMonth(),
 			ReportingCurrencyCode: pc.GetReportingCurrencyCode(),
-			Source:            pc.GetSource(),
+			Source:                pc.GetSource(),
 		}
 	}
 	if snap := req.GetCapturedRateSnapshot(); snap != nil {
@@ -232,6 +233,23 @@ func (h *GRPCHandler) StreamAllUserExpenses(req *pb.StreamAllUserExpensesRequest
 	// consumer (export engine) reports its own failure with the job id, so
 	// reporting here would double-bill.
 	return err
+}
+
+func (h *GRPCHandler) GetExpenseRevision(ctx context.Context, req *pb.GetExpenseRevisionRequest) (*pb.ExpenseRevisionResponse, error) {
+	userID := req.GetUserId()
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	revision, err := h.expenseService.GetExpenseRevision(ctx, userID)
+	if err != nil {
+		return nil, h.mapServiceError(ctx, err, opRevision, userID)
+	}
+
+	return &pb.ExpenseRevisionResponse{
+		Epoch:    revision.Epoch,
+		Revision: revision.Revision,
+	}, nil
 }
 
 func (h *GRPCHandler) AnonymizeAllUserExpenses(ctx context.Context, req *pb.AnonymizeRequest) (*pb.AnonymizeResponse, error) {

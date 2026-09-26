@@ -27,6 +27,7 @@ const (
 	ExpenseService_CountExpensesByTag_FullMethodName             = "/expense.ExpenseService/CountExpensesByTag"
 	ExpenseService_StreamAllUserExpenses_FullMethodName          = "/expense.ExpenseService/StreamAllUserExpenses"
 	ExpenseService_AnonymizeAllUserExpenses_FullMethodName       = "/expense.ExpenseService/AnonymizeAllUserExpenses"
+	ExpenseService_GetExpenseRevision_FullMethodName             = "/expense.ExpenseService/GetExpenseRevision"
 	ExpenseService_CorrectExpense_FullMethodName                 = "/expense.ExpenseService/CorrectExpense"
 )
 
@@ -49,6 +50,8 @@ type ExpenseServiceClient interface {
 	StreamAllUserExpenses(ctx context.Context, in *StreamAllUserExpensesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExpenseData], error)
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(ctx context.Context, in *AnonymizeRequest, opts ...grpc.CallOption) (*AnonymizeResponse, error)
+	// Internal freshness check for finance cache validation.
+	GetExpenseRevision(ctx context.Context, in *GetExpenseRevisionRequest, opts ...grpc.CallOption) (*ExpenseRevisionResponse, error)
 	// Correction flow (mutates the ledger; REST is the primary consumer).
 	CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 }
@@ -150,6 +153,16 @@ func (c *expenseServiceClient) AnonymizeAllUserExpenses(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *expenseServiceClient) GetExpenseRevision(ctx context.Context, in *GetExpenseRevisionRequest, opts ...grpc.CallOption) (*ExpenseRevisionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExpenseRevisionResponse)
+	err := c.cc.Invoke(ctx, ExpenseService_GetExpenseRevision_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *expenseServiceClient) CorrectExpense(ctx context.Context, in *CorrectExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExpenseResponse)
@@ -179,6 +192,8 @@ type ExpenseServiceServer interface {
 	StreamAllUserExpenses(*StreamAllUserExpensesRequest, grpc.ServerStreamingServer[ExpenseData]) error
 	// GDPR: anonymize all expenses for a user (field redaction, not deletion)
 	AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error)
+	// Internal freshness check for finance cache validation.
+	GetExpenseRevision(context.Context, *GetExpenseRevisionRequest) (*ExpenseRevisionResponse, error)
 	// Correction flow (mutates the ledger; REST is the primary consumer).
 	CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error)
 	mustEmbedUnimplementedExpenseServiceServer()
@@ -214,6 +229,9 @@ func (UnimplementedExpenseServiceServer) StreamAllUserExpenses(*StreamAllUserExp
 }
 func (UnimplementedExpenseServiceServer) AnonymizeAllUserExpenses(context.Context, *AnonymizeRequest) (*AnonymizeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AnonymizeAllUserExpenses not implemented")
+}
+func (UnimplementedExpenseServiceServer) GetExpenseRevision(context.Context, *GetExpenseRevisionRequest) (*ExpenseRevisionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetExpenseRevision not implemented")
 }
 func (UnimplementedExpenseServiceServer) CorrectExpense(context.Context, *CorrectExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CorrectExpense not implemented")
@@ -376,6 +394,24 @@ func _ExpenseService_AnonymizeAllUserExpenses_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ExpenseService_GetExpenseRevision_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExpenseRevisionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExpenseServiceServer).GetExpenseRevision(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExpenseService_GetExpenseRevision_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExpenseServiceServer).GetExpenseRevision(ctx, req.(*GetExpenseRevisionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ExpenseService_CorrectExpense_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CorrectExpenseRequest)
 	if err := dec(in); err != nil {
@@ -428,6 +464,10 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AnonymizeAllUserExpenses",
 			Handler:    _ExpenseService_AnonymizeAllUserExpenses_Handler,
+		},
+		{
+			MethodName: "GetExpenseRevision",
+			Handler:    _ExpenseService_GetExpenseRevision_Handler,
 		},
 		{
 			MethodName: "CorrectExpense",

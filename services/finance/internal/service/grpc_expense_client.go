@@ -21,6 +21,13 @@ func NewGRPCExpenseClient(client expensepb.ExpenseServiceClient) *GRPCExpenseCli
 
 const completePeriodPageSize int32 = 50
 
+// ExpenseRevision identifies the expense process and user ledger generation
+// used to validate finance-owned cached results.
+type ExpenseRevision struct {
+	Epoch    string
+	Revision uint64
+}
+
 func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
 	cursor := &expensepb.GetActiveExpensesForPeriodPageRequest{
 		UserId:   userID,
@@ -96,6 +103,16 @@ func mapExpenseData(exp *expensepb.ExpenseData) ExpenseData {
 		TagID:                 exp.GetTagId(),
 		ExpenseDate:           exp.GetExpenseDateIso(),
 	}
+}
+
+// GetExpenseRevision reads process-local expense freshness state without an
+// immudb query.
+func (c *GRPCExpenseClient) GetExpenseRevision(ctx context.Context, userID string) (ExpenseRevision, error) {
+	resp, err := c.client.GetExpenseRevision(ctx, &expensepb.GetExpenseRevisionRequest{UserId: userID})
+	if err != nil {
+		return ExpenseRevision{}, fmt.Errorf("gRPC GetExpenseRevision: %w", err)
+	}
+	return ExpenseRevision{Epoch: resp.GetEpoch(), Revision: resp.GetRevision()}, nil
 }
 
 func (c *GRPCExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error) {

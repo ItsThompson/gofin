@@ -87,9 +87,11 @@ func (s *ExpenseService) CreateProRataInstallment(ctx context.Context, req *Crea
 
 	created, err := s.repo.CreateExpense(ctx, expense)
 	if err != nil {
+		s.invalidateUser(req.UserID)
 		return nil, fmt.Errorf("creating pro-rata installment: %w", err)
 	}
 
+	s.invalidateUser(req.UserID)
 	s.logger.Info("pro-rata installment created",
 		slog.String("method", "CreateProRataInstallment"),
 		slog.String("user_id", req.UserID),

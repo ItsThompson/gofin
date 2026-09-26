@@ -24,6 +24,9 @@ service ExpenseService {
   // GDPR: anonymize all expenses for a user (field redaction, not deletion)
   rpc AnonymizeAllUserExpenses(AnonymizeRequest) returns (AnonymizeResponse);
 
+  // Internal freshness check for finance cache validation.
+  rpc GetExpenseRevision(GetExpenseRevisionRequest) returns (ExpenseRevisionResponse);
+
   // Correction flow (mutates the ledger; REST is the primary consumer).
   rpc CorrectExpense(CorrectExpenseRequest) returns (ExpenseResponse);
 }
@@ -241,3 +244,16 @@ message AnonymizeRequest {
 }
 
 message AnonymizeResponse {}
+
+// ---------------------------------------------------------------------------
+// GetExpenseRevision (internal)
+// ---------------------------------------------------------------------------
+
+message GetExpenseRevisionRequest {
+  string user_id = 1;
+}
+
+message ExpenseRevisionResponse {
+  string epoch = 1;
+  uint64 revision = 2;
+}
