@@ -33,6 +33,30 @@ func newContextWithRequest(req *http.Request) (*gin.Context, *httptest.ResponseR
 	return c, w
 }
 
+func TestNoStoreSetsResponsePolicyBeforeHandler(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/finance/summary", nil)
+	c, w := newContextWithRequest(request)
+
+	httpx.NoStore(func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+}
+
+func TestIsCacheBypassMatchesNoCacheDirective(t *testing.T) {
+	for _, header := range []string{"no-cache", "max-age=0, no-cache", "NO-CACHE=ignored"} {
+		request := httptest.NewRequest(http.MethodGet, "/", nil)
+		request.Header.Set("Cache-Control", header)
+		assert.True(t, httpx.IsCacheBypass(request), header)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Cache-Control", "no-store")
+	assert.False(t, httpx.IsCacheBypass(request))
+}
+
 func TestRequireUserID_PresentHeaderReturnsValue(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/finance", nil)
 	req.Header.Set("X-User-ID", "user-123")

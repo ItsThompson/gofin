@@ -63,6 +63,9 @@ func New(
 	engine.Use(serverkit.Recovery(logger))
 	engine.Use(metrics.HTTPMetrics())
 	engine.Use(middleware.RequestLogger(logger))
+	// Personal finance and expense responses are never reusable by browsers or
+	// intermediaries, including errors generated before proxy dispatch.
+	engine.Use(middleware.NoStorePersonalResponses())
 	// AccessControl is the single global gate: it resolves each route against the
 	// shared services/access registry (via GatewayResolve, which also classifies
 	// the gateway-native /health and /metrics as Public) and enforces

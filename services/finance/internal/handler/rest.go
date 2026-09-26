@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -23,6 +24,14 @@ type RESTHandler struct {
 	financeService *service.FinanceService
 }
 
+func readContext(c *gin.Context) context.Context {
+	ctx := c.Request.Context()
+	if httpx.IsCacheBypass(c.Request) {
+		return service.WithCacheBypass(ctx)
+	}
+	return ctx
+}
+
 // NewRESTHandler creates a new RESTHandler.
 func NewRESTHandler(financeService *service.FinanceService) *RESTHandler {
 	return &RESTHandler{
@@ -36,7 +45,7 @@ func NewRESTHandler(financeService *service.FinanceService) *RESTHandler {
 // never be served without a Registry entry (which carries its access level).
 func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	access.BindRoutes("finance", h.handlers(), func(method, path string, handler gin.HandlerFunc) {
-		r.Handle(method, path, handler)
+		r.Handle(method, path, httpx.NoStore(handler))
 	})
 }
 
@@ -189,7 +198,7 @@ func (h *RESTHandler) GetCurrentPeriod(c *gin.Context) {
 		return
 	}
 
-	period, svcErr := h.financeService.GetCurrentPeriod(c.Request.Context(), userID, int32(year), int32(month))
+	period, svcErr := h.financeService.GetCurrentPeriod(readContext(c), userID, int32(year), int32(month))
 	if svcErr != nil {
 		h.respondError(c, svcErr)
 		return
@@ -336,7 +345,7 @@ func (h *RESTHandler) GetPeriodSummary(c *gin.Context) {
 		return
 	}
 
-	summary, err := h.financeService.GetPeriodSummary(c.Request.Context(), userID, year, month)
+	summary, err := h.financeService.GetPeriodSummary(readContext(c), userID, year, month)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -354,7 +363,7 @@ func (h *RESTHandler) GetHealthScore(c *gin.Context) {
 		return
 	}
 
-	score, err := h.financeService.GetHealthScore(c.Request.Context(), userID, year, month)
+	score, err := h.financeService.GetHealthScore(readContext(c), userID, year, month)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -380,7 +389,7 @@ func (h *RESTHandler) GetHealthScoreTrend(c *gin.Context) {
 		months = 6
 	}
 
-	trends, err := h.financeService.GetHealthScoreTrend(c.Request.Context(), userID, year, month, int32(months))
+	trends, err := h.financeService.GetHealthScoreTrend(readContext(c), userID, year, month, int32(months))
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -398,7 +407,7 @@ func (h *RESTHandler) GetSpendingByTag(c *gin.Context) {
 		return
 	}
 
-	tags, err := h.financeService.GetSpendingByTag(c.Request.Context(), userID, year, month)
+	tags, err := h.financeService.GetSpendingByTag(readContext(c), userID, year, month)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -416,7 +425,7 @@ func (h *RESTHandler) GetCumulativeSpend(c *gin.Context) {
 		return
 	}
 
-	points, err := h.financeService.GetCumulativeSpend(c.Request.Context(), userID, year, month)
+	points, err := h.financeService.GetCumulativeSpend(readContext(c), userID, year, month)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -499,7 +508,7 @@ func (h *RESTHandler) GetHistoricalComparison(c *gin.Context) {
 		return
 	}
 
-	comparison, err := h.financeService.GetHistoricalComparison(c.Request.Context(), userID, year, month)
+	comparison, err := h.financeService.GetHistoricalComparison(readContext(c), userID, year, month)
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -524,7 +533,7 @@ func (h *RESTHandler) GetSpendingTrends(c *gin.Context) {
 		return
 	}
 
-	trends, err := h.financeService.GetSpendingTrends(c.Request.Context(), userID, year, month, int32(months))
+	trends, err := h.financeService.GetSpendingTrends(readContext(c), userID, year, month, int32(months))
 	if err != nil {
 		h.respondError(c, err)
 		return
@@ -598,7 +607,7 @@ func (h *RESTHandler) GetUpcomingProRata(c *gin.Context) {
 		return
 	}
 
-	schedules, err := h.financeService.GetUpcomingProRata(c.Request.Context(), userID)
+	schedules, err := h.financeService.GetUpcomingProRata(readContext(c), userID)
 	if err != nil {
 		h.respondError(c, err)
 		return

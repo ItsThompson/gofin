@@ -32,7 +32,7 @@ func NewRESTHandler(expenseService *service.ExpenseService) *RESTHandler {
 // never be served without a Registry entry (which carries its access level).
 func (h *RESTHandler) RegisterRoutes(r *gin.Engine) {
 	access.BindRoutes("expense", h.handlers(), func(method, path string, handler gin.HandlerFunc) {
-		r.Handle(method, path, handler)
+		r.Handle(method, path, httpx.NoStore(handler))
 	})
 }
 
@@ -47,7 +47,7 @@ func (h *RESTHandler) handlers() map[string]gin.HandlerFunc {
 		"expense.prorata.group": h.GetExpensesInProRataGroup,
 		"expense.get":           h.GetExpense,
 		"expense.correct":       h.CorrectExpense,
-		"expense.delete":       h.DeleteExpense,
+		"expense.delete":        h.DeleteExpense,
 		"expense.history":       h.GetCorrectionHistory,
 	}
 }
@@ -118,11 +118,12 @@ func (h *RESTHandler) GetExpenses(c *gin.Context) {
 	}
 
 	result, svcErr := h.expenseService.GetActiveExpensesForPeriod(c.Request.Context(), &model.GetExpensesRequest{
-		UserID:   userID,
-		Year:     int32(year),
-		Month:    int32(month),
-		Page:     int32(page),
-		PageSize: int32(pageSize),
+		UserID:      userID,
+		Year:        int32(year),
+		Month:       int32(month),
+		Page:        int32(page),
+		PageSize:    int32(pageSize),
+		BypassCache: httpx.IsCacheBypass(c.Request),
 	})
 	if svcErr != nil {
 		h.respondError(c, svcErr)
@@ -152,9 +153,10 @@ func (h *RESTHandler) GetExpenseSuggestions(c *gin.Context) {
 	}
 
 	result, err := h.expenseService.GetExpenseSuggestions(c.Request.Context(), &model.ExpenseSuggestionRequest{
-		UserID:   userID,
-		Page:     int32(page),
-		PageSize: int32(pageSize),
+		UserID:      userID,
+		Page:        int32(page),
+		PageSize:    int32(pageSize),
+		BypassCache: httpx.IsCacheBypass(c.Request),
 	})
 	if err != nil {
 		h.respondError(c, err)

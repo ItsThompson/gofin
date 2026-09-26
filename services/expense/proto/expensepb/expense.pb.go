@@ -915,6 +915,7 @@ type GetActiveExpensesForPeriodPageRequest struct {
 	CursorCreatedAt   string                 `protobuf:"bytes,5,opt,name=cursor_created_at,json=cursorCreatedAt,proto3" json:"cursor_created_at,omitempty"`
 	CursorId          string                 `protobuf:"bytes,6,opt,name=cursor_id,json=cursorId,proto3" json:"cursor_id,omitempty"`
 	PageSize          int32                  `protobuf:"varint,7,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	BypassCache       bool                   `protobuf:"varint,8,opt,name=bypass_cache,json=bypassCache,proto3" json:"bypass_cache,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -996,6 +997,13 @@ func (x *GetActiveExpensesForPeriodPageRequest) GetPageSize() int32 {
 		return x.PageSize
 	}
 	return 0
+}
+
+func (x *GetActiveExpensesForPeriodPageRequest) GetBypassCache() bool {
+	if x != nil {
+		return x.BypassCache
+	}
+	return false
 }
 
 // CompleteExpensePageResponse contains at most the configured page size plus
@@ -1745,7 +1753,7 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x05total\x18\x02 \x01(\x03R\x05total\x12\x12\n" +
 	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x19\n" +
-	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"\x80\x02\n" +
+	"\bhas_more\x18\x05 \x01(\bR\ahasMore\"\xa3\x02\n" +
 	"%GetActiveExpensesForPeriodPageRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04year\x18\x02 \x01(\x05R\x04year\x12\x14\n" +
@@ -1753,7 +1761,8 @@ const file_proto_expense_proto_rawDesc = "" +
 	"\x13cursor_expense_date\x18\x04 \x01(\tR\x11cursorExpenseDate\x12*\n" +
 	"\x11cursor_created_at\x18\x05 \x01(\tR\x0fcursorCreatedAt\x12\x1b\n" +
 	"\tcursor_id\x18\x06 \x01(\tR\bcursorId\x12\x1b\n" +
-	"\tpage_size\x18\a \x01(\x05R\bpageSize\"\xcf\x01\n" +
+	"\tpage_size\x18\a \x01(\x05R\bpageSize\x12!\n" +
+	"\fbypass_cache\x18\b \x01(\bR\vbypassCache\"\xcf\x01\n" +
 	"\x1bCompleteExpensePageResponse\x12(\n" +
 	"\x04data\x18\x01 \x03(\v2\x14.expense.ExpenseDataR\x04data\x12*\n" +
 	"\x11next_expense_date\x18\x02 \x01(\tR\x0fnextExpenseDate\x12&\n" +

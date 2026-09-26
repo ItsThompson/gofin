@@ -153,6 +153,7 @@ func (h *GRPCHandler) GetActiveExpensesForPeriodPage(ctx context.Context, req *p
 		CursorCreatedAt:   req.GetCursorCreatedAt(),
 		CursorID:          req.GetCursorId(),
 		PageSize:          req.GetPageSize(),
+		BypassCache:       req.GetBypassCache(),
 	})
 	if err != nil {
 		return nil, h.mapServiceError(ctx, err, opCompletePeriod, req.GetUserId())

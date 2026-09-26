@@ -307,7 +307,7 @@ func loadCachedResult[T any](s *FinanceService, ctx context.Context, operation, 
 		}
 	}
 
-	result, status, err := store.Load(ctx, key, financecache.LoadOptions{}, source)
+	result, status, err := store.Load(ctx, key, financecache.LoadOptions{Bypass: cacheBypass(ctx)}, source)
 	if err != nil {
 		recordFinanceCacheEvent(operation, financecache.StatusError)
 		return zero, err

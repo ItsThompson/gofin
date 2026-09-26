@@ -29,11 +29,13 @@ type ExpenseRevision struct {
 }
 
 func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
+	forceRefresh := cacheBypass(ctx)
 	cursor := &expensepb.GetActiveExpensesForPeriodPageRequest{
-		UserId:   userID,
-		Year:     year,
-		Month:    month,
-		PageSize: completePeriodPageSize,
+		UserId:      userID,
+		Year:        year,
+		Month:       month,
+		PageSize:    completePeriodPageSize,
+		BypassCache: forceRefresh,
 	}
 	expenses := make([]ExpenseData, 0, completePeriodPageSize)
 
@@ -64,6 +66,7 @@ func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, user
 			CursorCreatedAt:   resp.GetNextCreatedAt(),
 			CursorId:          resp.GetNextId(),
 			PageSize:          completePeriodPageSize,
+			BypassCache:       forceRefresh,
 		}
 		lastExpense := resp.GetData()[len(resp.GetData())-1]
 		if nextCursor.GetCursorExpenseDate() == "" || nextCursor.GetCursorCreatedAt() == "" || nextCursor.GetCursorId() == "" {
