@@ -31,11 +31,12 @@ type CreateExpenseRequest struct {
 // expense_date DESC; all further filtering and sorting is done client-side, so
 // no sort/type/tag/date-range fields are carried here.
 type GetExpensesRequest struct {
-	UserID   string
-	Year     int32
-	Month    int32
-	Page     int32
-	PageSize int32
+	UserID      string
+	Year        int32
+	Month       int32
+	Page        int32
+	PageSize    int32
+	BypassCache bool
 }
 
 // ExpenseResponse is the JSON body returned for a single expense.
@@ -62,6 +63,7 @@ type GetActiveExpensesForPeriodPageRequest struct {
 	CursorCreatedAt   string
 	CursorID          string
 	PageSize          int32
+	BypassCache       bool
 }
 
 // CompleteExpensePageResponse is one internal complete-period read page.

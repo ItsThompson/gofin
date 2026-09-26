@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/handler"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
@@ -95,7 +96,13 @@ func run() error {
 		slog.String("addr", cfg.FxServiceAddr),
 	)
 
-	expenseSvc := service.NewExpenseService(repo, periodClient, fxClient, time.Now, logger)
+	expenseSvc := service.NewExpenseServiceWithCache(repo, periodClient, fxClient, time.Now, logger, cache.Config{
+		Enabled:       cfg.ReadCacheEnabled,
+		MaxEntries:    cfg.ReadCacheMaxEntries,
+		MaxBytes:      cfg.ReadCacheMaxBytes,
+		MaxEntryBytes: cfg.ReadCacheMaxEntryBytes,
+		MaxAge:        cfg.ReadCacheMaxAge,
+	})
 
 	// Build the gRPC server and pre-bind its listener so a bind failure surfaces.
 	grpcServer := serverkit.NewGRPCServer()

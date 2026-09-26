@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 )
 
 // DefaultRESTPort is the single source of truth for the expense REST port
@@ -14,6 +16,14 @@ const DefaultRESTPort = "8082"
 // dimension shared across services so cross-project Sentry queries work. The
 // closed set of domains is documented in docs/error-handling.md.
 const ReportDomain = "expenses"
+
+const (
+	defaultReadCacheEnabled       = true
+	defaultReadCacheMaxEntries    = 256
+	defaultReadCacheMaxBytes      = 64 * 1024 * 1024
+	defaultReadCacheMaxEntryBytes = 16 * 1024 * 1024
+	defaultReadCacheMaxAge        = 48 * time.Hour
+)
 
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
 // DefaultRESTPort. The --healthcheck branch runs before Load, so it calls this
@@ -27,15 +37,20 @@ func ResolveRESTPort() string {
 
 // Config holds all configuration for the expense service, loaded from environment variables.
 type Config struct {
-	ImmudbAddr         string
-	ImmudbUsername     string
-	ImmudbPassword     string
-	FinanceServiceAddr string
-	FxServiceAddr      string
-	LogLevel           string
-	Environment        string
-	RESTPort           string
-	GRPCPort           string
+	ImmudbAddr             string
+	ImmudbUsername         string
+	ImmudbPassword         string
+	FinanceServiceAddr     string
+	FxServiceAddr          string
+	LogLevel               string
+	Environment            string
+	RESTPort               string
+	GRPCPort               string
+	ReadCacheEnabled       bool
+	ReadCacheMaxEntries    int
+	ReadCacheMaxBytes      int64
+	ReadCacheMaxEntryBytes int64
+	ReadCacheMaxAge        time.Duration
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -83,17 +98,94 @@ func Load() (*Config, error) {
 		grpcPort = "9082"
 	}
 
+	readCacheEnabled, err := readCacheBool("EXPENSE_READ_CACHE_ENABLED", defaultReadCacheEnabled)
+	if err != nil {
+		return nil, err
+	}
+	readCacheMaxEntries, err := readCacheInt("EXPENSE_READ_CACHE_MAX_ENTRIES", defaultReadCacheMaxEntries)
+	if err != nil {
+		return nil, err
+	}
+	readCacheMaxBytes, err := readCacheInt64("EXPENSE_READ_CACHE_MAX_BYTES", defaultReadCacheMaxBytes)
+	if err != nil {
+		return nil, err
+	}
+	readCacheMaxEntryBytes, err := readCacheInt64("EXPENSE_READ_CACHE_MAX_ENTRY_BYTES", defaultReadCacheMaxEntryBytes)
+	if err != nil {
+		return nil, err
+	}
+	readCacheMaxAge, err := readCacheDuration("EXPENSE_READ_CACHE_MAX_AGE", defaultReadCacheMaxAge)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		ImmudbAddr:         immudbAddr,
-		ImmudbUsername:     immudbUsername,
-		ImmudbPassword:     immudbPassword,
-		FinanceServiceAddr: financeServiceAddr,
-		FxServiceAddr:      fxServiceAddr,
-		LogLevel:           logLevel,
-		Environment:        environment,
-		RESTPort:           restPort,
-		GRPCPort:           grpcPort,
+		ImmudbAddr:             immudbAddr,
+		ImmudbUsername:         immudbUsername,
+		ImmudbPassword:         immudbPassword,
+		FinanceServiceAddr:     financeServiceAddr,
+		FxServiceAddr:          fxServiceAddr,
+		LogLevel:               logLevel,
+		Environment:            environment,
+		RESTPort:               restPort,
+		GRPCPort:               grpcPort,
+		ReadCacheEnabled:       readCacheEnabled,
+		ReadCacheMaxEntries:    readCacheMaxEntries,
+		ReadCacheMaxBytes:      readCacheMaxBytes,
+		ReadCacheMaxEntryBytes: readCacheMaxEntryBytes,
+		ReadCacheMaxAge:        readCacheMaxAge,
 	}, nil
+}
+
+func readCacheBool(name string, defaultValue bool) (bool, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func readCacheInt(name string, defaultValue int) (int, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	return parsed, nil
+}
+
+func readCacheInt64(name string, defaultValue int64) (int64, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+	return parsed, nil
+}
+
+func readCacheDuration(name string, defaultValue time.Duration) (time.Duration, error) {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue, nil
+	}
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid duration: %w", name, err)
+	}
+	if parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", name)
+	}
+	return parsed, nil
 }
 
 // IsProduction returns true if the environment is not "development".

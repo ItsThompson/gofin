@@ -2,9 +2,10 @@ package model
 
 // ExpenseSuggestionRequest holds parsed query parameters for ranked suggestions.
 type ExpenseSuggestionRequest struct {
-	UserID   string
-	Page     int32
-	PageSize int32
+	UserID      string
+	Page        int32
+	PageSize    int32
+	BypassCache bool
 }
 
 // ExpenseSuggestionInput is the minimal active row data required to build suggestions.

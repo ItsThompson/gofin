@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
@@ -31,6 +32,7 @@ type ExpenseService struct {
 	fxClient     FxClient
 	logger       *slog.Logger
 	clock        func() time.Time
+	readCaches   *expenseReadCaches
 }
 
 // NewExpenseService creates a new ExpenseService. The clock seam supplies the
@@ -45,8 +47,23 @@ func NewExpenseService(
 	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
+	return NewExpenseServiceWithCache(repo, periodClient, fxClient, clock, logger, defaultReadCacheConfig())
+}
+
+// NewExpenseServiceWithCache creates an expense service with explicit read-cache policy.
+func NewExpenseServiceWithCache(
+	repo repository.ExpenseRepository,
+	periodClient PeriodContextClient,
+	fxClient FxClient,
+	clock func() time.Time,
+	logger *slog.Logger,
+	cacheConfig ReadCacheConfig,
+) *ExpenseService {
 	if fxClient == nil {
 		panic("NewExpenseService: fxClient must not be nil")
+	}
+	if clock == nil {
+		clock = time.Now
 	}
 	return &ExpenseService{
 		repo:         repo,
@@ -54,6 +71,7 @@ func NewExpenseService(
 		fxClient:     fxClient,
 		logger:       logger,
 		clock:        clock,
+		readCaches:   newExpenseReadCaches(cacheConfig, clock),
 	}
 }
 
@@ -168,7 +186,11 @@ func (s *ExpenseService) CreateExpense(ctx context.Context, userID string, req *
 
 // GetActiveExpensesForPeriod returns materialized expenses for a period with pagination.
 func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *model.GetExpensesRequest) (*model.ExpenseListResponse, error) {
+	if req == nil {
+		return nil, apierr.Validation("validation failed", map[string]string{"request": "request is required"})
+	}
 	v := validator.New()
+	v.Check(req.UserID != "", "userId", "user_id is required")
 	v.Check(req.Year >= 1, "year", "year must be positive")
 	v.Check(req.Month >= 1 && req.Month <= 12, "month", "month must be between 1 and 12")
 	if v.HasErrors() {
@@ -184,48 +206,69 @@ func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *mo
 		pageSize = 50
 	}
 
-	expenses, total, err := s.repo.GetActiveExpensesForPeriod(ctx, req.UserID, req.Year, req.Month, page, pageSize)
+	key := recentExpensesCacheKey(req, page, pageSize)
+	result, status, err := s.readCaches.recent.Load(ctx, key, cache.LoadOptions{Bypass: req.BypassCache}, func(loadCtx context.Context) (*model.ExpenseListResponse, error) {
+		expenses, total, loadErr := s.repo.GetActiveExpensesForPeriod(loadCtx, req.UserID, req.Year, req.Month, page, pageSize)
+		if loadErr != nil {
+			return nil, fmt.Errorf("getting expenses for period: %w", loadErr)
+		}
+		return &model.ExpenseListResponse{
+			Data:     expenses,
+			Total:    total,
+			Page:     page,
+			PageSize: pageSize,
+			HasMore:  int64(page)*int64(pageSize) < total,
+		}, nil
+	})
+	recordExpenseReadCacheEvent(expenseReadOperationRecent, status)
 	if err != nil {
-		return nil, fmt.Errorf("getting expenses for period: %w", err)
+		return nil, err
 	}
-
-	hasMore := int64(page)*int64(pageSize) < total
-
-	return &model.ExpenseListResponse{
-		Data:     expenses,
-		Total:    total,
-		Page:     page,
-		PageSize: pageSize,
-		HasMore:  hasMore,
-	}, nil
+	return result, nil
 }
 
 // GetActiveExpensesForPeriodPage returns one bounded page for internal
 // consumers that need the complete active period. The public paginated read
 // remains separate so its offset and response behavior stay unchanged.
 func (s *ExpenseService) GetActiveExpensesForPeriodPage(ctx context.Context, req *model.GetActiveExpensesForPeriodPageRequest) (*model.CompleteExpensePageResponse, error) {
+	if req == nil {
+		return nil, apierr.Validation("validation failed", map[string]string{"request": "request is required"})
+	}
 	v := validator.New()
+	v.Check(req.UserID != "", "userId", "user_id is required")
 	v.Check(req.Year >= 1, "year", "year must be positive")
 	v.Check(req.Month >= 1 && req.Month <= 12, "month", "month must be between 1 and 12")
 	if v.HasErrors() {
 		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
-	expenses, next, hasMore, err := s.repo.GetActiveExpensesByPeriodAfter(ctx, req.UserID, req.Year, req.Month, repository.ActivePeriodCursor{
-		ExpenseDate: req.CursorExpenseDate,
-		CreatedAt:   req.CursorCreatedAt,
-		ID:          req.CursorID,
-	}, req.PageSize)
-	if err != nil {
-		return nil, fmt.Errorf("getting active expenses page for period: %w", err)
+	pageSize := req.PageSize
+	if pageSize < 1 || pageSize > repository.CompletePeriodPageSize {
+		pageSize = repository.CompletePeriodPageSize
 	}
-	return &model.CompleteExpensePageResponse{
-		Data:            expenses,
-		NextExpenseDate: next.ExpenseDate,
-		NextCreatedAt:   next.CreatedAt,
-		NextID:          next.ID,
-		HasMore:         hasMore,
-	}, nil
+	key := completePeriodCacheKey(req, pageSize)
+	result, status, err := s.readCaches.completePeriod.Load(ctx, key, cache.LoadOptions{Bypass: req.BypassCache}, func(loadCtx context.Context) (*model.CompleteExpensePageResponse, error) {
+		expenses, next, hasMore, loadErr := s.repo.GetActiveExpensesByPeriodAfter(loadCtx, req.UserID, req.Year, req.Month, repository.ActivePeriodCursor{
+			ExpenseDate: req.CursorExpenseDate,
+			CreatedAt:   req.CursorCreatedAt,
+			ID:          req.CursorID,
+		}, pageSize)
+		if loadErr != nil {
+			return nil, fmt.Errorf("getting active expenses page for period: %w", loadErr)
+		}
+		return &model.CompleteExpensePageResponse{
+			Data:            expenses,
+			NextExpenseDate: next.ExpenseDate,
+			NextCreatedAt:   next.CreatedAt,
+			NextID:          next.ID,
+			HasMore:         hasMore,
+		}, nil
+	})
+	recordExpenseReadCacheEvent(expenseReadOperationComplete, status)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // GetExpense returns a single expense by ID, scoped to the requesting user.

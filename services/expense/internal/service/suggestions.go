@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/shared/validator"
 )
@@ -21,6 +22,9 @@ type suggestionGroup struct {
 
 // GetExpenseSuggestions returns active-only, exact-name suggestions for a user.
 func (s *ExpenseService) GetExpenseSuggestions(ctx context.Context, req *model.ExpenseSuggestionRequest) (*model.ExpenseSuggestionListResponse, error) {
+	if req == nil {
+		return nil, apierr.Validation("validation failed", map[string]string{"request": "request is required"})
+	}
 	v := validator.New()
 	v.Check(req.UserID != "", "userId", "user_id is required")
 	v.Check(req.Page >= 1, "page", "page must be positive")
@@ -29,9 +33,16 @@ func (s *ExpenseService) GetExpenseSuggestions(ctx context.Context, req *model.E
 		return nil, apierr.Validation("validation failed", v.Errors())
 	}
 
-	inputs, err := s.repo.GetActiveExpenseSuggestionInputs(ctx, req.UserID)
+	inputs, status, err := s.readCaches.suggestions.Load(ctx, suggestionInputsCacheKey(req.UserID), cache.LoadOptions{Bypass: req.BypassCache}, func(loadCtx context.Context) ([]*model.ExpenseSuggestionInput, error) {
+		loaded, loadErr := s.repo.GetActiveExpenseSuggestionInputs(loadCtx, req.UserID)
+		if loadErr != nil {
+			return nil, fmt.Errorf("getting active expense suggestion inputs: %w", loadErr)
+		}
+		return loaded, nil
+	})
+	recordExpenseReadCacheEvent(expenseReadOperationSuggestions, status)
 	if err != nil {
-		return nil, fmt.Errorf("getting active expense suggestion inputs: %w", err)
+		return nil, err
 	}
 
 	suggestions := s.aggregateExpenseSuggestions(inputs)

@@ -119,6 +119,16 @@ var (
 		},
 		[]string{"status"},
 	)
+
+	// ExpenseReadCacheEventsTotal counts bounded expense read-cache outcomes.
+	// Operation values are finite service-owned names, never user input.
+	ExpenseReadCacheEventsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expense_read_cache_events_total",
+			Help: "Total expense read-cache events by operation and outcome",
+		},
+		[]string{"operation", "event"},
+	)
 )
 
 // ---------------------------------------------------------------------------

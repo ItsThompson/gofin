@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,11 @@ func TestLoad_Success(t *testing.T) {
 	assert.Equal(t, "9082", cfg.GRPCPort)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "development", cfg.Environment)
+	assert.True(t, cfg.ReadCacheEnabled)
+	assert.Equal(t, 256, cfg.ReadCacheMaxEntries)
+	assert.Equal(t, int64(64*1024*1024), cfg.ReadCacheMaxBytes)
+	assert.Equal(t, int64(16*1024*1024), cfg.ReadCacheMaxEntryBytes)
+	assert.Equal(t, 48*time.Hour, cfg.ReadCacheMaxAge)
 }
 
 func TestLoad_RequiresImmudbAddr(t *testing.T) {
@@ -74,6 +80,26 @@ func TestLoad_Defaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "immudb", cfg.ImmudbUsername)
 	assert.Equal(t, "immudb", cfg.ImmudbPassword)
+}
+
+func TestLoad_CustomReadCacheConfig(t *testing.T) {
+	t.Setenv("IMMUDB_ADDR", "localhost:3322")
+	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("EXPENSE_READ_CACHE_ENABLED", "false")
+	t.Setenv("EXPENSE_READ_CACHE_MAX_ENTRIES", "4")
+	t.Setenv("EXPENSE_READ_CACHE_MAX_BYTES", "4096")
+	t.Setenv("EXPENSE_READ_CACHE_MAX_ENTRY_BYTES", "1024")
+	t.Setenv("EXPENSE_READ_CACHE_MAX_AGE", "2h")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.False(t, cfg.ReadCacheEnabled)
+	assert.Equal(t, 4, cfg.ReadCacheMaxEntries)
+	assert.Equal(t, int64(4096), cfg.ReadCacheMaxBytes)
+	assert.Equal(t, int64(1024), cfg.ReadCacheMaxEntryBytes)
+	assert.Equal(t, 2*time.Hour, cfg.ReadCacheMaxAge)
 }
 
 func TestLoad_CustomPorts(t *testing.T) {
