@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -42,12 +41,12 @@ func newExpenseReadCaches(config ReadCacheConfig, now func() time.Time) *expense
 	}
 }
 
-func jsonSize[T any](value T) int64 {
+func jsonSize[T any](value T) (int64, bool) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return 1
+		return 0, false
 	}
-	return int64(len(encoded))
+	return int64(len(encoded)), true
 }
 
 func completePeriodCacheKey(req *model.GetActiveExpensesForPeriodPageRequest, pageSize int32) string {
@@ -59,7 +58,7 @@ func recentExpensesCacheKey(req *model.GetExpensesRequest, page, pageSize int32)
 }
 
 func suggestionInputsCacheKey(userID string) string {
-	return fmt.Sprintf("expense.suggestion_inputs|%s", userID)
+	return "expense.suggestion_inputs|" + userID
 }
 
 func cloneCompleteExpensePage(value *model.CompleteExpensePageResponse) *model.CompleteExpensePageResponse {

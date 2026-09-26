@@ -33,12 +33,13 @@ func DefaultConfig() Config {
 type LoadStatus string
 
 const (
-	StatusHit      LoadStatus = "hit"
-	StatusLoaded   LoadStatus = "miss"
-	StatusBypassed LoadStatus = "bypass"
-	StatusDisabled LoadStatus = "disabled"
-	StatusOversize LoadStatus = "oversize"
-	StatusError    LoadStatus = "error"
+	StatusHit         LoadStatus = "hit"
+	StatusLoaded      LoadStatus = "miss"
+	StatusBypassed    LoadStatus = "bypass"
+	StatusDisabled    LoadStatus = "disabled"
+	StatusOversize    LoadStatus = "oversize"
+	StatusUncacheable LoadStatus = "uncacheable"
+	StatusError       LoadStatus = "error"
 )
 
 // LoadOptions controls one read. Bypass skips both lookup and storage.
@@ -68,7 +69,7 @@ type Cache[K comparable, V any] struct {
 	config      Config
 	now         func() time.Time
 	clone       func(V) V
-	size        func(V) int64
+	size        func(V) (int64, bool)
 	entries     map[K]*list.Element
 	lru         *list.List
 	flights     map[K]*flight[V]
@@ -77,7 +78,7 @@ type Cache[K comparable, V any] struct {
 }
 
 // New constructs a cache. It does not create any external resources.
-func New[K comparable, V any](config Config, now func() time.Time, clone func(V) V, size func(V) int64) *Cache[K, V] {
+func New[K comparable, V any](config Config, now func() time.Time, clone func(V) V, size func(V) (int64, bool)) *Cache[K, V] {
 	if now == nil {
 		now = time.Now
 	}
@@ -85,7 +86,7 @@ func New[K comparable, V any](config Config, now func() time.Time, clone func(V)
 		clone = func(value V) V { return value }
 	}
 	if size == nil {
-		size = func(V) int64 { return 1 }
+		size = func(V) (int64, bool) { return 1, true }
 	}
 	return &Cache[K, V]{
 		config:      config,
@@ -171,7 +172,9 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 	c.cleanupGenerationLocked(key)
 	result := c.clone(current.value)
 	status := current.status
-	if c.size(current.value) > c.maxEntryBytes() {
+	if sizeBytes, cacheable := c.size(current.value); !cacheable {
+		status = StatusUncacheable
+	} else if sizeBytes > c.maxEntryBytes() {
 		status = StatusOversize
 	}
 	c.mu.Unlock()
@@ -196,7 +199,8 @@ func (c *Cache[K, V]) canStoreLocked(value V) bool {
 	if c.config.MaxEntries <= 0 || c.config.MaxBytes <= 0 || c.config.MaxAge <= 0 {
 		return false
 	}
-	return c.size(value) <= c.maxEntryBytes()
+	sizeBytes, cacheable := c.size(value)
+	return cacheable && sizeBytes >= 0 && sizeBytes <= c.maxEntryBytes()
 }
 
 func (c *Cache[K, V]) maxEntryBytes() int64 {
@@ -207,7 +211,10 @@ func (c *Cache[K, V]) maxEntryBytes() int64 {
 }
 
 func (c *Cache[K, V]) storeLocked(key K, value V, expiresAt time.Time) {
-	sizeBytes := c.size(value)
+	sizeBytes, cacheable := c.size(value)
+	if !cacheable || sizeBytes < 0 {
+		return
+	}
 	if element, ok := c.entries[key]; ok {
 		c.removeElementLocked(element)
 	}

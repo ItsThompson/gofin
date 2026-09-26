@@ -12,8 +12,8 @@ import (
 )
 
 func testCache(now *time.Time, config Config) *Cache[string, map[string][]string] {
-	return New[string, map[string][]string](config, func() time.Time { return *now }, cloneMap, func(value map[string][]string) int64 {
-		return int64(len(value["value"]))
+	return New[string, map[string][]string](config, func() time.Time { return *now }, cloneMap, func(value map[string][]string) (int64, bool) {
+		return int64(len(value["value"])), true
 	})
 }
 
@@ -23,6 +23,17 @@ func cloneMap(value map[string][]string) map[string][]string {
 		copyValue[key] = append([]string(nil), values...)
 	}
 	return copyValue
+}
+
+type signallingContext struct {
+	context.Context
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (c *signallingContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.entered) })
+	return c.Context.Done()
 }
 
 func TestCacheLoadHitAndCopySafety(t *testing.T) {
@@ -124,49 +135,77 @@ func TestCacheOversizeAndErrorsAreNotRetained(t *testing.T) {
 	assert.Equal(t, 0, cache.Len())
 }
 
+func TestCacheMarksUncacheableValuesWithoutRetention(t *testing.T) {
+	now := time.Now()
+	config := DefaultConfig()
+	uncacheable := New[string, map[string][]string](config, func() time.Time { return now }, cloneMap, func(map[string][]string) (int64, bool) {
+		return 0, false
+	})
+	loads := 0
+	loader := func(context.Context) (map[string][]string, error) {
+		loads++
+		return map[string][]string{"value": {"source"}}, nil
+	}
+
+	_, status, err := uncacheable.Load(context.Background(), "key", LoadOptions{}, loader)
+	require.NoError(t, err)
+	assert.Equal(t, StatusUncacheable, status)
+	assert.Equal(t, 0, uncacheable.Len())
+	_, status, err = uncacheable.Load(context.Background(), "key", LoadOptions{}, loader)
+	require.NoError(t, err)
+	assert.Equal(t, StatusUncacheable, status)
+	assert.Equal(t, 2, loads)
+}
+
 func TestCacheSingleFlightAndEvictionFence(t *testing.T) {
 	now := time.Now()
 	cache := testCache(&now, DefaultConfig())
 	var lock sync.Mutex
 	loads := 0
-	loader := func(context.Context) (map[string][]string, error) {
-		lock.Lock()
-		loads++
-		lock.Unlock()
-		return map[string][]string{"value": {"same"}}, nil
-	}
-
-	start := make(chan struct{})
-	results := make(chan map[string][]string, 2)
-	for range 2 {
-		go func() {
-			<-start
-			value, _, _ := cache.Load(context.Background(), "same-key", LoadOptions{}, loader)
-			results <- value
-		}()
-	}
-	close(start)
-	assert.Equal(t, "same", (<-results)["value"][0])
-	assert.Equal(t, "same", (<-results)["value"][0])
-	assert.Equal(t, 1, loads)
-
-	fencedCache := testCache(&now, DefaultConfig())
 	started := make(chan struct{})
 	release := make(chan struct{})
-	loader = func(context.Context) (map[string][]string, error) {
+	loader := func(context.Context) (map[string][]string, error) {
 		lock.Lock()
 		loads++
 		lock.Unlock()
 		close(started)
 		<-release
-		return map[string][]string{"value": {"old"}}, nil
+		return map[string][]string{"value": {"same"}}, nil
 	}
+
+	firstResult := make(chan map[string][]string, 1)
 	go func() {
-		_, _, _ = fencedCache.Load(context.Background(), "evicted-key", LoadOptions{}, loader)
+		value, _, _ := cache.Load(context.Background(), "same-key", LoadOptions{}, loader)
+		firstResult <- value
 	}()
 	<-started
-	fencedCache.Evict("evicted-key")
+	secondResult := make(chan map[string][]string, 1)
+	secondContext := &signallingContext{Context: context.Background(), entered: make(chan struct{})}
+	go func() {
+		value, _, _ := cache.Load(secondContext, "same-key", LoadOptions{}, loader)
+		secondResult <- value
+	}()
+	<-secondContext.entered
+	lock.Lock()
+	assert.Equal(t, 1, loads)
+	lock.Unlock()
 	close(release)
+	assert.Equal(t, "same", (<-firstResult)["value"][0])
+	assert.Equal(t, "same", (<-secondResult)["value"][0])
+
+	fencedCache := testCache(&now, DefaultConfig())
+	fencedStarted := make(chan struct{})
+	fencedRelease := make(chan struct{})
+	go func() {
+		_, _, _ = fencedCache.Load(context.Background(), "evicted-key", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+			close(fencedStarted)
+			<-fencedRelease
+			return map[string][]string{"value": {"old"}}, nil
+		})
+	}()
+	<-fencedStarted
+	fencedCache.Evict("evicted-key")
+	close(fencedRelease)
 	assert.Eventually(t, func() bool { return fencedCache.Len() == 0 }, time.Second, time.Millisecond)
 	assert.Equal(t, 0, fencedCache.Len())
 }
