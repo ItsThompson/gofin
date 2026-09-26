@@ -77,6 +77,75 @@ func TestGetExpenseRevisionDoesNotQueryRepository(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+type financeEvictionTestClient struct {
+	*mockPeriodContextClient
+	err      error
+	users    []string
+	wait     bool
+	deadline time.Time
+}
+
+func (c *financeEvictionTestClient) EvictUserCache(ctx context.Context, userID string) error {
+	c.users = append(c.users, userID)
+	c.deadline, _ = ctx.Deadline()
+	if c.wait {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return c.err
+}
+
+func newFinanceEvictionTestClient() *financeEvictionTestClient {
+	return &financeEvictionTestClient{mockPeriodContextClient: newTestPeriodClient()}
+}
+
+func TestCreateExpenseNotifiesFinanceAfterLocalInvalidation(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	finance := newFinanceEvictionTestClient()
+	svc := NewExpenseServiceWithCacheAndEviction(repo, finance, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)), defaultReadCacheConfig(), time.Second)
+	repo.On("GetExpenseByIdempotencyKey", context.Background(), "user-1", validTestUUID).Return(nil, nil)
+	repo.On("CreateExpense", context.Background(), mock.AnythingOfType("*model.Expense")).Return(&model.Expense{ID: "new", UserID: "user-1"}, nil)
+
+	before, err := svc.GetExpenseRevision(context.Background(), "user-1")
+	require.NoError(t, err)
+	_, err = svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
+	require.NoError(t, err)
+	after, err := svc.GetExpenseRevision(context.Background(), "user-1")
+	require.NoError(t, err)
+
+	assert.Equal(t, before.Revision+1, after.Revision)
+	assert.Equal(t, []string{"user-1"}, finance.users)
+	repo.AssertExpectations(t)
+}
+
+func TestCreateExpenseFinanceCallbackFailureDoesNotChangeCommittedOutcome(t *testing.T) {
+	repo := new(mockExpenseRepository)
+	finance := newFinanceEvictionTestClient()
+	finance.err = errors.New("finance unavailable")
+	svc := NewExpenseServiceWithCacheAndEviction(repo, finance, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)), defaultReadCacheConfig(), time.Second)
+	repo.On("GetExpenseByIdempotencyKey", context.Background(), "user-1", validTestUUID).Return(nil, nil)
+	repo.On("CreateExpense", context.Background(), mock.AnythingOfType("*model.Expense")).Return(&model.Expense{ID: "new", UserID: "user-1"}, nil)
+
+	created, err := svc.CreateExpense(context.Background(), "user-1", validCreateRequest())
+
+	require.NoError(t, err)
+	assert.Equal(t, "new", created.ID)
+	assert.Equal(t, []string{"user-1"}, finance.users)
+	repo.AssertExpectations(t)
+}
+
+func TestFinanceEvictionCallbackUsesBoundedDeadline(t *testing.T) {
+	finance := newFinanceEvictionTestClient()
+	finance.wait = true
+	svc := NewExpenseServiceWithCacheAndEviction(new(mockExpenseRepository), finance, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)), defaultReadCacheConfig(), 5*time.Millisecond)
+
+	started := time.Now()
+	svc.invalidateUser("user-1")
+
+	assert.WithinDuration(t, started.Add(5*time.Millisecond), finance.deadline, 100*time.Millisecond)
+	assert.Equal(t, []string{"user-1"}, finance.users)
+}
+
 func TestCreateExpenseIdempotentReplayLeavesRevisionUnchanged(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	svc := newRevisionTestService(repo)

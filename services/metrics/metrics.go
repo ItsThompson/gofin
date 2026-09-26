@@ -137,6 +137,14 @@ var (
 		},
 		[]string{"operation", "event"},
 	)
+
+	ExpenseFinanceEvictionEventsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "expense_finance_eviction_events_total",
+			Help: "Total expense-to-finance cache eviction callbacks by outcome",
+		},
+		[]string{"event"},
+	)
 )
 
 // ---------------------------------------------------------------------------

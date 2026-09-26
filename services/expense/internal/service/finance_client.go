@@ -15,17 +15,24 @@ import (
 
 // PeriodContext is the read-only Finance state required before an expense write.
 type PeriodContext struct {
-	PeriodID          string
-	UserID            string
-	Year              int32
-	Month             int32
+	PeriodID              string
+	UserID                string
+	Year                  int32
+	Month                 int32
 	ReportingCurrencyCode string
-	IsLocked          bool
+	IsLocked              bool
 }
 
 // PeriodContextClient resolves budget period context from Finance.
 type PeriodContextClient interface {
 	GetPeriodContext(ctx context.Context, userID string, year, month int32) (*PeriodContext, error)
+}
+
+// FinanceCacheEvictionClient receives best-effort cache eviction callbacks after
+// expense mutations. It stays separate from PeriodContextClient so test doubles
+// and callers that only resolve periods do not need the callback capability.
+type FinanceCacheEvictionClient interface {
+	EvictUserCache(ctx context.Context, userID string) error
 }
 
 type GRPCPeriodContextClient struct {
@@ -50,13 +57,22 @@ func (c *GRPCPeriodContextClient) GetPeriodContext(ctx context.Context, userID s
 	}
 
 	return &PeriodContext{
-		PeriodID:          resp.GetPeriodId(),
-		UserID:            resp.GetUserId(),
-		Year:              resp.GetYear(),
-		Month:             resp.GetMonth(),
+		PeriodID:              resp.GetPeriodId(),
+		UserID:                resp.GetUserId(),
+		Year:                  resp.GetYear(),
+		Month:                 resp.GetMonth(),
 		ReportingCurrencyCode: resp.GetReportingCurrencyCode(),
-		IsLocked:          resp.GetIsLocked(),
+		IsLocked:              resp.GetIsLocked(),
 	}, nil
+}
+
+// EvictUserCache sends the internal user-cache coherence callback to Finance.
+func (c *GRPCPeriodContextClient) EvictUserCache(ctx context.Context, userID string) error {
+	_, err := c.client.EvictUserCache(ctx, &financepb.EvictUserCacheRequest{UserId: userID})
+	if err != nil {
+		return fmt.Errorf("gRPC EvictUserCache: %w", err)
+	}
+	return nil
 }
 
 func periodNotFoundError(year, month int32) *apierr.Error {

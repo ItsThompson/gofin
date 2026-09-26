@@ -23,6 +23,7 @@ const (
 	defaultReadCacheMaxBytes      = 64 * 1024 * 1024
 	defaultReadCacheMaxEntryBytes = 16 * 1024 * 1024
 	defaultReadCacheMaxAge        = 48 * time.Hour
+	defaultFinanceEvictionTimeout = 1 * time.Second
 )
 
 // ResolveRESTPort returns the REST port from REST_PORT, falling back to
@@ -51,6 +52,7 @@ type Config struct {
 	ReadCacheMaxBytes      int64
 	ReadCacheMaxEntryBytes int64
 	ReadCacheMaxAge        time.Duration
+	FinanceEvictionTimeout time.Duration
 }
 
 // Load reads configuration from environment variables and returns a Config.
@@ -118,6 +120,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	financeEvictionTimeout, err := readCacheDuration("EXPENSE_FINANCE_EVICTION_TIMEOUT", defaultFinanceEvictionTimeout)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Config{
 		ImmudbAddr:             immudbAddr,
@@ -134,6 +140,7 @@ func Load() (*Config, error) {
 		ReadCacheMaxBytes:      readCacheMaxBytes,
 		ReadCacheMaxEntryBytes: readCacheMaxEntryBytes,
 		ReadCacheMaxAge:        readCacheMaxAge,
+		FinanceEvictionTimeout: financeEvictionTimeout,
 	}, nil
 }
 

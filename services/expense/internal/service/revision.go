@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/ItsThompson/gofin/services/apierr"
+	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 
@@ -16,7 +20,10 @@ type ExpenseRevision struct {
 	Revision uint64
 }
 
-const defaultRevisionMetadataLimit = 256
+const (
+	defaultRevisionMetadataLimit  = 256
+	defaultFinanceEvictionTimeout = time.Second
+)
 
 type expenseRevisionOwner struct {
 	mu           sync.Mutex
@@ -105,12 +112,40 @@ func (o *expenseRevisionOwner) evictMetadataLocked() {
 func (s *ExpenseService) invalidateUser(userID string) {
 	s.readCaches.purgeUser(userID)
 	s.revisionOwner.advance(userID)
+	s.notifyFinanceEviction(userID)
 }
 
 func (s *ExpenseService) retireUser(userID string) {
 	s.readCaches.purgeUser(userID)
 	s.revisionOwner.advance(userID)
 	s.revisionOwner.retire(userID)
+	s.notifyFinanceEviction(userID)
+}
+
+func (s *ExpenseService) notifyFinanceEviction(userID string) {
+	client, ok := s.periodClient.(FinanceCacheEvictionClient)
+	if !ok {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), s.financeEvictionTimeout)
+	defer cancel()
+	if err := client.EvictUserCache(ctx, userID); err != nil {
+		event := "error"
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			event = "timeout"
+		}
+		metrics.ExpenseFinanceEvictionEventsTotal.WithLabelValues(event).Inc()
+		s.logger.Warn("finance cache eviction callback failed",
+			slog.String("event", "finance_cache_eviction_failed"),
+			slog.String("user_id", userID),
+			slog.String("outcome", event),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	metrics.ExpenseFinanceEvictionEventsTotal.WithLabelValues("success").Inc()
 }
 
 // GetExpenseRevision returns the current process epoch and user revision for

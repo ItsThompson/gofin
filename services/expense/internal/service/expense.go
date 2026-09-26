@@ -27,13 +27,14 @@ var isoDateRegex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // ExpenseService contains the business logic for expense operations.
 type ExpenseService struct {
-	repo          repository.ExpenseRepository
-	periodClient  PeriodContextClient
-	fxClient      FxClient
-	logger        *slog.Logger
-	clock         func() time.Time
-	readCaches    *expenseReadCaches
-	revisionOwner *expenseRevisionOwner
+	repo                   repository.ExpenseRepository
+	periodClient           PeriodContextClient
+	fxClient               FxClient
+	logger                 *slog.Logger
+	clock                  func() time.Time
+	readCaches             *expenseReadCaches
+	revisionOwner          *expenseRevisionOwner
+	financeEvictionTimeout time.Duration
 }
 
 // NewExpenseService creates a new ExpenseService. The clock seam supplies the
@@ -48,7 +49,7 @@ func NewExpenseService(
 	clock func() time.Time,
 	logger *slog.Logger,
 ) *ExpenseService {
-	return NewExpenseServiceWithCache(repo, periodClient, fxClient, clock, logger, defaultReadCacheConfig())
+	return NewExpenseServiceWithCacheAndEviction(repo, periodClient, fxClient, clock, logger, defaultReadCacheConfig(), defaultFinanceEvictionTimeout)
 }
 
 // NewExpenseServiceWithCache creates an expense service with explicit read-cache policy.
@@ -60,20 +61,38 @@ func NewExpenseServiceWithCache(
 	logger *slog.Logger,
 	cacheConfig ReadCacheConfig,
 ) *ExpenseService {
+	return NewExpenseServiceWithCacheAndEviction(repo, periodClient, fxClient, clock, logger, cacheConfig, defaultFinanceEvictionTimeout)
+}
+
+// NewExpenseServiceWithCacheAndEviction creates an expense service with an explicit
+// deadline for the best-effort Finance cache eviction callback.
+func NewExpenseServiceWithCacheAndEviction(
+	repo repository.ExpenseRepository,
+	periodClient PeriodContextClient,
+	fxClient FxClient,
+	clock func() time.Time,
+	logger *slog.Logger,
+	cacheConfig ReadCacheConfig,
+	financeEvictionTimeout time.Duration,
+) *ExpenseService {
 	if fxClient == nil {
 		panic("NewExpenseService: fxClient must not be nil")
 	}
 	if clock == nil {
 		clock = time.Now
 	}
+	if financeEvictionTimeout <= 0 {
+		financeEvictionTimeout = defaultFinanceEvictionTimeout
+	}
 	return &ExpenseService{
-		repo:          repo,
-		periodClient:  periodClient,
-		fxClient:      fxClient,
-		logger:        logger,
-		clock:         clock,
-		readCaches:    newExpenseReadCaches(cacheConfig, clock),
-		revisionOwner: newExpenseRevisionOwner(cacheConfig.MaxEntries),
+		repo:                   repo,
+		periodClient:           periodClient,
+		fxClient:               fxClient,
+		logger:                 logger,
+		clock:                  clock,
+		readCaches:             newExpenseReadCaches(cacheConfig, clock),
+		revisionOwner:          newExpenseRevisionOwner(cacheConfig.MaxEntries),
+		financeEvictionTimeout: financeEvictionTimeout,
 	}
 }
 

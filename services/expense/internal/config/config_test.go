@@ -33,6 +33,7 @@ func TestLoad_Success(t *testing.T) {
 	assert.Equal(t, int64(64*1024*1024), cfg.ReadCacheMaxBytes)
 	assert.Equal(t, int64(16*1024*1024), cfg.ReadCacheMaxEntryBytes)
 	assert.Equal(t, 48*time.Hour, cfg.ReadCacheMaxAge)
+	assert.Equal(t, time.Second, cfg.FinanceEvictionTimeout)
 }
 
 func TestLoad_RequiresImmudbAddr(t *testing.T) {
@@ -91,6 +92,7 @@ func TestLoad_CustomReadCacheConfig(t *testing.T) {
 	t.Setenv("EXPENSE_READ_CACHE_MAX_BYTES", "4096")
 	t.Setenv("EXPENSE_READ_CACHE_MAX_ENTRY_BYTES", "1024")
 	t.Setenv("EXPENSE_READ_CACHE_MAX_AGE", "2h")
+	t.Setenv("EXPENSE_FINANCE_EVICTION_TIMEOUT", "750ms")
 
 	cfg, err := Load()
 
@@ -100,6 +102,7 @@ func TestLoad_CustomReadCacheConfig(t *testing.T) {
 	assert.Equal(t, int64(4096), cfg.ReadCacheMaxBytes)
 	assert.Equal(t, int64(1024), cfg.ReadCacheMaxEntryBytes)
 	assert.Equal(t, 2*time.Hour, cfg.ReadCacheMaxAge)
+	assert.Equal(t, 750*time.Millisecond, cfg.FinanceEvictionTimeout)
 }
 
 func TestLoad_CustomPorts(t *testing.T) {
