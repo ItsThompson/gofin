@@ -85,7 +85,29 @@ func TestGRPC_RemovedReadRPCsAreNotRegistered(t *testing.T) {
 	assert.Contains(t, registered, "CorrectExpense")
 	assert.Contains(t, registered, "CountExpensesByTag")
 	assert.Contains(t, registered, "AnonymizeAllUserExpenses")
+	assert.Contains(t, registered, "GetExpenseRevision")
 	assert.Contains(t, registered, "StreamAllUserExpenses")
+}
+
+func TestGRPC_GetExpenseRevision_ReturnsProcessLocalState(t *testing.T) {
+	handler := newTestGRPCHandler(new(mockExpenseRepository))
+
+	first, err := handler.GetExpenseRevision(context.Background(), &pb.GetExpenseRevisionRequest{UserId: "user-1"})
+	require.NoError(t, err)
+	second, err := handler.GetExpenseRevision(context.Background(), &pb.GetExpenseRevisionRequest{UserId: "user-1"})
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, first.GetEpoch())
+	assert.Equal(t, uint64(1), first.GetRevision())
+	assert.Equal(t, first.GetEpoch(), second.GetEpoch())
+	assert.Equal(t, first.GetRevision(), second.GetRevision())
+}
+
+func TestGRPC_GetExpenseRevision_RejectsMissingUser(t *testing.T) {
+	response, err := newTestGRPCHandler(new(mockExpenseRepository)).GetExpenseRevision(context.Background(), &pb.GetExpenseRevisionRequest{})
+
+	assert.Nil(t, response)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestGRPC_GetActiveExpensesForPeriodPage_MapsCompleteRows(t *testing.T) {
@@ -130,10 +152,10 @@ func TestGRPC_CreateExpense_UsesTransactionCurrency(t *testing.T) {
 	repo := new(mockExpenseRepository)
 	periodClient := new(mockPeriodContextClient)
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "EUR",
 	}, nil)
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -211,10 +233,10 @@ func TestGRPC_CorrectExpense_MapsTransactionCurrency(t *testing.T) {
 	}
 	repo.On("GetExpenseByID", mock.Anything, "exp-original", "user-1").Return(original, nil)
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "USD",
 	}, nil)
 
@@ -300,10 +322,10 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxSuccess(t *testing.T) {
 	requestedAt := now.UTC().Format(time.RFC3339)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "USD",
 	}, nil)
 
@@ -379,10 +401,10 @@ func TestGRPC_CreateExpense_ForeignCurrencyFxUnavailable(t *testing.T) {
 	fxClient := new(mockFxClient)
 
 	periodClient.On("GetPeriodContext", mock.Anything, "user-1", int32(2026), int32(5)).Return(&service.PeriodContext{
-		PeriodID:          "period-1",
-		UserID:            "user-1",
-		Year:              2026,
-		Month:             5,
+		PeriodID:              "period-1",
+		UserID:                "user-1",
+		Year:                  2026,
+		Month:                 5,
 		ReportingCurrencyCode: "USD",
 	}, nil)
 

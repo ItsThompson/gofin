@@ -20,15 +20,34 @@ import (
 type stubExpenseClient struct {
 	expensepb.ExpenseServiceClient
 	getActiveExpensesForPeriodPage func(ctx context.Context, in *expensepb.GetActiveExpensesForPeriodPageRequest, opts ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error)
+	getExpenseRevision             func(ctx context.Context, in *expensepb.GetExpenseRevisionRequest, opts ...grpc.CallOption) (*expensepb.ExpenseRevisionResponse, error)
 }
 
 func (s *stubExpenseClient) GetActiveExpensesForPeriodPage(ctx context.Context, in *expensepb.GetActiveExpensesForPeriodPageRequest, opts ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
 	return s.getActiveExpensesForPeriodPage(ctx, in, opts...)
 }
 
+func (s *stubExpenseClient) GetExpenseRevision(ctx context.Context, in *expensepb.GetExpenseRevisionRequest, opts ...grpc.CallOption) (*expensepb.ExpenseRevisionResponse, error) {
+	return s.getExpenseRevision(ctx, in, opts...)
+}
+
 // TestGRPCExpenseClient_ReadsReportingAmountAndCurrency asserts the Finance gRPC
 // client maps the canonical reporting money fields off each ExpenseData response
 // row, so dashboard totals aggregate in the period reporting currency.
+func TestGRPCExpenseClient_ReadsExpenseRevision(t *testing.T) {
+	stub := &stubExpenseClient{
+		getExpenseRevision: func(_ context.Context, request *expensepb.GetExpenseRevisionRequest, _ ...grpc.CallOption) (*expensepb.ExpenseRevisionResponse, error) {
+			assert.Equal(t, "user-1", request.GetUserId())
+			return &expensepb.ExpenseRevisionResponse{Epoch: "epoch-1", Revision: 42}, nil
+		},
+	}
+
+	revision, err := NewGRPCExpenseClient(stub).GetExpenseRevision(context.Background(), "user-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, ExpenseRevision{Epoch: "epoch-1", Revision: 42}, revision)
+}
+
 func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	stub := &stubExpenseClient{
 		getActiveExpensesForPeriodPage: func(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
