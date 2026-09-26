@@ -82,7 +82,7 @@ func NewExpenseServiceWithCacheAndEviction(
 	if clock == nil {
 		clock = time.Now
 	}
-	if financeEvictionTimeout <= 0 {
+	if financeEvictionTimeout <= 0 || financeEvictionTimeout > financeconfig.MaxExpenseFinanceEvictionTimeout {
 		financeEvictionTimeout = financeconfig.MaxExpenseFinanceEvictionTimeout
 	}
 	return &ExpenseService{

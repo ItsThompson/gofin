@@ -16,6 +16,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
+	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
@@ -132,6 +133,12 @@ func TestCreateExpenseFinanceCallbackFailureDoesNotChangeCommittedOutcome(t *tes
 	assert.Equal(t, "new", created.ID)
 	assert.Equal(t, []string{"user-1"}, finance.users)
 	repo.AssertExpectations(t)
+}
+
+func TestNewExpenseServiceClampsFinanceEvictionTimeout(t *testing.T) {
+	svc := NewExpenseServiceWithCacheAndEviction(new(mockExpenseRepository), newTestPeriodClient(), &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)), defaultReadCacheConfig(), 2*time.Second)
+
+	assert.Equal(t, financeconfig.MaxExpenseFinanceEvictionTimeout, svc.financeEvictionTimeout)
 }
 
 func TestFinanceEvictionCallbackUsesBoundedDeadline(t *testing.T) {
