@@ -6,11 +6,13 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 )
 
@@ -45,6 +47,38 @@ func (m *mockTxBeginnerForDeletion) BeginTx(ctx context.Context) (repository.Tx,
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(repository.Tx), args.Error(1)
+}
+
+func TestDeleteAllUserData_EvictsOnlyDeletedUserFinanceCache(t *testing.T) {
+	repo := new(mockRepo)
+	txBeginner := new(mockTxBeginnerForDeletion)
+	tx := &mockTxForDeletion{repo: repo}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	cacheConfig := DefaultResultCacheConfig()
+	svc := NewFinanceServiceWithCache(repo, txBeginner, nil, time.Now, logger, cacheConfig)
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return(&model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 5}, nil).Once()
+	repo.On("GetCurrentPeriod", mock.Anything, "user-2", int32(2026), int32(5)).Return(&model.BudgetPeriod{ID: "period-2", UserID: "user-2", Year: 2026, Month: 5}, nil).Once()
+	_, err := svc.GetCurrentPeriod(context.Background(), "user-1", 2026, 5)
+	require.NoError(t, err)
+	_, err = svc.GetCurrentPeriod(context.Background(), "user-2", 2026, 5)
+	require.NoError(t, err)
+
+	txBeginner.On("BeginTx", mock.Anything).Return(tx, nil)
+	tx.On("Rollback", mock.Anything).Return(nil)
+	tx.On("Commit", mock.Anything).Return(nil)
+	repo.On("DeleteAllUserData", mock.Anything, "user-1").Return(nil)
+	require.NoError(t, svc.DeleteAllUserData(context.Background(), "user-1"))
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return(&model.BudgetPeriod{ID: "period-1-new", UserID: "user-1", Year: 2026, Month: 5}, nil).Once()
+	period, err := svc.GetCurrentPeriod(context.Background(), "user-1", 2026, 5)
+	require.NoError(t, err)
+	assert.Equal(t, "period-1-new", period.ID)
+
+	period, err = svc.GetCurrentPeriod(context.Background(), "user-2", 2026, 5)
+	require.NoError(t, err)
+	assert.Equal(t, "period-2", period.ID)
+	repo.AssertExpectations(t)
 }
 
 func TestDeleteAllUserData_ServiceSuccess(t *testing.T) {

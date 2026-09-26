@@ -62,6 +62,39 @@ func TestCacheCoalescesLoadsAndReturnsCopy(t *testing.T) {
 	require.Equal(t, []string{"source"}, *second)
 }
 
+func TestCacheEvictionRetainsGenerationAcrossFailedReplacement(t *testing.T) {
+	cache := New[string, string](testConfig(), time.Now, nil, nil)
+	oldStarted := make(chan struct{})
+	oldRelease := make(chan struct{})
+	oldDone := make(chan struct{})
+	go func() {
+		_, _, _ = cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+			close(oldStarted)
+			<-oldRelease
+			return "old", nil
+		})
+		close(oldDone)
+	}()
+	<-oldStarted
+	cache.Evict("key")
+
+	_, _, replacementErr := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+		return "", errors.New("replacement failed")
+	})
+	require.EqualError(t, replacementErr, "replacement failed")
+
+	close(oldRelease)
+	<-oldDone
+	require.Equal(t, 0, cache.Len())
+
+	fresh, status, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+		return "fresh", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusLoaded, status)
+	require.Equal(t, "fresh", fresh)
+}
+
 func TestCacheEvictionFencesAnInFlightLoad(t *testing.T) {
 	cache := New[string, string](testConfig(), time.Now, nil, nil)
 	started := make(chan struct{})

@@ -55,19 +55,21 @@ type flight[V any] struct {
 	value      V
 	status     LoadStatus
 	err        error
+	detached   bool
 }
 
 type Cache[K comparable, V any] struct {
-	mu          sync.Mutex
-	config      Config
-	now         func() time.Time
-	clone       func(V) V
-	size        func(V) (int64, bool)
-	entries     map[K]*list.Element
-	lru         *list.List
-	flights     map[K]*flight[V]
-	generations map[K]uint64
-	bytes       int64
+	mu              sync.Mutex
+	config          Config
+	now             func() time.Time
+	clone           func(V) V
+	size            func(V) (int64, bool)
+	entries         map[K]*list.Element
+	lru             *list.List
+	flights         map[K]*flight[V]
+	generations     map[K]uint64
+	detachedFlights map[K]int
+	bytes           int64
 }
 
 func New[K comparable, V any](config Config, now func() time.Time, clone func(V) V, size func(V) (int64, bool)) *Cache[K, V] {
@@ -81,14 +83,15 @@ func New[K comparable, V any](config Config, now func() time.Time, clone func(V)
 		size = func(V) (int64, bool) { return 1, true }
 	}
 	return &Cache[K, V]{
-		config:      config,
-		now:         now,
-		clone:       clone,
-		size:        size,
-		entries:     make(map[K]*list.Element),
-		lru:         list.New(),
-		flights:     make(map[K]*flight[V]),
-		generations: make(map[K]uint64),
+		config:          config,
+		now:             now,
+		clone:           clone,
+		size:            size,
+		entries:         make(map[K]*list.Element),
+		lru:             list.New(),
+		flights:         make(map[K]*flight[V]),
+		generations:     make(map[K]uint64),
+		detachedFlights: make(map[K]int),
 	}
 }
 
@@ -140,6 +143,7 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 		if c.flights[key] == current {
 			delete(c.flights, key)
 		}
+		c.completeDetachedFlightLocked(key, current)
 		close(current.done)
 		c.cleanupGenerationLocked(key)
 		c.mu.Unlock()
@@ -155,6 +159,7 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 	if c.flights[key] == current {
 		delete(c.flights, key)
 	}
+	c.completeDetachedFlightLocked(key, current)
 	close(current.done)
 	c.cleanupGenerationLocked(key)
 	result := c.clone(current.value)
@@ -262,7 +267,30 @@ func (c *Cache[K, V]) cleanupGenerationLocked(key K) {
 	if _, hasFlight := c.flights[key]; hasFlight {
 		return
 	}
+	if c.detachedFlights[key] > 0 {
+		return
+	}
 	delete(c.generations, key)
+}
+
+func (c *Cache[K, V]) completeDetachedFlightLocked(key K, current *flight[V]) {
+	if !current.detached {
+		return
+	}
+	c.detachedFlights[key]--
+	if c.detachedFlights[key] == 0 {
+		delete(c.detachedFlights, key)
+	}
+}
+
+func (c *Cache[K, V]) detachFlightLocked(key K) {
+	current, ok := c.flights[key]
+	if !ok {
+		return
+	}
+	current.detached = true
+	c.detachedFlights[key]++
+	delete(c.flights, key)
 }
 
 func (c *Cache[K, V]) removeElementLocked(element *list.Element) {
@@ -271,7 +299,7 @@ func (c *Cache[K, V]) removeElementLocked(element *list.Element) {
 	c.lru.Remove(element)
 	c.bytes -= cached.sizeBytes
 	if _, hadFlight := c.flights[cached.key]; !hadFlight {
-		delete(c.generations, cached.key)
+		c.cleanupGenerationLocked(cached.key)
 	}
 }
 
@@ -281,12 +309,8 @@ func (c *Cache[K, V]) Evict(key K) {
 	if element, ok := c.entries[key]; ok {
 		c.removeElementLocked(element)
 	}
-	if _, hadFlight := c.flights[key]; hadFlight {
-		c.generations[key]++
-		delete(c.flights, key)
-		return
-	}
 	c.generations[key]++
+	c.detachFlightLocked(key)
 }
 
 func (c *Cache[K, V]) Purge(match func(K) bool) {
@@ -301,7 +325,7 @@ func (c *Cache[K, V]) Purge(match func(K) bool) {
 	for key := range c.flights {
 		if match(key) {
 			c.generations[key]++
-			delete(c.flights, key)
+			c.detachFlightLocked(key)
 		}
 	}
 }
