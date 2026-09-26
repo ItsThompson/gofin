@@ -88,6 +88,24 @@ func TestCacheObserverReportsCapacityBypassAndEviction(t *testing.T) {
 	require.Contains(t, events, EventCapacityBypass)
 }
 
+func TestCachePeekExpiredEntryReportsEviction(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	var events []Event
+	config := testConfig()
+	config.MaxAge = time.Hour
+	config.Observer = func(event Event) { events = append(events, event) }
+	cache := New[string, string](config, func() time.Time { return now }, nil, nil)
+
+	_, _, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) {
+		return "value", nil
+	})
+	require.NoError(t, err)
+	now = now.Add(time.Hour)
+	_, _, ok := cache.Peek("key")
+	require.False(t, ok)
+	require.Contains(t, events, EventEviction)
+}
+
 func TestCacheBypassReplacesValueAndKeepsPriorValueOnFailure(t *testing.T) {
 	cache := New[string, string](testConfig(), time.Now, nil, nil)
 

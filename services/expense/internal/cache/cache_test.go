@@ -293,6 +293,20 @@ func TestCacheLifecycleObserverReportsCapacityAndEviction(t *testing.T) {
 	assert.Contains(t, events, EventCapacityBypass)
 }
 
+func TestCacheObserverCanReenterAfterLoad(t *testing.T) {
+	now := time.Now()
+	config := DefaultConfig()
+	config.MaxEntryBytes = 1
+	var cache *Cache[string, map[string][]string]
+	config.Observer = func(Event) { _ = cache.Len() }
+	cache = testCache(&now, config)
+
+	_, _, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+		return map[string][]string{"value": {"one", "two"}}, nil
+	})
+	require.NoError(t, err)
+}
+
 func TestCacheSingleFlightReportsJoinStatus(t *testing.T) {
 	now := time.Now()
 	cache := testCache(&now, DefaultConfig())

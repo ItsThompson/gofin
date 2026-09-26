@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
+	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 )
 
@@ -124,6 +126,7 @@ func TestCreateExpenseFinanceCallbackFailureDoesNotChangeCommittedOutcome(t *tes
 	finance := newFinanceEvictionTestClient()
 	finance.err = errors.New("finance unavailable")
 	svc := NewExpenseServiceWithCacheAndEviction(repo, finance, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)), defaultReadCacheConfig(), time.Second)
+	beforeCallbackErrors := testutil.ToFloat64(metrics.ExpenseFinanceEvictionEventsTotal.WithLabelValues("error"))
 	repo.On("GetExpenseByIdempotencyKey", context.Background(), "user-1", validTestUUID).Return(nil, nil)
 	repo.On("CreateExpense", context.Background(), mock.AnythingOfType("*model.Expense")).Return(&model.Expense{ID: "new", UserID: "user-1"}, nil)
 
@@ -132,6 +135,8 @@ func TestCreateExpenseFinanceCallbackFailureDoesNotChangeCommittedOutcome(t *tes
 	require.NoError(t, err)
 	assert.Equal(t, "new", created.ID)
 	assert.Equal(t, []string{"user-1"}, finance.users)
+	afterCallbackErrors := testutil.ToFloat64(metrics.ExpenseFinanceEvictionEventsTotal.WithLabelValues("error"))
+	assert.Equal(t, float64(1), afterCallbackErrors-beforeCallbackErrors)
 	repo.AssertExpectations(t)
 }
 
@@ -147,9 +152,12 @@ func TestFinanceEvictionCallbackUsesBoundedDeadline(t *testing.T) {
 	svc := NewExpenseServiceWithCacheAndEviction(new(mockExpenseRepository), finance, &stubFxClient{}, time.Now, slog.New(slog.NewJSONHandler(io.Discard, nil)), defaultReadCacheConfig(), 5*time.Millisecond)
 
 	started := time.Now()
+	beforeCallbackTimeouts := testutil.ToFloat64(metrics.ExpenseFinanceEvictionEventsTotal.WithLabelValues("timeout"))
 	svc.invalidateUser("user-1")
 
 	assert.WithinDuration(t, started.Add(5*time.Millisecond), finance.deadline, 100*time.Millisecond)
+	afterCallbackTimeouts := testutil.ToFloat64(metrics.ExpenseFinanceEvictionEventsTotal.WithLabelValues("timeout"))
+	assert.Equal(t, float64(1), afterCallbackTimeouts-beforeCallbackTimeouts)
 	assert.Equal(t, []string{"user-1"}, finance.users)
 }
 

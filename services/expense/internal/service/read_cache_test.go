@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -170,15 +172,51 @@ func TestReadCaches_DoNotStoreSourceErrorsOrEmptyValidation(t *testing.T) {
 	repo.AssertExpectations(t)
 }
 
+func histogramSampleCount(t *testing.T, metric *prometheus.HistogramVec, operation string) uint64 {
+	t.Helper()
+	observed, err := metric.GetMetricWithLabelValues(operation)
+	require.NoError(t, err)
+	written := &dto.Metric{}
+	require.NoError(t, observed.(prometheus.Metric).Write(written))
+	return written.GetHistogram().GetSampleCount()
+}
+
 func TestReadCacheMetricsUseFiniteOperationNames(t *testing.T) {
 	now := time.Now()
 	repo := new(mockExpenseRepository)
 	svc := newCachedTestService(repo, &now, cache.DefaultConfig())
 	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(9), int32(1), int32(50)).Return([]*model.Expense{}, int64(0), nil).Once()
-	before := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "miss"))
-	_, err := svc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50})
+	request := &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50}
+	beforeMiss := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "miss"))
+	beforeHit := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "hit"))
+	beforeBypass := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "bypass"))
+	beforeJoin := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "single_flight_join"))
+	beforeCapacityBypass := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "capacity_bypass"))
+	beforeSourceCount := histogramSampleCount(t, metrics.ExpenseReadSourceDuration, expenseReadOperationRecent)
+
+	_, err := svc.GetActiveExpensesForPeriod(context.Background(), request)
 	require.NoError(t, err)
-	after := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "miss"))
-	assert.Equal(t, float64(1), after-before)
+	_, err = svc.GetActiveExpensesForPeriod(context.Background(), request)
+	require.NoError(t, err)
+
+	repo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(9), int32(1), int32(50)).Return([]*model.Expense{}, int64(0), nil).Once()
+	request.BypassCache = true
+	_, err = svc.GetActiveExpensesForPeriod(context.Background(), request)
+	require.NoError(t, err)
+
+	afterMiss := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "miss"))
+	afterHit := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "hit"))
+	afterBypass := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "bypass"))
+	recordExpenseReadCacheEvent(expenseReadOperationRecent, cache.StatusSingleFlightJoin)
+	recordExpenseReadCacheEvent(expenseReadOperationRecent, cache.StatusOversize)
+	afterJoin := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "single_flight_join"))
+	afterCapacityBypass := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "capacity_bypass"))
+	afterSourceCount := histogramSampleCount(t, metrics.ExpenseReadSourceDuration, expenseReadOperationRecent)
+	assert.Equal(t, float64(1), afterMiss-beforeMiss)
+	assert.Equal(t, float64(1), afterHit-beforeHit)
+	assert.Equal(t, float64(1), afterBypass-beforeBypass)
+	assert.Equal(t, float64(1), afterJoin-beforeJoin)
+	assert.Equal(t, float64(1), afterCapacityBypass-beforeCapacityBypass)
+	assert.Equal(t, uint64(2), afterSourceCount-beforeSourceCount)
 	repo.AssertExpectations(t)
 }

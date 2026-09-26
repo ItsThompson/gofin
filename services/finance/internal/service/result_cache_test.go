@@ -8,11 +8,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	financecache "github.com/ItsThompson/gofin/services/finance/internal/cache"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 type resultCacheRepo struct {
@@ -324,6 +329,62 @@ func TestFinanceResultCache_MutationErrorPurgesCachedResults(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(200), fresh.TotalSpent)
 	require.Equal(t, 2, expense.expenseCalls)
+}
+
+func financeHistogramSampleCount(t *testing.T, metric *prometheus.HistogramVec, operation string) uint64 {
+	t.Helper()
+	observed, err := metric.GetMetricWithLabelValues(operation)
+	require.NoError(t, err)
+	written := &dto.Metric{}
+	require.NoError(t, observed.(prometheus.Metric).Write(written))
+	return written.GetHistogram().GetSampleCount()
+}
+
+func TestFinanceResultCacheMetricsUseFiniteOperationNames(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{expenses: []ExpenseData{{ReportingAmount: 100}}, revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+
+	beforeMiss := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "miss"))
+	beforeHit := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "hit"))
+	beforeFreshnessChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "freshness_check"))
+	beforeFreshnessFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "freshness_failure"))
+	beforeEvictions := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "eviction"))
+	beforeJoin := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "single_flight_join"))
+	beforeCapacityBypass := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "capacity_bypass"))
+	beforeSourceCount := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationSummary)
+
+	_, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	_, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	now = now.Add(3 * time.Minute)
+	_, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	now = now.Add(3 * time.Minute)
+	expense.revisionErr = errors.New("expense unavailable")
+	_, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.Error(t, err)
+
+	afterMiss := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "miss"))
+	afterHit := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "hit"))
+	afterFreshnessChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "freshness_check"))
+	afterFreshnessFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "freshness_failure"))
+	afterEvictions := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "eviction"))
+	recordFinanceCacheEvent(operationSummary, financecache.StatusSingleFlightJoin)
+	recordFinanceCacheEvent(operationSummary, financecache.StatusOversize)
+	afterJoin := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "single_flight_join"))
+	afterCapacityBypass := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "capacity_bypass"))
+	afterSourceCount := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationSummary)
+	assert.Equal(t, float64(1), afterMiss-beforeMiss)
+	assert.Equal(t, float64(2), afterHit-beforeHit)
+	assert.Equal(t, float64(4), afterFreshnessChecks-beforeFreshnessChecks)
+	assert.Equal(t, float64(1), afterFreshnessFailures-beforeFreshnessFailures)
+	assert.Equal(t, float64(1), afterEvictions-beforeEvictions)
+	assert.Equal(t, float64(1), afterJoin-beforeJoin)
+	assert.Equal(t, float64(1), afterCapacityBypass-beforeCapacityBypass)
+	assert.Equal(t, uint64(1), afterSourceCount-beforeSourceCount)
 }
 
 func TestFinanceResultCache_FailedRevisionCheckFailsClosed(t *testing.T) {
