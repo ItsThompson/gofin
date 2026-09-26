@@ -68,7 +68,7 @@ func TestLoad_CustomResultCacheConfig(t *testing.T) {
 	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
 	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
 	t.Setenv("FINANCE_RESULT_CACHE_ENABLED", "false")
-	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRIES", "8")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRIES", "9")
 	t.Setenv("FINANCE_RESULT_CACHE_MAX_BYTES", "4096")
 	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRY_BYTES", "1024")
 	t.Setenv("FINANCE_RESULT_CACHE_MAX_AGE", "3h")
@@ -78,12 +78,48 @@ func TestLoad_CustomResultCacheConfig(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.False(t, cfg.ResultCacheEnabled)
-	assert.Equal(t, 8, cfg.ResultCacheMaxEntries)
+	assert.Equal(t, 9, cfg.ResultCacheMaxEntries)
 	assert.Equal(t, int64(4096), cfg.ResultCacheMaxBytes)
 	assert.Equal(t, int64(1024), cfg.ResultCacheMaxEntryBytes)
 	assert.Equal(t, 3*time.Hour, cfg.ResultCacheMaxAge)
 	assert.Equal(t, 30*time.Second, cfg.ResultCacheLease)
 	assert.Equal(t, 2*time.Second, cfg.ResultCacheTimeout)
+}
+
+func TestLoad_RejectsResultCacheEntriesBelowStoreCount(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_ENTRIES", "8")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_MAX_ENTRIES must be at least")
+}
+
+func TestLoad_RejectsResultCacheBytesBelowStoreCount(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_BYTES", "8")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_MAX_BYTES must be at least")
+}
+
+func TestLoad_RejectsResultCacheAgeAboveUpperBound(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_AGE", "48h1m")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_MAX_AGE must be at most")
 }
 
 func TestLoad_RejectsResultCacheBudgetAboveProcessSafeLimit(t *testing.T) {

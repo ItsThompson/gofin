@@ -24,7 +24,7 @@ const (
 	defaultReadCacheMaxEntries    = 256
 	defaultReadCacheMaxBytes      = 64 * 1024 * 1024
 	defaultReadCacheMaxEntryBytes = 16 * 1024 * 1024
-	defaultReadCacheMaxAge        = 48 * time.Hour
+	defaultReadCacheMaxAge        = financeconfig.MaxDashboardCacheAge
 	defaultFinanceEvictionTimeout = financeconfig.MaxExpenseFinanceEvictionTimeout
 )
 
@@ -121,6 +121,9 @@ func Load() (*Config, error) {
 	readCacheMaxAge, err := readCacheDuration("EXPENSE_READ_CACHE_MAX_AGE", defaultReadCacheMaxAge)
 	if err != nil {
 		return nil, err
+	}
+	if readCacheMaxAge > financeconfig.MaxDashboardCacheAge {
+		return nil, fmt.Errorf("EXPENSE_READ_CACHE_MAX_AGE must be at most %s", financeconfig.MaxDashboardCacheAge)
 	}
 	financeEvictionTimeout, err := readCacheDuration("EXPENSE_FINANCE_EVICTION_TIMEOUT", defaultFinanceEvictionTimeout)
 	if err != nil {

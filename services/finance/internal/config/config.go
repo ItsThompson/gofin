@@ -25,7 +25,7 @@ const (
 	defaultResultCacheMaxEntries    = 256
 	defaultResultCacheMaxBytes      = 64 * 1024 * 1024
 	defaultResultCacheMaxEntryBytes = 16 * 1024 * 1024
-	defaultResultCacheMaxAge        = 48 * time.Hour
+	defaultResultCacheMaxAge        = financeconfig.MaxDashboardCacheAge
 	defaultResultCacheLease         = financeconfig.FinanceValidationLease
 	defaultResultCacheTimeout       = financeconfig.FinanceValidationTimeout
 )
@@ -101,9 +101,15 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if resultCacheMaxEntries < financeconfig.FinanceResultCacheStoreCount {
+		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_MAX_ENTRIES must be at least %d", financeconfig.FinanceResultCacheStoreCount)
+	}
 	resultCacheMaxBytes, err := readCacheInt64("FINANCE_RESULT_CACHE_MAX_BYTES", defaultResultCacheMaxBytes)
 	if err != nil {
 		return nil, err
+	}
+	if resultCacheMaxBytes < int64(financeconfig.FinanceResultCacheStoreCount) {
+		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_MAX_BYTES must be at least %d", financeconfig.FinanceResultCacheStoreCount)
 	}
 	if resultCacheMaxBytes > financeconfig.MaxFinanceResultCacheBytes {
 		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_MAX_BYTES must be at most %d", financeconfig.MaxFinanceResultCacheBytes)
@@ -115,6 +121,9 @@ func Load() (*Config, error) {
 	resultCacheMaxAge, err := readCacheDuration("FINANCE_RESULT_CACHE_MAX_AGE", defaultResultCacheMaxAge)
 	if err != nil {
 		return nil, err
+	}
+	if resultCacheMaxAge > financeconfig.MaxDashboardCacheAge {
+		return nil, fmt.Errorf("FINANCE_RESULT_CACHE_MAX_AGE must be at most %s", financeconfig.MaxDashboardCacheAge)
 	}
 	resultCacheLease, err := readCacheDuration("FINANCE_RESULT_CACHE_VALIDATION_LEASE", defaultResultCacheLease)
 	if err != nil {

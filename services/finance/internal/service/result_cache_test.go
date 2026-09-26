@@ -186,6 +186,24 @@ func TestFinanceResultCachesUseAggregateBudget(t *testing.T) {
 	assert.LessOrEqual(t, caches.maxEntryBytesPerCache, caches.maxBytesPerCache)
 }
 
+func TestFinanceResultCachesStoreResultsAtSmallestAcceptedEntryBudget(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1}}
+	config := DefaultResultCacheConfig()
+	config.Enabled = true
+	config.MaxEntries = financeconfig.FinanceResultCacheStoreCount
+	config.MaxBytes = int64(financeconfig.FinanceResultCacheStoreCount * 1024)
+	config.MaxEntryBytes = 1024
+	svc := NewFinanceServiceWithCache(repo, nil, &resultCacheExpenseClient{}, func() time.Time { return now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+
+	_, err := svc.GetCurrentPeriod(context.Background(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	_, err = svc.GetCurrentPeriod(context.Background(), "user-1", 2026, 1)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, repo.calls)
+}
+
 func TestFinanceResultCacheKeysIncludeOperationAndCanonicalTrendWindow(t *testing.T) {
 	require.NotEqual(t, trendResultKey(operationTrends, "user-1", 2026, 1, 6), trendResultKey(operationTrends, "user-1", 2026, 1, 12))
 	require.Equal(t, int32(6), normalizeTrendMonths(0))

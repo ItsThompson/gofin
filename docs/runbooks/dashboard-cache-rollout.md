@@ -91,7 +91,7 @@ Enable only the measured service cache through explicit configuration. Keep the 
 ```text
 expense: 256 MB process limit
 finance: 512 MB process limit
-cache upper age: about 48 hours
+cache upper age: at most 48 hours
 entry and byte budgets: record exact values
 callback deadline: record exact value
 freshness-check timeout: configure `FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT` below the validation lease, then record the exact value

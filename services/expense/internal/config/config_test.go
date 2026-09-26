@@ -105,6 +105,18 @@ func TestLoad_CustomReadCacheConfig(t *testing.T) {
 	assert.Equal(t, 750*time.Millisecond, cfg.FinanceEvictionTimeout)
 }
 
+func TestLoad_RejectsReadCacheAgeAboveUpperBound(t *testing.T) {
+	t.Setenv("IMMUDB_ADDR", "localhost:3322")
+	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("EXPENSE_READ_CACHE_MAX_AGE", "48h1m")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EXPENSE_READ_CACHE_MAX_AGE must be at most")
+}
+
 func TestLoad_RejectsFinanceEvictionTimeoutAboveSafeBound(t *testing.T) {
 	t.Setenv("IMMUDB_ADDR", "localhost:3322")
 	t.Setenv("FINANCE_SERVICE_ADDR", "localhost:9083")

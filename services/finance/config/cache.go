@@ -3,6 +3,12 @@ package config
 import "time"
 
 const (
+	// MaxDashboardCacheAge is the upper bound for dashboard cache entries.
+	MaxDashboardCacheAge = 48 * time.Hour
+
+	// FinanceResultCacheStoreCount is the number of independently bounded result caches.
+	FinanceResultCacheStoreCount = 9
+
 	// FinanceValidationLease is the default lease for validating expense-dependent results.
 	FinanceValidationLease = 2 * time.Minute
 

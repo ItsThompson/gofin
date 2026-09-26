@@ -26,7 +26,7 @@ const (
 	operationUpcoming         = "prorata/upcoming"
 	operationHealth           = "health-score"
 	operationHealthTrend      = "health-score/trend"
-	financeResultCacheCount   = 9
+	financeResultCacheCount   = financeconfig.FinanceResultCacheStoreCount
 )
 
 type ResultCacheConfig struct {
