@@ -85,7 +85,10 @@ func run() error {
 		slog.String("addr", cfg.FinanceServiceAddr),
 	)
 
-	periodClient := service.NewGRPCPeriodContextClient(financepb.NewFinanceServiceClient(financeConn))
+	var periodClient service.PeriodContextClient = service.NewGRPCPeriodContextClient(financepb.NewFinanceServiceClient(financeConn))
+	if _, ok := periodClient.(service.FinanceCacheEvictionClient); !ok {
+		return fmt.Errorf("finance client does not support cache eviction callbacks")
+	}
 
 	fxClient, fxConn, err := service.NewGRPCFxClientFromAddr(cfg.FxServiceAddr)
 	if err != nil {
