@@ -94,7 +94,7 @@ finance: 512 MB process limit
 cache upper age: about 48 hours
 entry and byte budgets: record exact values
 callback deadline: record exact value
-freshness-check timeout: record exact value
+freshness-check timeout: configure `FINANCE_RESULT_CACHE_VALIDATION_TIMEOUT` below the validation lease, then record the exact value
 ```
 
 Restart the changed service, verify health, and repeat the five-run cold-after-restart and warm-process matrix. Record cache hits, misses, single-flight joins, capacity bypasses, evictions, freshness checks and failures, callback outcomes, source timings, and peak process memory.
