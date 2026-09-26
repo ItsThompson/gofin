@@ -78,6 +78,10 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 
 	userID, _ := params["user_id"].(string)
 
+	if strings.Contains(sql, "ORDER BY expense_date ASC, created_at ASC, id ASC") {
+		return c.queryActivePeriod(sql, params, userID)
+	}
+
 	if strings.Contains(strings.ToUpper(sql), "COUNT(*)") {
 		var count int64
 		for _, row := range c.rows {
@@ -125,6 +129,47 @@ func (c *recordingImmudbClient) SQLQuery(ctx context.Context, sql string, params
 	}
 
 	return expensesToSQLResult(page), nil
+}
+
+func (c *recordingImmudbClient) queryActivePeriod(sql string, params map[string]interface{}, userID string) (*SQLResult, error) {
+	year, _ := params["year"].(int32)
+	month, _ := params["month"].(int32)
+	matched := make([]*model.Expense, 0, len(c.rows))
+	for _, row := range c.rows {
+		if row.UserID == userID && row.PeriodYear == year && row.PeriodMonth == month && row.Status == "active" {
+			matched = append(matched, row)
+		}
+	}
+	sort.SliceStable(matched, func(i, j int) bool {
+		if matched[i].ExpenseDateIso != matched[j].ExpenseDateIso {
+			return matched[i].ExpenseDateIso < matched[j].ExpenseDateIso
+		}
+		if matched[i].CreatedAt != matched[j].CreatedAt {
+			return matched[i].CreatedAt < matched[j].CreatedAt
+		}
+		return matched[i].ID < matched[j].ID
+	})
+
+	if cursorDate, ok := params["cursor_expense_date"].(string); ok {
+		cursorCreatedAt, _ := params["cursor_created_at"].(string)
+		cursorID, _ := params["cursor_id"].(string)
+		seeked := matched[:0:0]
+		for _, row := range matched {
+			if row.ExpenseDateIso > cursorDate ||
+				(row.ExpenseDateIso == cursorDate && row.CreatedAt > cursorCreatedAt) ||
+				(row.ExpenseDateIso == cursorDate && row.CreatedAt == cursorCreatedAt && row.ID > cursorID) {
+				seeked = append(seeked, row)
+			}
+		}
+		matched = seeked
+	}
+
+	if limit, ok := params["limit"]; ok {
+		if l := int(toInt64(limit)); l >= 0 && l < len(matched) {
+			matched = matched[:l]
+		}
+	}
+	return expensesToSQLResult(matched), nil
 }
 
 func toInt64(v interface{}) int64 {
@@ -181,22 +226,22 @@ func expensesToSQLResult(expenses []*model.Expense) *SQLResult {
 // materialize it without tripping the missing-snapshot-fields guard.
 func buildTestExpense(id, userID, createdAt string) *model.Expense {
 	return &model.Expense{
-		ID:                    id,
-		UserID:                userID,
-		Name:                  "Expense " + id,
-		TransactionCurrencyCode:   "USD",
-		ExpenseType:           "essentials",
-		TagID:                 "tag-1",
-		ExpenseDateIso:           "2026-05-01",
-		PeriodYear:            2026,
-		PeriodMonth:           5,
-		Status:                "active",
-		CreatedAt:             createdAt,
-		OriginalTransactionAmountInMinorUnits:     1000,
-		ReportingAmountInMinorUnits:       1000,
-		ReportingCurrencyCode:     "USD",
-		SourceToTargetExchangeRate:          "1",
-		ExchangeRateSource:    exchangesource.Identity,
-		ExchangeRateTimestamp: createdAt,
+		ID:                                    id,
+		UserID:                                userID,
+		Name:                                  "Expense " + id,
+		TransactionCurrencyCode:               "USD",
+		ExpenseType:                           "essentials",
+		TagID:                                 "tag-1",
+		ExpenseDateIso:                        "2026-05-01",
+		PeriodYear:                            2026,
+		PeriodMonth:                           5,
+		Status:                                "active",
+		CreatedAt:                             createdAt,
+		OriginalTransactionAmountInMinorUnits: 1000,
+		ReportingAmountInMinorUnits:           1000,
+		ReportingCurrencyCode:                 "USD",
+		SourceToTargetExchangeRate:            "1",
+		ExchangeRateSource:                    exchangesource.Identity,
+		ExchangeRateTimestamp:                 createdAt,
 	}
 }
