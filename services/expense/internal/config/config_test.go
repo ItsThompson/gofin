@@ -28,7 +28,7 @@ func TestLoad_Success(t *testing.T) {
 	assert.Equal(t, "9082", cfg.GRPCPort)
 	assert.Equal(t, "info", cfg.LogLevel)
 	assert.Equal(t, "development", cfg.Environment)
-	assert.True(t, cfg.ReadCacheEnabled)
+	assert.False(t, cfg.ReadCacheEnabled)
 	assert.Equal(t, 256, cfg.ReadCacheMaxEntries)
 	assert.Equal(t, int64(64*1024*1024), cfg.ReadCacheMaxBytes)
 	assert.Equal(t, int64(16*1024*1024), cfg.ReadCacheMaxEntryBytes)

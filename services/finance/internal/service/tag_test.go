@@ -232,6 +232,14 @@ func (m *mockExpClient) GetActiveExpensesForPeriod(ctx context.Context, userID s
 	return args.Get(0).([]ExpenseData), args.Error(1)
 }
 
+func (m *mockExpClient) GetExpenseRevision(ctx context.Context, userID string) (ExpenseRevision, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return ExpenseRevision{}, args.Error(1)
+	}
+	return args.Get(0).(ExpenseRevision), args.Error(1)
+}
+
 func (m *mockExpClient) CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error) {
 	args := m.Called(ctx, userID, tagID)
 	return args.Get(0).(int64), args.Error(1)

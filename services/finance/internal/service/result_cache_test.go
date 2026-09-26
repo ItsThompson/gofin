@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,11 +15,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	financecache "github.com/ItsThompson/gofin/services/finance/internal/cache"
+	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
+
+type signallingFinanceContext struct {
+	context.Context
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (c *signallingFinanceContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.entered) })
+	return c.Context.Done()
+}
 
 type resultCacheRepo struct {
 	repository.FinanceRepository
@@ -114,6 +126,18 @@ func newResultCacheTestService(now *time.Time, repo *resultCacheRepo, expense *r
 	config.MaxAge = 48 * time.Hour
 	config.ValidationLease = 2 * time.Minute
 	return NewFinanceServiceWithCache(repo, nil, expense, func() time.Time { return *now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+}
+
+func TestFinanceResultCachesUseAggregateBudget(t *testing.T) {
+	totalBytes := int64(512 * 1024 * 1024)
+	config := DefaultResultCacheConfig()
+	config.MaxEntries = 256
+	config.MaxBytes = totalBytes
+	caches := newFinanceResultCaches(config, time.Now)
+
+	assert.LessOrEqual(t, int64(financeResultCacheCount)*caches.maxBytesPerCache, financeconfig.MaxFinanceResultCacheBytes)
+	assert.LessOrEqual(t, int64(financeResultCacheCount*caches.maxEntriesPerCache), int64(config.MaxEntries))
+	assert.LessOrEqual(t, caches.maxEntryBytesPerCache, caches.maxBytesPerCache)
 }
 
 func TestFinanceResultCacheKeysIncludeOperationAndCanonicalTrendWindow(t *testing.T) {
@@ -372,8 +396,40 @@ func TestFinanceResultCacheMetricsUseFiniteOperationNames(t *testing.T) {
 	afterFreshnessChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "freshness_check"))
 	afterFreshnessFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "freshness_failure"))
 	afterEvictions := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "eviction"))
-	recordFinanceCacheEvent(operationSummary, financecache.StatusSingleFlightJoin)
-	recordFinanceCacheEvent(operationSummary, financecache.StatusOversize)
+
+	joinRepo := &resultCacheRepo{period: repo.period}
+	joinExpense := &resultCacheExpenseClient{
+		expenses:       []ExpenseData{{ReportingAmount: 100}},
+		revision:       ExpenseRevision{Epoch: "epoch-1", Revision: 1},
+		expenseStarted: make(chan struct{}),
+		expenseRelease: make(chan struct{}),
+	}
+	joinSvc := newResultCacheTestService(&now, joinRepo, joinExpense)
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := joinSvc.GetPeriodSummary(context.Background(), "user-1", 2026, 1)
+		firstDone <- err
+	}()
+	<-joinExpense.expenseStarted
+	secondContext := &signallingFinanceContext{Context: context.Background(), entered: make(chan struct{})}
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := joinSvc.GetPeriodSummary(secondContext, "user-1", 2026, 1)
+		secondDone <- err
+	}()
+	<-secondContext.entered
+	close(joinExpense.expenseRelease)
+	require.NoError(t, <-firstDone)
+	require.NoError(t, <-secondDone)
+
+	oversizeRepo := &resultCacheRepo{period: repo.period}
+	oversizeExpense := &resultCacheExpenseClient{expenses: []ExpenseData{{ReportingAmount: 100}}, revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	oversizeConfig := DefaultResultCacheConfig()
+	oversizeConfig.MaxEntryBytes = 1
+	oversizeSvc := NewFinanceServiceWithCache(oversizeRepo, nil, oversizeExpense, func() time.Time { return now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), oversizeConfig)
+	_, err = oversizeSvc.GetPeriodSummary(context.Background(), "user-1", 2026, 1)
+	require.NoError(t, err)
+
 	afterJoin := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "single_flight_join"))
 	afterCapacityBypass := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationSummary, "capacity_bypass"))
 	afterSourceCount := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationSummary)
@@ -384,7 +440,9 @@ func TestFinanceResultCacheMetricsUseFiniteOperationNames(t *testing.T) {
 	assert.Equal(t, float64(1), afterEvictions-beforeEvictions)
 	assert.Equal(t, float64(1), afterJoin-beforeJoin)
 	assert.Equal(t, float64(1), afterCapacityBypass-beforeCapacityBypass)
-	assert.Equal(t, uint64(1), afterSourceCount-beforeSourceCount)
+	assert.Equal(t, uint64(3), afterSourceCount-beforeSourceCount)
+	assert.Equal(t, 1, joinExpense.expenseCalls)
+	assert.Equal(t, 1, oversizeExpense.expenseCalls)
 }
 
 func TestFinanceResultCache_FailedRevisionCheckFailsClosed(t *testing.T) {

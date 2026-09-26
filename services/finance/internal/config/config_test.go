@@ -53,7 +53,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "development", cfg.Environment)
 	assert.Equal(t, "8083", cfg.RESTPort)
 	assert.Equal(t, "9083", cfg.GRPCPort)
-	assert.True(t, cfg.ResultCacheEnabled)
+	assert.False(t, cfg.ResultCacheEnabled)
 	assert.Equal(t, 256, cfg.ResultCacheMaxEntries)
 	assert.Equal(t, int64(64*1024*1024), cfg.ResultCacheMaxBytes)
 	assert.Equal(t, 48*time.Hour, cfg.ResultCacheMaxAge)
@@ -80,6 +80,18 @@ func TestLoad_CustomResultCacheConfig(t *testing.T) {
 	assert.Equal(t, int64(1024), cfg.ResultCacheMaxEntryBytes)
 	assert.Equal(t, 3*time.Hour, cfg.ResultCacheMaxAge)
 	assert.Equal(t, 30*time.Second, cfg.ResultCacheLease)
+}
+
+func TestLoad_RejectsResultCacheBudgetAboveProcessSafeLimit(t *testing.T) {
+	t.Setenv("FINANCE_DB_URL", "postgres://localhost/test")
+	t.Setenv("EXPENSE_SERVICE_ADDR", "localhost:9082")
+	t.Setenv("FX_SERVICE_ADDR", "localhost:9085")
+	t.Setenv("FINANCE_RESULT_CACHE_MAX_BYTES", "268435457")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "FINANCE_RESULT_CACHE_MAX_BYTES must be at most")
 }
 
 func TestLoad_RejectsLeaseAtOrBelowExpenseCallbackBound(t *testing.T) {

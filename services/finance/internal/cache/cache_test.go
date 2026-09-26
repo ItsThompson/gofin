@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -60,6 +61,23 @@ func TestCacheCoalescesLoadsAndReturnsCopy(t *testing.T) {
 	require.Equal(t, []string{"source"}, *first)
 	(*first)[0] = "caller mutation"
 	require.Equal(t, []string{"source"}, *second)
+}
+
+func TestCacheGenerationMetadataStaysBoundedAfterUniqueEvictions(t *testing.T) {
+	cache := New[string, string](testConfig(), time.Now, nil, nil)
+	for i := 0; i < 1000; i++ {
+		cache.Evict("evicted-" + strconv.Itoa(i))
+	}
+	require.Empty(t, cache.generations)
+
+	for i := 0; i < 1000; i++ {
+		_, _, err := cache.Load(context.Background(), "loaded-"+strconv.Itoa(i), LoadOptions{}, func(context.Context) (string, error) {
+			return "value", nil
+		})
+		require.NoError(t, err)
+	}
+	cache.Purge(func(string) bool { return true })
+	require.Empty(t, cache.generations)
 }
 
 func TestCacheObserverReportsCapacityBypassAndEviction(t *testing.T) {

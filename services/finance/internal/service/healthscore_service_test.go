@@ -1,14 +1,18 @@
 package service
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 // nowJuly closes the May 2026 target month (May < July), exercising the
@@ -23,6 +27,39 @@ func healthPeriodMonth(year, month int32) *model.BudgetPeriod {
 		BudgetAmount: 300000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
 		ReportingCurrencyCode: "USD",
 	}
+}
+
+func newCachedHealthTestService(repo *mockRepo, txBeg *mockTxBeg, expClient *mockExpClient) *FinanceService {
+	config := DefaultResultCacheConfig()
+	config.MaxEntries = 32
+	config.MaxBytes = 1024 * 1024
+	config.MaxEntryBytes = 1024 * 1024
+	return NewFinanceServiceWithCache(repo, txBeg, expClient, func() time.Time { return currentMonthNow }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+}
+
+func TestGetHealthScore_RecordsSourceAndFreshnessMetrics(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newCachedHealthTestService(repo, txBeg, expClient)
+	repo.On("GetCurrentPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return(healthPeriod(300000, 50, 30, 20), nil)
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 5)}, nil)
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return([]ExpenseData{healthExpense("essentials", 130000)}, nil)
+	expClient.On("GetExpenseRevision", mock.Anything, "user-1").Return(ExpenseRevision{Epoch: "epoch-1", Revision: 1}, nil).Twice()
+
+	beforeChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealth, "freshness_check"))
+	beforeFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealth, "freshness_failure"))
+	beforeSource := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationHealth)
+
+	_, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 5)
+	require.NoError(t, err)
+
+	afterChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealth, "freshness_check"))
+	afterFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealth, "freshness_failure"))
+	afterSource := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationHealth)
+	assert.Equal(t, float64(2), afterChecks-beforeChecks)
+	assert.Zero(t, afterFailures-beforeFailures)
+	assert.Equal(t, uint64(1), afterSource-beforeSource)
 }
 
 func TestGetHealthScore_ConfigureBudget(t *testing.T) {

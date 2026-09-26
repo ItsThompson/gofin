@@ -4,11 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/metrics"
 )
 
 var nowDecember = time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
@@ -20,6 +22,33 @@ func scalarPoint(year, month, total int32) *model.HealthScoreTrendPoint {
 		Year: year, Month: month, Total: total, Band: model.Band(total),
 		Provisional: false, FormulaVersion: model.FormulaVersion,
 	}
+}
+
+func TestGetHealthScoreTrend_RecordsSourceAndFreshnessMetrics(t *testing.T) {
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	svc := newCachedHealthTestService(repo, txBeg, expClient)
+	period := healthPeriodMonth(2026, 5)
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{period}, nil)
+	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{}, nil)
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return([]ExpenseData{healthExpense("essentials", 130000)}, nil)
+	expClient.On("GetExpenseRevision", mock.Anything, "user-1").Return(ExpenseRevision{Epoch: "epoch-1", Revision: 1}, nil).Twice()
+
+	beforeChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealthTrend, "freshness_check"))
+	beforeFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealthTrend, "freshness_failure"))
+	beforeSource := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationHealthTrend)
+
+	points, err := svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 5, 6)
+	require.NoError(t, err)
+	require.Len(t, points, 1)
+
+	afterChecks := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealthTrend, "freshness_check"))
+	afterFailures := testutil.ToFloat64(metrics.FinanceResultCacheEventsTotal.WithLabelValues(operationHealthTrend, "freshness_failure"))
+	afterSource := financeHistogramSampleCount(t, metrics.FinanceReadSourceDuration, operationHealthTrend)
+	assert.Equal(t, float64(2), afterChecks-beforeChecks)
+	assert.Zero(t, afterFailures-beforeFailures)
+	assert.Equal(t, uint64(1), afterSource-beforeSource)
 }
 
 func TestGetHealthScoreTrend_AllStoredAscending(t *testing.T) {

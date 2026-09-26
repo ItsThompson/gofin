@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,17 @@ import (
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
 )
+
+type signallingReadContext struct {
+	context.Context
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (c *signallingReadContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.entered) })
+	return c.Context.Done()
+}
 
 func newCachedTestService(repo *mockExpenseRepository, now *time.Time, config cache.Config) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
@@ -207,8 +219,40 @@ func TestReadCacheMetricsUseFiniteOperationNames(t *testing.T) {
 	afterMiss := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "miss"))
 	afterHit := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "hit"))
 	afterBypass := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "bypass"))
-	recordExpenseReadCacheEvent(expenseReadOperationRecent, cache.StatusSingleFlightJoin)
-	recordExpenseReadCacheEvent(expenseReadOperationRecent, cache.StatusOversize)
+
+	joinRepo := new(mockExpenseRepository)
+	joinSvc := newCachedTestService(joinRepo, &now, cache.DefaultConfig())
+	joinStarted := make(chan struct{})
+	joinRelease := make(chan struct{})
+	joinRepo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(9), int32(1), int32(50)).Return([]*model.Expense{}, int64(0), nil).Once().Run(func(mock.Arguments) {
+		close(joinStarted)
+		<-joinRelease
+	})
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := joinSvc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50})
+		firstDone <- err
+	}()
+	<-joinStarted
+	secondContext := &signallingReadContext{Context: context.Background(), entered: make(chan struct{})}
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := joinSvc.GetActiveExpensesForPeriod(secondContext, &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50})
+		secondDone <- err
+	}()
+	<-secondContext.entered
+	close(joinRelease)
+	require.NoError(t, <-firstDone)
+	require.NoError(t, <-secondDone)
+
+	oversizeRepo := new(mockExpenseRepository)
+	oversizeConfig := cache.DefaultConfig()
+	oversizeConfig.MaxEntryBytes = 1
+	oversizeSvc := newCachedTestService(oversizeRepo, &now, oversizeConfig)
+	oversizeRepo.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(9), int32(1), int32(50)).Return([]*model.Expense{{ID: "oversized"}}, int64(1), nil).Once()
+	_, err = oversizeSvc.GetActiveExpensesForPeriod(context.Background(), &model.GetExpensesRequest{UserID: "user-1", Year: 2026, Month: 9, Page: 1, PageSize: 50})
+	require.NoError(t, err)
+
 	afterJoin := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "single_flight_join"))
 	afterCapacityBypass := testutil.ToFloat64(metrics.ExpenseReadCacheEventsTotal.WithLabelValues(expenseReadOperationRecent, "capacity_bypass"))
 	afterSourceCount := histogramSampleCount(t, metrics.ExpenseReadSourceDuration, expenseReadOperationRecent)
@@ -217,6 +261,8 @@ func TestReadCacheMetricsUseFiniteOperationNames(t *testing.T) {
 	assert.Equal(t, float64(1), afterBypass-beforeBypass)
 	assert.Equal(t, float64(1), afterJoin-beforeJoin)
 	assert.Equal(t, float64(1), afterCapacityBypass-beforeCapacityBypass)
-	assert.Equal(t, uint64(2), afterSourceCount-beforeSourceCount)
+	assert.Equal(t, uint64(4), afterSourceCount-beforeSourceCount)
 	repo.AssertExpectations(t)
+	joinRepo.AssertExpectations(t)
+	oversizeRepo.AssertExpectations(t)
 }
