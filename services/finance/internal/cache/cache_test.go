@@ -82,6 +82,25 @@ func TestCacheEvictionFencesAnInFlightLoad(t *testing.T) {
 	require.Equal(t, 0, cache.Len())
 }
 
+func TestCacheExpiresEntriesAtConfiguredTTL(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	cache := New[string, string](testConfig(), func() time.Time { return now }, nil, nil)
+	calls := 0
+	loader := func(context.Context) (string, error) {
+		calls++
+		return "value", nil
+	}
+
+	_, status, err := cache.Load(context.Background(), "key", LoadOptions{}, loader)
+	require.NoError(t, err)
+	require.Equal(t, StatusLoaded, status)
+	now = now.Add(time.Hour)
+	_, status, err = cache.Load(context.Background(), "key", LoadOptions{}, loader)
+	require.NoError(t, err)
+	require.Equal(t, StatusLoaded, status)
+	require.Equal(t, 2, calls)
+}
+
 func TestCacheDoesNotRetainErrorsOrOversizedValues(t *testing.T) {
 	config := testConfig()
 	config.MaxEntryBytes = 2

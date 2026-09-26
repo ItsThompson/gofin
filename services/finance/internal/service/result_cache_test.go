@@ -18,8 +18,11 @@ type resultCacheRepo struct {
 	repository.FinanceRepository
 	period            *model.BudgetPeriod
 	periodByID        *model.BudgetPeriod
+	periods           []*model.BudgetPeriod
+	schedules         []*model.ProRataSchedule
 	updatePeriodErr   error
 	updatePeriodCalls int
+	upcomingCalls     int
 	calls             int
 }
 
@@ -42,6 +45,19 @@ func (r *resultCacheRepo) UpdatePeriod(context.Context, *model.BudgetPeriod) (*m
 
 func (r *resultCacheRepo) ListTags(context.Context, string) ([]*model.Tag, error) {
 	return nil, nil
+}
+
+func (r *resultCacheRepo) ListPeriods(context.Context, string) ([]*model.BudgetPeriod, error) {
+	return r.periods, nil
+}
+
+func (r *resultCacheRepo) ListHealthScoreScalars(context.Context, string) ([]*model.HealthScoreTrendPoint, error) {
+	return nil, nil
+}
+
+func (r *resultCacheRepo) GetUpcomingProRata(context.Context, string) ([]*model.ProRataSchedule, error) {
+	r.upcomingCalls++
+	return r.schedules, nil
 }
 
 type resultCacheExpenseClient struct {
@@ -126,6 +142,11 @@ func TestFinanceResultCache_IsolatesUsersAndRenewsLease(t *testing.T) {
 	require.Equal(t, 2, expense.expenseCalls)
 	require.Equal(t, 5, expense.revisionCalls)
 
+	now = now.Add(1 * time.Minute)
+	_, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, 5, expense.revisionCalls)
+
 	expense.revision.Revision = 2
 	now = now.Add(3 * time.Minute)
 	fresh, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
@@ -158,6 +179,69 @@ func TestFinanceResultCache_RevisionChangePurgesEveryDependentOperation(t *testi
 	require.Len(t, freshByTag, 1)
 	require.Equal(t, int64(200), freshByTag[0].Amount)
 	require.Equal(t, 4, expense.expenseCalls)
+}
+
+func TestFinanceResultCache_RevisionChangePurgesAllDependentOperations(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	period := &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, ReportingCurrencyCode: "USD", EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}
+	repo := &resultCacheRepo{period: period, periods: []*model.BudgetPeriod{period}, schedules: []*model.ProRataSchedule{{ID: "schedule-1"}}}
+	expense := &resultCacheExpenseClient{expenses: []ExpenseData{{ReportingAmount: 100, ExpenseType: "essentials", TagID: "tag-1", ExpenseDate: "2026-01-10"}}, revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+
+	_, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	byTag, err := svc.GetSpendingByTag(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	_, err = svc.GetCumulativeSpend(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	comparison, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	trends, err := svc.GetSpendingTrends(t.Context(), "user-1", 2026, 1, 6)
+	require.NoError(t, err)
+	health, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	healthTrend, err := svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 1, 6)
+	require.NoError(t, err)
+	upcoming, err := svc.GetUpcomingProRata(t.Context(), "user-1")
+	require.NoError(t, err)
+	require.Equal(t, int64(100), comparison.CurrentSpent)
+	require.Equal(t, int64(100), byTag[0].Amount)
+	require.Len(t, trends, 6)
+	require.NotEmpty(t, health)
+	require.Len(t, healthTrend, 1)
+	require.Equal(t, 7, expense.expenseCalls)
+	require.Equal(t, 1, repo.upcomingCalls)
+
+	expense.expenses[0].ReportingAmount = 200
+	expense.revision.Revision = 2
+	now = now.Add(3 * time.Minute)
+	freshSummary, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	freshByTag, err := svc.GetSpendingByTag(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	freshCumulative, err := svc.GetCumulativeSpend(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	freshComparison, err := svc.GetHistoricalComparison(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	freshTrends, err := svc.GetSpendingTrends(t.Context(), "user-1", 2026, 1, 6)
+	require.NoError(t, err)
+	freshHealth, err := svc.GetHealthScore(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	freshHealthTrend, err := svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 1, 6)
+	require.NoError(t, err)
+	freshUpcoming, err := svc.GetUpcomingProRata(t.Context(), "user-1")
+	require.NoError(t, err)
+
+	require.Equal(t, int64(200), freshSummary.TotalSpent)
+	require.Equal(t, int64(200), freshByTag[0].Amount)
+	require.Equal(t, int64(200), freshCumulative[len(freshCumulative)-1].Actual)
+	require.Equal(t, int64(200), freshComparison.CurrentSpent)
+	require.Equal(t, int64(200), freshTrends[len(freshTrends)-1].TotalSpent)
+	require.NotNil(t, freshHealth)
+	require.Len(t, freshHealthTrend, 1)
+	require.Equal(t, 14, expense.expenseCalls)
+	require.Equal(t, upcoming, freshUpcoming)
+	require.Equal(t, 1, repo.upcomingCalls)
 }
 
 func TestFinanceResultCache_MutationErrorPurgesCachedResults(t *testing.T) {
