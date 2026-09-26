@@ -219,6 +219,47 @@ describe("useDashboardData", () => {
     expect(result.current.data.summary).toBeNull();
   });
 
+  it("verifies period metadata before retrying summary without reloading completed sections", async () => {
+    let summaryRequestCount = 0;
+    const requestedUrls: string[] = [];
+    installBaseApi((url) => {
+      requestedUrls.push(url);
+      if (url.includes("/periods/current")) return response({ period });
+      if (url.includes("/summary")) {
+        summaryRequestCount += 1;
+        return summaryRequestCount === 1
+          ? response({ code: "INTERNAL_SERVER_ERROR", message: "Summary failed" }, 500)
+          : response({ summary });
+      }
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
+    await waitFor(() => {
+      expect(result.current.sections.recentExpenses.status).toBe("empty");
+      expect(result.current.sections.healthScore.status).toBe("success");
+    });
+
+    const completedSectionRequests = requestedUrls.filter(
+      (url) => url.includes("/expenses?") || url.includes("/health-score?"),
+    );
+    act(() => result.current.retry("summary"));
+
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    expect(requestedUrls.filter((url) => url.includes("/periods/current")).length).toBe(1);
+    expect(requestedUrls.filter((url) => url.includes("/expenses?")).length).toBe(
+      completedSectionRequests.filter((url) => url.includes("/expenses?")).length,
+    );
+    expect(requestedUrls.filter((url) => url.includes("/health-score?")).length).toBe(
+      completedSectionRequests.filter((url) => url.includes("/health-score?")).length,
+    );
+  });
+
   it("ignores a late response from the previous period", async () => {
     let resolveFirstSummary!: (value: Response) => void;
     let resolveSecondSummary!: (value: Response) => void;

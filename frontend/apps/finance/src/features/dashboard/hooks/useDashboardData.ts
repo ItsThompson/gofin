@@ -113,6 +113,20 @@ function arrayState<T>(value: readonly T[]): SectionState<readonly T[]> {
   return value.length === 0 ? { status: "empty" } : { status: "success", data: value };
 }
 
+function isSamePeriod(first: BudgetPeriod, second: BudgetPeriod): boolean {
+  return first.id === second.id
+    && first.userId === second.userId
+    && first.year === second.year
+    && first.month === second.month
+    && first.budgetAmount === second.budgetAmount
+    && first.reportingCurrencyCode === second.reportingCurrencyCode
+    && first.essentialsPercent === second.essentialsPercent
+    && first.desiresPercent === second.desiresPercent
+    && first.savingsPercent === second.savingsPercent
+    && first.createdAt === second.createdAt
+    && first.updatedAt === second.updatedAt;
+}
+
 export function useDashboardData(period: BudgetPeriod, readOnly = false): DashboardDataResult {
   const [renderedPeriod, setRenderedPeriod] = useState(period);
   const [periodStatus, setPeriodStatus] = useState<DashboardControllerStatus>("active");
@@ -130,10 +144,13 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const breakdownChartRef = useRef<BreakdownChart>("tag-spending");
   const requestedRef = useRef(new Set<DashboardSectionKey>());
   const controllersRef = useRef(new Map<DashboardSectionKey, AbortController>());
+  const periodVerificationControllerRef = useRef<AbortController | null>(null);
 
   const abortRequests = useCallback(() => {
     for (const controller of controllersRef.current.values()) controller.abort();
     controllersRef.current.clear();
+    periodVerificationControllerRef.current?.abort();
+    periodVerificationControllerRef.current = null;
   }, []);
 
   const setSectionLoading = useCallback((section: DashboardSectionKey) => {
@@ -284,6 +301,38 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       });
   }, [abortRequests, activatePeriod, readOnly]);
 
+  const retrySummary = useCallback(() => {
+    if (periodStatus !== "active") return;
+    periodVerificationControllerRef.current?.abort();
+    const controller = new AbortController();
+    periodVerificationControllerRef.current = controller;
+    const requestGeneration = generationRef.current;
+    requestedRef.current.delete("summary");
+    setSectionLoading("summary");
+
+    void dashboardApi.getCurrentPeriod(periodRef.current.year, periodRef.current.month, {
+      forceRefresh: true,
+      signal: controller.signal,
+    }).then((response) => {
+      if (requestGeneration !== generationRef.current || controller.signal.aborted) return;
+      if (!isSamePeriod(response.period, periodRef.current)) {
+        activatePeriod(response.period, true);
+        return;
+      }
+      void loadSection("summary", true);
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
+      setSections((current) => ({
+        ...current,
+        summary: { status: "error", error: sectionError(error) },
+      }));
+    }).finally(() => {
+      if (periodVerificationControllerRef.current === controller) {
+        periodVerificationControllerRef.current = null;
+      }
+    });
+  }, [activatePeriod, loadSection, periodStatus, setSectionLoading]);
+
   const createMutation = useFormMutation<CreatePeriodResponse>({
     onSuccess: (response) => activatePeriod(response.period, true),
   });
@@ -309,11 +358,11 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
 
   const retry = useCallback((section: DashboardSectionKey) => {
     if (section === "summary") {
-      refresh();
+      retrySummary();
       return;
     }
     if (periodStatus === "active") void loadSection(section, true);
-  }, [loadSection, periodStatus, refresh]);
+  }, [loadSection, periodStatus, retrySummary]);
 
   const replacePeriodAfterEdit = useCallback((nextPeriod: BudgetPeriod) => {
     activatePeriod(nextPeriod);
