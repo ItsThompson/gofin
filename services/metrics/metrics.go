@@ -145,6 +145,28 @@ var (
 		},
 		[]string{"event"},
 	)
+
+	// ExpenseReadSourceDuration observes source reads after cache policy selects
+	// the owning repository. Operation names are finite service-owned values.
+	ExpenseReadSourceDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "expense_read_source_duration_seconds",
+			Help:    "Expense source read duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"operation"},
+	)
+
+	// FinanceReadSourceDuration observes source reads after cache policy selects
+	// the owning repository or dependency fan-out.
+	FinanceReadSourceDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "finance_read_source_duration_seconds",
+			Help:    "Finance source read duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"operation"},
+	)
 )
 
 // ---------------------------------------------------------------------------

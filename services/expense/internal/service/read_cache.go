@@ -25,7 +25,25 @@ const (
 )
 
 func recordExpenseReadCacheEvent(operation string, status cache.LoadStatus) {
-	metrics.ExpenseReadCacheEventsTotal.WithLabelValues(operation, string(status)).Inc()
+	event := string(status)
+	switch status {
+	case cache.StatusOversize, cache.StatusUncacheable:
+		event = string(cache.EventCapacityBypass)
+	}
+	metrics.ExpenseReadCacheEventsTotal.WithLabelValues(operation, event).Inc()
+}
+
+func recordExpenseReadSourceDuration(operation string, startedAt time.Time) {
+	metrics.ExpenseReadSourceDuration.WithLabelValues(operation).Observe(time.Since(startedAt).Seconds())
+}
+
+func expenseReadCacheObserver(operation string, existing func(cache.Event)) func(cache.Event) {
+	return func(event cache.Event) {
+		if existing != nil {
+			existing(event)
+		}
+		metrics.ExpenseReadCacheEventsTotal.WithLabelValues(operation, string(event)).Inc()
+	}
 }
 
 type expenseReadCaches struct {
@@ -35,10 +53,16 @@ type expenseReadCaches struct {
 }
 
 func newExpenseReadCaches(config ReadCacheConfig, now func() time.Time) *expenseReadCaches {
+	completeConfig := config
+	completeConfig.Observer = expenseReadCacheObserver(expenseReadOperationComplete, config.Observer)
+	recentConfig := config
+	recentConfig.Observer = expenseReadCacheObserver(expenseReadOperationRecent, config.Observer)
+	suggestionConfig := config
+	suggestionConfig.Observer = expenseReadCacheObserver(expenseReadOperationSuggestions, config.Observer)
 	return &expenseReadCaches{
-		completePeriod: cache.New[string, *model.CompleteExpensePageResponse](config, now, cloneCompleteExpensePage, jsonSize[*model.CompleteExpensePageResponse]),
-		recent:         cache.New[string, *model.ExpenseListResponse](config, now, cloneExpenseListResponse, jsonSize[*model.ExpenseListResponse]),
-		suggestions:    cache.New[string, []*model.ExpenseSuggestionInput](config, now, cloneSuggestionInputs, jsonSize[[]*model.ExpenseSuggestionInput]),
+		completePeriod: cache.New[string, *model.CompleteExpensePageResponse](completeConfig, now, cloneCompleteExpensePage, jsonSize[*model.CompleteExpensePageResponse]),
+		recent:         cache.New[string, *model.ExpenseListResponse](recentConfig, now, cloneExpenseListResponse, jsonSize[*model.ExpenseListResponse]),
+		suggestions:    cache.New[string, []*model.ExpenseSuggestionInput](suggestionConfig, now, cloneSuggestionInputs, jsonSize[[]*model.ExpenseSuggestionInput]),
 	}
 }
 

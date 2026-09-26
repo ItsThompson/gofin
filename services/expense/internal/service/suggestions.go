@@ -34,6 +34,8 @@ func (s *ExpenseService) GetExpenseSuggestions(ctx context.Context, req *model.E
 	}
 
 	inputs, status, err := s.readCaches.suggestions.Load(ctx, suggestionInputsCacheKey(req.UserID), cache.LoadOptions{Bypass: req.BypassCache}, func(loadCtx context.Context) ([]*model.ExpenseSuggestionInput, error) {
+		startedAt := time.Now()
+		defer recordExpenseReadSourceDuration(expenseReadOperationSuggestions, startedAt)
 		loaded, loadErr := s.repo.GetActiveExpenseSuggestionInputs(loadCtx, req.UserID)
 		if loadErr != nil {
 			return nil, fmt.Errorf("getting active expense suggestion inputs: %w", loadErr)

@@ -232,6 +232,8 @@ func (s *ExpenseService) GetActiveExpensesForPeriod(ctx context.Context, req *mo
 
 	key := recentExpensesCacheKey(req, page, pageSize)
 	result, status, err := s.readCaches.recent.Load(ctx, key, cache.LoadOptions{Bypass: req.BypassCache}, func(loadCtx context.Context) (*model.ExpenseListResponse, error) {
+		startedAt := time.Now()
+		defer recordExpenseReadSourceDuration(expenseReadOperationRecent, startedAt)
 		expenses, total, loadErr := s.repo.GetActiveExpensesForPeriod(loadCtx, req.UserID, req.Year, req.Month, page, pageSize)
 		if loadErr != nil {
 			return nil, fmt.Errorf("getting expenses for period: %w", loadErr)
@@ -272,6 +274,8 @@ func (s *ExpenseService) GetActiveExpensesForPeriodPage(ctx context.Context, req
 	}
 	key := completePeriodCacheKey(req, pageSize)
 	result, status, err := s.readCaches.completePeriod.Load(ctx, key, cache.LoadOptions{Bypass: req.BypassCache}, func(loadCtx context.Context) (*model.CompleteExpensePageResponse, error) {
+		startedAt := time.Now()
+		defer recordExpenseReadSourceDuration(expenseReadOperationComplete, startedAt)
 		expenses, next, hasMore, loadErr := s.repo.GetActiveExpensesByPeriodAfter(loadCtx, req.UserID, req.Year, req.Month, repository.ActivePeriodCursor{
 			ExpenseDate: req.CursorExpenseDate,
 			CreatedAt:   req.CursorCreatedAt,
