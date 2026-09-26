@@ -68,11 +68,16 @@ func (r *ImmudbExpenseRepository) InitSchema(ctx context.Context) error {
 		}
 	}
 
+	// The filtering index does not cover the complete-period cursor. This index
+	// is required for the bounded read, so initialization must fail if immudb
+	// rejects its creation instead of silently falling back to an unbounded scan.
+	requiredPeriodIndex := `CREATE INDEX IF NOT EXISTS ON expenses (user_id, period_year, period_month, status, expense_date, created_at, id);`
+	if _, err := r.client.SQLExec(ctx, requiredPeriodIndex, nil); err != nil {
+		return fmt.Errorf("creating active period index: %w", err)
+	}
+
 	indexes := []string{
 		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period ON expenses (user_id, period_year, period_month, status);`,
-		// The filtering index above does not cover the complete-period cursor.
-		// Keep the filter prefix and append the total-order fields for the bounded read.
-		`CREATE INDEX IF NOT EXISTS idx_expenses_user_period_order ON expenses (user_id, period_year, period_month, status, expense_date, created_at, id);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_corrects ON expenses (corrects_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_expenses_prorata_group ON expenses (pro_rata_group);`,
 		// Covers the keyset export seek: the (created_at, id) tiebreaker column is

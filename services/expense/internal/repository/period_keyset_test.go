@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -109,4 +112,92 @@ func TestGetActiveExpensesByPeriodAfter_ClampsPageSizeToTransportBudget(t *testi
 	_, _, _, err := repo.GetActiveExpensesByPeriodAfter(context.Background(), "user-1", 2026, 5, ActivePeriodCursor{}, CompletePeriodPageSize+1)
 	require.NoError(t, err)
 	assert.Equal(t, CompletePeriodPageSize+1, client.Queries()[0].Params["limit"])
+}
+
+func TestGetActiveExpensesByPeriodAfter_EmptyPeriodAndUserIsolation(t *testing.T) {
+	repo, client := newKeysetTestRepo(
+		buildTestExpense("other-user", "user-2", "2026-05-01T00:00:00Z"),
+		buildTestExpense("other-period", "user-1", "2026-05-01T00:00:01Z"),
+	)
+	client.rows[1].PeriodMonth = 6
+
+	rows, next, hasMore, err := repo.GetActiveExpensesByPeriodAfter(context.Background(), "user-1", 2026, 5, ActivePeriodCursor{}, 10)
+
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+	assert.Equal(t, ActivePeriodCursor{}, next)
+	assert.False(t, hasMore)
+	assert.Zero(t, client.countQueriesContaining("COUNT(*)"))
+}
+
+func TestGetActiveExpensesByPeriodAfter_DefaultsNonPositivePageSizes(t *testing.T) {
+	for _, pageSize := range []int32{0, -1} {
+		t.Run(fmt.Sprintf("page-size-%d", pageSize), func(t *testing.T) {
+			repo, client := newKeysetTestRepo(buildTestExpense("period-1", "user-1", "2026-05-01T00:00:00Z"))
+
+			_, _, _, err := repo.GetActiveExpensesByPeriodAfter(context.Background(), "user-1", 2026, 5, ActivePeriodCursor{}, pageSize)
+
+			require.NoError(t, err)
+			assert.Equal(t, CompletePeriodPageSize+1, client.Queries()[0].Params["limit"])
+		})
+	}
+}
+
+func TestGetActiveExpensesByPeriodAfter_RejectsPartialCursor(t *testing.T) {
+	repo, client := newKeysetTestRepo()
+	partialCursors := []ActivePeriodCursor{
+		{ExpenseDate: "2026-05-01"},
+		{ExpenseDate: "2026-05-01", CreatedAt: "2026-05-01T00:00:00Z"},
+		{CreatedAt: "2026-05-01T00:00:00Z", ID: "period-1"},
+	}
+
+	for _, cursor := range partialCursors {
+		_, _, _, err := repo.GetActiveExpensesByPeriodAfter(context.Background(), "user-1", 2026, 5, cursor, 10)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "cursor must include")
+	}
+	assert.Empty(t, client.Queries())
+}
+
+type periodQueryErrorClient struct {
+	*recordingImmudbClient
+	err error
+}
+
+func (c *periodQueryErrorClient) SQLQuery(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+	if strings.Contains(sql, "ORDER BY expense_date ASC") {
+		c.record(sql, params)
+		return nil, c.err
+	}
+	return c.recordingImmudbClient.SQLQuery(ctx, sql, params)
+}
+
+type periodMappingErrorClient struct {
+	*recordingImmudbClient
+}
+
+func (c *periodMappingErrorClient) SQLQuery(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+	if strings.Contains(sql, "ORDER BY expense_date ASC") {
+		c.record(sql, params)
+		return &SQLResult{Rows: []SQLRow{{Values: []SQLValue{fakeSQLValue{}}}}}, nil
+	}
+	return c.recordingImmudbClient.SQLQuery(ctx, sql, params)
+}
+
+func TestGetActiveExpensesByPeriodAfter_PropagatesQueryAndMappingErrors(t *testing.T) {
+	queryClient := &periodQueryErrorClient{
+		recordingImmudbClient: newRecordingImmudbClient(),
+		err:                   errors.New("immudb unavailable"),
+	}
+	queryRepo := NewImmudbExpenseRepository(queryClient, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	_, _, _, err := queryRepo.GetActiveExpensesByPeriodAfter(context.Background(), "user-1", 2026, 5, ActivePeriodCursor{}, 10)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "querying active expenses for period")
+	assert.ErrorContains(t, err, "immudb unavailable")
+
+	mappingClient := &periodMappingErrorClient{recordingImmudbClient: newRecordingImmudbClient()}
+	mappingRepo := NewImmudbExpenseRepository(mappingClient, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	_, _, _, err = mappingRepo.GetActiveExpensesByPeriodAfter(context.Background(), "user-1", 2026, 5, ActivePeriodCursor{}, 10)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "mapping active period expense row")
 }

@@ -72,3 +72,25 @@ func TestInitSchema_ReconcilesIdempotencyKeyColumn(t *testing.T) {
 	assert.Equal(t, 1, client.countQueriesContaining("IDX_EXPENSES_USER_IDEM"),
 		"expected the idempotency-key lookup index to be created")
 }
+
+type periodIndexFailingImmudbClient struct {
+	*recordingImmudbClient
+}
+
+func (c *periodIndexFailingImmudbClient) SQLExec(ctx context.Context, sql string, params map[string]interface{}) (*SQLResult, error) {
+	if strings.Contains(sql, "CREATE INDEX IF NOT EXISTS ON expenses (user_id, period_year, period_month, status, expense_date, created_at, id)") {
+		c.record(sql, params)
+		return nil, errors.New("index creation rejected")
+	}
+	return c.recordingImmudbClient.SQLExec(ctx, sql, params)
+}
+
+func TestInitSchema_ReturnsErrorWhenRequiredPeriodIndexFails(t *testing.T) {
+	client := &periodIndexFailingImmudbClient{recordingImmudbClient: newRecordingImmudbClient()}
+	repo := NewImmudbExpenseRepository(client, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+
+	err := repo.InitSchema(context.Background())
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "creating active period index")
+}

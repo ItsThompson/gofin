@@ -23,6 +23,9 @@ type ActivePeriodCursor struct {
 // expenses for a user period. The page is ordered by expense_date, created_at,
 // and id in ascending order. The extra row determines hasMore without COUNT.
 func (r *ImmudbExpenseRepository) GetActiveExpensesByPeriodAfter(ctx context.Context, userID string, year, month int32, cursor ActivePeriodCursor, pageSize int32) ([]*model.Expense, ActivePeriodCursor, bool, error) {
+	if err := validateActivePeriodCursor(cursor); err != nil {
+		return nil, ActivePeriodCursor{}, false, err
+	}
 	if pageSize < 1 || pageSize > CompletePeriodPageSize {
 		pageSize = CompletePeriodPageSize
 	}
@@ -82,4 +85,15 @@ func (r *ImmudbExpenseRepository) GetActiveExpensesByPeriodAfter(ctx context.Con
 	}
 
 	return rows, next, hasMore, nil
+}
+
+func validateActivePeriodCursor(cursor ActivePeriodCursor) error {
+	isEmpty := cursor.ExpenseDate == "" && cursor.CreatedAt == "" && cursor.ID == ""
+	if isEmpty {
+		return nil
+	}
+	if cursor.ExpenseDate == "" || cursor.CreatedAt == "" || cursor.ID == "" {
+		return fmt.Errorf("active period cursor must include expense date, created at, and id")
+	}
+	return nil
 }

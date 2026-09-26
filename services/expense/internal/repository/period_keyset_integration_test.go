@@ -78,11 +78,11 @@ func TestGetActiveExpensesByPeriodAfter_IntegrationTransportDecision(t *testing.
 
 	queries := client.recordedQueries()
 	sawPeriodQuery := false
-	sawTargetedIndex := false
+	sawRequiredIndexDDL := false
 	for _, query := range queries {
 		upper := strings.ToUpper(query)
-		if strings.Contains(query, "idx_expenses_user_period_order") {
-			sawTargetedIndex = true
+		if strings.Contains(query, "CREATE INDEX IF NOT EXISTS ON expenses (user_id, period_year, period_month, status, expense_date, created_at, id)") {
+			sawRequiredIndexDDL = true
 		}
 		if strings.Contains(upper, "ORDER BY EXPENSE_DATE ASC, CREATED_AT ASC, ID ASC") {
 			sawPeriodQuery = true
@@ -91,11 +91,13 @@ func TestGetActiveExpensesByPeriodAfter_IntegrationTransportDecision(t *testing.
 		}
 	}
 	assert.True(t, sawPeriodQuery, "expected the active-period keyset query")
-	assert.True(t, sawTargetedIndex, "expected the filter-plus-cursor index to be declared")
+	assert.True(t, sawRequiredIndexDDL, "expected the required filter-plus-cursor index DDL")
 
-	peakHeapBytes := measureConcurrentPeriodReadHeap(t, repo, userID)
-	t.Logf("transport=bounded-keyset page_size=%d pages=%d grpc_response_bytes=%d grpc_default_receive_limit_bytes=%d concurrent_reads=%d peak_heap_inuse_bytes=%d expense_memory_limit_bytes=%d", CompletePeriodPageSize, firstPages, firstPageBytes, grpcDefaultMaxReceiveBytes, concurrentCompleteReads, peakHeapBytes, 256*1024*1024)
-	assert.Less(t, peakHeapBytes, uint64(256*1024*1024), "concurrent complete reads must stay below expense service memory limit")
+	peakMemory := measureConcurrentPeriodReadMemory(t, repo, userID)
+	memoryLimitBytes := uint64(256 * 1024 * 1024)
+	t.Logf("transport=bounded-keyset page_size=%d pages=%d grpc_response_bytes=%d grpc_default_receive_limit_bytes=%d concurrent_reads=%d peak_heap_inuse_bytes=%d peak_runtime_sys_bytes=%d expense_memory_limit_bytes=%d", CompletePeriodPageSize, firstPages, firstPageBytes, grpcDefaultMaxReceiveBytes, concurrentCompleteReads, peakMemory.heapInuseBytes, peakMemory.runtimeSysBytes, memoryLimitBytes)
+	assert.Less(t, peakMemory.heapInuseBytes, memoryLimitBytes, "absolute peak heap in use must stay below expense service memory limit")
+	assert.Less(t, peakMemory.runtimeSysBytes, memoryLimitBytes, "absolute Go runtime memory must stay below expense service memory limit")
 }
 
 func createIntegrationExpense(ctx context.Context, repo *ImmudbExpenseRepository, row *model.Expense) error {
@@ -178,7 +180,12 @@ func periodCursorLess(previous, current *model.Expense) bool {
 	return previous.ID < current.ID
 }
 
-func measureConcurrentPeriodReadHeap(t *testing.T, repo *ImmudbExpenseRepository, userID string) uint64 {
+type periodReadMemory struct {
+	heapInuseBytes  uint64
+	runtimeSysBytes uint64
+}
+
+func measureConcurrentPeriodReadMemory(t *testing.T, repo *ImmudbExpenseRepository, userID string) periodReadMemory {
 	t.Helper()
 	runtime.GC()
 	var before runtime.MemStats
@@ -201,9 +208,9 @@ func measureConcurrentPeriodReadHeap(t *testing.T, repo *ImmudbExpenseRepository
 			results[index] = rows
 		}(i)
 	}
-	close(start)
 
-	peak := before.HeapInuse
+	peakHeapInuse := before.HeapInuse
+	peakRuntimeSys := before.Sys
 	stop := make(chan struct{})
 	var samples sync.WaitGroup
 	samples.Add(1)
@@ -216,14 +223,18 @@ func measureConcurrentPeriodReadHeap(t *testing.T, repo *ImmudbExpenseRepository
 			case <-ticker.C:
 				var stats runtime.MemStats
 				runtime.ReadMemStats(&stats)
-				if stats.HeapInuse > peak {
-					peak = stats.HeapInuse
+				if stats.HeapInuse > peakHeapInuse {
+					peakHeapInuse = stats.HeapInuse
+				}
+				if stats.Sys > peakRuntimeSys {
+					peakRuntimeSys = stats.Sys
 				}
 			case <-stop:
 				return
 			}
 		}
 	}()
+	close(start)
 	wg.Wait()
 	close(stop)
 	samples.Wait()
@@ -233,11 +244,14 @@ func measureConcurrentPeriodReadHeap(t *testing.T, repo *ImmudbExpenseRepository
 	default:
 	}
 
+	runtime.KeepAlive(results)
 	var after runtime.MemStats
 	runtime.ReadMemStats(&after)
-	if after.HeapInuse > peak {
-		peak = after.HeapInuse
+	if after.HeapInuse > peakHeapInuse {
+		peakHeapInuse = after.HeapInuse
 	}
-	_ = results
-	return peak - before.HeapInuse
+	if after.Sys > peakRuntimeSys {
+		peakRuntimeSys = after.Sys
+	}
+	return periodReadMemory{heapInuseBytes: peakHeapInuse, runtimeSysBytes: peakRuntimeSys}
 }
