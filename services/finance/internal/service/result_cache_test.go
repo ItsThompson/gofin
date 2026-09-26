@@ -25,6 +25,10 @@ func (r *resultCacheRepo) GetCurrentPeriod(context.Context, string, int32, int32
 	return r.period, nil
 }
 
+func (r *resultCacheRepo) ListTags(context.Context, string) ([]*model.Tag, error) {
+	return nil, nil
+}
+
 type resultCacheExpenseClient struct {
 	expenses      []ExpenseData
 	revision      ExpenseRevision
@@ -163,6 +167,20 @@ func TestFinanceResultCache_DisabledReadsSourceEveryTime(t *testing.T) {
 	_, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
 	require.NoError(t, err)
 	require.Equal(t, 2, expense.expenseCalls)
+}
+
+func TestFinanceResultCache_CachesValidEmptyResults(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+	first, err := svc.GetSpendingByTag(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	second, err := svc.GetSpendingByTag(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Empty(t, first)
+	require.Empty(t, second)
+	require.Equal(t, 1, expense.expenseCalls)
 }
 
 func TestFinanceResultCache_DoesNotStoreSourceErrors(t *testing.T) {
