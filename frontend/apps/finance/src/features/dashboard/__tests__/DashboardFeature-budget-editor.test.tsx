@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { buildPeriod, createMockApi } from "@gofin/test-utils";
+import { buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
 import { testPeriod, testSummary } from "./fixtures";
 
@@ -37,6 +37,20 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     const mockApi = createMockApi({
       "/api/finance/periods/current": { body: { period: testPeriod } },
       ...dashboardDataRoutes(),
+      "/api/finance/summary": mockSequence([
+        { body: { summary: testSummary } },
+        {
+          body: {
+            summary: buildPeriodSummary({
+              ...testSummary,
+              periodId: updatedPeriod.id,
+              totalBudget: 400000,
+              totalSpent: 100000,
+              remaining: 300000,
+            }),
+          },
+        },
+      ]),
       [`/api/finance/periods/${testPeriod.id}`]: { body: { period: updatedPeriod } },
     });
     global.fetch = mockApi as unknown as typeof fetch;
@@ -71,6 +85,14 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("budget-settings-editor")).not.toBeInTheDocument();
     });
+
+    await waitFor(() => {
+      expect(screen.getByText("$4,000.00")).toBeInTheDocument();
+      expect(screen.getByText("$1,000.00")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByLabelText("Budget Settings"));
+    expect(screen.getByLabelText("Monthly Budget")).toHaveValue(4000);
 
     // Verify PUT was called with correct payload
     const putCall = mockApi._calls.find(

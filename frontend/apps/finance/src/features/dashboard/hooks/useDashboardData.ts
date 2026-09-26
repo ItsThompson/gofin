@@ -138,6 +138,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
   const generationRef = useRef(0);
   const periodRef = useRef(period);
+  const previousPeriodPropRef = useRef(period);
   const desktopVisibleRef = useRef(desktopVisible);
   desktopVisibleRef.current = desktopVisible;
   const trendMonthsRef = useRef<6 | 12>(6);
@@ -255,6 +256,10 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   useEffect(() => {
     activatePeriod(period);
   }, [activatePeriod, period]);
+
+  useEffect(() => {
+    previousPeriodPropRef.current = period;
+  }, [period]);
 
   useEffect(() => {
     if (desktopVisible && periodStatus === "active") {
@@ -381,9 +386,9 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     if (periodStatus === "active" && desktopVisible) void loadSection("trends", true);
   }, [desktopVisible, loadSection, periodStatus]);
 
-  const periodReady = isSamePeriod(period, renderedPeriod);
-  const visibleSections = periodReady ? sections : initialSectionState(false);
-  const visiblePeriodStatus = periodReady ? periodStatus : "loading";
+  const periodPropChanged = !isSamePeriod(period, previousPeriodPropRef.current);
+  const visibleSections = periodPropChanged ? initialSectionState(false) : sections;
+  const visiblePeriodStatus = periodPropChanged ? "loading" : periodStatus;
   const data: DashboardData = {
     summary: stateData(visibleSections.summary),
     tagSpending: stateData(visibleSections.byTag) ?? [],

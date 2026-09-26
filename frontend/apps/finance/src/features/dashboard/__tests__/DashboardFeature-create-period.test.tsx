@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { buildDefaults, buildPeriod, buildPeriodSummary, buildUser, createMockApi } from "@gofin/test-utils";
+import { buildDefaults, buildPeriod, buildPeriodSummary, buildUser, createMockApi, mockSequence } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
-import { testDefaults, testPeriod } from "./fixtures";
+import { dashboardDataEmptyRoutes, testDefaults, testPeriod } from "./fixtures";
 
 describe("DashboardFeature", () => {
   describe("no period exists (PERIOD_NOT_FOUND)", () => {
@@ -275,6 +275,53 @@ describe("DashboardFeature", () => {
           call.method === "POST",
       );
       expect((createCall!.body as { reportingCurrencyCode: string }).reportingCurrencyCode).toBe("USD");
+    });
+
+    it("recovers after Refresh all reports a missing period and the period is recreated", async () => {
+      const recreatedPeriod = buildPeriod({
+        ...testPeriod,
+        id: "period-recreated",
+        budgetAmount: 360000,
+        updatedAt: "2026-05-03T00:00:00Z",
+      });
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": mockSequence([
+          { body: { period: testPeriod } },
+          {
+            status: 404,
+            body: { code: "PERIOD_NOT_FOUND", message: "No budget period found" },
+          },
+        ]),
+        "/api/finance/defaults": { body: { defaults: testDefaults } },
+        "/api/finance/periods": { status: 201, body: { period: recreatedPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/summary": {
+          body: {
+            summary: buildPeriodSummary({
+              periodId: recreatedPeriod.id,
+              year: recreatedPeriod.year,
+              month: recreatedPeriod.month,
+              totalBudget: recreatedPeriod.budgetAmount,
+              totalSpent: 0,
+              remaining: recreatedPeriod.budgetAmount,
+            }),
+          },
+        },
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+
+      const user = userEvent.setup();
+      renderDashboard();
+      await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument());
+
+      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+      await waitFor(() => expect(screen.getByText(/set up/i)).toBeInTheDocument());
+
+      await user.click(screen.getByRole("button", { name: /create/i }));
+      await waitFor(() => {
+        expect(screen.getByText("Dashboard")).toBeInTheDocument();
+        expect(screen.getAllByText("$3,600.00")).toHaveLength(2);
+      });
     });
 
     it("sends the selected reporting currency and parses amount with its precision", async () => {

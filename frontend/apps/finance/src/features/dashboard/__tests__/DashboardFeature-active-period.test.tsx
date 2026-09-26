@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { buildUser, buildPeriod, buildPeriodSummary, createMockApi } from "@gofin/test-utils";
+import { buildUser, buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
 import {
   testUser,
@@ -259,6 +259,43 @@ describe("DashboardFeature", () => {
       });
       expect(screen.getByText("¥0")).toBeInTheDocument();
       expect(screen.queryByText("€3,000.00")).not.toBeInTheDocument();
+    });
+
+    it("adopts changed period metadata returned by Refresh all data", async () => {
+      const refreshedPeriod = buildPeriod({
+        ...testPeriod,
+        budgetAmount: 450000,
+        updatedAt: "2026-05-02T00:00:00Z",
+      });
+      const refreshedSummary = buildPeriodSummary({
+        ...testSummary,
+        periodId: refreshedPeriod.id,
+        totalBudget: 450000,
+        totalSpent: 120000,
+        remaining: 330000,
+      });
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": mockSequence([
+          { body: { period: testPeriod } },
+          { body: { period: refreshedPeriod } },
+        ]),
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/summary": mockSequence([
+          { body: { summary: testSummary } },
+          { body: { summary: refreshedSummary } },
+        ]),
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getByText("$3,000.00")).toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("$4,500.00")).toBeInTheDocument();
+        expect(screen.getByText("$1,200.00")).toBeInTheDocument();
+      });
     });
 
     it("color-codes remaining balance green when > 30%", async () => {
