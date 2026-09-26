@@ -110,6 +110,7 @@ func New[K comparable, V any](config Config, now func() time.Time, clone func(V)
 }
 
 func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, loader func(context.Context) (V, error)) (V, LoadStatus, error) {
+	var events []Event
 	c.mu.Lock()
 	if !c.config.Enabled {
 		c.mu.Unlock()
@@ -144,7 +145,7 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 				return value, StatusHit, nil
 			}
 			c.removeElementLocked(element)
-			c.observe(EventEviction)
+			c.appendEvent(&events, EventEviction)
 		}
 	}
 
@@ -152,6 +153,8 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 	current := &flight[V]{generation: generation, bypass: options.Bypass, done: make(chan struct{})}
 	c.flights[key] = current
 	c.mu.Unlock()
+	c.emit(events)
+	events = nil
 
 	value, err := loader(ctx)
 	c.mu.Lock()
@@ -165,6 +168,7 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 		close(current.done)
 		c.cleanupGenerationLocked(key)
 		c.mu.Unlock()
+		c.emit(events)
 		var zero V
 		return zero, StatusError, err
 	}
@@ -173,9 +177,9 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 	current.status = StatusLoaded
 	if c.generations[key] == generation {
 		if c.canStoreLocked(current.value) {
-			c.storeLocked(key, current.value, c.now().Add(c.config.MaxAge), generation)
+			c.storeLocked(key, current.value, c.now().Add(c.config.MaxAge), generation, &events)
 		} else {
-			c.observe(EventCapacityBypass)
+			c.appendEvent(&events, EventCapacityBypass)
 			if current.bypass {
 				if element, ok := c.entries[key]; ok && element.Value.(*entry[K, V]).generation == generation {
 					c.removeElementLocked(element)
@@ -198,6 +202,7 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 		status = StatusOversize
 	}
 	c.mu.Unlock()
+	c.emit(events)
 	return result, status, nil
 }
 
@@ -217,41 +222,53 @@ func (c *Cache[K, V]) waitForFlight(ctx context.Context, current *flight[V]) (V,
 
 // Peek returns a retained value and its generation without running a loader.
 func (c *Cache[K, V]) Peek(key K) (V, uint64, bool) {
+	var events []Event
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if !c.config.Enabled {
+		c.mu.Unlock()
 		var zero V
 		return zero, 0, false
 	}
 	element, ok := c.entries[key]
 	if !ok {
+		c.mu.Unlock()
 		var zero V
 		return zero, 0, false
 	}
 	cached := element.Value.(*entry[K, V])
 	if !c.now().Before(cached.expiresAt) {
 		c.removeElementLocked(element)
+		c.appendEvent(&events, EventEviction)
+		c.mu.Unlock()
+		c.emit(events)
 		var zero V
 		return zero, 0, false
 	}
 	c.lru.MoveToFront(element)
-	return c.clone(cached.value), cached.generation, true
+	value := c.clone(cached.value)
+	generation := cached.generation
+	c.mu.Unlock()
+	return value, generation, true
 }
 
 // Refresh replaces a hit only when its generation is unchanged. It never calls
 // external code while holding the cache lock and cannot resurrect an evicted key.
 func (c *Cache[K, V]) Refresh(key K, value V, generation uint64) bool {
+	var events []Event
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	element, ok := c.entries[key]
 	if !ok || c.generations[key] != generation || element.Value.(*entry[K, V]).generation != generation {
+		c.mu.Unlock()
 		return false
 	}
 	if !c.canStoreLocked(value) {
+		c.mu.Unlock()
 		return false
 	}
 	c.removeElementLocked(element)
-	c.storeLocked(key, value, c.now().Add(c.config.MaxAge), generation)
+	c.storeLocked(key, value, c.now().Add(c.config.MaxAge), generation, &events)
+	c.mu.Unlock()
+	c.emit(events)
 	return true
 }
 
@@ -270,7 +287,7 @@ func (c *Cache[K, V]) maxEntryBytes() int64 {
 	return c.config.MaxBytes
 }
 
-func (c *Cache[K, V]) storeLocked(key K, value V, expiresAt time.Time, generation uint64) {
+func (c *Cache[K, V]) storeLocked(key K, value V, expiresAt time.Time, generation uint64, events *[]Event) {
 	sizeBytes, cacheable := c.size(value)
 	if !cacheable || sizeBytes < 0 {
 		return
@@ -284,7 +301,7 @@ func (c *Cache[K, V]) storeLocked(key K, value V, expiresAt time.Time, generatio
 			break
 		}
 		c.removeElementLocked(oldest)
-		c.observe(EventEviction)
+		c.appendEvent(events, EventEviction)
 	}
 	cached := &entry[K, V]{key: key, value: c.clone(value), expiresAt: expiresAt, sizeBytes: sizeBytes, generation: generation}
 	c.entries[key] = c.lru.PushFront(cached)
@@ -324,8 +341,17 @@ func (c *Cache[K, V]) detachFlightLocked(key K) {
 	delete(c.flights, key)
 }
 
-func (c *Cache[K, V]) observe(event Event) {
-	if c.config.Observer != nil {
+func (c *Cache[K, V]) appendEvent(events *[]Event, event Event) {
+	if events != nil {
+		*events = append(*events, event)
+	}
+}
+
+func (c *Cache[K, V]) emit(events []Event) {
+	if c.config.Observer == nil {
+		return
+	}
+	for _, event := range events {
 		c.config.Observer(event)
 	}
 }
@@ -341,23 +367,25 @@ func (c *Cache[K, V]) removeElementLocked(element *list.Element) {
 }
 
 func (c *Cache[K, V]) Evict(key K) {
+	var events []Event
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if element, ok := c.entries[key]; ok {
 		c.removeElementLocked(element)
-		c.observe(EventEviction)
+		c.appendEvent(&events, EventEviction)
 	}
 	c.generations[key]++
 	c.detachFlightLocked(key)
+	c.mu.Unlock()
+	c.emit(events)
 }
 
 func (c *Cache[K, V]) Purge(match func(K) bool) {
+	var events []Event
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	for key, element := range c.entries {
 		if match(key) {
 			c.removeElementLocked(element)
-			c.observe(EventEviction)
+			c.appendEvent(&events, EventEviction)
 			c.generations[key]++
 		}
 	}
@@ -367,6 +395,8 @@ func (c *Cache[K, V]) Purge(match func(K) bool) {
 			c.detachFlightLocked(key)
 		}
 	}
+	c.mu.Unlock()
+	c.emit(events)
 }
 
 func (c *Cache[K, V]) Len() int {
