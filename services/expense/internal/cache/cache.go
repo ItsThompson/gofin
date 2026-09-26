@@ -163,8 +163,6 @@ func (c *Cache[K, V]) Load(ctx context.Context, key K, options LoadOptions, load
 	current := &flight[V]{generation: generation, bypass: options.Bypass, done: make(chan struct{})}
 	c.flights[key] = current
 	c.mu.Unlock()
-	c.emit(events)
-	events = nil
 
 	value, err := loader(ctx)
 	c.mu.Lock()
