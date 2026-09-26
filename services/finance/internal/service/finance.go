@@ -40,6 +40,8 @@ type FinanceService struct {
 	nowFunc       func() time.Time
 	logger        *slog.Logger
 	resultCaches  *financeResultCaches
+	// Legacy constructors retain direct-read behavior; explicit cache-aware constructors validate leases even when storage is disabled.
+	validateRevisions bool
 }
 
 // NewFinanceService creates a new FinanceService with all dependencies injected.
@@ -54,7 +56,7 @@ func NewFinanceService(
 	nowFunc func() time.Time,
 	logger *slog.Logger,
 ) *FinanceService {
-	return NewFinanceServiceWithFx(repo, txBeginner, expenseClient, nil, nowFunc, logger)
+	return newFinanceService(repo, txBeginner, expenseClient, nil, nowFunc, logger, ResultCacheConfig{Enabled: false}, false)
 }
 
 // NewFinanceServiceWithFx creates a FinanceService with the FX client used for
@@ -69,7 +71,7 @@ func NewFinanceServiceWithFx(
 	nowFunc func() time.Time,
 	logger *slog.Logger,
 ) *FinanceService {
-	return NewFinanceServiceWithFxAndCache(repo, txBeginner, expenseClient, fxClient, nowFunc, logger, ResultCacheConfig{Enabled: false})
+	return newFinanceService(repo, txBeginner, expenseClient, fxClient, nowFunc, logger, ResultCacheConfig{Enabled: false}, false)
 }
 
 // NewFinanceServiceWithCache creates a finance service with explicit result-cache policy.
@@ -81,7 +83,7 @@ func NewFinanceServiceWithCache(
 	logger *slog.Logger,
 	cacheConfig ResultCacheConfig,
 ) *FinanceService {
-	return NewFinanceServiceWithFxAndCache(repo, txBeginner, expenseClient, nil, nowFunc, logger, cacheConfig)
+	return newFinanceService(repo, txBeginner, expenseClient, nil, nowFunc, logger, cacheConfig, true)
 }
 
 // NewFinanceServiceWithFxAndCache creates a FinanceService with explicit
@@ -95,17 +97,31 @@ func NewFinanceServiceWithFxAndCache(
 	logger *slog.Logger,
 	cacheConfig ResultCacheConfig,
 ) *FinanceService {
+	return newFinanceService(repo, txBeginner, expenseClient, fxClient, nowFunc, logger, cacheConfig, true)
+}
+
+func newFinanceService(
+	repo repository.FinanceRepository,
+	txBeginner repository.TxBeginner,
+	expenseClient ExpenseClient,
+	fxClient FxClient,
+	nowFunc func() time.Time,
+	logger *slog.Logger,
+	cacheConfig ResultCacheConfig,
+	validateRevisions bool,
+) *FinanceService {
 	if nowFunc == nil {
 		nowFunc = time.Now
 	}
 	return &FinanceService{
-		repo:          repo,
-		txBeginner:    txBeginner,
-		expenseClient: expenseClient,
-		fxClient:      fxClient,
-		nowFunc:       nowFunc,
-		logger:        logger,
-		resultCaches:  newFinanceResultCaches(cacheConfig, nowFunc),
+		repo:              repo,
+		txBeginner:        txBeginner,
+		expenseClient:     expenseClient,
+		fxClient:          fxClient,
+		nowFunc:           nowFunc,
+		logger:            logger,
+		resultCaches:      newFinanceResultCaches(cacheConfig, nowFunc),
+		validateRevisions: validateRevisions,
 	}
 }
 
@@ -171,6 +187,9 @@ func (s *FinanceService) getPeriodCreationDefaults(ctx context.Context, userID s
 // Both operations run in a transaction: if tag seeding fails, the defaults
 // upsert is rolled back.
 func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, req *model.OnboardingRequest) (*model.DefaultSettings, error) {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
 		return nil, verr
 	}
@@ -188,6 +207,7 @@ func (s *FinanceService) CompleteOnboarding(ctx context.Context, userID string, 
 
 	txRepo := tx.Repo()
 
+	fence.markWrite()
 	defaults, err := txRepo.UpsertDefaults(ctx, &model.DefaultSettings{
 		UserID:            userID,
 		BudgetAmount:      req.BudgetAmount,
@@ -234,6 +254,9 @@ func (s *FinanceService) GetDefaults(ctx context.Context, userID string) (*model
 // UpdateDefaults updates the user's default budget settings.
 // Does not affect current or past budget periods.
 func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req *model.UpdateDefaultsRequest) (*model.DefaultSettings, error) {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
 		return nil, verr
 	}
@@ -249,6 +272,7 @@ func (s *FinanceService) UpdateDefaults(ctx context.Context, userID string, req 
 		return nil, verr
 	}
 
+	fence.markWrite()
 	defaults, err := s.repo.UpsertDefaults(ctx, &model.DefaultSettings{
 		UserID:            userID,
 		BudgetAmount:      req.BudgetAmount,
@@ -355,6 +379,10 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 		}
 	}
 
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
+	fence.markWrite()
 	updated, err := s.repo.UpdatePeriod(ctx, &model.BudgetPeriod{
 		ID:                periodID,
 		UserID:            userID,
@@ -383,6 +411,9 @@ func (s *FinanceService) UpdatePeriod(ctx context.Context, userID, periodID stri
 // ListTags returns all tags for a user, ordered alphabetically.
 // If the user has no tags, default tags are lazy-seeded before returning.
 func (s *FinanceService) ListTags(ctx context.Context, userID string) ([]*model.Tag, error) {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	count, err := s.repo.CountUserTags(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("counting user tags: %w", err)
@@ -396,6 +427,7 @@ func (s *FinanceService) ListTags(ctx context.Context, userID string) ([]*model.
 		defer func() { _ = tx.Rollback(ctx) }()
 
 		txRepo := tx.Repo()
+		fence.markWrite()
 		for _, tagName := range DefaultTags {
 			_, err := txRepo.CreateTag(ctx, userID, tagName, true)
 			if err != nil {
@@ -426,6 +458,10 @@ func (s *FinanceService) CreateTag(ctx context.Context, userID string, req *mode
 		return nil, verr
 	}
 
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
+	fence.markWrite()
 	tag, err := s.repo.CreateTag(ctx, userID, name, false)
 	if err != nil {
 		if _, ok := pgutil.IsUniqueViolation(err); ok {
@@ -445,6 +481,10 @@ func (s *FinanceService) UpdateTag(ctx context.Context, userID, tagID string, re
 		return nil, verr
 	}
 
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
+	fence.markWrite()
 	tag, err := s.repo.UpdateTag(ctx, tagID, userID, name)
 	if err != nil {
 		if _, ok := pgutil.IsUniqueViolation(err); ok {
@@ -518,6 +558,10 @@ func (s *FinanceService) DeleteTag(ctx context.Context, userID, tagID string) er
 		return apierr.Conflict(model.ErrTagInUse, fmt.Sprintf("Tag is referenced by %s", strings.Join(parts, " and ")))
 	}
 
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
+	fence.markWrite()
 	if err := s.repo.DeleteTag(ctx, tagID, userID); err != nil {
 		return fmt.Errorf("deleting tag: %w", err)
 	}

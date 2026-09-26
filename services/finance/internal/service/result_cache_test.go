@@ -16,12 +16,27 @@ import (
 
 type resultCacheRepo struct {
 	repository.FinanceRepository
-	period *model.BudgetPeriod
-	calls  int
+	period            *model.BudgetPeriod
+	periodByID        *model.BudgetPeriod
+	updatePeriodErr   error
+	updatePeriodCalls int
+	calls             int
 }
 
 func (r *resultCacheRepo) GetCurrentPeriod(context.Context, string, int32, int32) (*model.BudgetPeriod, error) {
 	r.calls++
+	return r.period, nil
+}
+
+func (r *resultCacheRepo) GetPeriodByID(context.Context, string, string) (*model.BudgetPeriod, error) {
+	return r.periodByID, nil
+}
+
+func (r *resultCacheRepo) UpdatePeriod(context.Context, *model.BudgetPeriod) (*model.BudgetPeriod, error) {
+	r.updatePeriodCalls++
+	if r.updatePeriodErr != nil {
+		return nil, r.updatePeriodErr
+	}
 	return r.period, nil
 }
 
@@ -30,16 +45,22 @@ func (r *resultCacheRepo) ListTags(context.Context, string) ([]*model.Tag, error
 }
 
 type resultCacheExpenseClient struct {
-	expenses      []ExpenseData
-	revision      ExpenseRevision
-	revisionErr   error
-	expenseErr    error
-	expenseCalls  int
-	revisionCalls int
+	expenses       []ExpenseData
+	revision       ExpenseRevision
+	revisionErr    error
+	expenseErr     error
+	expenseStarted chan struct{}
+	expenseRelease chan struct{}
+	expenseCalls   int
+	revisionCalls  int
 }
 
 func (c *resultCacheExpenseClient) GetActiveExpensesForPeriod(context.Context, string, int32, int32) ([]ExpenseData, error) {
 	c.expenseCalls++
+	if c.expenseStarted != nil {
+		close(c.expenseStarted)
+		<-c.expenseRelease
+	}
 	if c.expenseErr != nil {
 		return nil, c.expenseErr
 	}
@@ -139,6 +160,34 @@ func TestFinanceResultCache_RevisionChangePurgesEveryDependentOperation(t *testi
 	require.Equal(t, 4, expense.expenseCalls)
 }
 
+func TestFinanceResultCache_MutationErrorPurgesCachedResults(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	period := &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}
+	repo := &resultCacheRepo{period: period, periodByID: period, updatePeriodErr: errors.New("commit status unknown")}
+	expense := &resultCacheExpenseClient{expenses: []ExpenseData{{ReportingAmount: 100}}, revision: ExpenseRevision{Epoch: "epoch-1", Revision: 1}}
+	svc := newResultCacheTestService(&now, repo, expense)
+
+	first, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(100), first.TotalSpent)
+
+	_, err = svc.UpdatePeriod(t.Context(), "user-1", "period-1", &model.UpdatePeriodRequest{
+		BudgetAmount:      1000,
+		EssentialsPercent: 50,
+		DesiresPercent:    30,
+		SavingsPercent:    20,
+	})
+	require.Error(t, err)
+	require.Equal(t, 1, repo.updatePeriodCalls)
+
+	expense.expenses[0].ReportingAmount = 200
+	expense.revision.Revision = 2
+	fresh, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(200), fresh.TotalSpent)
+	require.Equal(t, 2, expense.expenseCalls)
+}
+
 func TestFinanceResultCache_FailedRevisionCheckFailsClosed(t *testing.T) {
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
@@ -193,6 +242,34 @@ func TestFinanceResultCache_DisabledReadsSourceEveryTime(t *testing.T) {
 	_, err = svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
 	require.NoError(t, err)
 	require.Equal(t, 2, expense.expenseCalls)
+}
+
+func TestFinanceResultCache_DisabledReadRejectsRevisionChangeDuringSourceRead(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	repo := &resultCacheRepo{period: &model.BudgetPeriod{ID: "period-1", UserID: "user-1", Year: 2026, Month: 1, BudgetAmount: 1000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20}}
+	expense := &resultCacheExpenseClient{
+		expenses:       []ExpenseData{{ReportingAmount: 100}},
+		revision:       ExpenseRevision{Epoch: "epoch-1", Revision: 1},
+		expenseStarted: make(chan struct{}),
+		expenseRelease: make(chan struct{}),
+	}
+	config := DefaultResultCacheConfig()
+	config.Enabled = false
+	svc := NewFinanceServiceWithCache(repo, nil, expense, func() time.Time { return now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := svc.GetPeriodSummary(t.Context(), "user-1", 2026, 1)
+		errCh <- err
+	}()
+	<-expense.expenseStarted
+	expense.revision.Revision = 2
+	close(expense.expenseRelease)
+
+	err := <-errCh
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expense revision changed during summary load")
+	require.Equal(t, 2, expense.revisionCalls)
 }
 
 func TestFinanceResultCache_CachesValidEmptyResults(t *testing.T) {

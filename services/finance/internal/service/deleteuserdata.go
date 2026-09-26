@@ -10,6 +10,9 @@ import (
 // Idempotent: returns nil when the user has no finance data (0 rows deleted).
 // Used by the datarights service for GDPR user deletion.
 func (s *FinanceService) DeleteAllUserData(ctx context.Context, userID string) error {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	tx, err := s.txBeginner.BeginTx(ctx)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
@@ -17,6 +20,7 @@ func (s *FinanceService) DeleteAllUserData(ctx context.Context, userID string) e
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	txRepo := tx.Repo()
+	fence.markWrite()
 	if err := txRepo.DeleteAllUserData(ctx, userID); err != nil {
 		return fmt.Errorf("deleting all user data: %w", err)
 	}

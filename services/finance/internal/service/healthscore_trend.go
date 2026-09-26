@@ -29,7 +29,7 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 			return nil, err
 		}
 		result := &cachedResult[[]model.HealthScoreTrendPoint]{Value: points, ExpiresAt: expiresAt}
-		if usesLiveExpenses && s.resultCaches.enabled && revision != nil {
+		if usesLiveExpenses && s.validateRevisions && revision != nil {
 			current, _, revisionErr := s.expenseRevision(loadCtx, userID)
 			if revisionErr != nil {
 				return nil, revisionErr
@@ -103,7 +103,7 @@ func (s *FinanceService) computeHealthScoreTrend(ctx context.Context, userID str
 		}
 
 		usesLiveExpenses = true
-		if revision == nil && s.resultCaches.enabled {
+		if revision == nil && s.validateRevisions {
 			currentRevision, available, revisionErr := s.expenseRevision(ctx, userID)
 			if revisionErr != nil {
 				return nil, false, nil, revisionErr

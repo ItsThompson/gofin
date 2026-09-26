@@ -62,6 +62,9 @@ func monthLabel(year int32, month int32) string {
 // one full provider snapshot, writes the first installment through the trusted
 // internal Expense contract, and stores future rows with the same snapshot.
 func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string, req *model.CreateProRataRequest) (*model.ProRataResponse, error) {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	v := validator.New()
 	v.Check(strings.TrimSpace(req.Name) != "", "name", "required")
 	v.Check(req.TotalAmountInMinorUnits > 0, "totalAmountInMinorUnits", "must be positive")
@@ -119,6 +122,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 		return nil, apierr.Internal("FX returned an empty pro-rata snapshot")
 	}
 
+	fence.markWrite()
 	created, err := s.expenseClient.CreateProRataInstallment(ctx, CreateProRataInstallmentInput{
 		UserID: userID,
 		PeriodContext: TrustedPeriodContext{
@@ -150,6 +154,7 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 	for i := int32(2); i <= req.SpreadOverMonths; i++ {
 		targetYear, targetMonth = AdvanceMonth(targetYear, targetMonth)
 
+		fence.markWrite()
 		schedule, err := s.repo.CreateProRataSchedule(ctx, &model.ProRataSchedule{
 			UserID:                                userID,
 			ProRataGroup:                          proRataGroup,
@@ -290,6 +295,9 @@ func (s *FinanceService) applyPendingProRata(ctx context.Context, userID string,
 // target period. It returns the updated schedule when the ledger write succeeds
 // (status "applied"), or nil when the row remains pending or moves to failed.
 func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID string, schedule *model.ProRataSchedule, targetReportingCurrency string, trustedCtx TrustedPeriodContext) *model.ProRataSchedule {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	expenseDate := fmt.Sprintf("%04d-%02d-01", schedule.TargetYear, schedule.TargetMonth)
 
 	transactionCurrency := normalizeCurrencyCode(schedule.TransactionCurrencyCode)
@@ -306,6 +314,7 @@ func (s *FinanceService) applyOneProRataSchedule(ctx context.Context, userID str
 		return nil
 	}
 
+	fence.markWrite()
 	_, err := s.expenseClient.CreateProRataInstallment(ctx, CreateProRataInstallmentInput{
 		UserID:               userID,
 		PeriodContext:        trustedCtx,
@@ -395,7 +404,10 @@ func classifyProRataExpenseError(err error) string {
 // emits a diagnostic log so operators can see failed pro-rata rows. A repo
 // failure during the status update is logged but does not roll back the decision.
 func (s *FinanceService) markProRataFailed(ctx context.Context, schedule *model.ProRataSchedule, failureReason string) {
-	s.invalidateFinanceUser(schedule.UserID)
+	fence := s.mutationFence(schedule.UserID)
+	defer fence.finalize()
+
+	fence.markWrite()
 	if err := s.repo.MarkProRataFailed(ctx, schedule.ID, failureReason); err != nil {
 		_ = errkit.Report(ctx, err, errkit.Meta{
 			Op:     "finance.prorata_apply",
@@ -426,6 +438,9 @@ func (s *FinanceService) markProRataFailed(ctx context.Context, schedule *model.
 // schedules. It also handles missed months: if the user has skipped months, intermediate
 // periods are auto-created with defaults and their pro-rata installments are applied.
 func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID string, req *model.CreatePeriodRequest) (*model.CreatePeriodResponse, error) {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	if verr := ValidateEDSSplit(req.EssentialsPercent, req.DesiresPercent, req.SavingsPercent); verr != nil {
 		return nil, verr
 	}
@@ -459,6 +474,7 @@ func (s *FinanceService) CreatePeriodWithProRata(ctx context.Context, userID str
 		return nil, err
 	}
 
+	fence.markWrite()
 	period, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
 		UserID:                userID,
 		Year:                  req.Year,
@@ -518,6 +534,9 @@ func (s *FinanceService) createMissedPeriods(
 	latestPeriod *model.BudgetPeriod,
 	targetYear, targetMonth int32,
 ) ([]string, []*model.ProRataSchedule, error) {
+	fence := s.mutationFence(userID)
+	defer fence.finalize()
+
 	if latestPeriod == nil {
 		return nil, nil, nil
 	}
@@ -535,6 +554,7 @@ func (s *FinanceService) createMissedPeriods(
 	var autoCreatedMonths []string
 	var allApplied []*model.ProRataSchedule
 	for _, missed := range missedMonths {
+		fence.markWrite()
 		autoPeriod, err := s.repo.CreatePeriod(ctx, &model.BudgetPeriod{
 			UserID:                userID,
 			Year:                  missed.year,

@@ -221,12 +221,32 @@ func (s *FinanceService) invalidateFinanceUser(userID string) {
 	s.resultCaches.upcoming.Purge(match)
 }
 
+type financeMutationFence struct {
+	service     *FinanceService
+	userID      string
+	writeActive bool
+}
+
+func (s *FinanceService) mutationFence(userID string) *financeMutationFence {
+	return &financeMutationFence{service: s, userID: userID}
+}
+
+func (f *financeMutationFence) markWrite() {
+	f.writeActive = true
+}
+
+func (f *financeMutationFence) finalize() {
+	if f.writeActive {
+		f.service.invalidateFinanceUser(f.userID)
+	}
+}
+
 func loadResult[T any](s *FinanceService, ctx context.Context, operation, key string, store *financecache.Cache[string, *cachedResult[T]], expiresAt time.Time, dependent bool, source func(context.Context) (T, error)) (T, error) {
 	return loadCachedResult(s, ctx, operation, key, store, func(loadCtx context.Context) (*cachedResult[T], error) {
 		var revision ExpenseRevision
 		var available bool
 		var err error
-		if dependent && s.resultCaches.enabled {
+		if dependent && s.validateRevisions {
 			revision, available, err = s.expenseRevision(loadCtx, userIDFromResultKey(key))
 			if err != nil {
 				return nil, err
@@ -236,7 +256,7 @@ func loadResult[T any](s *FinanceService, ctx context.Context, operation, key st
 		if err != nil {
 			return nil, err
 		}
-		if dependent && s.resultCaches.enabled && available {
+		if dependent && s.validateRevisions && available {
 			current, _, revisionErr := s.expenseRevision(loadCtx, userIDFromResultKey(key))
 			if revisionErr != nil {
 				return nil, revisionErr

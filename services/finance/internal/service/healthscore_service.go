@@ -44,7 +44,7 @@ func (s *FinanceService) GetHealthScore(ctx context.Context, userID string, year
 
 		var revision ExpenseRevision
 		available := false
-		if s.resultCaches.enabled {
+		if s.validateRevisions {
 			revision, available, err = s.expenseRevision(loadCtx, userID)
 			if err != nil {
 				return nil, err
