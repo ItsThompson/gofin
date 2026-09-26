@@ -48,6 +48,20 @@ func TestGRPCExpenseClient_ReadsExpenseRevision(t *testing.T) {
 	assert.Equal(t, ExpenseRevision{Epoch: "epoch-1", Revision: 42}, revision)
 }
 
+func TestGRPCExpenseClient_RejectsEmptyRevisionResponse(t *testing.T) {
+	stub := &stubExpenseClient{
+		getExpenseRevision: func(context.Context, *expensepb.GetExpenseRevisionRequest, ...grpc.CallOption) (*expensepb.ExpenseRevisionResponse, error) {
+			return nil, nil
+		},
+	}
+
+	revision, err := NewGRPCExpenseClient(stub).GetExpenseRevision(context.Background(), "user-1")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty response")
+	assert.Equal(t, ExpenseRevision{}, revision)
+}
+
 func TestGRPCExpenseClient_ReadsReportingAmountAndCurrency(t *testing.T) {
 	stub := &stubExpenseClient{
 		getActiveExpensesForPeriodPage: func(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {

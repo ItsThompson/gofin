@@ -112,6 +112,9 @@ func (c *GRPCExpenseClient) GetExpenseRevision(ctx context.Context, userID strin
 	if err != nil {
 		return ExpenseRevision{}, fmt.Errorf("gRPC GetExpenseRevision: %w", err)
 	}
+	if resp == nil {
+		return ExpenseRevision{}, fmt.Errorf("gRPC GetExpenseRevision: empty response")
+	}
 	return ExpenseRevision{Epoch: resp.GetEpoch(), Revision: resp.GetRevision()}, nil
 }
 

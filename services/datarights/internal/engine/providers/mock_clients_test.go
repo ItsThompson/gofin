@@ -64,6 +64,9 @@ func (m *mockExpenseServiceClient) CreateExpense(_ context.Context, _ *expensepb
 func (m *mockExpenseServiceClient) GetActiveExpensesForPeriod(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodRequest, _ ...grpc.CallOption) (*expensepb.ExpenseListResponse, error) {
 	return nil, nil
 }
+func (m *mockExpenseServiceClient) GetActiveExpensesForPeriodPage(_ context.Context, _ *expensepb.GetActiveExpensesForPeriodPageRequest, _ ...grpc.CallOption) (*expensepb.CompleteExpensePageResponse, error) {
+	return nil, nil
+}
 func (m *mockExpenseServiceClient) GetExpense(_ context.Context, _ *expensepb.GetExpenseRequest, _ ...grpc.CallOption) (*expensepb.ExpenseResponse, error) {
 	return nil, nil
 }
@@ -80,5 +83,8 @@ func (m *mockExpenseServiceClient) GetCorrectionHistory(_ context.Context, _ *ex
 	return nil, nil
 }
 func (m *mockExpenseServiceClient) AnonymizeAllUserExpenses(_ context.Context, _ *expensepb.AnonymizeRequest, _ ...grpc.CallOption) (*expensepb.AnonymizeResponse, error) {
+	return nil, nil
+}
+func (m *mockExpenseServiceClient) GetExpenseRevision(_ context.Context, _ *expensepb.GetExpenseRevisionRequest, _ ...grpc.CallOption) (*expensepb.ExpenseRevisionResponse, error) {
 	return nil, nil
 }
