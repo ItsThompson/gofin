@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -20,10 +19,7 @@ type ExpenseRevision struct {
 	Revision uint64
 }
 
-const (
-	defaultRevisionMetadataLimit  = 256
-	defaultFinanceEvictionTimeout = time.Second
-)
+const defaultRevisionMetadataLimit = 256
 
 type expenseRevisionOwner struct {
 	mu           sync.Mutex

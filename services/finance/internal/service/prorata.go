@@ -173,10 +173,9 @@ func (s *FinanceService) CreateProRataExpense(ctx context.Context, userID string
 			CapturedRateSnapshot:                  snapshot,
 		})
 		if err != nil {
-			// The error is returned and the handler reports it, so a record here
-			// would be the second for one failure.
-			return nil, apierr.Internal("First installment was created but schedule creation failed. Please contact support.")
+			return nil, fmt.Errorf("creating pro-rata schedule for installment %d: %w", i, err)
 		}
+		s.invalidateFinanceUser(userID)
 		schedules = append(schedules, schedule)
 	}
 

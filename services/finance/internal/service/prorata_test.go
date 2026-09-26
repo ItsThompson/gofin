@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/ItsThompson/gofin/services/apierr"
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
+	"github.com/ItsThompson/gofin/services/finance/internal/repository"
 )
 
 // int64Ptr returns a pointer to v for building *int64 request fields.
@@ -484,6 +486,39 @@ func TestCreateProRataExpense_ValidationAggregatesAllErrors(t *testing.T) {
 	}, svcErr.Fields)
 }
 
+type partialScheduleRepo struct {
+	repository.FinanceRepository
+	period             *model.BudgetPeriod
+	schedules          []*model.ProRataSchedule
+	scheduleErr        error
+	scheduleInsertions int
+	upcomingCalls      int
+	beforeSecondInsert func()
+}
+
+func (r *partialScheduleRepo) GetCurrentPeriod(context.Context, string, int32, int32) (*model.BudgetPeriod, error) {
+	return r.period, nil
+}
+
+func (r *partialScheduleRepo) CreateProRataSchedule(_ context.Context, schedule *model.ProRataSchedule) (*model.ProRataSchedule, error) {
+	r.scheduleInsertions++
+	if r.scheduleInsertions == 2 {
+		if r.beforeSecondInsert != nil {
+			r.beforeSecondInsert()
+		}
+		return nil, r.scheduleErr
+	}
+	scheduleCopy := *schedule
+	scheduleCopy.ID = "sched-1"
+	r.schedules = append(r.schedules, &scheduleCopy)
+	return &scheduleCopy, nil
+}
+
+func (r *partialScheduleRepo) GetUpcomingProRata(context.Context, string) ([]*model.ProRataSchedule, error) {
+	r.upcomingCalls++
+	return append([]*model.ProRataSchedule(nil), r.schedules...), nil
+}
+
 func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	repo := new(mockRepo)
 	txBeg := new(mockTxBeg)
@@ -496,8 +531,9 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
 		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
 
+	scheduleErr := errors.New("db error")
 	repo.On("CreateProRataSchedule", mock.Anything, mock.Anything).
-		Return(nil, fmt.Errorf("db error"))
+		Return(nil, scheduleErr)
 
 	_, err := svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
 		Name: "Test", TotalAmountInMinorUnits: 6000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
@@ -505,9 +541,51 @@ func TestCreateProRataExpense_ScheduleFailure(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	svcErr := requireAPIError(t, err)
-	assert.Equal(t, apierr.CodeInternal, svcErr.Code)
-	assert.Contains(t, svcErr.Message, "schedule creation failed")
+	assert.ErrorIs(t, err, scheduleErr)
+	assert.Contains(t, err.Error(), "creating pro-rata schedule for installment 2")
+}
+
+func TestCreateProRataExpense_FencesEachScheduleAndPreservesWriteError(t *testing.T) {
+	scheduleErr := errors.New("schedule insert failed")
+	repo := &partialScheduleRepo{
+		period:      makePeriod("period-2026-05", 2026, 5),
+		scheduleErr: scheduleErr,
+	}
+	expClient := new(mockExpClient)
+	fxClient := new(mockFxClient)
+	config := DefaultResultCacheConfig()
+	config.MaxEntries = 32
+	config.MaxBytes = 1024 * 1024
+	config.MaxEntryBytes = 1024 * 1024
+	svc := NewFinanceServiceWithFxAndCache(repo, nil, expClient, fxClient, fixedNow(2026, 5, 15), slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+
+	initial, err := svc.GetUpcomingProRata(context.Background(), "user-1")
+	require.NoError(t, err)
+	require.Empty(t, initial)
+
+	repo.beforeSecondInsert = func() {
+		interleaved, interleavedErr := svc.GetUpcomingProRata(context.Background(), "user-1")
+		require.NoError(t, interleavedErr)
+		require.Len(t, interleaved, 1)
+	}
+	fxClient.On("CaptureRateSnapshot", mock.Anything, mock.Anything).Return(snapshotFixture(), nil)
+	expClient.On("CreateProRataInstallment", mock.Anything, mock.Anything).
+		Return(&CreatedExpenseData{ID: "exp-1", CreatedAt: "2026-05-15T12:00:00Z"}, nil)
+
+	_, err = svc.CreateProRataExpense(context.Background(), "user-1", &model.CreateProRataRequest{
+		Name: "Test", TotalAmountInMinorUnits: 9000, TransactionCurrencyCode: "USD", ExpenseType: "essentials",
+		TagID: "tag-1", ExpenseDateIso: "2026-05-15", SpreadOverMonths: 3, PeriodYear: 2026, PeriodMonth: 5,
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, scheduleErr)
+	assert.Contains(t, err.Error(), "creating pro-rata schedule for installment 3")
+	final, err := svc.GetUpcomingProRata(context.Background(), "user-1")
+	require.NoError(t, err)
+	assert.Len(t, final, 1)
+	assert.Equal(t, 3, repo.upcomingCalls)
+	expClient.AssertExpectations(t)
+	fxClient.AssertExpectations(t)
 }
 
 // --- CreatePeriodWithProRata Tests ---
