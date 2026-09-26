@@ -8,6 +8,8 @@ service ExpenseService {
   rpc CreateExpense(CreateExpenseRequest) returns (ExpenseResponse);
   rpc CreateProRataInstallment(CreateProRataInstallmentRequest) returns (ExpenseResponse);
   rpc GetActiveExpensesForPeriod(GetActiveExpensesForPeriodRequest) returns (ExpenseListResponse);
+  // Internal bounded page for complete active-period reads.
+  rpc GetActiveExpensesForPeriodPage(GetActiveExpensesForPeriodPageRequest) returns (CompleteExpensePageResponse);
   rpc GetExpense(GetExpenseRequest) returns (ExpenseResponse);
 
   // Tag usage check (called by finance service during tag deletion)
@@ -145,6 +147,28 @@ message ExpenseListResponse {
   int64 total = 2;
   int32 page = 3;
   int32 page_size = 4;
+  bool has_more = 5;
+}
+
+// GetActiveExpensesForPeriodPageRequest carries a total-order cursor. An empty
+// cursor starts from the first active row in the requested period.
+message GetActiveExpensesForPeriodPageRequest {
+  string user_id = 1;
+  int32 year = 2;
+  int32 month = 3;
+  string cursor_expense_date = 4;
+  string cursor_created_at = 5;
+  string cursor_id = 6;
+  int32 page_size = 7;
+}
+
+// CompleteExpensePageResponse contains at most the configured page size plus
+// no overflow row. The cursor fields identify the last returned row.
+message CompleteExpensePageResponse {
+  repeated ExpenseData data = 1;
+  string next_expense_date = 2;
+  string next_created_at = 3;
+  string next_id = 4;
   bool has_more = 5;
 }
 

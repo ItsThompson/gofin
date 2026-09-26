@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,6 +18,11 @@ import (
 	pb "github.com/ItsThompson/gofin/services/expense/proto/expensepb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -98,6 +104,110 @@ func TestGetActiveExpensesByPeriodAfter_IntegrationTransportDecision(t *testing.
 	t.Logf("transport=bounded-keyset page_size=%d pages=%d grpc_response_bytes=%d grpc_default_receive_limit_bytes=%d concurrent_reads=%d peak_heap_inuse_bytes=%d peak_runtime_sys_bytes=%d expense_memory_limit_bytes=%d", CompletePeriodPageSize, firstPages, firstPageBytes, grpcDefaultMaxReceiveBytes, concurrentCompleteReads, peakMemory.heapInuseBytes, peakMemory.runtimeSysBytes, memoryLimitBytes)
 	assert.Less(t, peakMemory.heapInuseBytes, memoryLimitBytes, "absolute peak heap in use must stay below expense service memory limit")
 	assert.Less(t, peakMemory.runtimeSysBytes, memoryLimitBytes, "absolute Go runtime memory must stay below expense service memory limit")
+}
+
+func TestCompletePeriodReadGRPCMessageSize_Integration(t *testing.T) {
+	client := connectRealImmudb(t)
+	repo := NewImmudbExpenseRepository(client, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	ctx := context.Background()
+	require.NoError(t, repo.InitSchema(ctx))
+
+	runID := fmt.Sprintf("%d", time.Now().UnixNano())
+	userID := "gpit-" + runID
+	for i := 0; i < 51; i++ {
+		row := buildTestExpense(fmt.Sprintf("%s-%03d", runID, i), userID, fmt.Sprintf("2026-05-01T00:00:%02dZ", i))
+		require.NoError(t, createIntegrationExpense(ctx, repo, row))
+	}
+
+	probeClient := newCompletePeriodGRPCClient(t, &completePeriodGRPCProbe{repo: repo})
+	response, err := probeClient.GetActiveExpensesForPeriodPage(ctx, &pb.GetActiveExpensesForPeriodPageRequest{
+		UserId:   userID,
+		Year:     2026,
+		Month:    5,
+		PageSize: CompletePeriodPageSize,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.GetData(), int(CompletePeriodPageSize))
+	assert.True(t, response.GetHasMore())
+	wireMessageBytes := proto.Size(response)
+	assert.Less(t, wireMessageBytes, grpcDefaultMaxReceiveBytes)
+	t.Logf("grpc_transport=bufconn rpc=GetActiveExpensesForPeriodPage response_bytes=%d default_client_receive_limit_bytes=%d page_size=%d", wireMessageBytes, grpcDefaultMaxReceiveBytes, CompletePeriodPageSize)
+
+	overLimitResponse := oversizedCompletePeriodResponse()
+	overLimitClient := newCompletePeriodGRPCClient(t, &completePeriodGRPCProbe{response: overLimitResponse})
+	assert.Greater(t, proto.Size(overLimitResponse), grpcDefaultMaxReceiveBytes)
+	_, err = overLimitClient.GetActiveExpensesForPeriodPage(ctx, &pb.GetActiveExpensesForPeriodPageRequest{UserId: userID, Year: 2026, Month: 5, PageSize: CompletePeriodPageSize})
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
+type completePeriodGRPCProbe struct {
+	pb.UnimplementedExpenseServiceServer
+	repo     *ImmudbExpenseRepository
+	response *pb.CompleteExpensePageResponse
+}
+
+func (p *completePeriodGRPCProbe) GetActiveExpensesForPeriodPage(ctx context.Context, req *pb.GetActiveExpensesForPeriodPageRequest) (*pb.CompleteExpensePageResponse, error) {
+	if p.response != nil {
+		return p.response, nil
+	}
+
+	rows, next, hasMore, err := p.repo.GetActiveExpensesByPeriodAfter(ctx, req.GetUserId(), req.GetYear(), req.GetMonth(), ActivePeriodCursor{
+		ExpenseDate: req.GetCursorExpenseDate(),
+		CreatedAt:   req.GetCursorCreatedAt(),
+		ID:          req.GetCursorId(),
+	}, req.GetPageSize())
+	if err != nil {
+		return nil, err
+	}
+	return &pb.CompleteExpensePageResponse{
+		Data:            expensesToProto(rows),
+		NextExpenseDate: next.ExpenseDate,
+		NextCreatedAt:   next.CreatedAt,
+		NextId:          next.ID,
+		HasMore:         hasMore,
+	}, nil
+}
+
+func newCompletePeriodGRPCClient(t *testing.T, probe *completePeriodGRPCProbe) pb.ExpenseServiceClient {
+	t.Helper()
+	listener := bufconn.Listen(8 * 1024 * 1024)
+	server := grpc.NewServer()
+	pb.RegisterExpenseServiceServer(server, probe)
+	go func() { _ = server.Serve(listener) }()
+
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		server.Stop()
+		_ = conn.Close()
+		_ = listener.Close()
+	})
+	return pb.NewExpenseServiceClient(conn)
+}
+
+func oversizedCompletePeriodResponse() *pb.CompleteExpensePageResponse {
+	data := make([]*pb.ExpenseData, 30_000)
+	for i := range data {
+		data[i] = &pb.ExpenseData{
+			Id:                      fmt.Sprintf("oversized-%d", i),
+			UserId:                  "user-oversized",
+			Name:                    strings.Repeat("x", 255),
+			ExpenseType:             "essentials",
+			TagId:                   "tag-oversized",
+			ExpenseDateIso:          "2026-05-01",
+			CreatedAt:               "2026-05-01T00:00:00Z",
+			TransactionCurrencyCode: "USD",
+			ReportingCurrencyCode:   "USD",
+			ExchangeRateSource:      "identity",
+			ExchangeRateTimestamp:   "2026-05-01T00:00:00Z",
+		}
+	}
+	return &pb.CompleteExpensePageResponse{Data: data}
 }
 
 func createIntegrationExpense(ctx context.Context, repo *ImmudbExpenseRepository, row *model.Expense) error {
@@ -195,16 +305,24 @@ func measureConcurrentPeriodReadMemory(t *testing.T, repo *ImmudbExpenseReposito
 	var wg sync.WaitGroup
 	errs := make(chan error, concurrentCompleteReads)
 	results := make([][]*model.Expense, concurrentCompleteReads)
+	readerHeapPeaks := make([]uint64, concurrentCompleteReads)
+	readerRuntimePeaks := make([]uint64, concurrentCompleteReads)
 	for i := 0; i < concurrentCompleteReads; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
 			<-start
+			var readerBefore runtime.MemStats
+			runtime.ReadMemStats(&readerBefore)
 			rows, _, _, err := readAllActivePeriod(repo, userID, 2026, 5)
 			if err != nil {
 				errs <- err
 				return
 			}
+			var readerAfter runtime.MemStats
+			runtime.ReadMemStats(&readerAfter)
+			readerHeapPeaks[index] = maxUint64(readerBefore.HeapInuse, readerAfter.HeapInuse)
+			readerRuntimePeaks[index] = maxUint64(readerBefore.Sys, readerAfter.Sys)
 			results[index] = rows
 		}(i)
 	}
@@ -213,8 +331,10 @@ func measureConcurrentPeriodReadMemory(t *testing.T, repo *ImmudbExpenseReposito
 	peakRuntimeSys := before.Sys
 	stop := make(chan struct{})
 	var samples sync.WaitGroup
+	samplerReady := make(chan struct{})
 	samples.Add(1)
 	go func() {
+		close(samplerReady)
 		defer samples.Done()
 		ticker := time.NewTicker(time.Millisecond)
 		defer ticker.Stop()
@@ -234,6 +354,7 @@ func measureConcurrentPeriodReadMemory(t *testing.T, repo *ImmudbExpenseReposito
 			}
 		}
 	}()
+	<-samplerReady
 	close(start)
 	wg.Wait()
 	close(stop)
@@ -253,5 +374,20 @@ func measureConcurrentPeriodReadMemory(t *testing.T, repo *ImmudbExpenseReposito
 	if after.Sys > peakRuntimeSys {
 		peakRuntimeSys = after.Sys
 	}
+	for i := range readerHeapPeaks {
+		if readerHeapPeaks[i] > peakHeapInuse {
+			peakHeapInuse = readerHeapPeaks[i]
+		}
+		if readerRuntimePeaks[i] > peakRuntimeSys {
+			peakRuntimeSys = readerRuntimePeaks[i]
+		}
+	}
 	return periodReadMemory{heapInuseBytes: peakHeapInuse, runtimeSysBytes: peakRuntimeSys}
+}
+
+func maxUint64(first, second uint64) uint64 {
+	if first > second {
+		return first
+	}
+	return second
 }

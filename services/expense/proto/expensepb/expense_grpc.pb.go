@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ExpenseService_CreateExpense_FullMethodName              = "/expense.ExpenseService/CreateExpense"
-	ExpenseService_CreateProRataInstallment_FullMethodName   = "/expense.ExpenseService/CreateProRataInstallment"
-	ExpenseService_GetActiveExpensesForPeriod_FullMethodName = "/expense.ExpenseService/GetActiveExpensesForPeriod"
-	ExpenseService_GetExpense_FullMethodName                 = "/expense.ExpenseService/GetExpense"
-	ExpenseService_CountExpensesByTag_FullMethodName         = "/expense.ExpenseService/CountExpensesByTag"
-	ExpenseService_StreamAllUserExpenses_FullMethodName      = "/expense.ExpenseService/StreamAllUserExpenses"
-	ExpenseService_AnonymizeAllUserExpenses_FullMethodName   = "/expense.ExpenseService/AnonymizeAllUserExpenses"
-	ExpenseService_CorrectExpense_FullMethodName             = "/expense.ExpenseService/CorrectExpense"
+	ExpenseService_CreateExpense_FullMethodName                  = "/expense.ExpenseService/CreateExpense"
+	ExpenseService_CreateProRataInstallment_FullMethodName       = "/expense.ExpenseService/CreateProRataInstallment"
+	ExpenseService_GetActiveExpensesForPeriod_FullMethodName     = "/expense.ExpenseService/GetActiveExpensesForPeriod"
+	ExpenseService_GetActiveExpensesForPeriodPage_FullMethodName = "/expense.ExpenseService/GetActiveExpensesForPeriodPage"
+	ExpenseService_GetExpense_FullMethodName                     = "/expense.ExpenseService/GetExpense"
+	ExpenseService_CountExpensesByTag_FullMethodName             = "/expense.ExpenseService/CountExpensesByTag"
+	ExpenseService_StreamAllUserExpenses_FullMethodName          = "/expense.ExpenseService/StreamAllUserExpenses"
+	ExpenseService_AnonymizeAllUserExpenses_FullMethodName       = "/expense.ExpenseService/AnonymizeAllUserExpenses"
+	ExpenseService_CorrectExpense_FullMethodName                 = "/expense.ExpenseService/CorrectExpense"
 )
 
 // ExpenseServiceClient is the client API for ExpenseService service.
@@ -36,6 +37,8 @@ type ExpenseServiceClient interface {
 	CreateExpense(ctx context.Context, in *CreateExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	CreateProRataInstallment(ctx context.Context, in *CreateProRataInstallmentRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	GetActiveExpensesForPeriod(ctx context.Context, in *GetActiveExpensesForPeriodRequest, opts ...grpc.CallOption) (*ExpenseListResponse, error)
+	// Internal bounded page for complete active-period reads.
+	GetActiveExpensesForPeriodPage(ctx context.Context, in *GetActiveExpensesForPeriodPageRequest, opts ...grpc.CallOption) (*CompleteExpensePageResponse, error)
 	GetExpense(ctx context.Context, in *GetExpenseRequest, opts ...grpc.CallOption) (*ExpenseResponse, error)
 	// Tag usage check (called by finance service during tag deletion)
 	CountExpensesByTag(ctx context.Context, in *CountExpensesByTagRequest, opts ...grpc.CallOption) (*CountExpensesByTagResponse, error)
@@ -82,6 +85,16 @@ func (c *expenseServiceClient) GetActiveExpensesForPeriod(ctx context.Context, i
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ExpenseListResponse)
 	err := c.cc.Invoke(ctx, ExpenseService_GetActiveExpensesForPeriod_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *expenseServiceClient) GetActiveExpensesForPeriodPage(ctx context.Context, in *GetActiveExpensesForPeriodPageRequest, opts ...grpc.CallOption) (*CompleteExpensePageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteExpensePageResponse)
+	err := c.cc.Invoke(ctx, ExpenseService_GetActiveExpensesForPeriodPage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +167,8 @@ type ExpenseServiceServer interface {
 	CreateExpense(context.Context, *CreateExpenseRequest) (*ExpenseResponse, error)
 	CreateProRataInstallment(context.Context, *CreateProRataInstallmentRequest) (*ExpenseResponse, error)
 	GetActiveExpensesForPeriod(context.Context, *GetActiveExpensesForPeriodRequest) (*ExpenseListResponse, error)
+	// Internal bounded page for complete active-period reads.
+	GetActiveExpensesForPeriodPage(context.Context, *GetActiveExpensesForPeriodPageRequest) (*CompleteExpensePageResponse, error)
 	GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error)
 	// Tag usage check (called by finance service during tag deletion)
 	CountExpensesByTag(context.Context, *CountExpensesByTagRequest) (*CountExpensesByTagResponse, error)
@@ -184,6 +199,9 @@ func (UnimplementedExpenseServiceServer) CreateProRataInstallment(context.Contex
 }
 func (UnimplementedExpenseServiceServer) GetActiveExpensesForPeriod(context.Context, *GetActiveExpensesForPeriodRequest) (*ExpenseListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetActiveExpensesForPeriod not implemented")
+}
+func (UnimplementedExpenseServiceServer) GetActiveExpensesForPeriodPage(context.Context, *GetActiveExpensesForPeriodPageRequest) (*CompleteExpensePageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActiveExpensesForPeriodPage not implemented")
 }
 func (UnimplementedExpenseServiceServer) GetExpense(context.Context, *GetExpenseRequest) (*ExpenseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetExpense not implemented")
@@ -271,6 +289,24 @@ func _ExpenseService_GetActiveExpensesForPeriod_Handler(srv interface{}, ctx con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ExpenseServiceServer).GetActiveExpensesForPeriod(ctx, req.(*GetActiveExpensesForPeriodRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ExpenseService_GetActiveExpensesForPeriodPage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActiveExpensesForPeriodPageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExpenseServiceServer).GetActiveExpensesForPeriodPage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ExpenseService_GetActiveExpensesForPeriodPage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExpenseServiceServer).GetActiveExpensesForPeriodPage(ctx, req.(*GetActiveExpensesForPeriodPageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -376,6 +412,10 @@ var ExpenseService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetActiveExpensesForPeriod",
 			Handler:    _ExpenseService_GetActiveExpensesForPeriod_Handler,
+		},
+		{
+			MethodName: "GetActiveExpensesForPeriodPage",
+			Handler:    _ExpenseService_GetActiveExpensesForPeriodPage_Handler,
 		},
 		{
 			MethodName: "GetExpense",
