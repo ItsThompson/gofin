@@ -25,7 +25,7 @@ func setupTestRouter(repo *mockFinanceRepository, txBeginner *mockTxBeginner) *g
 	return r
 }
 
-func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *mockTxBeginner, expClient *mockExpenseClient) *gin.Engine {
+func setupTestRouterWithExpenseClient(repo *mockFinanceRepository, txBeginner *mockTxBeginner, expClient service.ExpenseClient) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))

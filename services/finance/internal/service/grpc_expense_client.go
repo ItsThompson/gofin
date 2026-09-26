@@ -19,31 +19,72 @@ func NewGRPCExpenseClient(client expensepb.ExpenseServiceClient) *GRPCExpenseCli
 	return &GRPCExpenseClient{client: client}
 }
 
+const completePeriodPageSize int32 = 50
+
 func (c *GRPCExpenseClient) GetActiveExpensesForPeriod(ctx context.Context, userID string, year, month int32) ([]ExpenseData, error) {
-	resp, err := c.client.GetActiveExpensesForPeriod(ctx, &expensepb.GetActiveExpensesForPeriodRequest{
+	cursor := &expensepb.GetActiveExpensesForPeriodPageRequest{
 		UserId:   userID,
 		Year:     year,
 		Month:    month,
-		Page:     1,
-		PageSize: 10000,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriod: %w", err)
+		PageSize: completePeriodPageSize,
 	}
+	expenses := make([]ExpenseData, 0, completePeriodPageSize)
 
-	expenses := make([]ExpenseData, len(resp.GetData()))
-	for i, exp := range resp.GetData() {
-		expenses[i] = ExpenseData{
-			ID:                    exp.GetId(),
-			ReportingAmount:       exp.GetReportingAmountInMinorUnits(),
-			ReportingCurrencyCode: exp.GetReportingCurrencyCode(),
-			ExpenseType:           exp.GetExpenseType(),
-			TagID:                 exp.GetTagId(),
-			ExpenseDate:           exp.GetExpenseDateIso(),
+	for {
+		resp, err := c.client.GetActiveExpensesForPeriodPage(ctx, cursor)
+		if err != nil {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: %w", err)
 		}
-	}
+		if resp == nil {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: empty response")
+		}
 
-	return expenses, nil
+		for _, exp := range resp.GetData() {
+			expenses = append(expenses, mapExpenseData(exp))
+		}
+		if !resp.GetHasMore() {
+			return expenses, nil
+		}
+		if len(resp.GetData()) == 0 {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: empty page marked as incomplete")
+		}
+
+		nextCursor := &expensepb.GetActiveExpensesForPeriodPageRequest{
+			UserId:            userID,
+			Year:              year,
+			Month:             month,
+			CursorExpenseDate: resp.GetNextExpenseDate(),
+			CursorCreatedAt:   resp.GetNextCreatedAt(),
+			CursorId:          resp.GetNextId(),
+			PageSize:          completePeriodPageSize,
+		}
+		lastExpense := resp.GetData()[len(resp.GetData())-1]
+		if nextCursor.GetCursorExpenseDate() == "" || nextCursor.GetCursorCreatedAt() == "" || nextCursor.GetCursorId() == "" {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: incomplete next cursor")
+		}
+		if nextCursor.GetCursorExpenseDate() != lastExpense.GetExpenseDateIso() ||
+			nextCursor.GetCursorCreatedAt() != lastExpense.GetCreatedAt() ||
+			nextCursor.GetCursorId() != lastExpense.GetId() {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: next cursor does not match last row")
+		}
+		if nextCursor.GetCursorExpenseDate() == cursor.GetCursorExpenseDate() &&
+			nextCursor.GetCursorCreatedAt() == cursor.GetCursorCreatedAt() &&
+			nextCursor.GetCursorId() == cursor.GetCursorId() {
+			return nil, fmt.Errorf("gRPC GetActiveExpensesForPeriodPage: non-advancing next cursor")
+		}
+		cursor = nextCursor
+	}
+}
+
+func mapExpenseData(exp *expensepb.ExpenseData) ExpenseData {
+	return ExpenseData{
+		ID:                    exp.GetId(),
+		ReportingAmount:       exp.GetReportingAmountInMinorUnits(),
+		ReportingCurrencyCode: exp.GetReportingCurrencyCode(),
+		ExpenseType:           exp.GetExpenseType(),
+		TagID:                 exp.GetTagId(),
+		ExpenseDate:           exp.GetExpenseDateIso(),
+	}
 }
 
 func (c *GRPCExpenseClient) CountExpensesByTag(ctx context.Context, userID, tagID string) (int64, error) {

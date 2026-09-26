@@ -110,6 +110,40 @@ func TestGetPeriodSummaryHandler_MissingUserID(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func TestDashboardEndpointsUseAllActiveExpenses(t *testing.T) {
+	repo := new(mockFinanceRepository)
+	txBeginner := new(mockTxBeginner)
+	expClient := new(mockExpenseClient)
+	period := &model.BudgetPeriod{
+		ID: "period-complete", UserID: "user-123", Year: 2025, Month: 1,
+		BudgetAmount: 500000, EssentialsPercent: 50, DesiresPercent: 30, SavingsPercent: 20,
+	}
+	expenses := make([]service.ExpenseData, 0, 101)
+	for i := 0; i < 100; i++ {
+		expenses = append(expenses, service.ExpenseData{ID: "active", ReportingAmount: 100, ExpenseType: "desires", TagID: "tag-food"})
+	}
+	expenses = append(expenses, service.ExpenseData{ID: "active-101", ReportingAmount: 9900, ExpenseType: "desires", TagID: "tag-food"})
+
+	repo.On("GetCurrentPeriod", mock.Anything, "user-123", int32(2025), int32(1)).Return(period, nil).Twice()
+	repo.On("ListTags", mock.Anything, "user-123").Return([]*model.Tag{{ID: "tag-food", Name: "Food"}}, nil)
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-123", int32(2025), int32(1)).Return(expenses, nil).Twice()
+	r := setupTestRouterWithExpenseClient(repo, txBeginner, expClient)
+
+	summaryResponse := doJSONWithUserID(r, "GET", "/api/finance/summary?year=2025&month=1", "user-123", nil)
+	require.Equal(t, http.StatusOK, summaryResponse.Code)
+	var summary model.SummaryResponse
+	require.NoError(t, json.Unmarshal(summaryResponse.Body.Bytes(), &summary))
+	assert.Equal(t, int64(19900), summary.Summary.TotalSpent)
+	assert.Equal(t, int64(19900), summary.Summary.Desires.Spent)
+
+	tagResponse := doJSONWithUserID(r, "GET", "/api/finance/spending/by-tag?year=2025&month=1", "user-123", nil)
+	require.Equal(t, http.StatusOK, tagResponse.Code)
+	var tags model.TagSpendingResponse
+	require.NoError(t, json.Unmarshal(tagResponse.Body.Bytes(), &tags))
+	require.Len(t, tags.TagSpending, 1)
+	assert.Equal(t, int64(19900), tags.TagSpending[0].Amount)
+}
+
 // --- Health Score Handler Tests ---
 
 func TestGetHealthScoreHandler_Success(t *testing.T) {
