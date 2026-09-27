@@ -95,6 +95,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const previousPeriodPropRef = useRef(period);
   const periodPropChanged = !isSamePeriod(period, previousPeriodPropRef.current);
   const periodVerificationControllerRef = useRef<AbortController | null>(null);
+  const deferredSectionsRef = useRef(new Set<DashboardSectionKey>());
   const {
     sections,
     desktopVisible,
@@ -106,7 +107,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     clearRequestedSection,
     loadSection,
     startPeriodSections,
-    selectBreakdown,
+    selectBreakdown: setSectionBreakdown,
     setTrendMonths: setSectionTrendMonths,
   } = useDashboardSections(
     generationRef,
@@ -118,6 +119,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     abortSectionRequests();
     periodVerificationControllerRef.current?.abort();
     periodVerificationControllerRef.current = null;
+    deferredSectionsRef.current.clear();
     setPeriodVerificationPending(false);
   }, [abortSectionRequests]);
 
@@ -207,8 +209,11 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
         activatePeriod(response.period, true);
         return;
       }
+      periodVerificationControllerRef.current = null;
       setPeriodVerificationPending(false);
       void loadSection("summary", true);
+      for (const section of deferredSectionsRef.current) void loadSection(section, true);
+      deferredSectionsRef.current.clear();
     }).catch((error: unknown) => {
       if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
       void gatePeriodFailure(error, requestGeneration);
@@ -232,16 +237,31 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       retrySummary();
       return;
     }
-    if (periodStatus === "active") void loadSection(section, true);
-  }, [loadSection, periodStatus, retrySummary]);
+    if (periodStatus !== "active" || periodPropChanged) return;
+    if (periodVerificationControllerRef.current) {
+      deferredSectionsRef.current.add(section);
+      return;
+    }
+    void loadSection(section, true);
+  }, [loadSection, periodPropChanged, periodStatus, retrySummary]);
 
   const replacePeriodAfterEdit = useCallback((nextPeriod: BudgetPeriod) => {
     activatePeriod(nextPeriod);
   }, [activatePeriod]);
 
   const setTrendMonths = useCallback((months: 6 | 12) => {
-    setSectionTrendMonths(months, periodStatus === "active");
-  }, [periodStatus, setSectionTrendMonths]);
+    const canLoad = periodStatus === "active" && !periodPropChanged && !periodVerificationControllerRef.current;
+    setSectionTrendMonths(months, Boolean(canLoad));
+    if (periodVerificationControllerRef.current) deferredSectionsRef.current.add("trends");
+  }, [periodPropChanged, periodStatus, setSectionTrendMonths]);
+
+  const selectBreakdown = useCallback((chart: BreakdownChart) => {
+    const canLoad = periodStatus === "active" && !periodPropChanged && !periodVerificationControllerRef.current;
+    setSectionBreakdown(chart, Boolean(canLoad));
+    if (!periodVerificationControllerRef.current) return;
+    if (chart === "repeated-expenses") deferredSectionsRef.current.add("suggestions");
+    else deferredSectionsRef.current.delete("suggestions");
+  }, [periodPropChanged, periodStatus, setSectionBreakdown]);
 
   const visibleSections = periodPropChanged
     ? createInitialDashboardSectionState(false)

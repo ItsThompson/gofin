@@ -43,7 +43,7 @@ export interface DashboardSectionController {
   trendMonths: 6 | 12;
   setTrendMonths: (months: 6 | 12, shouldReload: boolean) => void;
   breakdownChart: BreakdownChart;
-  selectBreakdown: (chart: BreakdownChart) => void;
+  selectBreakdown: (chart: BreakdownChart, shouldLoad: boolean) => void;
   abortRequests: () => void;
   resetSections: () => void;
   setSectionLoading: (section: DashboardSectionKey) => void;
@@ -238,11 +238,11 @@ export function useDashboardSections(
     for (const section of getDesktopSections(breakdownChartRef.current)) void loadSection(section);
   }, [desktopVisible, loadSection, periodActive]);
 
-  const selectBreakdown = useCallback((nextChart: BreakdownChart) => {
+  const selectBreakdown = useCallback((nextChart: BreakdownChart, shouldLoad: boolean) => {
     breakdownChartRef.current = nextChart;
     setBreakdownChart(nextChart);
     if (nextChart === "repeated-expenses") {
-      void loadSection("suggestions", true);
+      if (shouldLoad) void loadSection("suggestions", true);
       return;
     }
     controllersRef.current.get("suggestions")?.abort();

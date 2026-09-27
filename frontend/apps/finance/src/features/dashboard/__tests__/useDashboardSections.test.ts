@@ -48,7 +48,7 @@ describe("useDashboardSections", () => {
 
     const generationRef = { current: 0 };
     const periodRef = { current: period };
-    const { result } = renderHook(() => useDashboardSections(generationRef, periodRef));
+    const { result } = renderHook(() => useDashboardSections(generationRef, periodRef, true));
 
     act(() => result.current.startPeriodSections());
     await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
@@ -81,9 +81,9 @@ describe("useDashboardSections", () => {
 
     const generationRef = { current: 0 };
     const periodRef = { current: period };
-    const { result } = renderHook(() => useDashboardSections(generationRef, periodRef));
+    const { result } = renderHook(() => useDashboardSections(generationRef, periodRef, true));
 
-    act(() => result.current.selectBreakdown("repeated-expenses"));
+    act(() => result.current.selectBreakdown("repeated-expenses", true));
     await waitFor(() => expect(result.current.sections.suggestions.status).toBe("empty"));
     expect(result.current.breakdownChart).toBe("repeated-expenses");
   });

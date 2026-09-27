@@ -185,6 +185,76 @@ describe("useDashboardData", () => {
     });
   });
 
+  it.each(["missing", "unchanged", "changed"] as const)(
+    "defers desktop controls during Summary Retry when the period is %s",
+    async (outcome) => {
+      window.matchMedia = vi.fn().mockImplementation(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
+      const requestedUrls: string[] = [];
+      let resolvePeriod!: (value: Response) => void;
+      let summaryRequests = 0;
+      installBaseApi((url) => {
+        requestedUrls.push(url);
+        if (url.includes("/periods/current")) {
+          return new Promise<Response>((resolve) => { resolvePeriod = resolve; });
+        }
+        if (url.includes("/defaults")) return response({ defaults: null });
+        if (url.includes("/summary")) {
+          summaryRequests += 1;
+          return summaryRequests === 1
+            ? response({ code: "INTERNAL_SERVER_ERROR", message: "Summary failed" }, 500)
+            : response({ summary });
+        }
+        if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+        if (url.includes("/health-score/trend")) return response({ trends: [] });
+        if (url.includes("/expenses/suggestions")) return response({ data: [], hasMore: false });
+        if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+        if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+        if (url.includes("/spending/by-tag")) return response({ tagSpending: [] });
+        if (url.includes("/spending/cumulative")) return response({ points: [] });
+        if (url.includes("/spending/comparison")) return response({ comparison: {} });
+        if (url.includes("/spending/trends")) return response({ trends: [] });
+        return response({});
+      });
+
+      const { result } = renderHook(() => useDashboardData(period));
+      await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
+      await waitFor(() => expect(result.current.sections.byTag.status).toBe("empty"));
+      const sectionCalls = () => requestedUrls.filter((url) =>
+        url.includes("/spending/by-tag") || url.includes("/spending/trends") || url.includes("/expenses/suggestions"),
+      );
+      const beforeRetry = sectionCalls();
+
+      act(() => result.current.retry("summary"));
+      act(() => {
+        result.current.retry("byTag");
+        result.current.setTrendMonths(12);
+        result.current.selectBreakdown("repeated-expenses");
+      });
+      expect(result.current.trendMonths).toBe(12);
+      expect(result.current.breakdownChart).toBe("repeated-expenses");
+      expect(sectionCalls()).toEqual(beforeRetry);
+
+      const nextPeriod = buildPeriod({ ...period, id: "period-2", month: 6 });
+      await act(async () => resolvePeriod(outcome === "missing"
+        ? response({ code: "PERIOD_NOT_FOUND", message: "No period" }, 404)
+        : response({ period: outcome === "changed" ? nextPeriod : period })));
+      if (outcome === "missing") {
+        await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
+        expect(sectionCalls()).toEqual(beforeRetry);
+        expect(result.current.data.trendData).toBeNull();
+        return;
+      }
+      await waitFor(() => expect(sectionCalls().filter((url) => url.includes("/expenses/suggestions"))).toHaveLength(1));
+      expect(result.current.period.id).toBe(outcome === "changed" ? "period-2" : period.id);
+      expect(sectionCalls().filter((url) => url.includes("/spending/trends") && url.includes("months=12"))).toHaveLength(1);
+      expect(sectionCalls().filter((url) => url.includes("/spending/by-tag"))).toHaveLength(2);
+    },
+  );
+
   it("waits for period activation before starting desktop requests after resize", async () => {
     let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
     window.matchMedia = vi.fn().mockImplementation(() => ({
