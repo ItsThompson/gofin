@@ -51,6 +51,7 @@ const defaultProps = {
   currentMonth: 5,
   onClose: vi.fn(),
   onCorrected: vi.fn(),
+  onDeleted: vi.fn(),
 };
 
 function renderModal(expenseId: string = "exp-1") {
@@ -66,6 +67,7 @@ describe("ExpenseDetailModal - Correction form field changes", () => {
     mockFetch.mockReset();
     defaultProps.onClose.mockReset();
     defaultProps.onCorrected.mockReset();
+    defaultProps.onDeleted.mockReset();
   });
 
   it("allows changing expense type in correction form", async () => {
