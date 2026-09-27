@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildUser, buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
@@ -100,6 +100,39 @@ describe("DashboardFeature", () => {
       expect(screen.getByText("Loading repeated expenses...")).toBeInTheDocument();
       expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/trends"))).toHaveLength(1);
       expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions"))).toHaveLength(0);
+    });
+
+    it("shows a pending tag retry while period verification is unresolved", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/summary": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" } },
+        "/api/finance/spending/by-tag": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Tag spending failed" } },
+        "/api/finance/defaults": { body: { defaults: null } },
+      });
+      let resolvePeriod!: (value: Response) => void;
+      let periodRequests = 0;
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes("/periods/current")) {
+          periodRequests += 1;
+          if (periodRequests === 2) return new Promise<Response>((resolve) => { resolvePeriod = resolve; });
+        }
+        return mockApi(input, init);
+      }) as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+      const summaryAlert = await screen.findByText("Could not load Summary");
+      const tagAlert = await screen.findByText("Could not load Tag spending");
+      await user.click(within(summaryAlert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Retry" }));
+      await user.click(within(tagAlert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Retry" }));
+      expect(screen.getByLabelText("Tag spending loading")).toBeInTheDocument();
+      expect(screen.queryByText("Could not load Tag spending")).not.toBeInTheDocument();
+      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/by-tag"))).toHaveLength(1);
+
+      await act(async () => resolvePeriod(new Response(JSON.stringify({ code: "PERIOD_NOT_FOUND", message: "No period" }), { status: 404, headers: { "Content-Type": "application/json" } })));
+      expect(await screen.findByText(/No budget configured yet/)).toBeInTheDocument();
+      expect(screen.queryByText("Could not load Tag spending")).not.toBeInTheDocument();
+      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/by-tag"))).toHaveLength(1);
     });
 
     it("does not offer an unconfigured budget when defaults fail during period recovery", async () => {

@@ -189,6 +189,11 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       }
       return;
     }
+    reportError(error, {
+      ...(isNetworkError(error) ? NETWORK_FAILURE : classifyApiFailure(error)),
+      op: "budget.period",
+      domain: "budgets",
+    });
     setPeriodStatus("error");
     setPeriodError(periodErrorMessage(error));
   }, [abortRequests, readOnly, resetSections]);
@@ -265,10 +270,11 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     if (periodStatus !== "active" || periodPropChanged) return;
     if (periodVerificationControllerRef.current) {
       deferredSectionsRef.current.add(section);
+      setSectionLoading(section);
       return;
     }
     void loadSection(section, true);
-  }, [loadSection, periodPropChanged, periodStatus, retrySummary]);
+  }, [loadSection, periodPropChanged, periodStatus, retrySummary, setSectionLoading]);
 
   const replacePeriodAfterEdit = useCallback((nextPeriod: BudgetPeriod) => {
     activatePeriod(nextPeriod);

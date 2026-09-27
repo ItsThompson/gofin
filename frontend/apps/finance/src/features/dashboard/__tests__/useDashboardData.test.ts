@@ -91,7 +91,12 @@ describe("useDashboardData", () => {
     expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(false);
 
     act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
-    await waitFor(() => expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true));
+    await waitFor(() => {
+      expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/cumulative"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/comparison"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/trends"))).toBe(true);
+    });
   });
 
   it("discards failures from desktop requests hidden by a viewport change and reloads on return", async () => {
@@ -241,6 +246,7 @@ describe("useDashboardData", () => {
       const requestedUrls: string[] = [];
       let resolvePeriod!: (value: Response) => void;
       let summaryRequests = 0;
+      let byTagRequests = 0;
       installBaseApi((url) => {
         requestedUrls.push(url);
         if (url.includes("/periods/current")) {
@@ -258,16 +264,21 @@ describe("useDashboardData", () => {
         if (url.includes("/expenses/suggestions")) return response({ data: [], hasMore: false });
         if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
         if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
-        if (url.includes("/spending/by-tag")) return response({ tagSpending: [] });
+        if (url.includes("/spending/by-tag")) {
+          byTagRequests += 1;
+          return byTagRequests === 1
+            ? response({ code: "INTERNAL_SERVER_ERROR", message: "Tag spending failed" }, 500)
+            : response({ tagSpending: [] });
+        }
         if (url.includes("/spending/cumulative")) return response({ points: [] });
         if (url.includes("/spending/comparison")) return response({ comparison: {} });
         if (url.includes("/spending/trends")) return response({ trends: [] });
-        return response({});
+        throw new Error(`Unexpected request: ${url}`);
       });
 
       const { result } = renderHook(() => useDashboardData(period));
       await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
-      await waitFor(() => expect(result.current.sections.byTag.status).toBe("empty"));
+      await waitFor(() => expect(result.current.sections.byTag.status).toBe("error"));
       const sectionCalls = () => requestedUrls.filter((url) =>
         url.includes("/spending/by-tag") || url.includes("/spending/trends") || url.includes("/expenses/suggestions"),
       );
@@ -281,6 +292,7 @@ describe("useDashboardData", () => {
       });
       expect(result.current.trendMonths).toBe(12);
       expect(result.current.breakdownChart).toBe("repeated-expenses");
+      expect(result.current.sections.byTag.status).toBe("loading");
       expect(sectionCalls()).toEqual(beforeRetry);
 
       const nextPeriod = buildPeriod({ ...period, id: "period-2", month: 6 });
@@ -291,6 +303,8 @@ describe("useDashboardData", () => {
         await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
         expect(sectionCalls()).toEqual(beforeRetry);
         expect(result.current.data.trendData).toBeNull();
+        expect(result.current.data.tagSpending).toEqual([]);
+        expect(result.current.sections.byTag.status).not.toBe("error");
         return;
       }
       await waitFor(() => expect(sectionCalls().filter((url) => url.includes("/expenses/suggestions"))).toHaveLength(1));
