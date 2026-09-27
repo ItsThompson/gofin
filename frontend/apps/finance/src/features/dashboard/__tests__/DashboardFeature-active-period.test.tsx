@@ -51,6 +51,25 @@ describe("DashboardFeature", () => {
       expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
     });
 
+    it("keeps the trend window selector available when six months has no data", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/spending/trends": mockSequence([
+          { body: { trends: [] } },
+          { body: { trends: [{ year: 2026, month: 1, totalSpent: 100, budgetAmount: 300000, essentialsSpent: 50, desiresSpent: 50, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+        ]),
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getByLabelText("12 months")).toBeInTheDocument());
+      await user.click(screen.getByLabelText("12 months"));
+      await waitFor(() => expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1));
+      expect(mockApi._calls.some((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=12"))).toBe(true);
+    });
+
     it("renders an explicit empty state for a health trend with no points", async () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
@@ -114,8 +133,31 @@ describe("DashboardFeature", () => {
       });
 
       expect(document.querySelector('[data-outline-title="Historical Comparison"]')).toBeNull();
-      expect(document.querySelector('[data-outline-title="Trends"]')).toBeNull();
+      expect(document.querySelector('[data-outline-title="Trends"]')).not.toBeNull();
       expect(document.querySelector('[data-outline-title="Cumulative Spending"]')).toBeNull();
+    });
+
+    it("keeps repeated expenses available when tag spending fails", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataWithExpensesRoutes(),
+        "/api/finance/spending/by-tag": {
+          status: 500,
+          body: { code: "INTERNAL_SERVER_ERROR", message: "Tags failed" },
+        },
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument());
+      await user.click(screen.getByLabelText("Select breakdown chart"));
+      await user.click(await screen.findByRole("option", { name: "Repeated Expenses" }));
+
+      await waitFor(() => expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument());
+      await user.click(screen.getByLabelText("Select breakdown chart"));
+      await user.click(await screen.findByRole("option", { name: "Spending by Tag" }));
+      expect(screen.getByText("Could not load Tag spending")).toBeInTheDocument();
     });
 
     it("renders repeated-expenses chart with frequency and recency context", async () => {

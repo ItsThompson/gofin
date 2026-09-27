@@ -66,8 +66,9 @@ describe("DashboardFeature", () => {
       const hiddenCharts = container.querySelector(".hidden.md\\:block");
       expect(hiddenCharts).not.toBeNull();
       // Spending Pace + Historical Comparison are in a hidden md:grid container
-      const gridContainer = container.querySelector(".hidden.md\\:grid");
-      expect(gridContainer).not.toBeNull();
+      await waitFor(() => {
+        expect(container.querySelector(".hidden.md\\:grid")).not.toBeNull();
+      });
     });
   });
 });

@@ -112,12 +112,14 @@ function applySectionPayload(
 export function useDashboardSections(
   generationRef: GenerationRef,
   periodRef: PeriodRef,
+  periodActive: boolean,
 ): DashboardSectionController {
   const [desktopVisible, setDesktopVisible] = useState(isDesktopViewport);
   const [sections, setSections] = useState<DashboardSectionState>(() => createInitialDashboardSectionState(desktopVisible));
   const [trendMonths, setTrendMonthsState] = useState<6 | 12>(6);
   const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
   const desktopVisibleRef = useRef(desktopVisible);
+  const previousDesktopVisibleRef = useRef(desktopVisible);
   desktopVisibleRef.current = desktopVisible;
   const trendMonthsRef = useRef<6 | 12>(6);
   const breakdownChartRef = useRef<BreakdownChart>("tag-spending");
@@ -214,10 +216,11 @@ export function useDashboardSections(
   }, []);
 
   useEffect(() => {
-    if (desktopVisible) {
-      for (const section of DESKTOP_SECTIONS) void loadSection(section);
-    }
-  }, [desktopVisible, loadSection]);
+    const becameDesktopVisible = desktopVisible && !previousDesktopVisibleRef.current;
+    previousDesktopVisibleRef.current = desktopVisible;
+    if (!becameDesktopVisible || !periodActive) return;
+    for (const section of DESKTOP_SECTIONS) void loadSection(section);
+  }, [desktopVisible, loadSection, periodActive]);
 
   const selectBreakdown = useCallback((nextChart: BreakdownChart) => {
     breakdownChartRef.current = nextChart;

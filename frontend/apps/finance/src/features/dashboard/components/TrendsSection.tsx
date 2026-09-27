@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@gofin/ui/components/select";
 import { ToggleGroup, ToggleGroupItem } from "@gofin/ui/components/toggle-group";
+import { Card, CardContent } from "@gofin/ui/components/card";
 import { SpendingTrendChart } from "./widgets/SpendingTrendChart";
 import { CategorySplitChart } from "./widgets/CategorySplitChart";
 
@@ -27,10 +28,6 @@ export function TrendsSection({
   currency,
 }: TrendsSectionProps) {
   const [selectedChart, setSelectedChart] = useState<TrendsChart>("monthly-spending");
-
-  if (trendData.length === 0) {
-    return null;
-  }
 
   return (
     <div className="space-y-4">
@@ -65,10 +62,15 @@ export function TrendsSection({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      {selectedChart === "monthly-spending" && (
+      {trendData.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            No trend data is available.
+          </CardContent>
+        </Card>
+      ) : selectedChart === "monthly-spending" ? (
         <SpendingTrendChart data={trendData} currency={currency} />
-      )}
-      {selectedChart === "category-split" && (
+      ) : (
         <CategorySplitChart data={trendData} />
       )}
     </div>

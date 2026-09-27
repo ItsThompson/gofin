@@ -91,6 +91,47 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true));
   });
 
+  it("waits for period activation before starting desktop requests after resize", async () => {
+    let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      matches: false,
+      addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+        onViewportChange = listener;
+      },
+      removeEventListener: vi.fn(),
+    }));
+    let resolvePeriod!: (value: Response) => void;
+    const requestedUrls: string[] = [];
+    installBaseApi((url) => {
+      requestedUrls.push(url);
+      if (url.includes("/periods/current")) return new Promise<Response>((resolve) => { resolvePeriod = resolve; });
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      if (url.includes("/spending/by-tag")) return response({ tagSpending: [] });
+      if (url.includes("/spending/cumulative")) return response({ points: [] });
+      if (url.includes("/spending/comparison")) return response({ comparison: {} });
+      if (url.includes("/spending/trends")) return response({ trends: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    act(() => result.current.refresh());
+    act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
+
+    expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(false);
+    await act(async () => resolvePeriod(response({ period })));
+    await waitFor(() => {
+      expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/cumulative"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/comparison"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/trends"))).toBe(true);
+    });
+  });
+
   it("propagates force refresh when retrying one section", async () => {
     const sectionHeaders: string[] = [];
     installBaseApi((url) => {

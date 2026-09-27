@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { TagSpending } from "@gofin/core";
-import type { BreakdownChart, ExpenseSuggestionsState } from "../types";
+import type { BreakdownChart, ExpenseSuggestionsState, SectionState } from "../types";
+import { SectionState as SectionStateView } from "./SectionState";
 export type { BreakdownChart } from "../types";
 import {
   Select,
@@ -14,11 +15,13 @@ import { ExpenseFrecencyChart } from "./widgets/ExpenseFrecencyChart";
 
 interface BreakdownSectionProps {
   tagSpending: TagSpending[];
+  tagSpendingState?: SectionState<readonly TagSpending[]>;
   expenseFrecencyData: ExpenseSuggestionsState;
   currency: string;
   onSuggestionsRetry?: () => void;
   selectedChart?: BreakdownChart;
   onChartChange?: (chart: BreakdownChart) => void;
+  onTagSpendingRetry?: () => void;
 }
 
 export function BreakdownSection({
@@ -28,6 +31,8 @@ export function BreakdownSection({
   selectedChart: selectedChartProp,
   onChartChange,
   onSuggestionsRetry,
+  onTagSpendingRetry,
+  tagSpendingState,
 }: BreakdownSectionProps) {
   const [uncontrolledChart, setUncontrolledChart] = useState<BreakdownChart>("tag-spending");
   const selectedChart = selectedChartProp ?? uncontrolledChart;
@@ -56,9 +61,18 @@ export function BreakdownSection({
           </SelectContent>
         </Select>
       </div>
-      {selectedChart === "tag-spending" && (
+      {selectedChart === "tag-spending" && (tagSpendingState ? (
+        <SectionStateView
+          label="Tag spending"
+          state={tagSpendingState}
+          onRetry={onTagSpendingRetry ?? (() => undefined)}
+          emptyMessage="No tag spending is available."
+        >
+          {(spending) => <TagSpendingChart tagSpending={[...spending]} currency={currency} />}
+        </SectionStateView>
+      ) : (
         <TagSpendingChart tagSpending={tagSpending} currency={currency} />
-      )}
+      ))}
       {selectedChart === "repeated-expenses" && (
         <ExpenseFrecencyChart {...expenseFrecencyData} onRetry={onSuggestionsRetry} />
       )}

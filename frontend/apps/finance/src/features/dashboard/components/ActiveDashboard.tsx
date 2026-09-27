@@ -10,7 +10,8 @@ import { useDashboardData } from "../hooks/useDashboardData";
 import { BudgetSettingsEditor } from "./BudgetSettingsEditor";
 import { CreatePeriodPrompt } from "./CreatePeriodPrompt";
 import { TrendsSection } from "./TrendsSection";
-import { BreakdownSection } from "./BreakdownSection";import { DashboardOutline } from "./DashboardOutline";
+import { BreakdownSection } from "./BreakdownSection";
+import { DashboardOutline } from "./DashboardOutline";
 import { SectionState } from "./SectionState";
 import { SummaryBar } from "./widgets/SummaryBar";
 import { CategoryGauges } from "./widgets/CategoryGauges";
@@ -149,16 +150,31 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
               {(comparison) => <SectionErrorBoundary sectionName="Historical Comparison"><HistoricalComparisonWidget comparison={comparison} currency={currency} /></SectionErrorBoundary>}
             </SectionState>
           </section> : <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">{() => null}</SectionState>}
-          {sections.trends.status === "success" ? <section id="trends" data-outline-title="Trends">
-            <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">
+          {sections.trends.status === "success" || sections.trends.status === "empty" ? <section id="trends" data-outline-title="Trends">
+            <SectionState
+              label="Trends"
+              state={sections.trends}
+              onRetry={() => controller.retry("trends")}
+              emptyMessage="No trend data is available."
+              emptyContent={<TrendsSection trendData={[]} trendMonths={controller.trendMonths} onToggle={controller.setTrendMonths} currency={currency} />}
+            >
               {(trendData) => <SectionErrorBoundary sectionName="Monthly Trends"><TrendsSection trendData={[...trendData]} trendMonths={controller.trendMonths} onToggle={controller.setTrendMonths} currency={currency} /></SectionErrorBoundary>}
             </SectionState>
           </section> : <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">{() => null}</SectionState>}
-          {sections.byTag.status === "success" || sections.byTag.status === "empty" ? <section id="breakdown" data-outline-title="Breakdown">
-            <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available." emptyContent={<BreakdownSection tagSpending={[]} expenseFrecencyData={sections.suggestions} currency={currency} selectedChart={breakdownChart} onChartChange={controller.selectBreakdown} onSuggestionsRetry={() => controller.retry("suggestions")} />}>
-              {(tagSpending) => <SectionErrorBoundary sectionName="Breakdown"><BreakdownSection tagSpending={[...tagSpending]} expenseFrecencyData={sections.suggestions} currency={currency} selectedChart={breakdownChart} onChartChange={controller.selectBreakdown} onSuggestionsRetry={() => controller.retry("suggestions")} /></SectionErrorBoundary>}
-            </SectionState>
-          </section> : <SectionState label="Breakdown" state={sections.byTag} onRetry={() => controller.retry("byTag")} emptyMessage="No tag spending is available.">{() => null}</SectionState>}
+          <section id="breakdown" data-outline-title="Breakdown">
+            <SectionErrorBoundary sectionName="Breakdown">
+              <BreakdownSection
+                tagSpending={sections.byTag.status === "success" ? [...sections.byTag.data] : []}
+                tagSpendingState={sections.byTag}
+                expenseFrecencyData={sections.suggestions}
+                currency={currency}
+                selectedChart={breakdownChart}
+                onChartChange={controller.selectBreakdown}
+                onSuggestionsRetry={() => controller.retry("suggestions")}
+                onTagSpendingRetry={() => controller.retry("byTag")}
+              />
+            </SectionErrorBoundary>
+          </section>
           {sections.cumulative.status === "success" ? <section id="cumulative-spending" data-outline-title="Cumulative Spending">
             <SectionState label="Cumulative spending" state={sections.cumulative} onRetry={() => controller.retry("cumulative")} emptyMessage="No cumulative spending data is available.">
               {(points) => <SectionErrorBoundary sectionName="Cumulative Spending"><CumulativeSpendChart data={[...points]} currency={currency} /></SectionErrorBoundary>}

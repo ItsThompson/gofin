@@ -101,8 +101,8 @@ describe("TrendsSection", () => {
     expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders nothing when data is empty", () => {
-    const { container } = render(
+  it("keeps the trend controls visible when data is empty", () => {
+    render(
       <TrendsSection
         trendData={[]}
         trendMonths={6}
@@ -111,7 +111,10 @@ describe("TrendsSection", () => {
       />,
     );
 
-    expect(container.innerHTML).toBe("");
+    expect(screen.getByLabelText("Select trend chart")).toBeInTheDocument();
+    expect(screen.getByLabelText("6 months")).toBeInTheDocument();
+    expect(screen.getByLabelText("12 months")).toBeInTheDocument();
+    expect(screen.getByText("No trend data is available.")).toBeInTheDocument();
   });
 
   it("renders toggle group with 6M and 12M options", () => {

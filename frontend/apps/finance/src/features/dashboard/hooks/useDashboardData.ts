@@ -92,6 +92,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const generationRef = useRef(0);
   const periodRef = useRef(period);
   const previousPeriodPropRef = useRef(period);
+  const periodPropChanged = !isSamePeriod(period, previousPeriodPropRef.current);
   const periodVerificationControllerRef = useRef<AbortController | null>(null);
   const {
     sections,
@@ -106,7 +107,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     startPeriodSections,
     selectBreakdown,
     setTrendMonths: setSectionTrendMonths,
-  } = useDashboardSections(generationRef, periodRef);
+  } = useDashboardSections(generationRef, periodRef, periodStatus === "active" && !periodPropChanged);
 
   const abortRequests = useCallback(() => {
     abortSectionRequests();
@@ -233,7 +234,6 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     setSectionTrendMonths(months, periodStatus === "active");
   }, [periodStatus, setSectionTrendMonths]);
 
-  const periodPropChanged = !isSamePeriod(period, previousPeriodPropRef.current);
   const visibleSections = periodPropChanged
     ? createInitialDashboardSectionState(false)
     : sections;
