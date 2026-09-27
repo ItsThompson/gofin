@@ -63,7 +63,12 @@ describe("useDashboardSections", () => {
     await waitFor(() => expect(cacheControls).toContain("no-cache"));
   });
 
-  it("loads suggestions only after repeated expenses is selected", async () => {
+  it("loads suggestions only after repeated expenses is selected on desktop", async () => {
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
     installBaseApi((url) => {
       if (url.includes("/expenses/suggestions")) return response({ data: [], total: 0, page: 1, pageSize: 10, hasMore: false });
       if (url.includes("/summary")) return response({ summary });

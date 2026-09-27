@@ -37,6 +37,9 @@ export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) 
         <CardTitle className="text-base">Monthly Spending</CardTitle>
       </CardHeader>
       <CardContent>
+        <p className="sr-only">
+          {chartData.map((point) => `${point.label}: ${formatCurrency(point.spending * 100, currency)} spent`).join("; ")}
+        </p>
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart
             data={chartData}

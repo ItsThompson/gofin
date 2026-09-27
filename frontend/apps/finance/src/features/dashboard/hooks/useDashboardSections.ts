@@ -23,6 +23,12 @@ const DESKTOP_SECTIONS: DashboardSectionKey[] = [
   "trends",
 ];
 
+function getDesktopSections(breakdownChart: BreakdownChart): DashboardSectionKey[] {
+  return breakdownChart === "repeated-expenses"
+    ? [...DESKTOP_SECTIONS, "suggestions"]
+    : [...DESKTOP_SECTIONS];
+}
+
 interface GenerationRef {
   current: number;
 }
@@ -158,8 +164,8 @@ export function useDashboardSections(
   }, []);
 
   const loadSection = useCallback(async (section: DashboardSectionKey, force = false) => {
-    if (section === "byTag" || section === "cumulative" || section === "comparison" || section === "trends") {
-      if (!desktopVisibleRef.current && !force) return;
+    if (section === "byTag" || section === "cumulative" || section === "comparison" || section === "trends" || section === "suggestions") {
+      if (!desktopVisibleRef.current) return;
     }
     if (requestedRef.current.has(section) && !force) return;
     requestedRef.current.add(section);
@@ -206,8 +212,9 @@ export function useDashboardSections(
   const startPeriodSections = useCallback((forceRefresh = false) => {
     requestedRef.current.clear();
     setSections(createInitialDashboardSectionState(desktopVisibleRef.current));
-    const eligible = desktopVisibleRef.current ? [...BASE_SECTIONS, ...DESKTOP_SECTIONS] : BASE_SECTIONS;
-    if (breakdownChartRef.current === "repeated-expenses") eligible.push("suggestions");
+    const eligible = desktopVisibleRef.current
+      ? [...BASE_SECTIONS, ...getDesktopSections(breakdownChartRef.current)]
+      : BASE_SECTIONS;
     for (const section of eligible) void loadSection(section, forceRefresh);
   }, [loadSection]);
 
@@ -228,7 +235,7 @@ export function useDashboardSections(
     previousDesktopVisibleRef.current = desktopVisible;
     previousPeriodActiveRef.current = periodActive;
     if (!periodActive || (!becameDesktopVisible && !becamePeriodActive)) return;
-    for (const section of DESKTOP_SECTIONS) void loadSection(section);
+    for (const section of getDesktopSections(breakdownChartRef.current)) void loadSection(section);
   }, [desktopVisible, loadSection, periodActive]);
 
   const selectBreakdown = useCallback((nextChart: BreakdownChart) => {

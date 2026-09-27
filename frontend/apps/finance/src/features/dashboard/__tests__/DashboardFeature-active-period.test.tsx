@@ -66,7 +66,10 @@ describe("DashboardFeature", () => {
 
       await waitFor(() => expect(screen.getByLabelText("12 months")).toBeInTheDocument());
       await user.click(screen.getByLabelText("12 months"));
-      await waitFor(() => expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1));
+      await waitFor(() => {
+        expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getByText("Jan '26: $1.00 spent")).toBeInTheDocument();
+      });
       expect(mockApi._calls.some((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=12"))).toBe(true);
     });
 

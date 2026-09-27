@@ -56,6 +56,8 @@ describe("useDashboardData", () => {
     expect(result.current.desktopVisible).toBe(false);
 
     expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(false);
+    expect(requestedUrls.some((url) => url.includes("spending/cumulative"))).toBe(false);
+    expect(requestedUrls.some((url) => url.includes("spending/comparison"))).toBe(false);
     expect(requestedUrls.some((url) => url.includes("spending/trends"))).toBe(false);
   });
 
@@ -89,6 +91,48 @@ describe("useDashboardData", () => {
 
     act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
     await waitFor(() => expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true));
+  });
+
+  it("defers selected suggestions across mobile refresh until desktop returns", async () => {
+    let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      matches: true,
+      addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+        onViewportChange = listener;
+      },
+      removeEventListener: vi.fn(),
+    }));
+    const suggestionUrls: string[] = [];
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) return response({ period });
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      if (url.includes("/expenses/suggestions")) {
+        suggestionUrls.push(url);
+        return response({ data: [], total: 0, page: 1, pageSize: 10, hasMore: false });
+      }
+      if (url.includes("/spending/by-tag")) return response({ tagSpending: [] });
+      if (url.includes("/spending/cumulative")) return response({ points: [] });
+      if (url.includes("/spending/comparison")) return response({ comparison: {} });
+      if (url.includes("/spending/trends")) return response({ trends: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    act(() => result.current.selectBreakdown("repeated-expenses"));
+    await waitFor(() => expect(suggestionUrls).toHaveLength(1));
+
+    act(() => onViewportChange?.({ matches: false } as MediaQueryListEvent));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.periodStatus).toBe("active"));
+    expect(suggestionUrls).toHaveLength(1);
+
+    act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
+    await waitFor(() => expect(suggestionUrls).toHaveLength(2));
   });
 
   it("waits for Summary Retry period verification before starting desktop requests", async () => {
@@ -129,8 +173,16 @@ describe("useDashboardData", () => {
     act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
 
     expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(false);
+    expect(requestedUrls.some((url) => url.includes("spending/cumulative"))).toBe(false);
+    expect(requestedUrls.some((url) => url.includes("spending/comparison"))).toBe(false);
+    expect(requestedUrls.some((url) => url.includes("spending/trends"))).toBe(false);
     await act(async () => resolvePeriod(response({ period })));
-    await waitFor(() => expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true));
+    await waitFor(() => {
+      expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/cumulative"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/comparison"))).toBe(true);
+      expect(requestedUrls.some((url) => url.includes("spending/trends"))).toBe(true);
+    });
   });
 
   it("waits for period activation before starting desktop requests after resize", async () => {
@@ -241,6 +293,11 @@ describe("useDashboardData", () => {
   });
 
   it("retries selected suggestions and rejects an older selection response", async () => {
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
     let suggestionRequestCount = 0;
     let resolveFirst!: (value: Response) => void;
     let resolveSecond!: (value: Response) => void;
@@ -257,6 +314,10 @@ describe("useDashboardData", () => {
       if (url.includes("/health-score/trend")) return response({ trends: [] });
       if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
       if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      if (url.includes("/spending/by-tag")) return response({ tagSpending: [] });
+      if (url.includes("/spending/cumulative")) return response({ points: [] });
+      if (url.includes("/spending/comparison")) return response({ comparison: {} });
+      if (url.includes("/spending/trends")) return response({ trends: [] });
       return response({});
     });
 
@@ -386,10 +447,13 @@ describe("useDashboardData", () => {
     expect(result.current.data.recentExpenses).toEqual([]);
   });
 
-  it("gates old period data immediately while a new period activates", async () => {
+  it("gates populated old period data immediately while a new period activates", async () => {
+    let blockSummary = false;
     installBaseApi((url) => {
-      if (url.includes("/summary")) return new Promise<Response>(() => {});
-      if (url.includes("/health-score?")) return new Promise<Response>(() => {});
+      if (url.includes("/summary")) {
+        return blockSummary ? new Promise<Response>(() => {}) : response({ summary });
+      }
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
       if (url.includes("/health-score/trend")) return response({ trends: [] });
       if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
       if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
@@ -399,6 +463,9 @@ describe("useDashboardData", () => {
     const { result, rerender } = renderHook(({ selectedPeriod }) => useDashboardData(selectedPeriod), {
       initialProps: { selectedPeriod: period },
     });
+    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+
+    blockSummary = true;
     const nextPeriod = buildPeriod({ ...period, id: "period-2", month: 6 });
     act(() => rerender({ selectedPeriod: nextPeriod }));
 
