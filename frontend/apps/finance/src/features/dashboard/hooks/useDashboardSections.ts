@@ -143,6 +143,8 @@ export function useDashboardSections(
     controllersRef.current.clear();
   }, []);
 
+  useEffect(() => () => abortRequests(), [abortRequests]);
+
   const resetSections = useCallback(() => {
     requestedRef.current.clear();
     setSections(createInitialDashboardSectionState(false));
@@ -242,7 +244,12 @@ export function useDashboardSections(
     breakdownChartRef.current = nextChart;
     setBreakdownChart(nextChart);
     if (nextChart === "repeated-expenses") {
-      if (shouldLoad) void loadSection("suggestions", true);
+      if (shouldLoad) {
+        void loadSection("suggestions", true);
+      } else {
+        controllersRef.current.get("suggestions")?.abort();
+        setSectionLoading("suggestions");
+      }
       return;
     }
     controllersRef.current.get("suggestions")?.abort();
@@ -251,13 +258,19 @@ export function useDashboardSections(
       ...current,
       suggestions: { status: "idle", suggestions: [], errorMessage: null },
     }));
-  }, [loadSection]);
+  }, [loadSection, setSectionLoading]);
 
   const setTrendMonths = useCallback((months: 6 | 12, shouldReload: boolean) => {
+    if (months === trendMonthsRef.current) return;
     trendMonthsRef.current = months;
     setTrendMonthsState(months);
-    if (shouldReload && desktopVisibleRef.current) void loadSection("trends", true);
-  }, [loadSection]);
+    if (shouldReload && desktopVisibleRef.current) {
+      void loadSection("trends", true);
+    } else {
+      controllersRef.current.get("trends")?.abort();
+      setSectionLoading("trends");
+    }
+  }, [loadSection, setSectionLoading]);
 
   return {
     sections,

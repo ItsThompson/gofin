@@ -95,6 +95,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const previousPeriodPropRef = useRef(period);
   const periodPropChanged = !isSamePeriod(period, previousPeriodPropRef.current);
   const periodVerificationControllerRef = useRef<AbortController | null>(null);
+  const refreshControllerRef = useRef<AbortController | null>(null);
   const deferredSectionsRef = useRef(new Set<DashboardSectionKey>());
   const {
     sections,
@@ -119,8 +120,17 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     abortSectionRequests();
     periodVerificationControllerRef.current?.abort();
     periodVerificationControllerRef.current = null;
+    refreshControllerRef.current?.abort();
+    refreshControllerRef.current = null;
     deferredSectionsRef.current.clear();
     setPeriodVerificationPending(false);
+  }, [abortSectionRequests]);
+
+  useEffect(() => () => {
+    generationRef.current += 1;
+    abortSectionRequests();
+    periodVerificationControllerRef.current?.abort();
+    refreshControllerRef.current?.abort();
   }, [abortSectionRequests]);
 
   const activatePeriod = useCallback((nextPeriod: BudgetPeriod, forceRefresh = false) => {
@@ -176,17 +186,22 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const refresh = useCallback(() => {
     abortRequests();
     const requestGeneration = ++generationRef.current;
+    const controller = new AbortController();
+    refreshControllerRef.current = controller;
     resetSections();
     setPeriodStatus("loading");
     setPeriodError(null);
     const currentPeriod = periodRef.current;
-    void dashboardApi.getCurrentPeriod(currentPeriod.year, currentPeriod.month, { forceRefresh: true })
+    void dashboardApi.getCurrentPeriod(currentPeriod.year, currentPeriod.month, { forceRefresh: true, signal: controller.signal })
       .then((response) => {
-        if (requestGeneration !== generationRef.current) return;
+        if (requestGeneration !== generationRef.current || controller.signal.aborted) return;
         activatePeriod(response.period, true);
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
         void gatePeriodFailure(error, requestGeneration);
+      }).finally(() => {
+        if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
       });
   }, [abortRequests, activatePeriod, gatePeriodFailure, resetSections]);
 

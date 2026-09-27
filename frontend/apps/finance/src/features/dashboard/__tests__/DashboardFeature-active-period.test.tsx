@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildUser, buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
@@ -71,6 +71,35 @@ describe("DashboardFeature", () => {
         expect(screen.getByText("Jan '26: $1.00 spent")).toBeInTheDocument();
       });
       expect(mockApi._calls.some((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=12"))).toBe(true);
+    });
+
+    it("shows pending states for deferred trend and breakdown selections", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/summary": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" } },
+        "/api/finance/spending/trends": { body: { trends: [{ year: 2026, month: 5, totalSpent: 100, budgetAmount: 300000, essentialsSpent: 50, desiresSpent: 50, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+      });
+      globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes("/periods/current") && periodLookupPending) return new Promise<Response>(() => {});
+        return mockApi(input, init);
+      }) as typeof fetch;
+      let periodLookupPending = false;
+      const user = userEvent.setup();
+      renderDashboard();
+      await waitFor(() => expect(screen.getByText("May '26: $1.00 spent")).toBeInTheDocument());
+      const summaryAlert = screen.getByText("Could not load Summary").closest('[role="alert"]');
+      expect(summaryAlert).not.toBeNull();
+      periodLookupPending = true;
+      await user.click(within(summaryAlert as HTMLElement).getByRole("button", { name: "Retry" }));
+      await user.click(screen.getByLabelText("12 months"));
+      expect(screen.getByLabelText("Trends loading")).toBeInTheDocument();
+      expect(screen.queryByText("May '26: $1.00 spent")).not.toBeInTheDocument();
+      await user.click(screen.getByLabelText("Select breakdown chart"));
+      await user.click(screen.getByRole("option", { name: "Repeated Expenses" }));
+      expect(screen.getByText("Loading repeated expenses...")).toBeInTheDocument();
+      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/trends"))).toHaveLength(1);
+      expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions"))).toHaveLength(0);
     });
 
     it("recovers the previous trend window after a wider-window error", async () => {

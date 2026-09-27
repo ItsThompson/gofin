@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPeriod, buildPeriodSummary } from "@gofin/test-utils";
+import { toast } from "sonner";
 import { useDashboardData } from "../hooks/useDashboardData";
 
 const period = buildPeriod({ id: "period-1", year: 2026, month: 5, budgetAmount: 300000 });
@@ -254,6 +255,37 @@ describe("useDashboardData", () => {
       expect(sectionCalls().filter((url) => url.includes("/spending/by-tag"))).toHaveLength(2);
     },
   );
+
+  it("ignores an older trend response after switching windows during period verification", async () => {
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    let resolveTrend!: (value: Response) => void;
+    installBaseApi((url) => {
+      if (url.includes("/summary")) return response({ code: "INTERNAL_SERVER_ERROR", message: "Summary failed" }, 500);
+      if (url.includes("/periods/current")) return new Promise<Response>(() => {});
+      if (url.includes("/spending/trends")) return new Promise<Response>((resolve) => { resolveTrend = resolve; });
+      if (url.includes("/spending/by-tag")) return response({ tagSpending: [] });
+      if (url.includes("/spending/cumulative")) return response({ points: [] });
+      if (url.includes("/spending/comparison")) return response({ comparison: {} });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
+    await waitFor(() => expect(typeof resolveTrend).toBe("function"));
+    act(() => result.current.retry("summary"));
+    act(() => result.current.setTrendMonths(12));
+    await act(async () => resolveTrend(response({ trends: [{ year: 2026, month: 5, totalSpent: 100 }] })));
+    expect(result.current.trendMonths).toBe(12);
+    expect(result.current.sections.trends.status).toBe("loading");
+    expect(result.current.data.trendData).toBeNull();
+  });
 
   it("waits for period activation before starting desktop requests after resize", async () => {
     let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
@@ -515,6 +547,46 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(result.current.periodStatus).toBe("error"));
     expect(result.current.data.summary).toBeNull();
     expect(result.current.data.recentExpenses).toEqual([]);
+  });
+
+  it("aborts section and period verification requests when the dashboard unmounts", async () => {
+    const toastError = vi.spyOn(toast, "error");
+    let rejectHealth!: (error: Error) => void;
+    let resolvePeriod!: (value: Response) => void;
+    const pendingSignals: AbortSignal[] = [];
+    let summaryRequests = 0;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/periods/current")) {
+        if (init?.signal) pendingSignals.push(init.signal);
+        return new Promise<Response>((resolve) => { resolvePeriod = resolve; });
+      }
+      if (url.includes("/summary")) {
+        summaryRequests += 1;
+        return Promise.resolve(response({ summary }));
+      }
+      if (url.includes("/health-score?")) {
+        if (init?.signal) pendingSignals.push(init.signal);
+        return new Promise<Response>((_resolve, reject) => { rejectHealth = reject; });
+      }
+      if (url.includes("/health-score/trend")) return Promise.resolve(response({ trends: [] }));
+      if (url.includes("/expenses?")) return Promise.resolve(response({ data: [], hasMore: false }));
+      if (url.includes("/prorata/upcoming")) return Promise.resolve(response({ schedules: [] }));
+      return Promise.resolve(response({}));
+    }) as typeof fetch;
+
+    const { result, unmount } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    act(() => result.current.retry("summary"));
+    expect(pendingSignals).toHaveLength(2);
+    unmount();
+    expect(pendingSignals.every((signal) => signal.aborted)).toBe(true);
+    await act(async () => {
+      rejectHealth(new Error("Late section failure"));
+      resolvePeriod(response({ period }));
+    });
+    expect(summaryRequests).toBe(1);
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("gates populated old period data immediately while a new period activates", async () => {
