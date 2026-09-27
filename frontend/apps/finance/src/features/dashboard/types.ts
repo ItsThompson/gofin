@@ -29,7 +29,7 @@ export interface PeriodLoading extends PeriodStateBase {
 /** No period exists for current month. User can create one. */
 export interface PeriodNotFound extends PeriodStateBase {
   status: "no-period";
-  /** Default budget settings for pre-filling the create form. Null if defaults fetch failed. */
+  /** Default budget settings for pre-filling the create form. Null when no settings exist. */
   defaults: DefaultSettings | null;
   /** Create a new period with given settings. */
   createPeriod: (body: CreatePeriodRequest) => void;

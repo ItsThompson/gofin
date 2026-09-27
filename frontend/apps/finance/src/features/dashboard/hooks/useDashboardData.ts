@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiRequestError, useFormMutation } from "@gofin/api";
+import { ApiRequestError, classifyApiFailure, isNetworkError, NETWORK_FAILURE, reportError, useFormMutation } from "@gofin/api";
 import type {
   BudgetPeriod,
   CreatePeriodRequest,
@@ -167,16 +167,26 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
         setPeriodError("This historical period is no longer available.");
         return;
       }
-      let defaults: DefaultSettings | null = null;
+      const controller = new AbortController();
+      refreshControllerRef.current = controller;
       try {
-        defaults = (await dashboardApi.getDefaults()).defaults;
-      } catch {
-        defaults = null;
+        const { defaults } = await dashboardApi.getDefaults({ signal: controller.signal });
+        if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
+        setPeriodDefaults(defaults);
+        setPeriodStatus("no-period");
+        setPeriodError(null);
+      } catch (defaultsError) {
+        if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
+        reportError(defaultsError, {
+          ...(isNetworkError(defaultsError) ? NETWORK_FAILURE : classifyApiFailure(defaultsError)),
+          op: "budget.defaults",
+          domain: "budgets",
+        });
+        setPeriodStatus("error");
+        setPeriodError("Could not load budget settings. Retry to continue.");
+      } finally {
+        if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
       }
-      if (failureGeneration !== generationRef.current) return;
-      setPeriodDefaults(defaults);
-      setPeriodStatus("no-period");
-      setPeriodError(null);
       return;
     }
     setPeriodStatus("error");

@@ -94,6 +94,50 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(true));
   });
 
+  it("discards failures from desktop requests hidden by a viewport change and reloads on return", async () => {
+    let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
+    window.matchMedia = vi.fn().mockImplementation(() => ({
+      matches: false,
+      addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+        onViewportChange = listener;
+      },
+      removeEventListener: vi.fn(),
+    }));
+    const toastError = vi.spyOn(toast, "error");
+    let rejectFirst!: (error: Error) => void;
+    let byTagCalls = 0;
+    installBaseApi((url) => {
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      if (url.includes("/spending/by-tag")) {
+        byTagCalls += 1;
+        return byTagCalls === 1
+          ? new Promise<Response>((_resolve, reject) => { rejectFirst = reject; })
+          : response({ tagSpending: [] });
+      }
+      if (url.includes("/spending/cumulative")) return response({ points: [] });
+      if (url.includes("/spending/comparison")) return response({ comparison: {} });
+      if (url.includes("/spending/trends")) return response({ trends: [] });
+      throw new Error(`Unexpected request: ${url}`);
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
+    await waitFor(() => expect(byTagCalls).toBe(1));
+    act(() => onViewportChange?.({ matches: false } as MediaQueryListEvent));
+    await act(async () => rejectFirst(new Error("Hidden request failed")));
+    expect(toastError).not.toHaveBeenCalled();
+    expect(result.current.sections.byTag.status).not.toBe("error");
+
+    act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
+    await waitFor(() => expect(byTagCalls).toBe(2));
+    await waitFor(() => expect(result.current.sections.byTag.status).toBe("empty"));
+  });
+
   it("defers selected suggestions across mobile refresh until desktop returns", async () => {
     let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
     window.matchMedia = vi.fn().mockImplementation(() => ({

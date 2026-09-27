@@ -22,6 +22,7 @@ const DESKTOP_SECTIONS: DashboardSectionKey[] = [
   "comparison",
   "trends",
 ];
+const DESKTOP_ONLY_SECTIONS: DashboardSectionKey[] = [...DESKTOP_SECTIONS, "suggestions"];
 
 function getDesktopSections(breakdownChart: BreakdownChart): DashboardSectionKey[] {
   return breakdownChart === "repeated-expenses"
@@ -193,7 +194,7 @@ export function useDashboardSections(
         setSections((current) => ({ ...current, comparison: { status: "empty" } }));
         return;
       }
-      void reportSectionFailure(() => Promise.reject(error));
+      void reportSectionFailure(() => Promise.reject(error), { op: `dashboard.${section}` });
       if (section === "suggestions") {
         setSections((current) => ({
           ...current,
@@ -226,7 +227,22 @@ export function useDashboardSections(
       ? null
       : window.matchMedia("(min-width: 768px)");
     if (!mediaQuery) return;
-    const onChange = (event: MediaQueryListEvent) => setDesktopVisible(event.matches);
+    const onChange = (event: MediaQueryListEvent) => {
+      desktopVisibleRef.current = event.matches;
+      if (!event.matches) {
+        for (const section of DESKTOP_ONLY_SECTIONS) {
+          controllersRef.current.get(section)?.abort();
+          requestedRef.current.delete(section);
+        }
+        setSections((current) => ({
+          ...current,
+          byTag: { status: "idle" }, cumulative: { status: "idle" },
+          comparison: { status: "idle" }, trends: { status: "idle" },
+          suggestions: { status: "idle", suggestions: [], errorMessage: null },
+        }));
+      }
+      setDesktopVisible(event.matches);
+    };
     mediaQuery.addEventListener("change", onChange);
     return () => mediaQuery.removeEventListener("change", onChange);
   }, []);

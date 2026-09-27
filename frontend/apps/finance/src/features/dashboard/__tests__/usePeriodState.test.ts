@@ -103,7 +103,7 @@ describe("usePeriodState", () => {
       expect(noPeriodState.retry).toBeInstanceOf(Function);
     });
 
-    it("transitions to no-period with null defaults when defaults fetch fails", async () => {
+    it("blocks period creation when defaults fetch fails", async () => {
       global.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
@@ -118,11 +118,10 @@ describe("usePeriodState", () => {
       const { result } = renderHook(() => usePeriodState());
 
       await waitFor(() => {
-        expect(result.current.status).toBe("no-period");
+        expect(result.current.status).toBe("error");
       });
-
-      const noPeriodState = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
-      expect(noPeriodState.defaults).toBeNull();
+      expect(result.current.retry).toBeInstanceOf(Function);
+      expect("createPeriod" in result.current).toBe(false);
     });
   });
 

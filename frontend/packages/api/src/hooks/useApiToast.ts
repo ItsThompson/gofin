@@ -68,7 +68,7 @@ interface ApiToastCallbacks<T> {
   /** Execute an API call with automatic error toasting. */
   call: (
     operation: () => Promise<T>,
-    options?: { silent?: boolean },
+    options?: { silent?: boolean; op?: string },
   ) => Promise<T | undefined>;
   /**
    * Execute an API call, showing a toast only on error. Returns
@@ -112,7 +112,7 @@ export function useApiToast<T = unknown>(
   const call = useCallback(
     async (
       operation: () => Promise<T>,
-      callOptions?: { silent?: boolean },
+      callOptions?: { silent?: boolean; op?: string },
     ): Promise<T | undefined> => {
       // A silent call is a plain pass-through by contract: no toast, no report,
       // and no chain bookkeeping, so it cannot suppress a visible call's report
@@ -164,7 +164,7 @@ export function useApiToast<T = unknown>(
         if (attempt === 1) {
           reportError(error, {
             ...(network ? NETWORK_FAILURE : classifyApiFailure(error)),
-            op,
+            op: callOptions?.op ?? op,
             domain,
             // Always 1 while only the first attempt reports. The taxonomy asks
             // for the count on the event, so a change to reporting at chain end
@@ -180,7 +180,7 @@ export function useApiToast<T = unknown>(
             label: "Retry",
             onClick: () => {
               if (lastOperationRef.current) {
-                call(lastOperationRef.current);
+                call(lastOperationRef.current, callOptions);
               }
             },
           };

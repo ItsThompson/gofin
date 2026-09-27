@@ -60,7 +60,7 @@ describe("DashboardFeature", () => {
       });
     });
 
-    it("uses fallback defaults when defaults endpoint fails", async () => {
+    it("offers retry instead of a create form when defaults are missing", async () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
@@ -73,15 +73,12 @@ describe("DashboardFeature", () => {
       }) as unknown as typeof fetch;
       renderDashboard();
 
-      await waitFor(() => {
-        expect(screen.getByText(/set up/i)).toBeInTheDocument();
-      });
-
-      const essentialsInput = screen.getByLabelText("Essentials %") as HTMLInputElement;
-      expect(essentialsInput.value).toBe("50");
+      expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Essentials %")).not.toBeInTheDocument();
     });
 
-    it("renders CreatePeriodPrompt with null defaults when defaults fetch returns server error", async () => {
+    it("blocks the create form when defaults fetch returns a server error", async () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
@@ -94,25 +91,9 @@ describe("DashboardFeature", () => {
       }) as unknown as typeof fetch;
       renderDashboard();
 
-      // When defaults fetch fails with a server error, the page should still render
-      // the creation prompt using fallback defaults (50/30/20, $0 budget)
-      await waitFor(() => {
-        expect(screen.getByText(/set up/i)).toBeInTheDocument();
-      });
-
-      // Fallback budget is empty (renders as empty string because amount is 0)
-      const budgetInput = screen.getByLabelText("Monthly Budget") as HTMLInputElement;
-      expect(budgetInput.value).toBe("");
-
-      // Fallback split percentages are 50/30/20
-      const essentialsInput = screen.getByLabelText("Essentials %") as HTMLInputElement;
-      expect(essentialsInput.value).toBe("50");
-
-      const desiresInput = screen.getByLabelText("Desires %") as HTMLInputElement;
-      expect(desiresInput.value).toBe("30");
-
-      const savingsInput = screen.getByLabelText("Savings %") as HTMLInputElement;
-      expect(savingsInput.value).toBe("20");
+      expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Monthly Budget")).not.toBeInTheDocument();
     });
 
     it("leaves reporting currency empty when no usable default or user currency", async () => {
@@ -121,10 +102,7 @@ describe("DashboardFeature", () => {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
         },
-        "/api/finance/defaults": {
-          status: 404,
-          body: { code: "NOT_FOUND", message: "Default settings not found" },
-        },
+        "/api/finance/defaults": { body: { defaults: null } },
       }) as unknown as typeof fetch;
       renderDashboard(buildUser({ currency: "ZZZ" }));
 
@@ -147,10 +125,7 @@ describe("DashboardFeature", () => {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
         },
-        "/api/finance/defaults": {
-          status: 404,
-          body: { code: "NOT_FOUND", message: "Default settings not found" },
-        },
+        "/api/finance/defaults": { body: { defaults: null } },
       });
       globalThis.fetch = mockApi as unknown as typeof fetch;
 

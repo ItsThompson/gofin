@@ -88,6 +88,22 @@ describe("useApiToast reporting", () => {
     expect(toast.error).toHaveBeenCalledTimes(1);
   });
 
+  it("uses a per-call operation when several requests share a reporter", async () => {
+    const { result } = renderHook(() =>
+      useApiToast({ op: "dashboard.section", domain: "budgets" }),
+    );
+
+    await act(async () => {
+      await result.current.call(() => Promise.reject(new Error("trend unavailable")), { op: "dashboard.trends" });
+    });
+
+    expect(onlyCapture().context.tags).toEqual({
+      error_kind: "internal",
+      operation: "dashboard.trends",
+      domain: "budgets",
+    });
+  });
+
   it("puts the attempt count in the gofin context block", async () => {
     const { result } = renderHook(() => useApiToast());
 

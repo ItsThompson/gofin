@@ -43,7 +43,7 @@ describe("usePeriodState's saved defaults", () => {
     toastError.mockClear();
   });
 
-  it("still offers the create prompt when the defaults fetch fails", async () => {
+  it("holds the create prompt until saved defaults are known", async () => {
     global.fetch = createMockApi({
       "/api/finance/periods/current": PERIOD_MISSING,
       "/api/finance/defaults": { status: 503, body: { code: "UPSTREAM" } },
@@ -51,8 +51,9 @@ describe("usePeriodState's saved defaults", () => {
 
     const { result } = renderHook(() => usePeriodState());
 
-    await waitFor(() => expect(result.current.status).toBe("no-period"));
-    expect(result.current).toMatchObject({ status: "no-period", defaults: null });
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    expect("createPeriod" in result.current).toBe(false);
+    expect(result.current.retry).toBeInstanceOf(Function);
   });
 
   it("reports the failure and tells the user, instead of looking like no defaults", async () => {

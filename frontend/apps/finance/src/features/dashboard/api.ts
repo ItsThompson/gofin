@@ -78,8 +78,8 @@ export const dashboardApi = {
       options,
     ),
 
-  getDefaults: () =>
-    apiClient<DefaultsResponse>("/api/finance/defaults"),
+  getDefaults: (options?: DashboardRequestOptions) =>
+    apiClient<DefaultsResponse>("/api/finance/defaults", options),
 
   createPeriod: (body: CreatePeriodRequest) =>
     apiClient<CreatePeriodResponse>("/api/finance/periods", {

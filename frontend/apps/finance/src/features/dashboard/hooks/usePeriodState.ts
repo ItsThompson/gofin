@@ -14,9 +14,8 @@ export function usePeriodState(): PeriodStateResult {
   const [state, setState] = useState<PeriodState>({ status: "loading" });
   const requestGenerationRef = useRef(0);
   const { call: toastCall } = useApiToast();
-  // The prompt works without saved defaults, but a failed load used to look
-  // identical to having none. useApiToast owns the report and the message;
-  // retry is off because the toast's Retry discards its result.
+  // A failed defaults request cannot prove there are no saved settings.
+  // Keep the recovery form hidden until a retry confirms the defaults state.
   const { call: defaultsCall } = useApiToast<DefaultsResponse>({
     retriable: false,
     op: "budget.defaults",
@@ -61,9 +60,13 @@ export function usePeriodState(): PeriodStateResult {
           dashboardApi.getDefaults(),
         );
         if (requestGeneration !== requestGenerationRef.current) return;
+        if (!defaultsResponse) {
+          setState({ status: "error" });
+          return;
+        }
         setState({
           status: "no-period",
-          defaults: defaultsResponse?.defaults ?? null,
+          defaults: defaultsResponse.defaults,
         });
         return;
       }

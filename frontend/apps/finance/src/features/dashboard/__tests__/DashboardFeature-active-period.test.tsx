@@ -102,6 +102,34 @@ describe("DashboardFeature", () => {
       expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions"))).toHaveLength(0);
     });
 
+    it("does not offer an unconfigured budget when defaults fail during period recovery", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": mockSequence([
+          { body: { period: testPeriod } },
+          { status: 404, body: { code: "PERIOD_NOT_FOUND", message: "No period" } },
+          { status: 404, body: { code: "PERIOD_NOT_FOUND", message: "No period" } },
+        ]),
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/summary": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" } },
+        "/api/finance/defaults": mockSequence([
+          { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Defaults unavailable" } },
+          { body: { defaults: null } },
+        ]),
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+      const summaryAlert = await screen.findByText("Could not load Summary");
+      await user.click(within(summaryAlert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Retry" }));
+
+      expect(await screen.findByText("Could not load the dashboard")).toBeInTheDocument();
+      expect(screen.queryByText(/No budget configured yet/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Create .* Period/ })).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Retry" }));
+      expect(await screen.findByText(/No budget configured yet/)).toBeInTheDocument();
+    });
+
     it("recovers the previous trend window after a wider-window error", async () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
