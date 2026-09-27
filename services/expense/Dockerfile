@@ -34,6 +34,7 @@ COPY dbmigrate/ ./dbmigrate/
 COPY apierr/ ./apierr/
 COPY errkit/ ./errkit/
 COPY httpx/ ./httpx/
+COPY finance/config/ ./finance/config/
 COPY finance/proto/ ./finance/proto/
 COPY fx/proto/ ./fx/proto/
 COPY shared/currency/ ./shared/currency/
