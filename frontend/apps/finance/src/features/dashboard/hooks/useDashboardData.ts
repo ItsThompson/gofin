@@ -89,6 +89,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   const [periodStatus, setPeriodStatus] = useState<DashboardControllerStatus>("active");
   const [periodError, setPeriodError] = useState<string | null>(null);
   const [periodDefaults, setPeriodDefaults] = useState<DefaultSettings | null>(null);
+  const [periodVerificationPending, setPeriodVerificationPending] = useState(false);
   const generationRef = useRef(0);
   const periodRef = useRef(period);
   const previousPeriodPropRef = useRef(period);
@@ -107,12 +108,17 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     startPeriodSections,
     selectBreakdown,
     setTrendMonths: setSectionTrendMonths,
-  } = useDashboardSections(generationRef, periodRef, periodStatus === "active" && !periodPropChanged);
+  } = useDashboardSections(
+    generationRef,
+    periodRef,
+    periodStatus === "active" && !periodPropChanged && !periodVerificationPending,
+  );
 
   const abortRequests = useCallback(() => {
     abortSectionRequests();
     periodVerificationControllerRef.current?.abort();
     periodVerificationControllerRef.current = null;
+    setPeriodVerificationPending(false);
   }, [abortSectionRequests]);
 
   const activatePeriod = useCallback((nextPeriod: BudgetPeriod, forceRefresh = false) => {
@@ -138,6 +144,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     if (requestGeneration !== generationRef.current) return;
     abortRequests();
     const failureGeneration = ++generationRef.current;
+    setPeriodVerificationPending(false);
     resetSections();
     setPeriodStatus("loading");
     setPeriodError(null);
@@ -186,6 +193,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     periodVerificationControllerRef.current?.abort();
     const controller = new AbortController();
     periodVerificationControllerRef.current = controller;
+    setPeriodVerificationPending(true);
     const requestGeneration = generationRef.current;
     clearRequestedSection("summary");
     setSectionLoading("summary");
@@ -199,6 +207,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
         activatePeriod(response.period, true);
         return;
       }
+      setPeriodVerificationPending(false);
       void loadSection("summary", true);
     }).catch((error: unknown) => {
       if (controller.signal.aborted || requestGeneration !== generationRef.current) return;

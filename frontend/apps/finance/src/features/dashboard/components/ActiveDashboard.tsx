@@ -150,17 +150,18 @@ export function ActiveDashboard({ period, user, readOnly = false }: ActiveDashbo
               {(comparison) => <SectionErrorBoundary sectionName="Historical Comparison"><HistoricalComparisonWidget comparison={comparison} currency={currency} /></SectionErrorBoundary>}
             </SectionState>
           </section> : <SectionState label="Historical comparison" state={sections.comparison} onRetry={() => controller.retry("comparison")} emptyMessage="Not enough data for comparison.">{() => null}</SectionState>}
-          {sections.trends.status === "success" || sections.trends.status === "empty" ? <section id="trends" data-outline-title="Trends">
-            <SectionState
-              label="Trends"
-              state={sections.trends}
-              onRetry={() => controller.retry("trends")}
-              emptyMessage="No trend data is available."
-              emptyContent={<TrendsSection trendData={[]} trendMonths={controller.trendMonths} onToggle={controller.setTrendMonths} currency={currency} />}
-            >
-              {(trendData) => <SectionErrorBoundary sectionName="Monthly Trends"><TrendsSection trendData={[...trendData]} trendMonths={controller.trendMonths} onToggle={controller.setTrendMonths} currency={currency} /></SectionErrorBoundary>}
-            </SectionState>
-          </section> : <SectionState label="Trends" state={sections.trends} onRetry={() => controller.retry("trends")} emptyMessage="No trend data is available.">{() => null}</SectionState>}
+          <section id="trends" data-outline-title="Trends">
+            <SectionErrorBoundary sectionName="Monthly Trends">
+              <TrendsSection
+                trendData={sections.trends.status === "success" ? [...sections.trends.data] : []}
+                trendState={sections.trends}
+                trendMonths={controller.trendMonths}
+                onToggle={controller.setTrendMonths}
+                onRetry={() => controller.retry("trends")}
+                currency={currency}
+              />
+            </SectionErrorBoundary>
+          </section>
           <section id="breakdown" data-outline-title="Breakdown">
             <SectionErrorBoundary sectionName="Breakdown">
               <BreakdownSection

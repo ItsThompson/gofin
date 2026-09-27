@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiRequestError } from "@gofin/api";
+import { ApiRequestError, useApiToast } from "@gofin/api";
 import type { BudgetPeriod } from "@gofin/core";
 import { fetchDashboardSection, type DashboardSectionPayload } from "./dashboardDataRequests";
 import type {
@@ -118,8 +118,14 @@ export function useDashboardSections(
   const [sections, setSections] = useState<DashboardSectionState>(() => createInitialDashboardSectionState(desktopVisible));
   const [trendMonths, setTrendMonthsState] = useState<6 | 12>(6);
   const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
+  const { call: reportSectionFailure } = useApiToast({
+    retriable: false,
+    op: "dashboard.section",
+    domain: "budgets",
+  });
   const desktopVisibleRef = useRef(desktopVisible);
   const previousDesktopVisibleRef = useRef(desktopVisible);
+  const previousPeriodActiveRef = useRef(periodActive);
   desktopVisibleRef.current = desktopVisible;
   const trendMonthsRef = useRef<6 | 12>(6);
   const breakdownChartRef = useRef<BreakdownChart>("tag-spending");
@@ -179,6 +185,7 @@ export function useDashboardSections(
         setSections((current) => ({ ...current, comparison: { status: "empty" } }));
         return;
       }
+      void reportSectionFailure(() => Promise.reject(error));
       if (section === "suggestions") {
         setSections((current) => ({
           ...current,
@@ -194,7 +201,7 @@ export function useDashboardSections(
     } finally {
       if (controllersRef.current.get(section) === controller) controllersRef.current.delete(section);
     }
-  }, [generationRef, periodRef, setSectionLoading]);
+  }, [generationRef, periodRef, reportSectionFailure, setSectionLoading]);
 
   const startPeriodSections = useCallback((forceRefresh = false) => {
     requestedRef.current.clear();
@@ -217,8 +224,10 @@ export function useDashboardSections(
 
   useEffect(() => {
     const becameDesktopVisible = desktopVisible && !previousDesktopVisibleRef.current;
+    const becamePeriodActive = periodActive && !previousPeriodActiveRef.current;
     previousDesktopVisibleRef.current = desktopVisible;
-    if (!becameDesktopVisible || !periodActive) return;
+    previousPeriodActiveRef.current = periodActive;
+    if (!periodActive || (!becameDesktopVisible && !becamePeriodActive)) return;
     for (const section of DESKTOP_SECTIONS) void loadSection(section);
   }, [desktopVisible, loadSection, periodActive]);
 

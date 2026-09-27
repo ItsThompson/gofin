@@ -70,6 +70,29 @@ describe("DashboardFeature", () => {
       expect(mockApi._calls.some((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=12"))).toBe(true);
     });
 
+    it("recovers the previous trend window after a wider-window error", async () => {
+      const mockApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/spending/trends": mockSequence([
+          { body: { trends: [{ year: 2026, month: 5, totalSpent: 100, budgetAmount: 300000, essentialsSpent: 50, desiresSpent: 50, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+          { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Trend window failed" } },
+          { body: { trends: [{ year: 2026, month: 5, totalSpent: 200, budgetAmount: 300000, essentialsSpent: 100, desiresSpent: 100, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+        ]),
+      });
+      globalThis.fetch = mockApi as unknown as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(2));
+      await user.click(screen.getByLabelText("12 months"));
+      await waitFor(() => expect(screen.getByText("Could not load Trends")).toBeInTheDocument());
+
+      await user.click(screen.getByLabelText("6 months"));
+      await waitFor(() => expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(2));
+      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=6")).length).toBeGreaterThanOrEqual(2);
+    });
+
     it("renders an explicit empty state for a health trend with no points", async () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
