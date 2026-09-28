@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ItsThompson/gofin/services/expense/internal/cache"
@@ -82,12 +81,8 @@ func suggestionInputsCacheKey(userID string) string {
 }
 
 func (c *expenseReadCaches) purgeUser(userID string) {
-	c.completePeriod.Purge(func(key string) bool {
-		return strings.HasPrefix(key, "expense.complete_period|"+userID+"|")
-	})
-	c.recent.Purge(func(key string) bool {
-		return strings.HasPrefix(key, "expense.recent_expenses|"+userID+"|")
-	})
+	cache.PurgePrefix(c.completePeriod, "expense.complete_period|"+userID+"|")
+	cache.PurgePrefix(c.recent, "expense.recent_expenses|"+userID+"|")
 	c.suggestions.Evict(suggestionInputsCacheKey(userID))
 }
 

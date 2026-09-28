@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -56,6 +57,117 @@ func TestCacheLoadHitAndCopySafety(t *testing.T) {
 	assert.Equal(t, StatusHit, secondStatus)
 	assert.Equal(t, []string{"one", "two"}, second["value"])
 	assert.Equal(t, 1, loads)
+}
+
+func TestCacheSlowHitCloneDoesNotBlockOtherKeys(t *testing.T) {
+	var block atomic.Bool
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	cache := New[string, string](DefaultConfig(), nil, func(value string) string {
+		if value == "slow" && block.Load() {
+			close(entered)
+			<-release
+		}
+		return value
+	}, func(value string) (int64, bool) { return int64(len(value)), true })
+	for _, key := range []string{"slow", "fast"} {
+		_, _, err := cache.Load(context.Background(), key, LoadOptions{}, func(context.Context) (string, error) { return key, nil })
+		require.NoError(t, err)
+	}
+
+	block.Store(true)
+	slowDone := make(chan struct{})
+	go func() {
+		defer close(slowDone)
+		value, status, err := cache.Load(context.Background(), "slow", LoadOptions{}, func(context.Context) (string, error) { return "", nil })
+		assert.NoError(t, err)
+		assert.Equal(t, StatusHit, status)
+		assert.Equal(t, "slow", value)
+	}()
+	<-entered
+
+	fastDone := make(chan struct{})
+	go func() {
+		defer close(fastDone)
+		value, status, err := cache.Load(context.Background(), "fast", LoadOptions{}, func(context.Context) (string, error) { return "", nil })
+		assert.NoError(t, err)
+		assert.Equal(t, StatusHit, status)
+		assert.Equal(t, "fast", value)
+	}()
+	everyOtherHitCompleted := false
+	select {
+	case <-fastDone:
+		everyOtherHitCompleted = true
+	case <-time.After(time.Second):
+	}
+	evictDone := make(chan struct{})
+	go func() {
+		cache.Evict("slow")
+		close(evictDone)
+	}()
+	evictionCompleted := false
+	select {
+	case <-evictDone:
+		evictionCompleted = true
+	case <-time.After(time.Second):
+	}
+	block.Store(false)
+	close(release)
+	<-slowDone
+	<-fastDone
+	<-evictDone
+	assert.True(t, everyOtherHitCompleted, "a slow clone blocked an unrelated cache hit")
+	assert.True(t, evictionCompleted, "a slow clone blocked eviction")
+	assert.Equal(t, 1, cache.Len())
+}
+
+func TestCacheSlowSizingDoesNotBlockOtherKeysAndMeasuresOnce(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var slowMeasurements atomic.Int32
+	var blockOnce sync.Once
+	cache := New[string, string](DefaultConfig(), nil, func(value string) string { return value }, func(value string) (int64, bool) {
+		if value == "slow" {
+			slowMeasurements.Add(1)
+			blockOnce.Do(func() {
+				close(entered)
+				<-release
+			})
+		}
+		return int64(len(value)), true
+	})
+	_, _, err := cache.Load(context.Background(), "fast", LoadOptions{}, func(context.Context) (string, error) { return "fast", nil })
+	require.NoError(t, err)
+
+	slowDone := make(chan struct{})
+	go func() {
+		defer close(slowDone)
+		value, status, loadErr := cache.Load(context.Background(), "slow", LoadOptions{}, func(context.Context) (string, error) { return "slow", nil })
+		assert.NoError(t, loadErr)
+		assert.Equal(t, StatusLoaded, status)
+		assert.Equal(t, "slow", value)
+	}()
+	<-entered
+
+	fastDone := make(chan struct{})
+	go func() {
+		defer close(fastDone)
+		_, status, loadErr := cache.Load(context.Background(), "fast", LoadOptions{}, func(context.Context) (string, error) { return "", nil })
+		assert.NoError(t, loadErr)
+		assert.Equal(t, StatusHit, status)
+	}()
+	completed := false
+	select {
+	case <-fastDone:
+		completed = true
+	case <-time.After(time.Second):
+	}
+	close(release)
+	<-slowDone
+	<-fastDone
+	assert.True(t, completed, "sizing a load blocked an unrelated cache hit")
+	assert.Equal(t, int32(1), slowMeasurements.Load())
+	assert.Equal(t, int64(8), cache.Bytes())
 }
 
 func TestCacheExpiryAndCapacityEviction(t *testing.T) {
@@ -210,6 +322,57 @@ func TestCacheSingleFlightAndEvictionFence(t *testing.T) {
 	assert.Equal(t, 0, fencedCache.Len())
 }
 
+func TestCacheWaiterRetriesAfterFirstCallerCancellation(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		err  error
+	}{
+		{name: "context error", err: context.Canceled},
+		{name: "unwrapped source error", err: errors.New("query interrupted")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			now := time.Now()
+			cache := testCache(&now, DefaultConfig())
+			firstCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			started := make(chan struct{})
+			firstDone := make(chan error, 1)
+			go func() {
+				_, _, err := cache.Load(firstCtx, "key", LoadOptions{}, func(ctx context.Context) (map[string][]string, error) {
+					close(started)
+					<-ctx.Done()
+					return nil, test.err
+				})
+				firstDone <- err
+			}()
+			<-started
+
+			waiterCtx := &signallingContext{Context: context.Background(), entered: make(chan struct{})}
+			loads := 0
+			type outcome struct {
+				value map[string][]string
+				err   error
+			}
+			secondDone := make(chan outcome, 1)
+			go func() {
+				value, _, err := cache.Load(waiterCtx, "key", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+					loads++
+					return map[string][]string{"value": {"fresh"}}, nil
+				})
+				secondDone <- outcome{value: value, err: err}
+			}()
+			<-waiterCtx.entered
+			cancel()
+			require.ErrorIs(t, <-firstDone, test.err)
+			result := <-secondDone
+			require.NoError(t, result.err)
+			assert.Equal(t, []string{"fresh"}, result.value["value"])
+			assert.Equal(t, 1, loads)
+			assert.Equal(t, 1, cache.Len())
+		})
+	}
+}
+
 func TestCacheFailedForcedReplacementRetainsGenerationFence(t *testing.T) {
 	now := time.Now()
 	cache := testCache(&now, DefaultConfig())
@@ -260,9 +423,32 @@ func TestCachePurgeFencesPendingLoads(t *testing.T) {
 		})
 	}()
 	<-started
-	cache.Purge(func(key string) bool { return key == "user-1|key" })
+	PurgePrefix(cache, "user-1|")
 	close(release)
 	assert.Eventually(t, func() bool { return cache.Len() == 0 }, time.Second, time.Millisecond)
+}
+
+func TestCachePurgePrefixPreservesOtherUsers(t *testing.T) {
+	now := time.Now()
+	cache := testCache(&now, DefaultConfig())
+	for _, key := range []string{"user-1|first", "user-1|second", "user-10|first"} {
+		_, _, err := cache.Load(context.Background(), key, LoadOptions{}, func(context.Context) (map[string][]string, error) {
+			return map[string][]string{"value": {key}}, nil
+		})
+		require.NoError(t, err)
+	}
+
+	PurgePrefix(cache, "user-1|")
+	assert.Equal(t, 1, cache.Len())
+	loads := 0
+	value, status, err := cache.Load(context.Background(), "user-10|first", LoadOptions{}, func(context.Context) (map[string][]string, error) {
+		loads++
+		return nil, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, StatusHit, status)
+	assert.Equal(t, []string{"user-10|first"}, value["value"])
+	assert.Zero(t, loads)
 }
 
 func TestCacheLifecycleObserverReportsCapacityAndEviction(t *testing.T) {
