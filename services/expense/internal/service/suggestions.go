@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/ItsThompson/gofin/services/apierr"
-	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
+	"github.com/ItsThompson/gofin/services/shared/cache"
 	"github.com/ItsThompson/gofin/services/shared/validator"
 )
 

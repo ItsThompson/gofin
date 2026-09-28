@@ -13,12 +13,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/ItsThompson/gofin/services/apierr"
-	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	financeconfig "github.com/ItsThompson/gofin/services/finance/config"
 	"github.com/ItsThompson/gofin/services/metrics"
 	"github.com/ItsThompson/gofin/services/serverkit"
+	"github.com/ItsThompson/gofin/services/shared/cache"
 	currencycatalog "github.com/ItsThompson/gofin/services/shared/currency"
 	"github.com/ItsThompson/gofin/services/shared/exchangesource"
 	"github.com/ItsThompson/gofin/services/shared/validator"

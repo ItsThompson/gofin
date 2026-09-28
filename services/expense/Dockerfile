@@ -18,6 +18,7 @@ COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY httpx/go.mod httpx/go.sum* ./httpx/
 COPY finance/go.mod finance/go.sum* ./finance/
 COPY fx/go.mod fx/go.sum* ./fx/
+COPY shared/cache/go.mod ./shared/cache/
 COPY shared/currency/go.mod ./shared/currency/
 COPY shared/validator/go.mod ./shared/validator/
 COPY shared/exchangesource/go.mod ./shared/exchangesource/
@@ -37,6 +38,7 @@ COPY httpx/ ./httpx/
 COPY finance/config/ ./finance/config/
 COPY finance/proto/ ./finance/proto/
 COPY fx/proto/ ./fx/proto/
+COPY shared/cache/ ./shared/cache/
 COPY shared/currency/ ./shared/currency/
 COPY shared/validator/ ./shared/validator/
 COPY shared/exchangesource/ ./shared/exchangesource/

@@ -17,6 +17,7 @@ use (
 	./perf
 	./pgutil
 	./serverkit
+	./shared/cache
 	./shared/currency
 	./shared/exchangesource
 	./shared/validator

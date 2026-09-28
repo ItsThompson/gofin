@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
 	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/shared/cache"
 )
 
 type signallingReadContext struct {
@@ -36,6 +36,21 @@ func (c *signallingReadContext) Done() <-chan struct{} {
 func newCachedTestService(repo *mockExpenseRepository, now *time.Time, config cache.Config) *ExpenseService {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	return NewExpenseServiceWithCache(repo, newTestPeriodClient(), &stubFxClient{}, func() time.Time { return *now }, logger, config)
+}
+
+func TestExpenseReadCachePartitionsAggregateBudget(t *testing.T) {
+	config := cache.DefaultConfig()
+	config.MaxEntries = 10
+	config.MaxBytes = 100
+	config.MaxEntryBytes = 200
+
+	partitioned := partitionExpenseReadCacheConfig(config)
+
+	assert.Equal(t, 3, partitioned.MaxEntries)
+	assert.Equal(t, int64(33), partitioned.MaxBytes)
+	assert.Equal(t, int64(33), partitioned.MaxEntryBytes)
+	assert.LessOrEqual(t, int64(expenseReadCacheCount)*partitioned.MaxBytes, config.MaxBytes)
+	assert.LessOrEqual(t, expenseReadCacheCount*partitioned.MaxEntries, config.MaxEntries)
 }
 
 func TestGetActiveExpensesForPeriod_CachesCopySafeResultsAndIsolatesUsers(t *testing.T) {

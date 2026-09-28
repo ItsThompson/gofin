@@ -19,6 +19,7 @@ COPY apierr/go.mod apierr/go.sum* ./apierr/
 COPY errkit/go.mod errkit/go.sum* ./errkit/
 COPY httpx/go.mod httpx/go.sum* ./httpx/
 COPY pgutil/go.mod pgutil/go.sum* ./pgutil/
+COPY shared/cache/go.mod ./shared/cache/
 COPY shared/currency/go.mod ./shared/currency/
 COPY shared/validator/go.mod ./shared/validator/
 COPY fx/go.mod fx/go.sum* ./fx/
@@ -38,6 +39,7 @@ COPY apierr/ ./apierr/
 COPY errkit/ ./errkit/
 COPY httpx/ ./httpx/
 COPY pgutil/ ./pgutil/
+COPY shared/cache/ ./shared/cache/
 COPY shared/currency/ ./shared/currency/
 COPY shared/validator/ ./shared/validator/
 COPY fx/proto/ ./fx/proto/

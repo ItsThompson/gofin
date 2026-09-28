@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -451,6 +452,21 @@ func TestCachePurgePrefixPreservesOtherUsers(t *testing.T) {
 	assert.Zero(t, loads)
 }
 
+func TestCacheEvictionAllowsReloadAfterManyUniqueKeys(t *testing.T) {
+	cache := New[string, string](DefaultConfig(), time.Now, nil, nil)
+	for i := 0; i < 1000; i++ {
+		key := "evicted-" + strconv.Itoa(i)
+		cache.Evict(key)
+		value, status, err := cache.Load(context.Background(), key, LoadOptions{}, func(context.Context) (string, error) {
+			return "value", nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, StatusLoaded, status)
+		require.Equal(t, "value", value)
+		cache.Evict(key)
+	}
+}
+
 func TestCacheLifecycleObserverReportsCapacityAndEviction(t *testing.T) {
 	now := time.Now()
 	var events []Event
@@ -519,6 +535,54 @@ func TestCacheSingleFlightReportsJoinStatus(t *testing.T) {
 	close(release)
 	assert.Equal(t, StatusLoaded, <-first)
 	assert.Equal(t, StatusSingleFlightJoin, <-second)
+}
+
+func TestCachePeekExpiredEntryReportsEviction(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	var events []Event
+	config := DefaultConfig()
+	config.Observer = func(event Event) { events = append(events, event) }
+	cache := New[string, string](config, func() time.Time { return now }, nil, nil)
+
+	_, _, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) { return "value", nil })
+	require.NoError(t, err)
+	now = now.Add(config.MaxAge)
+	_, _, ok := cache.Peek("key")
+	require.False(t, ok)
+	require.Contains(t, events, EventEviction)
+}
+
+func TestCacheBypassFailureRetainsPriorValue(t *testing.T) {
+	cache := New[string, string](DefaultConfig(), time.Now, nil, nil)
+	_, _, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) { return "old", nil })
+	require.NoError(t, err)
+
+	_, _, err = cache.Load(context.Background(), "key", LoadOptions{Bypass: true}, func(context.Context) (string, error) {
+		return "", errors.New("forced failure")
+	})
+	require.EqualError(t, err, "forced failure")
+	value, status, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) { return "unexpected", nil })
+	require.NoError(t, err)
+	require.Equal(t, StatusHit, status)
+	require.Equal(t, "old", value)
+}
+
+func TestCachePeekAndRefreshRequireCurrentGeneration(t *testing.T) {
+	cache := New[string, string](DefaultConfig(), time.Now, nil, func(value string) (int64, bool) { return int64(len(value)), true })
+	_, _, err := cache.Load(context.Background(), "key", LoadOptions{}, func(context.Context) (string, error) { return "old", nil })
+	require.NoError(t, err)
+
+	value, generation, ok := cache.Peek("key")
+	require.True(t, ok)
+	require.Equal(t, "old", value)
+	require.True(t, cache.Refresh("key", "refreshed", generation))
+	value, nextGeneration, ok := cache.Peek("key")
+	require.True(t, ok)
+	require.Equal(t, "refreshed", value)
+	require.Equal(t, generation, nextGeneration)
+
+	cache.Evict("key")
+	require.False(t, cache.Refresh("key", "stale", generation))
 }
 
 func TestCacheBypassAndDisabledReadSourceDirectly(t *testing.T) {

@@ -14,7 +14,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/ItsThompson/gofin/services/expense/internal/cache"
 	"github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/handler"
 	"github.com/ItsThompson/gofin/services/expense/internal/repository"
@@ -23,6 +22,7 @@ import (
 	financepb "github.com/ItsThompson/gofin/services/finance/proto/financepb"
 	"github.com/ItsThompson/gofin/services/healthcheck"
 	"github.com/ItsThompson/gofin/services/serverkit"
+	"github.com/ItsThompson/gofin/services/shared/cache"
 )
 
 func main() {

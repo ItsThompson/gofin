@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ItsThompson/gofin/services/expense/internal/cache"
+	expenseconfig "github.com/ItsThompson/gofin/services/expense/internal/config"
 	"github.com/ItsThompson/gofin/services/expense/internal/model"
 	"github.com/ItsThompson/gofin/services/metrics"
+	"github.com/ItsThompson/gofin/services/shared/cache"
 )
 
 // ReadCacheConfig controls the three expense-owned read caches.
@@ -21,6 +22,7 @@ const (
 	expenseReadOperationComplete    = "complete_period"
 	expenseReadOperationRecent      = "recent_expenses"
 	expenseReadOperationSuggestions = "suggestion_inputs"
+	expenseReadCacheCount           = expenseconfig.ReadCacheStoreCount
 )
 
 func recordExpenseReadCacheEvent(operation string, status cache.LoadStatus) {
@@ -47,6 +49,7 @@ type expenseReadCaches struct {
 }
 
 func newExpenseReadCaches(config ReadCacheConfig, now func() time.Time) *expenseReadCaches {
+	config = partitionExpenseReadCacheConfig(config)
 	completeConfig := config
 	completeConfig.Observer = expenseReadCacheObserver(expenseReadOperationComplete, config.Observer)
 	recentConfig := config
@@ -58,6 +61,15 @@ func newExpenseReadCaches(config ReadCacheConfig, now func() time.Time) *expense
 		recent:         cache.New[string, *model.ExpenseListResponse](recentConfig, now, cloneExpenseListResponse, jsonSize[*model.ExpenseListResponse]),
 		suggestions:    cache.New[string, []*model.ExpenseSuggestionInput](suggestionConfig, now, cloneSuggestionInputs, jsonSize[[]*model.ExpenseSuggestionInput]),
 	}
+}
+
+func partitionExpenseReadCacheConfig(config ReadCacheConfig) ReadCacheConfig {
+	config.MaxEntries /= expenseReadCacheCount
+	config.MaxBytes /= expenseReadCacheCount
+	if config.MaxEntryBytes > config.MaxBytes {
+		config.MaxEntryBytes = config.MaxBytes
+	}
+	return config
 }
 
 func jsonSize[T any](value T) (int64, bool) {

@@ -20,6 +20,7 @@ const DefaultRESTPort = "8082"
 const ReportDomain = "expenses"
 
 const (
+	ReadCacheStoreCount           = 3
 	defaultReadCacheEnabled       = false
 	defaultReadCacheMaxEntries    = 256
 	defaultReadCacheMaxBytes      = 64 * 1024 * 1024
@@ -110,9 +111,15 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if readCacheMaxEntries < ReadCacheStoreCount {
+		return nil, fmt.Errorf("EXPENSE_READ_CACHE_MAX_ENTRIES must be at least %d", ReadCacheStoreCount)
+	}
 	readCacheMaxBytes, err := readCacheInt64("EXPENSE_READ_CACHE_MAX_BYTES", defaultReadCacheMaxBytes)
 	if err != nil {
 		return nil, err
+	}
+	if readCacheMaxBytes < int64(ReadCacheStoreCount) {
+		return nil, fmt.Errorf("EXPENSE_READ_CACHE_MAX_BYTES must be at least %d", ReadCacheStoreCount)
 	}
 	readCacheMaxEntryBytes, err := readCacheInt64("EXPENSE_READ_CACHE_MAX_ENTRY_BYTES", defaultReadCacheMaxEntryBytes)
 	if err != nil {
