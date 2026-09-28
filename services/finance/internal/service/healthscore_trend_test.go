@@ -1,6 +1,8 @@
 package service
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -191,6 +193,83 @@ func TestGetHealthScoreTrend_ReportingCurrencyPerPoint(t *testing.T) {
 	require.Len(t, points, 2)
 	assert.Equal(t, "JPY", points[0].ReportingCurrencyCode, "first point gets period reporting currency")
 	assert.Equal(t, "USD", points[1].ReportingCurrencyCode, "second point gets period reporting currency")
+}
+
+func TestGetHealthScoreTrend_CurrentProvisionalExpiresAtMonthBoundary(t *testing.T) {
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	config := DefaultResultCacheConfig()
+	config.MaxEntries = 32
+	config.MaxBytes = 1024 * 1024
+	config.MaxEntryBytes = 1024 * 1024
+	config.MaxAge = 30 * 24 * time.Hour
+	svc := NewFinanceServiceWithCache(repo, txBeg, expClient, func() time.Time { return now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{
+		healthPeriodMonth(2026, 5), healthPeriodMonth(2026, 4),
+	}, nil)
+	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{
+		scalarPoint(2026, 4, 65),
+	}, nil)
+	repo.On("GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5)).Return(nil, nil)
+	repo.On("UpsertHealthScore", mock.Anything, "user-1", mock.Anything).Return(nil, nil)
+	expenses := []ExpenseData{healthExpense("desires", 80000)}
+	expClient.On("GetExpenseRevision", mock.Anything, "user-1").Return(ExpenseRevision{Epoch: "epoch-1", Revision: 1}, nil)
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(4)).Return(expenses, nil)
+	expClient.On("GetActiveExpensesForPeriod", mock.Anything, "user-1", int32(2026), int32(5)).Return(expenses, nil)
+
+	points, err := svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 7, 6)
+	require.NoError(t, err)
+	require.Len(t, points, 2)
+	assert.True(t, points[1].Provisional)
+
+	key := trendResultKey(operationHealthTrend, "user-1", 2026, 7, 6)
+	cached, _, ok := svc.resultCaches.healthTrend.Peek(key)
+	require.True(t, ok)
+	assert.Equal(t, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC), cached.ExpiresAt)
+
+	now = time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	points, err = svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 7, 6)
+	require.NoError(t, err)
+	require.Len(t, points, 2)
+	assert.False(t, points[1].Provisional)
+	repo.AssertCalled(t, "GetHealthScore", mock.Anything, "user-1", int32(2026), int32(5))
+	repo.AssertCalled(t, "UpsertHealthScore", mock.Anything, "user-1", mock.Anything)
+}
+
+func TestGetHealthScoreTrend_StoredOnlyUsesNormalExpiry(t *testing.T) {
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	repo := new(mockRepo)
+	txBeg := new(mockTxBeg)
+	expClient := new(mockExpClient)
+	config := DefaultResultCacheConfig()
+	config.MaxEntries = 32
+	config.MaxBytes = 1024 * 1024
+	config.MaxEntryBytes = 1024 * 1024
+	config.MaxAge = 30 * 24 * time.Hour
+	svc := NewFinanceServiceWithCache(repo, txBeg, expClient, func() time.Time { return now }, slog.New(slog.NewJSONHandler(io.Discard, nil)), config)
+
+	repo.On("ListPeriods", mock.Anything, "user-1").Return([]*model.BudgetPeriod{healthPeriodMonth(2026, 4)}, nil)
+	repo.On("ListHealthScoreScalars", mock.Anything, "user-1").Return([]*model.HealthScoreTrendPoint{scalarPoint(2026, 4, 65)}, nil)
+
+	_, err := svc.GetHealthScoreTrend(t.Context(), "user-1", 2026, 7, 6)
+	require.NoError(t, err)
+
+	key := trendResultKey(operationHealthTrend, "user-1", 2026, 7, 6)
+	cached, _, ok := svc.resultCaches.healthTrend.Peek(key)
+	require.True(t, ok)
+	assert.Equal(t, now.Add(config.MaxAge), cached.ExpiresAt)
+}
+
+func TestHealthTrendExpiryUsesProvisionalPointMonthBoundary(t *testing.T) {
+	provisional := []model.HealthScoreTrendPoint{{Year: 2026, Month: 5, Provisional: true}}
+	now := time.Date(2026, 6, 2, 0, 0, 0, 0, time.UTC)
+
+	expiresAt := healthTrendExpiry(now, 48*time.Hour, provisional)
+
+	assert.Equal(t, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC), expiresAt)
 }
 
 func TestGetHealthScoreTrend_ClampsMonths(t *testing.T) {

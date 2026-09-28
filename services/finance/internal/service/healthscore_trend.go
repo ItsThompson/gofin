@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ItsThompson/gofin/services/finance/internal/model"
 )
@@ -22,12 +23,12 @@ import (
 func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string, year, month, months int32) ([]model.HealthScoreTrendPoint, error) {
 	months = normalizeTrendMonths(months)
 	key := trendResultKey(operationHealthTrend, userID, year, month, months)
-	expiresAt := cacheExpiry(s.nowFunc(), s.resultCaches.maxAge, year, month, operationHealthTrend)
 	return loadCachedResult(s, ctx, operationHealthTrend, key, s.resultCaches.healthTrend, func(loadCtx context.Context) (*cachedResult[[]model.HealthScoreTrendPoint], error) {
 		points, usesLiveExpenses, revision, err := s.computeHealthScoreTrend(loadCtx, userID, year, month, months)
 		if err != nil {
 			return nil, err
 		}
+		expiresAt := healthTrendExpiry(s.nowFunc(), s.resultCaches.maxAge, points)
 		result := &cachedResult[[]model.HealthScoreTrendPoint]{Value: points, ExpiresAt: expiresAt}
 		if usesLiveExpenses && s.validateRevisions && revision != nil {
 			recordFinanceCacheLifecycleEvent(operationHealthTrend, "freshness_check")
@@ -46,6 +47,20 @@ func (s *FinanceService) GetHealthScoreTrend(ctx context.Context, userID string,
 		}
 		return result, nil
 	})
+}
+
+func healthTrendExpiry(now time.Time, maxAge time.Duration, points []model.HealthScoreTrendPoint) time.Time {
+	expiresAt := now.Add(maxAge)
+	for _, point := range points {
+		if !point.Provisional {
+			continue
+		}
+		monthBoundary := time.Date(int(point.Year), time.Month(point.Month)+1, 1, 0, 0, 0, 0, now.Location())
+		if monthBoundary.Before(expiresAt) {
+			expiresAt = monthBoundary
+		}
+	}
+	return expiresAt
 }
 
 func (s *FinanceService) computeHealthScoreTrend(ctx context.Context, userID string, year, month, months int32) ([]model.HealthScoreTrendPoint, bool, *ExpenseRevision, error) {
