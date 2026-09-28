@@ -673,6 +673,143 @@ describe("useDashboardData", () => {
     expect(result.current.data.recentExpenses).toEqual([]);
   });
 
+  it("recovers automatically from a summary period miss and hides stale data before retrying once", async () => {
+    let summaryRequests = 0;
+    let periodLookups = 0;
+    let resolveAutomaticVerification!: (value: Response) => void;
+    let resolveRecoveredSummary!: (value: Response) => void;
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) {
+        periodLookups += 1;
+        return periodLookups === 1
+          ? response({ period })
+          : new Promise<Response>((resolve) => { resolveAutomaticVerification = resolve; });
+      }
+      if (url.includes("/summary")) {
+        summaryRequests += 1;
+        if (summaryRequests === 1) return response({ summary });
+        if (summaryRequests === 2) {
+          return response({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }, 404);
+        }
+        return new Promise<Response>((resolve) => { resolveRecoveredSummary = resolve; });
+      }
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+
+    act(() => result.current.retry("summary"));
+    await waitFor(() => expect(summaryRequests).toBe(2));
+    await waitFor(() => expect(periodLookups).toBe(2));
+    expect(result.current.periodStatus).toBe("loading");
+    expect(result.current.data.summary).toBeNull();
+
+    await act(async () => resolveAutomaticVerification(response({ period })));
+    await waitFor(() => expect(summaryRequests).toBe(3));
+    expect(result.current.periodStatus).toBe("active");
+    expect(result.current.data.summary).toBeNull();
+
+    await act(async () => resolveRecoveredSummary(response({ summary })));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    expect(result.current.periodStatus).toBe("active");
+    expect(summaryRequests).toBe(3);
+  });
+
+  it("enters period recovery when automatic summary verification finds no period", async () => {
+    let periodLookups = 0;
+    let summaryRequests = 0;
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) {
+        periodLookups += 1;
+        return periodLookups === 1
+          ? response({ period })
+          : response({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }, 404);
+      }
+      if (url.includes("/summary")) {
+        summaryRequests += 1;
+        return summaryRequests === 1
+          ? response({ summary })
+          : response({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }, 404);
+      }
+      if (url.includes("/defaults")) return response({ defaults: null });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    act(() => result.current.retry("summary"));
+
+    await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
+    expect(result.current.data.summary).toBeNull();
+    expect(summaryRequests).toBe(2);
+    expect(periodLookups).toBe(2);
+  });
+
+  it("does not verify a period when Summary Retry is invoked outside the active state", async () => {
+    let periodLookups = 0;
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) {
+        periodLookups += 1;
+        return response({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }, 404);
+      }
+      if (url.includes("/summary")) return response({ summary });
+      if (url.includes("/defaults")) return response({ defaults: null });
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
+
+    const lookupsAfterRecovery = periodLookups;
+    act(() => result.current.retry("summary"));
+    expect(periodLookups).toBe(lookupsAfterRecovery);
+  });
+
+  it("does not loop when the one automatic summary retry also reports a period miss", async () => {
+    let summaryRequests = 0;
+    let periodLookups = 0;
+    installBaseApi((url) => {
+      if (url.includes("/periods/current")) {
+        periodLookups += 1;
+        return response({ period });
+      }
+      if (url.includes("/summary")) {
+        summaryRequests += 1;
+        return summaryRequests === 1
+          ? response({ summary })
+          : response({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }, 404);
+      }
+      if (url.includes("/health-score?")) return response({ healthScore: { configureBudget: true } });
+      if (url.includes("/health-score/trend")) return response({ trends: [] });
+      if (url.includes("/expenses?")) return response({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false });
+      if (url.includes("/prorata/upcoming")) return response({ schedules: [] });
+      return response({});
+    });
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    act(() => result.current.retry("summary"));
+
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
+    expect(summaryRequests).toBe(3);
+    expect(periodLookups).toBe(2);
+  });
+
   it("verifies period metadata before retrying summary without reloading completed sections", async () => {
     let summaryRequestCount = 0;
     const requestedUrls: string[] = [];

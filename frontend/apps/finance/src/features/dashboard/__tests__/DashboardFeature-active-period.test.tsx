@@ -23,6 +23,64 @@ describe("DashboardFeature", () => {
   });
 
   describe("active period exists", () => {
+    it("hides dashboard controls while automatic Summary recovery verifies the period", async () => {
+      let currentPeriodCalls = 0;
+      let summaryCalls = 0;
+      let resolveAutomaticVerification!: (response: Response) => void;
+      let resolveRecoveredSummary!: (response: Response) => void;
+      const baseApi = createMockApi({
+        "/api/finance/periods/current": { body: { period: testPeriod } },
+        ...dashboardDataEmptyRoutes(),
+        "/api/finance/health-score/trend": { body: { trends: [] } },
+        "/api/finance/health-score": { body: { healthScore: { configureBudget: true } } },
+      });
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes("/api/finance/periods/current")) {
+          currentPeriodCalls += 1;
+          if (currentPeriodCalls === 3) {
+            return new Promise<Response>((resolve) => { resolveAutomaticVerification = resolve; });
+          }
+        }
+        if (url.includes("/api/finance/summary")) {
+          summaryCalls += 1;
+          if (summaryCalls === 1) return baseApi(input, init);
+          if (summaryCalls === 2) {
+            return new Response(JSON.stringify({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }), {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return new Promise<Response>((resolve) => { resolveRecoveredSummary = resolve; });
+        }
+        return baseApi(input, init);
+      }) as typeof fetch;
+      const user = userEvent.setup();
+      renderDashboard();
+
+      await waitFor(() => expect(screen.getByText("No expenses yet")).toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+      await waitFor(() => expect(summaryCalls).toBe(2));
+      await waitFor(() => expect(currentPeriodCalls).toBe(3));
+
+      expect(screen.queryByRole("button", { name: "Refresh all data" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Dashboard" })).not.toBeInTheDocument();
+      expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+
+      await act(async () => resolveAutomaticVerification(new Response(JSON.stringify({ period: testPeriod }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })));
+      await waitFor(() => expect(summaryCalls).toBe(3));
+      expect(screen.getByRole("button", { name: "Refresh all data" })).toBeInTheDocument();
+
+      await act(async () => resolveRecoveredSummary(new Response(JSON.stringify({ summary: testSummary }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Refresh all data" })).toBeInTheDocument());
+    });
+
     it("shows the Log Expense link while dashboard data is loading", async () => {
       globalThis.fetch = ((input: RequestInfo | URL) => {
         const url = String(input);

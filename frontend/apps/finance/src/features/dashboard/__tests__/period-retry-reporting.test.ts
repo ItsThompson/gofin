@@ -8,16 +8,18 @@ interface CapturedContext {
   tags?: Record<string, string>;
 }
 
-const { captureException } = vi.hoisted(() => ({
+const { captureException, toastError } = vi.hoisted(() => ({
   captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(() => "event-id"),
+  toastError: vi.fn(),
 }));
 vi.mock("@sentry/react-router", () => ({ captureException }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
 
 const period = buildPeriod({ id: "period-1", year: 2026, month: 5 });
 
 beforeEach(() => {
   captureException.mockClear();
+  toastError.mockClear();
   window.matchMedia = vi.fn().mockImplementation(() => ({
     matches: false,
     addEventListener: vi.fn(),
@@ -51,6 +53,27 @@ describe("dashboard period retry reporting", () => {
       operation: "budget.period",
       domain: "budgets",
     });
+  });
+
+  it("reports section failures without showing an error toast", async () => {
+    global.fetch = createMockApi({
+      ...dashboardDataEmptyRoutes(),
+      "/api/finance/health-score": {
+        status: 503,
+        body: { code: "UPSTREAM_UNAVAILABLE", message: "Health score failed" },
+      },
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.healthScore.status).toBe("error"));
+
+    expect(toastError).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalled();
+    expect(captureException.mock.calls.some(([, context]) =>
+      context?.tags?.operation === "dashboard.healthScore" &&
+      context.tags?.error_kind === "upstream" &&
+      context.tags?.domain === "budgets",
+    )).toBe(true);
   });
 
   it("does not report a period failure after the dashboard unmounts", async () => {

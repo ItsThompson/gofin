@@ -126,3 +126,21 @@ export interface DashboardPeriodRecovery {
   createError: string | null;
   clearCreateError: () => void;
 }
+
+export interface DashboardDataResult {
+  data: DashboardData;
+  sections: DashboardSectionState;
+  period: BudgetPeriod;
+  periodStatus: DashboardControllerStatus;
+  periodError: string | null;
+  periodRecovery: DashboardPeriodRecovery | null;
+  desktopVisible: boolean;
+  loading: boolean;
+  refresh: () => void;
+  retry: (section: DashboardSectionKey) => void;
+  replacePeriodAfterEdit: (period: BudgetPeriod) => void;
+  trendMonths: 6 | 12;
+  setTrendMonths: (months: 6 | 12) => void;
+  breakdownChart: BreakdownChart;
+  selectBreakdown: (chart: BreakdownChart) => void;
+}

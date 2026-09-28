@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiRequestError, useApiToast } from "@gofin/api";
+import {
+  ApiRequestError,
+  classifyApiFailure,
+  isNetworkError,
+  NETWORK_FAILURE,
+  reportError,
+} from "@gofin/api";
 import type { BudgetPeriod } from "@gofin/core";
 import { fetchDashboardSection } from "./dashboardDataRequests";
 import type { BreakdownChart, DashboardSectionKey, DashboardSectionState } from "../types";
@@ -25,6 +31,8 @@ interface PeriodRef {
   current: BudgetPeriod;
 }
 
+type SummaryPeriodNotFoundHandler = (requestGeneration: number) => boolean;
+
 export interface DashboardSectionController {
   sections: DashboardSectionState;
   desktopVisible: boolean;
@@ -44,16 +52,13 @@ export function useDashboardSections(
   generationRef: GenerationRef,
   periodRef: PeriodRef,
   periodActive: boolean,
+  onSummaryPeriodNotFound: SummaryPeriodNotFoundHandler = () => false,
+  onSummarySuccess: () => void = () => undefined,
 ): DashboardSectionController {
   const [desktopVisible, setDesktopVisible] = useState(isDesktopViewport);
   const [sections, setSections] = useState<DashboardSectionState>(() => createInitialDashboardSectionState(desktopVisible));
   const [trendMonths, setTrendMonthsState] = useState<6 | 12>(6);
   const [breakdownChart, setBreakdownChart] = useState<BreakdownChart>("tag-spending");
-  const { call: reportSectionFailure } = useApiToast({
-    retriable: false,
-    op: "dashboard.section",
-    domain: "budgets",
-  });
   const desktopVisibleRef = useRef(desktopVisible);
   const previousDesktopVisibleRef = useRef(desktopVisible);
   const previousPeriodActiveRef = useRef(periodActive);
@@ -103,13 +108,27 @@ export function useDashboardSections(
       );
       if (generation !== generationRef.current || controller.signal.aborted) return;
       setSections((current) => applySectionPayload(current, result));
+      if (result.section === "summary") onSummarySuccess();
     } catch (error) {
       if (controller.signal.aborted || generation !== generationRef.current) return;
       if (section === "comparison" && error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
         setSections((current) => ({ ...current, comparison: { status: "empty" } }));
         return;
       }
-      void reportSectionFailure(() => Promise.reject(error), { op: `dashboard.${section}` });
+      reportError(error, {
+        ...(isNetworkError(error) ? NETWORK_FAILURE : classifyApiFailure(error)),
+        op: `dashboard.${section}`,
+        domain: "budgets",
+        data: { attempt: 1 },
+      });
+      if (
+        section === "summary" &&
+        error instanceof ApiRequestError &&
+        error.code === "PERIOD_NOT_FOUND" &&
+        onSummaryPeriodNotFound(generation)
+      ) {
+        return;
+      }
       if (section === "suggestions") {
         setSections((current) => ({
           ...current,
@@ -128,7 +147,7 @@ export function useDashboardSections(
     } finally {
       if (controllersRef.current.get(section) === controller) controllersRef.current.delete(section);
     }
-  }, [generationRef, periodRef, reportSectionFailure, setSectionLoading]);
+  }, [generationRef, onSummaryPeriodNotFound, onSummarySuccess, periodRef, setSectionLoading]);
 
   const startPeriodSections = useCallback((forceRefresh = false) => {
     requestedRef.current.clear();
