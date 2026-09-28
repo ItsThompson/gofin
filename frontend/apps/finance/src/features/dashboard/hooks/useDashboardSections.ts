@@ -1,34 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, useApiToast } from "@gofin/api";
 import type { BudgetPeriod } from "@gofin/core";
-import { fetchDashboardSection, type DashboardSectionPayload } from "./dashboardDataRequests";
-import type {
-  BreakdownChart,
-  DashboardSectionKey,
-  DashboardSectionState,
-  SectionState,
-} from "../types";
-
-const BASE_SECTIONS: DashboardSectionKey[] = [
-  "summary",
-  "recentExpenses",
-  "upcomingProRata",
-  "healthScore",
-  "healthScoreTrend",
-];
-const DESKTOP_SECTIONS: DashboardSectionKey[] = [
-  "byTag",
-  "cumulative",
-  "comparison",
-  "trends",
-];
-const DESKTOP_ONLY_SECTIONS: DashboardSectionKey[] = [...DESKTOP_SECTIONS, "suggestions"];
-
-function getDesktopSections(breakdownChart: BreakdownChart): DashboardSectionKey[] {
-  return breakdownChart === "repeated-expenses"
-    ? [...DESKTOP_SECTIONS, "suggestions"]
-    : [...DESKTOP_SECTIONS];
-}
+import { fetchDashboardSection } from "./dashboardDataRequests";
+import type { BreakdownChart, DashboardSectionKey, DashboardSectionState } from "../types";
+import {
+  DESKTOP_ONLY_SECTIONS,
+  applySectionPayload,
+  clearSuggestions,
+  createInitialDashboardSectionState,
+  getDesktopSections,
+  getSectionErrorMessage,
+  getSectionsToLoad,
+  isDesktopSection,
+  isDesktopViewport,
+  resetDesktopSections,
+  setSectionLoadingState,
+} from "../utils/dashboardSectionUtils";
 
 interface GenerationRef {
   current: number;
@@ -51,69 +38,6 @@ export interface DashboardSectionController {
   clearRequestedSection: (section: DashboardSectionKey) => void;
   loadSection: (section: DashboardSectionKey, force?: boolean) => Promise<void>;
   startPeriodSections: (forceRefresh?: boolean) => void;
-}
-
-function isDesktopViewport(): boolean {
-  if (typeof window === "undefined" || !window.matchMedia) return true;
-  return window.matchMedia("(min-width: 768px)").matches;
-}
-
-export function createInitialDashboardSectionState(desktopVisible: boolean): DashboardSectionState {
-  return {
-    summary: { status: "loading" },
-    byTag: desktopVisible ? { status: "loading" } : { status: "idle" },
-    cumulative: desktopVisible ? { status: "loading" } : { status: "idle" },
-    recentExpenses: { status: "loading" },
-    comparison: desktopVisible ? { status: "loading" } : { status: "idle" },
-    upcomingProRata: { status: "loading" },
-    trends: desktopVisible ? { status: "loading" } : { status: "idle" },
-    healthScore: { status: "loading" },
-    healthScoreTrend: { status: "loading" },
-    suggestions: { status: "idle", suggestions: [], errorMessage: null },
-  };
-}
-
-function sectionError(error: unknown): { message: string } {
-  if (error instanceof ApiRequestError) return { message: error.message };
-  if (error instanceof Error) return { message: error.message };
-  return { message: "This section is unavailable right now." };
-}
-
-function arrayState<T>(value: readonly T[]): SectionState<readonly T[]> {
-  return value.length === 0 ? { status: "empty" } : { status: "success", data: value };
-}
-
-function applySectionPayload(
-  current: DashboardSectionState,
-  result: DashboardSectionPayload,
-): DashboardSectionState {
-  switch (result.section) {
-    case "suggestions":
-      return {
-        ...current,
-        suggestions: result.data.length === 0
-          ? { status: "empty", suggestions: [], errorMessage: null }
-          : { status: "success", suggestions: result.data, errorMessage: null },
-      };
-    case "summary":
-      return { ...current, summary: { status: "success", data: result.data } };
-    case "comparison":
-      return { ...current, comparison: { status: "success", data: result.data } };
-    case "healthScore":
-      return { ...current, healthScore: { status: "success", data: result.data } };
-    case "byTag":
-      return { ...current, byTag: arrayState(result.data) };
-    case "cumulative":
-      return { ...current, cumulative: arrayState(result.data) };
-    case "recentExpenses":
-      return { ...current, recentExpenses: arrayState(result.data) };
-    case "upcomingProRata":
-      return { ...current, upcomingProRata: arrayState(result.data) };
-    case "trends":
-      return { ...current, trends: arrayState(result.data) };
-    case "healthScoreTrend":
-      return { ...current, healthScoreTrend: arrayState(result.data) };
-  }
 }
 
 export function useDashboardSections(
@@ -152,14 +76,7 @@ export function useDashboardSections(
   }, []);
 
   const setSectionLoading = useCallback((section: DashboardSectionKey) => {
-    if (section === "suggestions") {
-      setSections((current) => ({
-        ...current,
-        suggestions: { status: "loading", suggestions: [], errorMessage: null },
-      }));
-      return;
-    }
-    setSections((current) => ({ ...current, [section]: { status: "loading" } }));
+    setSections((current) => setSectionLoadingState(current, section));
   }, []);
 
   const clearRequestedSection = useCallback((section: DashboardSectionKey) => {
@@ -167,9 +84,7 @@ export function useDashboardSections(
   }, []);
 
   const loadSection = useCallback(async (section: DashboardSectionKey, force = false) => {
-    if (section === "byTag" || section === "cumulative" || section === "comparison" || section === "trends" || section === "suggestions") {
-      if (!desktopVisibleRef.current) return;
-    }
+    if (isDesktopSection(section) && !desktopVisibleRef.current) return;
     if (requestedRef.current.has(section) && !force) return;
     requestedRef.current.add(section);
     const generation = generationRef.current;
@@ -201,12 +116,15 @@ export function useDashboardSections(
           suggestions: {
             status: "error",
             suggestions: [],
-            errorMessage: sectionError(error).message,
+            errorMessage: getSectionErrorMessage(error),
           },
         }));
         return;
       }
-      setSections((current) => ({ ...current, [section]: { status: "error", error: sectionError(error) } }));
+      setSections((current) => ({
+        ...current,
+        [section]: { status: "error", error: { message: getSectionErrorMessage(error) } },
+      }));
     } finally {
       if (controllersRef.current.get(section) === controller) controllersRef.current.delete(section);
     }
@@ -215,10 +133,8 @@ export function useDashboardSections(
   const startPeriodSections = useCallback((forceRefresh = false) => {
     requestedRef.current.clear();
     setSections(createInitialDashboardSectionState(desktopVisibleRef.current));
-    const eligible = desktopVisibleRef.current
-      ? [...BASE_SECTIONS, ...getDesktopSections(breakdownChartRef.current)]
-      : BASE_SECTIONS;
-    for (const section of eligible) void loadSection(section, forceRefresh);
+    const sectionsToLoad = getSectionsToLoad(desktopVisibleRef.current, breakdownChartRef.current);
+    for (const section of sectionsToLoad) void loadSection(section, forceRefresh);
   }, [loadSection]);
 
   useEffect(() => {
@@ -234,12 +150,7 @@ export function useDashboardSections(
           controllersRef.current.get(section)?.abort();
           requestedRef.current.delete(section);
         }
-        setSections((current) => ({
-          ...current,
-          byTag: { status: "idle" }, cumulative: { status: "idle" },
-          comparison: { status: "idle" }, trends: { status: "idle" },
-          suggestions: { status: "idle", suggestions: [], errorMessage: null },
-        }));
+        setSections((current) => resetDesktopSections(current));
       }
       setDesktopVisible(event.matches);
     };
@@ -270,10 +181,7 @@ export function useDashboardSections(
     }
     controllersRef.current.get("suggestions")?.abort();
     requestedRef.current.delete("suggestions");
-    setSections((current) => ({
-      ...current,
-      suggestions: { status: "idle", suggestions: [], errorMessage: null },
-    }));
+    setSections((current) => clearSuggestions(current));
   }, [loadSection, setSectionLoading]);
 
   const setTrendMonths = useCallback((months: 6 | 12, shouldReload: boolean) => {

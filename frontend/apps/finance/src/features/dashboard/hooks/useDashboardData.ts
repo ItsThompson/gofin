@@ -4,40 +4,25 @@ import type {
   BudgetPeriod,
   CreatePeriodRequest,
   CreatePeriodResponse,
-  CumulativeSpendPoint,
   DefaultSettings,
-  Expense,
-  HealthScore,
-  HealthScoreConfigureBudget,
-  HealthScoreTrendPoint,
-  HistoricalComparison,
-  PeriodSummary,
-  ProRataSchedule,
-  TagSpending,
-  TrendPoint,
 } from "@gofin/core";
 import { dashboardApi } from "../api";
-import { createInitialDashboardSectionState, useDashboardSections } from "./useDashboardSections";
+import {
+  buildDashboardData,
+  getPeriodErrorMessage,
+  isDashboardLoading,
+  isSamePeriod,
+} from "../utils/dashboardData";
+import { useDashboardSections } from "./useDashboardSections";
+import { createInitialDashboardSectionState } from "../utils/dashboardSectionUtils";
 import type {
   BreakdownChart,
   DashboardControllerStatus,
+  DashboardData,
   DashboardPeriodRecovery,
   DashboardSectionKey,
   DashboardSectionState,
-  SectionState,
 } from "../types";
-
-export interface DashboardData {
-  summary: PeriodSummary | null;
-  tagSpending: TagSpending[];
-  cumulativeData: CumulativeSpendPoint[];
-  recentExpenses: Expense[];
-  comparison: HistoricalComparison | null;
-  upcomingProRata: ProRataSchedule[];
-  trendData: TrendPoint[] | null;
-  healthScore: HealthScore | HealthScoreConfigureBudget | null;
-  healthScoreTrend: HealthScoreTrendPoint[] | null;
-}
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
   summary: null,
@@ -50,12 +35,6 @@ export const EMPTY_DASHBOARD_DATA: DashboardData = {
   healthScore: null,
   healthScoreTrend: null,
 };
-
-function periodErrorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "This period is unavailable right now.";
-}
 
 export interface DashboardDataResult {
   data: DashboardData;
@@ -73,25 +52,6 @@ export interface DashboardDataResult {
   setTrendMonths: (months: 6 | 12) => void;
   breakdownChart: BreakdownChart;
   selectBreakdown: (chart: BreakdownChart) => void;
-}
-
-
-function stateData<T>(state: SectionState<T>): T | null {
-  return state.status === "success" ? state.data : null;
-}
-
-function isSamePeriod(first: BudgetPeriod, second: BudgetPeriod): boolean {
-  return first.id === second.id
-    && first.userId === second.userId
-    && first.year === second.year
-    && first.month === second.month
-    && first.budgetAmount === second.budgetAmount
-    && first.reportingCurrencyCode === second.reportingCurrencyCode
-    && first.essentialsPercent === second.essentialsPercent
-    && first.desiresPercent === second.desiresPercent
-    && first.savingsPercent === second.savingsPercent
-    && first.createdAt === second.createdAt
-    && first.updatedAt === second.updatedAt;
 }
 
 export function useDashboardData(period: BudgetPeriod, readOnly = false): DashboardDataResult {
@@ -205,7 +165,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       domain: "budgets",
     });
     setPeriodStatus("error");
-    setPeriodError(periodErrorMessage(error));
+    setPeriodError(getPeriodErrorMessage(error));
   }, [abortRequests, readOnly, resetSections]);
 
   const refresh = useCallback(() => {
@@ -308,20 +268,8 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     ? createInitialDashboardSectionState(false)
     : sections;
   const visiblePeriodStatus = periodPropChanged ? "loading" : periodStatus;
-  const trendData = stateData(visibleSections.trends);
-  const healthScoreTrend = stateData(visibleSections.healthScoreTrend);
-  const data: DashboardData = {
-    summary: stateData(visibleSections.summary),
-    tagSpending: [...(stateData(visibleSections.byTag) ?? [])],
-    cumulativeData: [...(stateData(visibleSections.cumulative) ?? [])],
-    recentExpenses: [...(stateData(visibleSections.recentExpenses) ?? [])],
-    comparison: stateData(visibleSections.comparison),
-    upcomingProRata: [...(stateData(visibleSections.upcomingProRata) ?? [])],
-    trendData: trendData ? [...trendData] : null,
-    healthScore: stateData(visibleSections.healthScore),
-    healthScoreTrend: healthScoreTrend ? [...healthScoreTrend] : null,
-  };
-  const loading = visiblePeriodStatus !== "active" || Object.values(visibleSections).some((section) => section.status === "loading");
+  const data = buildDashboardData(visibleSections);
+  const loading = isDashboardLoading(visiblePeriodStatus, visibleSections);
 
   return {
     data,

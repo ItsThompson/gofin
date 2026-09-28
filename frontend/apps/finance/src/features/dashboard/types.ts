@@ -15,6 +15,18 @@ import type {
 } from "@gofin/core";
 import type { ActiveExpenseSuggestion } from "../expense-autocomplete/types";
 
+export interface DashboardData {
+  summary: PeriodSummary | null;
+  tagSpending: TagSpending[];
+  cumulativeData: CumulativeSpendPoint[];
+  recentExpenses: Expense[];
+  comparison: HistoricalComparison | null;
+  upcomingProRata: ProRataSchedule[];
+  trendData: TrendPoint[] | null;
+  healthScore: HealthScore | HealthScoreConfigureBudget | null;
+  healthScoreTrend: HealthScoreTrendPoint[] | null;
+}
+
 /** Base properties available in all period states. */
 interface PeriodStateBase {
   /** Re-fetch period data. */
