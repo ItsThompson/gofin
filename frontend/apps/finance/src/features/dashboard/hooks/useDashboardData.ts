@@ -4,7 +4,17 @@ import type {
   BudgetPeriod,
   CreatePeriodRequest,
   CreatePeriodResponse,
+  CumulativeSpendPoint,
   DefaultSettings,
+  Expense,
+  HealthScore,
+  HealthScoreConfigureBudget,
+  HealthScoreTrendPoint,
+  HistoricalComparison,
+  PeriodSummary,
+  ProRataSchedule,
+  TagSpending,
+  TrendPoint,
 } from "@gofin/core";
 import { dashboardApi } from "../api";
 import { createInitialDashboardSectionState, useDashboardSections } from "./useDashboardSections";
@@ -18,15 +28,15 @@ import type {
 } from "../types";
 
 export interface DashboardData {
-  summary: import("@gofin/core").PeriodSummary | null;
-  tagSpending: import("@gofin/core").TagSpending[];
-  cumulativeData: import("@gofin/core").CumulativeSpendPoint[];
-  recentExpenses: import("@gofin/core").Expense[];
-  comparison: import("@gofin/core").HistoricalComparison | null;
-  upcomingProRata: import("@gofin/core").ProRataSchedule[];
-  trendData: import("@gofin/core").TrendPoint[] | null;
-  healthScore: import("@gofin/core").HealthScore | import("@gofin/core").HealthScoreConfigureBudget | null;
-  healthScoreTrend: import("@gofin/core").HealthScoreTrendPoint[] | null;
+  summary: PeriodSummary | null;
+  tagSpending: TagSpending[];
+  cumulativeData: CumulativeSpendPoint[];
+  recentExpenses: Expense[];
+  comparison: HistoricalComparison | null;
+  upcomingProRata: ProRataSchedule[];
+  trendData: TrendPoint[] | null;
+  healthScore: HealthScore | HealthScoreConfigureBudget | null;
+  healthScoreTrend: HealthScoreTrendPoint[] | null;
 }
 
 export const EMPTY_DASHBOARD_DATA: DashboardData = {
