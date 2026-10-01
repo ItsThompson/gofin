@@ -97,44 +97,46 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     const failureGeneration = ++generationRef.current;
     resetSections();
     setPeriodState({ status: "loading", period: periodRef.current });
-    if (error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
-      if (readOnly) {
-        setPeriodState({
-          status: "not-found",
-          period: periodRef.current,
-          error: "This historical period is no longer available.",
-        });
-        return;
-      }
-      const controller = new AbortController();
-      refreshControllerRef.current = controller;
-      try {
-        const { defaults } = await dashboardApi.getDefaults({ signal: controller.signal });
-        if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
-        setPeriodState({ status: "no-period", period: periodRef.current, defaults });
-      } catch (defaultsError) {
-        if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
-        reportError(defaultsError, {
-          ...(isNetworkError(defaultsError) ? NETWORK_FAILURE : classifyApiFailure(defaultsError)),
-          op: "budget.defaults",
-          domain: "budgets",
-        });
-        setPeriodState({
-          status: "error",
-          period: periodRef.current,
-          error: "Could not load budget settings. Retry to continue.",
-        });
-      } finally {
-        if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
-      }
+    if (!(error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND")) {
+      reportError(error, {
+        ...(isNetworkError(error) ? NETWORK_FAILURE : classifyApiFailure(error)),
+        op: "budget.period",
+        domain: "budgets",
+      });
+      setPeriodState({ status: "error", period: periodRef.current, error: getPeriodErrorMessage(error) });
       return;
     }
-    reportError(error, {
-      ...(isNetworkError(error) ? NETWORK_FAILURE : classifyApiFailure(error)),
-      op: "budget.period",
-      domain: "budgets",
-    });
-    setPeriodState({ status: "error", period: periodRef.current, error: getPeriodErrorMessage(error) });
+
+    if (readOnly) {
+      setPeriodState({
+        status: "not-found",
+        period: periodRef.current,
+        error: "This historical period is no longer available.",
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+    refreshControllerRef.current = controller;
+    try {
+      const { defaults } = await dashboardApi.getDefaults({ signal: controller.signal });
+      if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
+      setPeriodState({ status: "no-period", period: periodRef.current, defaults });
+    } catch (defaultsError) {
+      if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
+      reportError(defaultsError, {
+        ...(isNetworkError(defaultsError) ? NETWORK_FAILURE : classifyApiFailure(defaultsError)),
+        op: "budget.defaults",
+        domain: "budgets",
+      });
+      setPeriodState({
+        status: "error",
+        period: periodRef.current,
+        error: "Could not load budget settings. Retry to continue.",
+      });
+    } finally {
+      if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
+    }
   }, [abortRequests, readOnly, resetSections]);
 
   const refresh = useCallback(() => {
