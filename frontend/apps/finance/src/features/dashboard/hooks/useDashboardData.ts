@@ -4,30 +4,21 @@ import type {
   BudgetPeriod,
   CreatePeriodRequest,
   CreatePeriodResponse,
-  DefaultSettings,
 } from "@gofin/core";
 import { dashboardApi } from "../api";
-import {
-  buildDashboardData,
-  getPeriodErrorMessage,
-  isDashboardLoading,
-  isSamePeriod,
-} from "../utils/dashboardData";
+import { getPeriodErrorMessage, isSamePeriod } from "../utils/dashboardData";
 import { useDashboardSections } from "./useDashboardSections";
 import { createInitialDashboardSectionState } from "../utils/dashboardSectionUtils";
 import type {
   BreakdownChart,
   DashboardControllerStatus,
   DashboardDataResult,
+  DashboardPeriodState,
   DashboardSectionKey,
 } from "../types";
 
 export function useDashboardData(period: BudgetPeriod, readOnly = false): DashboardDataResult {
-  const [renderedPeriod, setRenderedPeriod] = useState(period);
-  const [periodStatus, setPeriodStatus] = useState<DashboardControllerStatus>("active");
-  const [periodError, setPeriodError] = useState<string | null>(null);
-  const [periodDefaults, setPeriodDefaults] = useState<DefaultSettings | null>(null);
-  const [periodVerificationPending, setPeriodVerificationPending] = useState(false);
+  const [periodState, setPeriodState] = useState<DashboardPeriodState>({ status: "active", period });
   const generationRef = useRef(0);
   const periodRef = useRef(period);
   const previousPeriodPropRef = useRef(period);
@@ -62,7 +53,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   } = useDashboardSections(
     generationRef,
     periodRef,
-    periodStatus === "active" && !periodPropChanged && !periodVerificationPending,
+    periodState.status === "active" && !periodPropChanged,
     handleSummaryPeriodNotFound,
     handleSummarySuccess,
   );
@@ -74,7 +65,6 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     refreshControllerRef.current?.abort();
     refreshControllerRef.current = null;
     deferredSectionsRef.current.clear();
-    setPeriodVerificationPending(false);
   }, [abortSectionRequests]);
 
   useEffect(() => () => {
@@ -89,10 +79,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     abortRequests();
     generationRef.current += 1;
     periodRef.current = nextPeriod;
-    setRenderedPeriod(nextPeriod);
-    setPeriodStatus("active");
-    setPeriodError(null);
-    setPeriodDefaults(null);
+    setPeriodState({ status: "active", period: nextPeriod });
     startPeriodSections(forceRefresh);
   }, [abortRequests, startPeriodSections]);
 
@@ -108,15 +95,15 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     if (requestGeneration !== generationRef.current) return;
     abortRequests();
     const failureGeneration = ++generationRef.current;
-    setPeriodVerificationPending(false);
     resetSections();
-    setPeriodStatus("loading");
-    setPeriodError(null);
-    setPeriodDefaults(null);
+    setPeriodState({ status: "loading", period: periodRef.current });
     if (error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
       if (readOnly) {
-        setPeriodStatus("not-found");
-        setPeriodError("This historical period is no longer available.");
+        setPeriodState({
+          status: "not-found",
+          period: periodRef.current,
+          error: "This historical period is no longer available.",
+        });
         return;
       }
       const controller = new AbortController();
@@ -124,9 +111,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       try {
         const { defaults } = await dashboardApi.getDefaults({ signal: controller.signal });
         if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
-        setPeriodDefaults(defaults);
-        setPeriodStatus("no-period");
-        setPeriodError(null);
+        setPeriodState({ status: "no-period", period: periodRef.current, defaults });
       } catch (defaultsError) {
         if (controller.signal.aborted || failureGeneration !== generationRef.current) return;
         reportError(defaultsError, {
@@ -134,8 +119,11 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
           op: "budget.defaults",
           domain: "budgets",
         });
-        setPeriodStatus("error");
-        setPeriodError("Could not load budget settings. Retry to continue.");
+        setPeriodState({
+          status: "error",
+          period: periodRef.current,
+          error: "Could not load budget settings. Retry to continue.",
+        });
       } finally {
         if (refreshControllerRef.current === controller) refreshControllerRef.current = null;
       }
@@ -146,8 +134,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       op: "budget.period",
       domain: "budgets",
     });
-    setPeriodStatus("error");
-    setPeriodError(getPeriodErrorMessage(error));
+    setPeriodState({ status: "error", period: periodRef.current, error: getPeriodErrorMessage(error) });
   }, [abortRequests, readOnly, resetSections]);
 
   const refresh = useCallback(() => {
@@ -156,8 +143,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
     const controller = new AbortController();
     refreshControllerRef.current = controller;
     resetSections();
-    setPeriodStatus("loading");
-    setPeriodError(null);
+    setPeriodState({ status: "loading", period: periodRef.current });
     const currentPeriod = periodRef.current;
     void dashboardApi.getCurrentPeriod(currentPeriod.year, currentPeriod.month, { forceRefresh: true, signal: controller.signal })
       .then((response) => {
@@ -173,18 +159,19 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
   }, [abortRequests, activatePeriod, gatePeriodFailure, resetSections]);
 
   const retrySummary = useCallback((options: { hideStaleData?: boolean } = {}) => {
-    if (!options.hideStaleData && periodStatus !== "active") return;
+    if (!options.hideStaleData && periodState.status !== "active") return;
     if (options.hideStaleData) {
       abortSectionRequests();
       generationRef.current += 1;
       resetSections();
-      setPeriodStatus("loading");
-      setPeriodError(null);
+      setPeriodState({ status: "loading", period: periodRef.current });
     }
     periodVerificationControllerRef.current?.abort();
     const controller = new AbortController();
     periodVerificationControllerRef.current = controller;
-    setPeriodVerificationPending(true);
+    if (!options.hideStaleData) {
+      setPeriodState({ status: "verifying", period: periodRef.current });
+    }
     const requestGeneration = generationRef.current;
     clearRequestedSection("summary");
     setSectionLoading("summary");
@@ -199,10 +186,8 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
         return;
       }
       periodVerificationControllerRef.current = null;
-      setPeriodVerificationPending(false);
+      setPeriodState({ status: "active", period: periodRef.current });
       if (options.hideStaleData) {
-        setPeriodStatus("active");
-        setPeriodError(null);
         startPeriodSections(true);
         deferredSectionsRef.current.clear();
         return;
@@ -218,7 +203,7 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
         periodVerificationControllerRef.current = null;
       }
     });
-  }, [abortSectionRequests, activatePeriod, clearRequestedSection, gatePeriodFailure, generationRef, loadSection, periodStatus, resetSections, setSectionLoading, startPeriodSections]);
+  }, [abortSectionRequests, activatePeriod, clearRequestedSection, gatePeriodFailure, generationRef, loadSection, periodState.status, resetSections, setSectionLoading, startPeriodSections]);
 
   summaryRecoveryHandlerRef.current = () => retrySummary({ hideStaleData: true });
 
@@ -235,49 +220,49 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
       retrySummary();
       return;
     }
-    if (periodStatus !== "active" || periodPropChanged) return;
+    if (periodPropChanged || (periodState.status !== "active" && periodState.status !== "verifying")) return;
     if (periodVerificationControllerRef.current) {
       deferredSectionsRef.current.add(section);
       setSectionLoading(section);
       return;
     }
     void loadSection(section, true);
-  }, [loadSection, periodPropChanged, periodStatus, retrySummary, setSectionLoading]);
+  }, [loadSection, periodPropChanged, periodState.status, retrySummary, setSectionLoading]);
 
   const replacePeriodAfterEdit = useCallback((nextPeriod: BudgetPeriod) => {
     activatePeriod(nextPeriod);
   }, [activatePeriod]);
 
   const setTrendMonths = useCallback((months: 6 | 12) => {
-    const canLoad = periodStatus === "active" && !periodPropChanged && !periodVerificationControllerRef.current;
+    const canLoad = periodState.status === "active" && !periodPropChanged && !periodVerificationControllerRef.current;
     setSectionTrendMonths(months, Boolean(canLoad));
     if (periodVerificationControllerRef.current) deferredSectionsRef.current.add("trends");
-  }, [periodPropChanged, periodStatus, setSectionTrendMonths]);
+  }, [periodPropChanged, periodState.status, setSectionTrendMonths]);
 
   const selectBreakdown = useCallback((chart: BreakdownChart) => {
-    const canLoad = periodStatus === "active" && !periodPropChanged && !periodVerificationControllerRef.current;
+    const canLoad = periodState.status === "active" && !periodPropChanged && !periodVerificationControllerRef.current;
     setSectionBreakdown(chart, Boolean(canLoad));
     if (!periodVerificationControllerRef.current) return;
     if (chart === "repeated-expenses") deferredSectionsRef.current.add("suggestions");
     else deferredSectionsRef.current.delete("suggestions");
-  }, [periodPropChanged, periodStatus, setSectionBreakdown]);
+  }, [periodPropChanged, periodState.status, setSectionBreakdown]);
 
   const visibleSections = periodPropChanged
     ? createInitialDashboardSectionState(false)
     : sections;
-  const visiblePeriodStatus = periodPropChanged ? "loading" : periodStatus;
-  const data = buildDashboardData(visibleSections);
-  const loading = isDashboardLoading(visiblePeriodStatus, visibleSections);
+  let visiblePeriodStatus: DashboardControllerStatus = periodState.status === "verifying"
+    ? "active"
+    : periodState.status;
+  if (periodPropChanged) visiblePeriodStatus = "loading";
 
   return {
-    data,
     sections: visibleSections,
-    period: renderedPeriod,
+    period: periodState.period,
     periodStatus: visiblePeriodStatus,
-    periodError,
-    periodRecovery: periodStatus === "no-period"
+    periodError: periodState.status === "error" || periodState.status === "not-found" ? periodState.error : null,
+    periodRecovery: periodState.status === "no-period"
       ? {
-          defaults: periodDefaults,
+          defaults: periodState.defaults,
           createPeriod,
           creating: submitting,
           createError,
@@ -285,7 +270,6 @@ export function useDashboardData(period: BudgetPeriod, readOnly = false): Dashbo
         }
       : null,
     desktopVisible,
-    loading,
     refresh,
     retry,
     replacePeriodAfterEdit,

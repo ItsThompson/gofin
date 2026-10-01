@@ -220,6 +220,9 @@ describe("useDashboardData", () => {
     const { result } = renderHook(() => useDashboardData(period));
     await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
     act(() => result.current.retry("summary"));
+    expect(result.current.periodStatus).toBe("active");
+    expect(result.current.periodError).toBeNull();
+    expect(result.current.sections.summary.status).toBe("loading");
     act(() => onViewportChange?.({ matches: true } as MediaQueryListEvent));
 
     expect(requestedUrls.some((url) => url.includes("spending/by-tag"))).toBe(false);
@@ -302,9 +305,9 @@ describe("useDashboardData", () => {
       if (outcome === "missing") {
         await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
         expect(sectionCalls()).toEqual(beforeRetry);
-        expect(result.current.data.trendData).toBeNull();
-        expect(result.current.data.tagSpending).toEqual([]);
-        expect(result.current.sections.byTag.status).not.toBe("error");
+        expect(result.current.sections.trends.status).toBe("idle");
+        expect(result.current.sections.byTag.status).toBe("idle");
+        expect(result.current.sections.summary.status).toBe("loading");
         return;
       }
       await waitFor(() => expect(sectionCalls().filter((url) => url.includes("/expenses/suggestions"))).toHaveLength(1));
@@ -342,7 +345,6 @@ describe("useDashboardData", () => {
     await act(async () => resolveTrend(response({ trends: [{ year: 2026, month: 5, totalSpent: 100 }] })));
     expect(result.current.trendMonths).toBe(12);
     expect(result.current.sections.trends.status).toBe("loading");
-    expect(result.current.data.trendData).toBeNull();
   });
 
   it("waits for period activation before starting desktop requests after resize", async () => {
@@ -520,7 +522,7 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));
     expect(result.current.sections.recentExpenses.status).toBe("empty");
     expect(result.current.sections.healthScore.status).toBe("success");
-    expect(result.current.data.summary).toBeNull();
+    expect(result.current.sections.summary).toEqual({ status: "error", error: { message: "Summary failed" } });
   });
 
   it("gates stale sections when Summary Retry finds the current period missing", async () => {
@@ -548,8 +550,8 @@ describe("useDashboardData", () => {
     act(() => result.current.retry("summary"));
 
     await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
-    expect(result.current.data.summary).toBeNull();
-    expect(result.current.data.recentExpenses).toEqual([]);
+    expect(result.current.sections.summary.status).toBe("loading");
+    expect(result.current.sections.recentExpenses.status).toBe("loading");
     expect(requestedUrls.some((url) => url.includes("/defaults"))).toBe(true);
   });
 
@@ -577,7 +579,7 @@ describe("useDashboardData", () => {
     act(() => result.current.retry("summary"));
 
     await waitFor(() => expect(result.current.periodStatus).toBe("not-found"));
-    expect(result.current.data.summary).toBeNull();
+    expect(result.current.sections.summary.status).toBe("loading");
     expect(requestedUrls.some((url) => url.includes("/defaults"))).toBe(false);
   });
 
@@ -603,8 +605,8 @@ describe("useDashboardData", () => {
     act(() => result.current.retry("summary"));
 
     await waitFor(() => expect(result.current.periodStatus).toBe("error"));
-    expect(result.current.data.summary).toBeNull();
-    expect(result.current.data.recentExpenses).toEqual([]);
+    expect(result.current.sections.summary.status).toBe("loading");
+    expect(result.current.sections.recentExpenses.status).toBe("loading");
   });
 
   it("aborts section and period verification requests when the dashboard unmounts", async () => {
@@ -663,14 +665,14 @@ describe("useDashboardData", () => {
     const { result, rerender } = renderHook(({ selectedPeriod }) => useDashboardData(selectedPeriod), {
       initialProps: { selectedPeriod: period },
     });
-    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    await waitFor(() => expect(result.current.sections.summary).toEqual({ status: "success", data: summary }));
 
     blockSummary = true;
     const nextPeriod = buildPeriod({ ...period, id: "period-2", month: 6 });
     act(() => rerender({ selectedPeriod: nextPeriod }));
 
-    expect(result.current.data.summary).toBeNull();
-    expect(result.current.data.recentExpenses).toEqual([]);
+    expect(result.current.sections.summary.status).toBe("loading");
+    expect(result.current.sections.recentExpenses.status).toBe("loading");
   });
 
   it("recovers automatically from a summary period miss and hides stale data before retrying once", async () => {
@@ -701,18 +703,18 @@ describe("useDashboardData", () => {
     });
 
     const { result } = renderHook(() => useDashboardData(period));
-    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    await waitFor(() => expect(result.current.sections.summary).toEqual({ status: "success", data: summary }));
 
     act(() => result.current.retry("summary"));
     await waitFor(() => expect(summaryRequests).toBe(2));
     await waitFor(() => expect(periodLookups).toBe(2));
     expect(result.current.periodStatus).toBe("loading");
-    expect(result.current.data.summary).toBeNull();
+    expect(result.current.sections.summary.status).toBe("loading");
 
     await act(async () => resolveAutomaticVerification(response({ period })));
     await waitFor(() => expect(summaryRequests).toBe(3));
     expect(result.current.periodStatus).toBe("active");
-    expect(result.current.data.summary).toBeNull();
+    expect(result.current.sections.summary.status).toBe("loading");
 
     await act(async () => resolveRecoveredSummary(response({ summary })));
     await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
@@ -745,11 +747,11 @@ describe("useDashboardData", () => {
     });
 
     const { result } = renderHook(() => useDashboardData(period));
-    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    await waitFor(() => expect(result.current.sections.summary).toEqual({ status: "success", data: summary }));
     act(() => result.current.retry("summary"));
 
     await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
-    expect(result.current.data.summary).toBeNull();
+    expect(result.current.sections.summary.status).toBe("loading");
     expect(summaryRequests).toBe(2);
     expect(periodLookups).toBe(2);
   });
@@ -771,7 +773,7 @@ describe("useDashboardData", () => {
     });
 
     const { result } = renderHook(() => useDashboardData(period));
-    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    await waitFor(() => expect(result.current.sections.summary).toEqual({ status: "success", data: summary }));
     act(() => result.current.refresh());
     await waitFor(() => expect(result.current.periodStatus).toBe("no-period"));
 
@@ -802,7 +804,7 @@ describe("useDashboardData", () => {
     });
 
     const { result } = renderHook(() => useDashboardData(period));
-    await waitFor(() => expect(result.current.data.summary).toEqual(summary));
+    await waitFor(() => expect(result.current.sections.summary).toEqual({ status: "success", data: summary }));
     act(() => result.current.retry("summary"));
 
     await waitFor(() => expect(result.current.sections.summary.status).toBe("error"));

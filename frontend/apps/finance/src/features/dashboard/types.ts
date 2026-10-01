@@ -15,18 +15,6 @@ import type {
 } from "@gofin/core";
 import type { ActiveExpenseSuggestion } from "../expense-autocomplete/types";
 
-export interface DashboardData {
-  summary: PeriodSummary | null;
-  tagSpending: TagSpending[];
-  cumulativeData: CumulativeSpendPoint[];
-  recentExpenses: Expense[];
-  comparison: HistoricalComparison | null;
-  upcomingProRata: ProRataSchedule[];
-  trendData: TrendPoint[] | null;
-  healthScore: HealthScore | HealthScoreConfigureBudget | null;
-  healthScoreTrend: HealthScoreTrendPoint[] | null;
-}
-
 /** Base properties available in all period states. */
 interface PeriodStateBase {
   /** Re-fetch period data. */
@@ -112,12 +100,15 @@ export interface DashboardSectionState {
   suggestions: ExpenseSuggestionsState;
 }
 
-export type DashboardControllerStatus =
-  | "active"
-  | "loading"
-  | "error"
-  | "no-period"
-  | "not-found";
+export type DashboardControllerStatus = "active" | "loading" | "error" | "no-period" | "not-found";
+
+export type DashboardPeriodState =
+  | { status: "active"; period: BudgetPeriod }
+  | { status: "verifying"; period: BudgetPeriod }
+  | { status: "loading"; period: BudgetPeriod }
+  | { status: "error"; period: BudgetPeriod; error: string }
+  | { status: "not-found"; period: BudgetPeriod; error: string }
+  | { status: "no-period"; period: BudgetPeriod; defaults: DefaultSettings | null };
 
 export interface DashboardPeriodRecovery {
   defaults: DefaultSettings | null;
@@ -128,14 +119,12 @@ export interface DashboardPeriodRecovery {
 }
 
 export interface DashboardDataResult {
-  data: DashboardData;
   sections: DashboardSectionState;
   period: BudgetPeriod;
   periodStatus: DashboardControllerStatus;
   periodError: string | null;
   periodRecovery: DashboardPeriodRecovery | null;
   desktopVisible: boolean;
-  loading: boolean;
   refresh: () => void;
   retry: (section: DashboardSectionKey) => void;
   replacePeriodAfterEdit: (period: BudgetPeriod) => void;
