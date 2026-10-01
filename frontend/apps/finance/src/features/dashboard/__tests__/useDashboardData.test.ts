@@ -415,6 +415,49 @@ describe("useDashboardData", () => {
     await waitFor(() => expect(sectionHeaders).toContain("no-cache"));
   });
 
+  it.each(["refresh", "summary"] as const)("aborts a superseded %s lookup and ignores its late response", async (firstAction) => {
+    const lookupSignals: AbortSignal[] = [];
+    let resolveFirst!: (value: Response) => void;
+    let resolveSecond!: (value: Response) => void;
+    let lookupCount = 0;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/periods/current")) {
+        lookupCount += 1;
+        if (init?.signal) lookupSignals.push(init.signal);
+        return new Promise<Response>((resolve) => {
+          if (lookupCount === 1) resolveFirst = resolve;
+          else resolveSecond = resolve;
+        });
+      }
+      if (url.includes("/summary")) return Promise.resolve(response({ summary }));
+      if (url.includes("/health-score?")) return Promise.resolve(response({ healthScore: { configureBudget: true } }));
+      if (url.includes("/health-score/trend")) return Promise.resolve(response({ trends: [] }));
+      if (url.includes("/expenses?")) return Promise.resolve(response({ data: [], hasMore: false }));
+      if (url.includes("/prorata/upcoming")) return Promise.resolve(response({ schedules: [] }));
+      throw new Error(`Unexpected request: ${url}`);
+    }) as typeof fetch;
+
+    const { result } = renderHook(() => useDashboardData(period));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+
+    act(() => {
+      if (firstAction === "summary") result.current.retry("summary");
+      else result.current.refresh();
+    });
+    act(() => result.current.refresh());
+    expect(lookupSignals[0]?.aborted).toBe(true);
+    expect(lookupSignals[1]?.aborted).toBe(false);
+
+    const oldPeriod = buildPeriod({ ...period, id: "stale-period", month: 6 });
+    await act(async () => resolveFirst(response({ period: oldPeriod })));
+    expect(result.current.periodStatus).toBe("loading");
+
+    await act(async () => resolveSecond(response({ period })));
+    await waitFor(() => expect(result.current.sections.summary.status).toBe("success"));
+    expect(result.current.period.id).toBe(period.id);
+  });
+
   it("restores the current-period creation flow after a refresh 404", async () => {
     installBaseApi((url) => {
       if (url.includes("/periods/current")) return response({ code: "PERIOD_NOT_FOUND", message: "No period" }, 404);
