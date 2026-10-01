@@ -47,9 +47,13 @@ func TestPool_FailJobStoreFailure_ReportsThroughBackgroundHubFallback(t *testing
 	pool.Submit("job-err", "user-1")
 
 	require.Eventually(t, func() bool {
-		return len(store.failedSnapshot()) == 1
+		return len(transport.Events()) >= 1
+	}, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool {
+		return pool.ActiveJobs() == 0
 	}, 2*time.Second, 10*time.Millisecond)
 
+	require.Len(t, store.failedSnapshot(), 1)
 	events := transport.Events()
 	require.Len(t, events, 1, "exactly one event for the status-write failure")
 	assert.Equal(t, "jobrunner.status_write", events[0].Tags["operation"])
@@ -58,9 +62,4 @@ func TestPool_FailJobStoreFailure_ReportsThroughBackgroundHubFallback(t *testing
 		"connection refused")
 	assert.Equal(t, "job-err", events[0].Contexts["gofin"]["job_id"])
 	assert.Equal(t, "user-1", events[0].Contexts["gofin"]["user_id"])
-
-	// The pool itself still returns normally: the failure is recorded, not raised.
-	require.Eventually(t, func() bool {
-		return pool.ActiveJobs() == 0
-	}, 2*time.Second, 10*time.Millisecond)
 }
