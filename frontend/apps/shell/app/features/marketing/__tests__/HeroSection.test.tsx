@@ -16,7 +16,9 @@ describe("HeroSection", () => {
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent(landingContent.hero.heading);
 
-    expect(screen.getByText(landingContent.hero.subheading)).toBeInTheDocument();
+    expect(
+      screen.getByText(landingContent.hero.subheading),
+    ).toBeInTheDocument();
 
     const cta = screen.getByRole("link", {
       name: landingContent.hero.primaryCta.label,

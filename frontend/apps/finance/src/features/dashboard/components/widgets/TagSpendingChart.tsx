@@ -22,7 +22,10 @@ interface TagSpendingChartProps {
   currency: string;
 }
 
-export function TagSpendingChart({ tagSpending, currency }: TagSpendingChartProps) {
+export function TagSpendingChart({
+  tagSpending,
+  currency,
+}: TagSpendingChartProps) {
   const navigate = useNavigate();
 
   const chartData = tagSpending.map((tag) => ({
@@ -44,15 +47,28 @@ export function TagSpendingChart({ tagSpending, currency }: TagSpendingChartProp
         <CardTitle className="text-base">Spending by Tag</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={Math.max(200, tagSpending.length * 40)}>
+        <ResponsiveContainer
+          width="100%"
+          height={Math.max(200, tagSpending.length * 40)}
+        >
           <BarChart
             data={chartData}
             layout="vertical"
             margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tickFormatter={(value) => `${getCurrencySymbol(currency)}${value}`} />
-            <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
+            <XAxis
+              type="number"
+              tickFormatter={(value) =>
+                `${getCurrencySymbol(currency)}${value}`
+              }
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={100}
+              tick={{ fontSize: 12 }}
+            />
             <Tooltip
               formatter={(value, _name, props) => [
                 `${formatCurrency((value as number) * 100, currency)} (${(props as { payload: { percent: number } }).payload.percent.toFixed(1)}%)`,
@@ -64,7 +80,9 @@ export function TagSpendingChart({ tagSpending, currency }: TagSpendingChartProp
               fill="var(--primary)"
               radius={[0, 4, 4, 0]}
               cursor="pointer"
-              onClick={(_data: unknown, index: number) => handleBarClick(chartData[index])}
+              onClick={(_data: unknown, index: number) =>
+                handleBarClick(chartData[index])
+              }
             />
           </BarChart>
         </ResponsiveContainer>

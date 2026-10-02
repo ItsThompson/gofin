@@ -11,9 +11,9 @@ interface CapturedContext {
 }
 
 const { captureException, toastError } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
   toastError: vi.fn(),
 }));
 
@@ -107,7 +107,9 @@ describe("a deletion status poll that gives up", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     global.fetch = vi
       .fn()
-      .mockRejectedValue(new TypeError("Failed to fetch")) as unknown as typeof fetch;
+      .mockRejectedValue(
+        new TypeError("Failed to fetch"),
+      ) as unknown as typeof fetch;
 
     const { result } = renderHook(() =>
       useUserDeletion({ onUserRemoved: vi.fn() }),
@@ -137,7 +139,9 @@ describe("a deletion status poll that gives up", () => {
     expect(context.contexts?.gofin).toEqual({ jobId: "job-1" });
     expect(toastError).toHaveBeenCalledTimes(1);
     // Unknown outcome, so the row keeps what it last knew.
-    expect(result.current.state.deletionStates["user-2"]?.status).toBe("pending");
+    expect(result.current.state.deletionStates["user-2"]?.status).toBe(
+      "pending",
+    );
   });
 
   it("classifies a persistently failing status endpoint as upstream", async () => {

@@ -9,7 +9,9 @@ import type { MultiStepDialogContextValue } from "./types";
 export function useMultiStepDialog(): MultiStepDialogContextValue {
   const context = useContext(MultiStepDialogContext);
   if (!context) {
-    throw new Error("useMultiStepDialog must be used within a MultiStepDialogContent");
+    throw new Error(
+      "useMultiStepDialog must be used within a MultiStepDialogContent",
+    );
   }
   return context;
 }

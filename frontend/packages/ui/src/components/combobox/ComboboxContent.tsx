@@ -3,7 +3,11 @@ import { cn } from "@gofin/ui/lib/utils";
 import { useComboboxContext } from "./ComboboxContext";
 import type { ComboboxContentProps } from "./types";
 
-export function ComboboxContent({ className, children, ...props }: ComboboxContentProps) {
+export function ComboboxContent({
+  className,
+  children,
+  ...props
+}: ComboboxContentProps) {
   const { isOpen } = useComboboxContext();
 
   if (!isOpen) {

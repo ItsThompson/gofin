@@ -2,7 +2,9 @@ import * as React from "react";
 
 import type { ComboboxContextValue } from "./types";
 
-export const ComboboxContext = React.createContext<ComboboxContextValue | null>(null);
+export const ComboboxContext = React.createContext<ComboboxContextValue | null>(
+  null,
+);
 
 export function useComboboxContext() {
   const context = React.useContext(ComboboxContext);

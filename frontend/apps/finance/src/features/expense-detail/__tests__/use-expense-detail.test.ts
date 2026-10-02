@@ -24,7 +24,10 @@ const testExpense: Expense = {
   createdAt: "2026-05-02T10:00:00Z",
 };
 
-function mockSuccessfulFetch(expense: Expense = testExpense, history: Expense[] = [expense]) {
+function mockSuccessfulFetch(
+  expense: Expense = testExpense,
+  history: Expense[] = [expense],
+) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -62,7 +65,8 @@ describe("useExpenseDetail", () => {
         expect(result.current.status).toBe("detail");
       });
 
-      if (result.current.status !== "detail") throw new Error("Expected detail status");
+      if (result.current.status !== "detail")
+        throw new Error("Expected detail status");
       expect(result.current.expense).toEqual(testExpense);
       expect(result.current.history).toEqual([testExpense]);
       expect(result.current.proRataGroup).toEqual([]);
@@ -76,11 +80,14 @@ describe("useExpenseDetail", () => {
         expect(result.current.status).toBe("detail");
       });
 
-      if (result.current.status !== "detail") throw new Error("Expected detail status");
+      if (result.current.status !== "detail")
+        throw new Error("Expected detail status");
       expect(result.current.correction).toBeDefined();
       expect(result.current.correction.submitting).toBe(false);
       expect(result.current.correction.error).toBeNull();
-      expect(typeof result.current.correction.submitCorrection).toBe("function");
+      expect(typeof result.current.correction.submitCorrection).toBe(
+        "function",
+      );
       expect(typeof result.current.correction.clearError).toBe("function");
     });
 
@@ -92,7 +99,8 @@ describe("useExpenseDetail", () => {
         expect(result.current.status).toBe("detail");
       });
 
-      if (result.current.status !== "detail") throw new Error("Expected detail status");
+      if (result.current.status !== "detail")
+        throw new Error("Expected detail status");
       expect(typeof result.current.startCorrection).toBe("function");
     });
 
@@ -121,7 +129,8 @@ describe("useExpenseDetail", () => {
       });
 
       expect(result.current.status).toBe("correct");
-      if (result.current.status !== "correct") throw new Error("Expected correct status");
+      if (result.current.status !== "correct")
+        throw new Error("Expected correct status");
       expect(result.current.expense).toEqual(testExpense);
       expect(result.current.history).toEqual([testExpense]);
       expect(result.current.proRataGroup).toEqual([]);
@@ -141,7 +150,8 @@ describe("useExpenseDetail", () => {
         }
       });
 
-      if (result.current.status !== "correct") throw new Error("Expected correct status");
+      if (result.current.status !== "correct")
+        throw new Error("Expected correct status");
       expect(typeof result.current.cancelCorrection).toBe("function");
     });
 
@@ -168,7 +178,8 @@ describe("useExpenseDetail", () => {
       });
 
       expect(result.current.status).toBe("detail");
-      if (result.current.status !== "detail") throw new Error("Expected detail status");
+      if (result.current.status !== "detail")
+        throw new Error("Expected detail status");
       expect(result.current.expense).toEqual(testExpense);
     });
 
@@ -186,7 +197,8 @@ describe("useExpenseDetail", () => {
         }
       });
 
-      if (result.current.status !== "correct") throw new Error("Expected correct status");
+      if (result.current.status !== "correct")
+        throw new Error("Expected correct status");
       expect(result.current.correction).toBeDefined();
       expect(result.current.correction.submitting).toBe(false);
       expect(result.current.correction.error).toBeNull();
@@ -202,7 +214,8 @@ describe("useExpenseDetail", () => {
         expect(result.current.status).toBe("error");
       });
 
-      if (result.current.status !== "error") throw new Error("Expected error status");
+      if (result.current.status !== "error")
+        throw new Error("Expected error status");
       expect(result.current.error).toBe("Failed to load expense details.");
     });
 
@@ -214,7 +227,8 @@ describe("useExpenseDetail", () => {
         expect(result.current.status).toBe("error");
       });
 
-      if (result.current.status !== "error") throw new Error("Expected error status");
+      if (result.current.status !== "error")
+        throw new Error("Expected error status");
       expect(typeof result.current.refresh).toBe("function");
     });
 
@@ -237,7 +251,8 @@ describe("useExpenseDetail", () => {
         expect(result.current.status).toBe("detail");
       });
 
-      if (result.current.status !== "detail") throw new Error("Expected detail status");
+      if (result.current.status !== "detail")
+        throw new Error("Expected detail status");
       expect(result.current.expense).toEqual(testExpense);
     });
   });

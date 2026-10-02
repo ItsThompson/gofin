@@ -9,7 +9,11 @@ import {
 import { Check, Loader2 } from "lucide-react";
 import { usePasswordForm } from "../hooks/usePasswordForm";
 
-export function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void }) {
+export function PasswordSection({
+  onUserUpdated,
+}: {
+  onUserUpdated?: () => void;
+}) {
   const { state, actions } = usePasswordForm(onUserUpdated);
 
   const saveError =
@@ -38,7 +42,8 @@ export function PasswordSection({ onUserUpdated }: { onUserUpdated?: () => void 
           required
         />
         <p className="text-xs text-muted-foreground">
-          Minimum 8 characters with at least one uppercase letter, one lowercase letter, and one digit.
+          Minimum 8 characters with at least one uppercase letter, one lowercase
+          letter, and one digit.
         </p>
       </FormField>
 

@@ -1,10 +1,6 @@
 import { apiClient } from "@gofin/api";
 import type { PaginatedResponse } from "@gofin/core";
-import type {
-  Expense,
-  TagListResponse,
-  PeriodListResponse,
-} from "@gofin/core";
+import type { Expense, TagListResponse, PeriodListResponse } from "@gofin/core";
 
 export const expenseLogApi = {
   getExpenses: (year: number, month: number) =>

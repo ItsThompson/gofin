@@ -102,12 +102,9 @@ describe("loadSupportedCurrencies", () => {
       [],
     );
 
-    const loaded = await catalog.loadSupportedCurrencies(
-      async () => {
-        throw new Error("network down");
-      },
-      [],
-    );
+    const loaded = await catalog.loadSupportedCurrencies(async () => {
+      throw new Error("network down");
+    }, []);
 
     expect(loaded).toBe(false);
     expect(catalog.SUPPORTED_CURRENCIES).toEqual(currencyCatalogFixture);
@@ -189,12 +186,9 @@ describe("subscriptions", () => {
     const listener = vi.fn();
     catalog.subscribeSupportedCurrencies(listener);
 
-    await catalog.loadSupportedCurrencies(
-      async () => {
-        throw new Error("network down");
-      },
-      [],
-    );
+    await catalog.loadSupportedCurrencies(async () => {
+      throw new Error("network down");
+    }, []);
 
     expect(listener).not.toHaveBeenCalled();
   });

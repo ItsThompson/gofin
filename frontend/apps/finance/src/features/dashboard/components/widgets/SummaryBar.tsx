@@ -1,13 +1,6 @@
 import { formatCurrency } from "@gofin/core";
-import {
-  Card,
-  CardContent,
-} from "@gofin/ui/components/card";
-import {
-  Wallet,
-  TrendingDown,
-  Calendar,
-} from "lucide-react";
+import { Card, CardContent } from "@gofin/ui/components/card";
+import { Wallet, TrendingDown, Calendar } from "lucide-react";
 import { getRemainingColor } from "../../../../lib/budget-utils";
 
 interface SummaryBarProps {

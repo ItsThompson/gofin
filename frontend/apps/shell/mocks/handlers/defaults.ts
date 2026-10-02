@@ -8,10 +8,13 @@ import { mockDefaults } from "../data";
 import { simulateLatency } from "./latency";
 
 export const defaultsHandlers = [
-  http.get<never, never, DefaultsResponse>("/api/finance/defaults", async () => {
-    await simulateLatency();
-    return HttpResponse.json({ defaults: mockDefaults });
-  }),
+  http.get<never, never, DefaultsResponse>(
+    "/api/finance/defaults",
+    async () => {
+      await simulateLatency();
+      return HttpResponse.json({ defaults: mockDefaults });
+    },
+  ),
 
   http.put<never, UpdateDefaultsRequest, DefaultsResponse>(
     "/api/finance/defaults",

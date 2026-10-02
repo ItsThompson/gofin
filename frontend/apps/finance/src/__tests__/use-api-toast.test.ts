@@ -82,9 +82,7 @@ describe("useApiToast", () => {
       const { result } = renderHook(() => useApiToast());
 
       await act(async () => {
-        await result.current.call(() =>
-          Promise.reject(new Error("fail")),
-        );
+        await result.current.call(() => Promise.reject(new Error("fail")));
       });
 
       const callArgs = mockToastError.mock.calls[0];
@@ -95,14 +93,10 @@ describe("useApiToast", () => {
     });
 
     it("omits Retry action when retriable is false", async () => {
-      const { result } = renderHook(() =>
-        useApiToast({ retriable: false }),
-      );
+      const { result } = renderHook(() => useApiToast({ retriable: false }));
 
       await act(async () => {
-        await result.current.call(() =>
-          Promise.reject(new Error("fail")),
-        );
+        await result.current.call(() => Promise.reject(new Error("fail")));
       });
 
       const callArgs = mockToastError.mock.calls[0];
@@ -129,9 +123,7 @@ describe("useApiToast", () => {
 
       let value: string | undefined;
       await act(async () => {
-        value = await result.current.callSilent(() =>
-          Promise.resolve("data"),
-        );
+        value = await result.current.callSilent(() => Promise.resolve("data"));
       });
 
       expect(value).toBe("data");
@@ -160,7 +152,11 @@ describe("isNetworkError", () => {
   });
 
   it("returns true for TypeError with network message", () => {
-    expect(isNetworkError(new TypeError("NetworkError when attempting to fetch resource"))).toBe(true);
+    expect(
+      isNetworkError(
+        new TypeError("NetworkError when attempting to fetch resource"),
+      ),
+    ).toBe(true);
   });
 
   it("returns true for TypeError with load failed message", () => {

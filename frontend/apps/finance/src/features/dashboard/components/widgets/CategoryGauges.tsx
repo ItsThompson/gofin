@@ -1,9 +1,6 @@
 import { formatCurrency } from "@gofin/core";
 import type { PeriodSummary } from "@gofin/core";
-import {
-  Card,
-  CardContent,
-} from "@gofin/ui/components/card";
+import { Card, CardContent } from "@gofin/ui/components/card";
 
 interface CategoryGaugesProps {
   summary: PeriodSummary;
@@ -77,9 +74,7 @@ function CategoryGauge({
                 Over by {formatCurrency(Math.abs(category.remaining), currency)}
               </span>
             ) : (
-              <span>
-                {formatCurrency(category.remaining, currency)} left
-              </span>
+              <span>{formatCurrency(category.remaining, currency)} left</span>
             )}
           </span>
         </div>

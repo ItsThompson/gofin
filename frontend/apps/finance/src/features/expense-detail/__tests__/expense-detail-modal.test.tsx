@@ -205,9 +205,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
     });
 
@@ -260,9 +258,7 @@ describe("ExpenseDetailModal", () => {
       renderModal("exp-correction");
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/This corrects expense/),
-        ).toBeInTheDocument();
+        expect(screen.getByText(/This corrects expense/)).toBeInTheDocument();
       });
     });
   });
@@ -288,9 +284,7 @@ describe("ExpenseDetailModal", () => {
         expect(screen.getByText("Expense Detail")).toBeInTheDocument();
       });
 
-      expect(
-        screen.queryByText("Correction History"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Correction History")).not.toBeInTheDocument();
     });
 
     it("shows changes between entries in the timeline", async () => {
@@ -305,9 +299,7 @@ describe("ExpenseDetailModal", () => {
       expect(
         screen.getByText(/Name: Old Coffee → Updated Coffee/),
       ).toBeInTheDocument();
-      expect(
-        screen.getByText(/Amount: \$5\.00 → \$6\.00/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Amount: \$5\.00 → \$6\.00/)).toBeInTheDocument();
     });
   });
 
@@ -318,9 +310,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -337,9 +327,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -361,9 +349,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -399,9 +385,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -431,9 +415,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -451,9 +433,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -475,9 +455,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();
@@ -498,9 +476,7 @@ describe("ExpenseDetailModal", () => {
       await user.click(screen.getByText("Save Correction"));
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/already been corrected/),
-        ).toBeInTheDocument();
+        expect(screen.getByText(/already been corrected/)).toBeInTheDocument();
       });
     });
 
@@ -510,9 +486,7 @@ describe("ExpenseDetailModal", () => {
       renderModal();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("Correct This Expense"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Correct This Expense")).toBeInTheDocument();
       });
 
       mockExpenseSuggestions();

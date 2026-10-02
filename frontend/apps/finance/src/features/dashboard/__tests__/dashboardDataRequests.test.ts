@@ -22,7 +22,10 @@ describe("fetchDashboardSection", () => {
       return Promise.resolve(response({ data: [], hasMore: false }));
     }) as typeof fetch;
 
-    const result = await fetchDashboardSection(new AbortController().signal, true);
+    const result = await fetchDashboardSection(
+      new AbortController().signal,
+      true,
+    );
 
     expect(cacheControl).toBe("no-cache");
     expect(result).toEqual({ section: "suggestions", data: [] });
@@ -33,8 +36,31 @@ describe("fetchDashboardSection", () => {
     globalThis.fetch = ((input: RequestInfo | URL) => {
       const url = String(input);
       requestedUrls.push(url);
-      if (url.includes("page=1")) return Promise.resolve(response({ data: [{ name: "Old", recencyBucket: "older" }], hasMore: true }));
-      return Promise.resolve(response({ data: [{ name: "Coffee", active: true, originalTransactionAmountInMinorUnits: 100, transactionCurrencyCode: "USD", expenseType: "desires", frequency: 1, lastUsedAt: "2026-05-01", recencyBucket: "today", frecencyScore: 1 }], hasMore: false }));
+      if (url.includes("page=1"))
+        return Promise.resolve(
+          response({
+            data: [{ name: "Old", recencyBucket: "older" }],
+            hasMore: true,
+          }),
+        );
+      return Promise.resolve(
+        response({
+          data: [
+            {
+              name: "Coffee",
+              active: true,
+              originalTransactionAmountInMinorUnits: 100,
+              transactionCurrencyCode: "USD",
+              expenseType: "desires",
+              frequency: 1,
+              lastUsedAt: "2026-05-01",
+              recencyBucket: "today",
+              frecencyScore: 1,
+            },
+          ],
+          hasMore: false,
+        }),
+      );
     }) as typeof fetch;
 
     const result = await fetchDashboardSection(new AbortController().signal);

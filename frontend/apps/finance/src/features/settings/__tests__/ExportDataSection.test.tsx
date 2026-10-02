@@ -74,14 +74,22 @@ describe("ExportDataSection", () => {
 
       global.fetch = createMockApi({
         "/api/datarights/exports": {
-          body: { data: [oldJob], total: 1, page: 1, pageSize: 50, hasMore: false },
+          body: {
+            data: [oldJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          },
         },
       }) as unknown as typeof fetch;
 
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
     });
 
@@ -94,14 +102,22 @@ describe("ExportDataSection", () => {
 
       global.fetch = createMockApi({
         "/api/datarights/exports": {
-          body: { data: [activeJob], total: 1, page: 1, pageSize: 50, hasMore: false },
+          body: {
+            data: [activeJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          },
         },
       }) as unknown as typeof fetch;
 
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        const button = screen.getByRole("button", { name: /export in progress/i });
+        const button = screen.getByRole("button", {
+          name: /export in progress/i,
+        });
         expect(button).toBeDisabled();
       });
     });
@@ -114,7 +130,13 @@ describe("ExportDataSection", () => {
 
       global.fetch = createMockApi({
         "/api/datarights/exports": {
-          body: { data: [recentJob], total: 1, page: 1, pageSize: 50, hasMore: false },
+          body: {
+            data: [recentJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          },
         },
       }) as unknown as typeof fetch;
 
@@ -174,18 +196,32 @@ describe("ExportDataSection", () => {
 
       // Both desktop table and mobile cards render: use getAllByText
       await waitFor(() => {
-        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       expect(screen.getAllByText("Failed").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("24 KB").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Email delivery failed").length).toBeGreaterThanOrEqual(1);
+      expect(
+        screen.getAllByText("Email delivery failed").length,
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("shows all four status badges", async () => {
       const jobs = [
-        buildExportJob({ id: "j1", status: "pending", completedAt: null, fileSizeBytes: null }),
-        buildExportJob({ id: "j2", status: "running", completedAt: null, fileSizeBytes: null }),
+        buildExportJob({
+          id: "j1",
+          status: "pending",
+          completedAt: null,
+          fileSizeBytes: null,
+        }),
+        buildExportJob({
+          id: "j2",
+          status: "running",
+          completedAt: null,
+          fileSizeBytes: null,
+        }),
         buildExportJob({ id: "j3", status: "completed" }),
         buildExportJob({ id: "j4", status: "failed", error: "Timed out" }),
       ];
@@ -208,7 +244,11 @@ describe("ExportDataSection", () => {
 
     it("displays human-readable file sizes", async () => {
       const jobs = [
-        buildExportJob({ id: "j1", fileSizeBytes: 1048576, createdAt: "2025-01-01T00:00:00Z" }),
+        buildExportJob({
+          id: "j1",
+          fileSizeBytes: 1048576,
+          createdAt: "2025-01-01T00:00:00Z",
+        }),
       ];
 
       global.fetch = createMockApi({
@@ -233,7 +273,13 @@ describe("ExportDataSection", () => {
 
       global.fetch = createMockApi({
         "/api/datarights/exports": {
-          body: { data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false },
+          body: {
+            data: [pendingJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          },
         },
       }) as unknown as typeof fetch;
 
@@ -256,14 +302,22 @@ describe("ExportDataSection", () => {
 
       global.fetch = createMockApi({
         "/api/datarights/exports": {
-          body: { data: [failedJob], total: 1, page: 1, pageSize: 50, hasMore: false },
+          body: {
+            data: [failedJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          },
         },
       }) as unknown as typeof fetch;
 
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getAllByText("Data collection timed out").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Data collection timed out").length,
+        ).toBeGreaterThanOrEqual(1);
       });
     });
   });
@@ -281,20 +335,43 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: empty list
-          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+          },
           // POST: create export
           { status: 202, body: { job: newJob } },
           // Poll: return the pending job
-          { status: 200, body: { data: [newJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [newJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
           // Additional polls (to prevent "mock sequence exhausted" error)
-          { status: 200, body: { data: [newJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [newJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
         ]),
       }) as unknown as typeof fetch;
 
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       await user.click(screen.getByRole("button", { name: /export my data/i }));
@@ -311,7 +388,10 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: empty list
-          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+          },
           // POST: rate limited
           {
             status: 429,
@@ -326,7 +406,9 @@ describe("ExportDataSection", () => {
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       await user.click(screen.getByRole("button", { name: /export my data/i }));
@@ -335,7 +417,9 @@ describe("ExportDataSection", () => {
         expect(screen.getByText(/next export available/i)).toBeInTheDocument();
       });
 
-      expect(screen.getByRole("button", { name: /export my data/i })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /export my data/i }),
+      ).toBeDisabled();
     });
 
     it("shows loading state on button while creating", async () => {
@@ -343,38 +427,55 @@ describe("ExportDataSection", () => {
 
       // Use a fetch that delays the POST response
       let resolvePost: ((value: Response) => void) | undefined;
-      const mockFetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
-        const method = init?.method ?? "GET";
-        if (method === "POST") {
-          return new Promise<Response>((resolve) => {
-            resolvePost = resolve;
-          });
-        }
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({ data: [], total: 0, page: 1, pageSize: 50, hasMore: false }),
-            { status: 200, headers: { "content-type": "application/json" } },
-          ),
-        );
-      });
+      const mockFetch = vi
+        .fn()
+        .mockImplementation((_url: string, init?: RequestInit) => {
+          const method = init?.method ?? "GET";
+          if (method === "POST") {
+            return new Promise<Response>((resolve) => {
+              resolvePost = resolve;
+            });
+          }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                data: [],
+                total: 0,
+                page: 1,
+                pageSize: 50,
+                hasMore: false,
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            ),
+          );
+        });
       global.fetch = mockFetch;
 
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       await user.click(screen.getByRole("button", { name: /export my data/i }));
 
       // Button should show loading state
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /exporting/i })).toBeDisabled();
+        expect(
+          screen.getByRole("button", { name: /exporting/i }),
+        ).toBeDisabled();
       });
 
       // Resolve the POST
       if (resolvePost) {
-        const newJob = buildExportJob({ id: "new-job", status: "pending", completedAt: null, fileSizeBytes: null });
+        const newJob = buildExportJob({
+          id: "new-job",
+          status: "pending",
+          completedAt: null,
+          fileSizeBytes: null,
+        });
         await act(async () => {
           resolvePost!(
             new Response(JSON.stringify({ job: newJob }), {
@@ -408,11 +509,38 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: pending job
-          { status: 200, body: { data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [pendingJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
           // Poll 1: still pending
-          { status: 200, body: { data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [pendingJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
           // Poll 2: completed
-          { status: 200, body: { data: [completedJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [completedJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
         ]),
       }) as unknown as typeof fetch;
 
@@ -433,7 +561,9 @@ describe("ExportDataSection", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       vi.useRealTimers();
@@ -455,11 +585,32 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: pending job
-          { status: 200, body: { data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [pendingJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
           // Poll 1: network error (500)
-          { status: 500, body: { code: "INTERNAL_ERROR", message: "Transient failure" } },
+          {
+            status: 500,
+            body: { code: "INTERNAL_ERROR", message: "Transient failure" },
+          },
           // Poll 2: recovered, completed
-          { status: 200, body: { data: [completedJob], total: 1, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: {
+              data: [completedJob],
+              total: 1,
+              page: 1,
+              pageSize: 50,
+              hasMore: false,
+            },
+          },
         ]),
       }) as unknown as typeof fetch;
 
@@ -480,7 +631,9 @@ describe("ExportDataSection", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       vi.useRealTimers();
@@ -497,7 +650,13 @@ describe("ExportDataSection", () => {
 
       const fetchMock = vi.fn().mockResolvedValue(
         new Response(
-          JSON.stringify({ data: [pendingJob], total: 1, page: 1, pageSize: 50, hasMore: false }),
+          JSON.stringify({
+            data: [pendingJob],
+            total: 1,
+            page: 1,
+            pageSize: 50,
+            hasMore: false,
+          }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
       );
@@ -584,7 +743,9 @@ describe("ExportDataSection", () => {
 
     it("resolves loading when initial fetch throws non-ApiRequestError", async () => {
       // Simulates a raw network failure (not an HTTP error response)
-      global.fetch = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+      global.fetch = vi
+        .fn()
+        .mockRejectedValue(new TypeError("Failed to fetch"));
 
       render(<ExportDataSection />);
 
@@ -594,7 +755,9 @@ describe("ExportDataSection", () => {
       });
 
       // Export button should be enabled (no active jobs, no cooldown)
-      expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: /export my data/i }),
+      ).toBeEnabled();
     });
 
     it("re-enables button when export creation throws non-ApiRequestError", async () => {
@@ -603,24 +766,33 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: empty list
-          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+          },
         ]),
       }) as unknown as typeof fetch;
 
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       // Replace fetch with one that throws a raw TypeError on POST
-      global.fetch = vi.fn().mockRejectedValue(new TypeError("Network disconnected"));
+      global.fetch = vi
+        .fn()
+        .mockRejectedValue(new TypeError("Network disconnected"));
 
       await user.click(screen.getByRole("button", { name: /export my data/i }));
 
       // Button should re-enable after the error (creating goes back to false)
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       // No pending job should appear (creation failed)
@@ -634,7 +806,10 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: empty list
-          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+          },
           // POST: rate limited with full ISO datetime in message
           {
             status: 429,
@@ -649,7 +824,9 @@ describe("ExportDataSection", () => {
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       await user.click(screen.getByRole("button", { name: /export my data/i }));
@@ -658,7 +835,9 @@ describe("ExportDataSection", () => {
         expect(screen.getByText(/next export available/i)).toBeInTheDocument();
       });
 
-      expect(screen.getByRole("button", { name: /export my data/i })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /export my data/i }),
+      ).toBeDisabled();
     });
 
     it("handles 429 with no date in message (no match for regex)", async () => {
@@ -667,7 +846,10 @@ describe("ExportDataSection", () => {
       global.fetch = createMockApi({
         "/api/datarights/exports": mockSequence([
           // Initial GET: empty list
-          { status: 200, body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false } },
+          {
+            status: 200,
+            body: { data: [], total: 0, page: 1, pageSize: 50, hasMore: false },
+          },
           // POST: rate limited with no date in message
           {
             status: 429,
@@ -682,7 +864,9 @@ describe("ExportDataSection", () => {
       render(<ExportDataSection />);
 
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       await user.click(screen.getByRole("button", { name: /export my data/i }));
@@ -690,11 +874,15 @@ describe("ExportDataSection", () => {
       // Should NOT show cooldown (no date to extract)
       // Button should re-enable since no cooldown date was set
       await waitFor(() => {
-        expect(screen.getByRole("button", { name: /export my data/i })).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: /export my data/i }),
+        ).toBeEnabled();
       });
 
       // No "next export available" text should appear
-      expect(screen.queryByText(/next export available/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/next export available/i),
+      ).not.toBeInTheDocument();
     });
   });
 });

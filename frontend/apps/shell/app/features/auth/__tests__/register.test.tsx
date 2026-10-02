@@ -25,7 +25,10 @@ function resetStore(overrides: Record<string, unknown> = {}) {
 
 function setupUnauthenticatedMock(extraRoutes: Record<string, unknown> = {}) {
   const mockFetch = createMockApi({
-    "/api/auth/me": { status: 401, body: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+    "/api/auth/me": {
+      status: 401,
+      body: { code: "UNAUTHORIZED", message: "Not authenticated" },
+    },
     ...extraRoutes,
   });
   global.fetch = mockFetch;
@@ -100,7 +103,9 @@ describe("register page", () => {
       await user.click(submitButton());
 
       await waitFor(() => {
-        expect(screen.getByText("Username must be at least 2 characters")).toBeInTheDocument();
+        expect(
+          screen.getByText("Username must be at least 2 characters"),
+        ).toBeInTheDocument();
       });
     });
 
@@ -126,7 +131,10 @@ describe("register page", () => {
       setupUnauthenticatedMock({
         "/api/auth/register": {
           status: 409,
-          body: { code: "DUPLICATE_USERNAME", message: "Username is already taken" },
+          body: {
+            code: "DUPLICATE_USERNAME",
+            message: "Username is already taken",
+          },
         },
       });
       await renderRegisterPage();
@@ -135,7 +143,9 @@ describe("register page", () => {
       await user.click(submitButton());
 
       await waitFor(() => {
-        expect(screen.getByText("Username is already taken")).toBeInTheDocument();
+        expect(
+          screen.getByText("Username is already taken"),
+        ).toBeInTheDocument();
       });
 
       // Must NOT navigate to onboarding on field-specific errors

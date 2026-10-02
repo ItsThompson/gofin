@@ -32,7 +32,10 @@ export interface Expense {
   clientGeneratedIdempotencyKey?: string;
 }
 
-export type ExchangeRateSource = "open_exchange_rates" | "identity" | "migration";
+export type ExchangeRateSource =
+  | "open_exchange_rates"
+  | "identity"
+  | "migration";
 
 /** Response from POST /api/expenses. */
 export interface ExpenseResponse {

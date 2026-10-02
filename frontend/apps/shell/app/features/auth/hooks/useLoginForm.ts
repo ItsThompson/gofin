@@ -27,12 +27,16 @@ const INITIAL_CREDENTIALS: LoginCredentials = {
   password: "",
 };
 
-export function useLoginForm(): { state: LoginFormState; actions: LoginFormActions } {
+export function useLoginForm(): {
+  state: LoginFormState;
+  actions: LoginFormActions;
+} {
   const { login, isAuthenticated, isLoading, checkAuth, user } = useAuthStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [credentials, setCredentials] = useState<LoginCredentials>(INITIAL_CREDENTIALS);
+  const [credentials, setCredentials] =
+    useState<LoginCredentials>(INITIAL_CREDENTIALS);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const isSessionExpired = searchParams.get("expired") === "true";
@@ -47,12 +51,9 @@ export function useLoginForm(): { state: LoginFormState; actions: LoginFormActio
     }
   }, [isLoading, isAuthenticated, user, navigate]);
 
-  const setField = useCallback(
-    (key: keyof LoginCredentials, value: string) => {
-      setCredentials((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const setField = useCallback((key: keyof LoginCredentials, value: string) => {
+    setCredentials((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const mutation = useFormMutation<Awaited<ReturnType<typeof login>>>({
     onSuccess: (loggedInUser) => {
@@ -60,7 +61,11 @@ export function useLoginForm(): { state: LoginFormState; actions: LoginFormActio
 
       if (!loggedInUser.hasCompletedOnboarding) {
         navigate("/onboarding");
-      } else if (returnTo && returnTo !== "/login" && returnTo !== "/register") {
+      } else if (
+        returnTo &&
+        returnTo !== "/login" &&
+        returnTo !== "/register"
+      ) {
         navigate(returnTo);
       } else {
         navigate(getLandingPath(loggedInUser));

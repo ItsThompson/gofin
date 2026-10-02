@@ -48,9 +48,24 @@ function mockSummaryResponse(totalSpent: number) {
           daysInPeriod: 31,
           daysElapsed: 31,
           isOnTrack: true,
-          essentials: { allocated: 150000, spent: 0, remaining: 150000, percentUsed: 0 },
-          desires: { allocated: 90000, spent: 0, remaining: 90000, percentUsed: 0 },
-          savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0 },
+          essentials: {
+            allocated: 150000,
+            spent: 0,
+            remaining: 150000,
+            percentUsed: 0,
+          },
+          desires: {
+            allocated: 90000,
+            spent: 0,
+            remaining: 90000,
+            percentUsed: 0,
+          },
+          savings: {
+            allocated: 60000,
+            spent: 0,
+            remaining: 60000,
+            percentUsed: 0,
+          },
         },
       }),
   };
@@ -194,7 +209,10 @@ describe("useHistoryData", () => {
       ok: false,
       status: 500,
       json: () =>
-        Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "Server error" }),
+        Promise.resolve({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Server error",
+        }),
     });
 
     const { result } = renderHook(() => useHistoryData());

@@ -7,7 +7,9 @@ describe("ValuePropSection", () => {
   it("renders the quote, body, and footnote from the provided content", () => {
     render(<ValuePropSection {...landingContent.valueProp} />);
 
-    expect(screen.getByText(landingContent.valueProp.quote)).toBeInTheDocument();
+    expect(
+      screen.getByText(landingContent.valueProp.quote),
+    ).toBeInTheDocument();
     expect(screen.getByText(landingContent.valueProp.body)).toBeInTheDocument();
     expect(
       screen.getByText(landingContent.valueProp.footnote),

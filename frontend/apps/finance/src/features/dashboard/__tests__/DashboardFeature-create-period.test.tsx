@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { buildDefaults, buildPeriod, buildPeriodSummary, buildUser, createMockApi, mockSequence } from "@gofin/test-utils";
+import {
+  buildDefaults,
+  buildPeriod,
+  buildPeriodSummary,
+  buildUser,
+  createMockApi,
+  mockSequence,
+} from "@gofin/test-utils";
 import { renderDashboard } from "./render";
 import { dashboardDataEmptyRoutes, testDefaults, testPeriod } from "./fixtures";
 
@@ -11,7 +18,10 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: testDefaults } },
       }) as unknown as typeof fetch;
@@ -21,25 +31,37 @@ describe("DashboardFeature", () => {
         expect(screen.getByText(/set up/i)).toBeInTheDocument();
       });
 
-      const budgetInput = screen.getByLabelText("Monthly Budget") as HTMLInputElement;
+      const budgetInput = screen.getByLabelText(
+        "Monthly Budget",
+      ) as HTMLInputElement;
       expect(budgetInput.value).toBe("3000");
 
-      const essentialsInput = screen.getByLabelText("Essentials %") as HTMLInputElement;
+      const essentialsInput = screen.getByLabelText(
+        "Essentials %",
+      ) as HTMLInputElement;
       expect(essentialsInput.value).toBe("50");
 
-      const desiresInput = screen.getByLabelText("Desires %") as HTMLInputElement;
+      const desiresInput = screen.getByLabelText(
+        "Desires %",
+      ) as HTMLInputElement;
       expect(desiresInput.value).toBe("30");
 
-      const savingsInput = screen.getByLabelText("Savings %") as HTMLInputElement;
+      const savingsInput = screen.getByLabelText(
+        "Savings %",
+      ) as HTMLInputElement;
       expect(savingsInput.value).toBe("20");
 
-      const currencySelect = screen.getByLabelText("Reporting Currency") as HTMLSelectElement;
+      const currencySelect = screen.getByLabelText(
+        "Reporting Currency",
+      ) as HTMLSelectElement;
       expect(currencySelect.value).toBe("USD");
       expect(
         screen.getByText(/reporting currency cannot be changed/i),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/default currency changes only apply to future periods/i),
+        screen.getByText(
+          /default currency changes only apply to future periods/i,
+        ),
       ).toBeInTheDocument();
     });
 
@@ -47,10 +69,15 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": {
-          body: { defaults: buildDefaults({ ...testDefaults, budgetAmount: 0 }) },
+          body: {
+            defaults: buildDefaults({ ...testDefaults, budgetAmount: 0 }),
+          },
         },
       }) as unknown as typeof fetch;
       renderDashboard();
@@ -64,7 +91,10 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": {
           status: 404,
@@ -73,7 +103,9 @@ describe("DashboardFeature", () => {
       }) as unknown as typeof fetch;
       renderDashboard();
 
-      expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+      expect(
+        await screen.findByText("Something went wrong"),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
       expect(screen.queryByLabelText("Essentials %")).not.toBeInTheDocument();
     });
@@ -82,16 +114,24 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": {
           status: 500,
-          body: { code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" },
+          body: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Database connection failed",
+          },
         },
       }) as unknown as typeof fetch;
       renderDashboard();
 
-      expect(await screen.findByText("Something went wrong")).toBeInTheDocument();
+      expect(
+        await screen.findByText("Something went wrong"),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
       expect(screen.queryByLabelText("Monthly Budget")).not.toBeInTheDocument();
     });
@@ -100,7 +140,10 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: null } },
       }) as unknown as typeof fetch;
@@ -123,7 +166,10 @@ describe("DashboardFeature", () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: null } },
       });
@@ -164,7 +210,10 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: testDefaults } },
       }) as unknown as typeof fetch;
@@ -192,7 +241,10 @@ describe("DashboardFeature", () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: testDefaults } },
         "/api/finance/periods": { status: 201, body: { period: testPeriod } },
@@ -210,15 +262,32 @@ describe("DashboardFeature", () => {
               dailySpendRate: 0,
               budgetPace: 9677,
               isOnTrack: true,
-              essentials: { allocated: 150000, spent: 0, remaining: 150000, percentUsed: 0 },
-              desires: { allocated: 90000, spent: 0, remaining: 90000, percentUsed: 0 },
-              savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0 },
+              essentials: {
+                allocated: 150000,
+                spent: 0,
+                remaining: 150000,
+                percentUsed: 0,
+              },
+              desires: {
+                allocated: 90000,
+                spent: 0,
+                remaining: 90000,
+                percentUsed: 0,
+              },
+              savings: {
+                allocated: 60000,
+                spent: 0,
+                remaining: 60000,
+                percentUsed: 0,
+              },
             }),
           },
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -249,7 +318,10 @@ describe("DashboardFeature", () => {
           !call.url.includes("/current") &&
           call.method === "POST",
       );
-      expect((createCall!.body as { reportingCurrencyCode: string }).reportingCurrencyCode).toBe("USD");
+      expect(
+        (createCall!.body as { reportingCurrencyCode: string })
+          .reportingCurrencyCode,
+      ).toBe("USD");
     });
 
     it("recovers after Refresh all reports a missing period and the period is recreated", async () => {
@@ -264,11 +336,17 @@ describe("DashboardFeature", () => {
           { body: { period: testPeriod } },
           {
             status: 404,
-            body: { code: "PERIOD_NOT_FOUND", message: "No budget period found" },
+            body: {
+              code: "PERIOD_NOT_FOUND",
+              message: "No budget period found",
+            },
           },
         ]),
         "/api/finance/defaults": { body: { defaults: testDefaults } },
-        "/api/finance/periods": { status: 201, body: { period: recreatedPeriod } },
+        "/api/finance/periods": {
+          status: 201,
+          body: { period: recreatedPeriod },
+        },
         ...dashboardDataEmptyRoutes(),
         "/api/finance/summary": {
           body: {
@@ -287,10 +365,16 @@ describe("DashboardFeature", () => {
 
       const user = userEvent.setup();
       renderDashboard();
-      await waitFor(() => expect(screen.getByText("Dashboard")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText("Dashboard")).toBeInTheDocument(),
+      );
 
-      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
-      await waitFor(() => expect(screen.getByText(/set up/i)).toBeInTheDocument());
+      await user.click(
+        screen.getByRole("button", { name: "Refresh all data" }),
+      );
+      await waitFor(() =>
+        expect(screen.getByText(/set up/i)).toBeInTheDocument(),
+      );
 
       await user.click(screen.getByRole("button", { name: /create/i }));
       await waitFor(() => {
@@ -308,7 +392,10 @@ describe("DashboardFeature", () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: testDefaults } },
         "/api/finance/periods": { status: 201, body: { period: jpyPeriod } },
@@ -327,7 +414,9 @@ describe("DashboardFeature", () => {
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -344,10 +433,14 @@ describe("DashboardFeature", () => {
         expect(screen.getByText(/set up/i)).toBeInTheDocument();
       });
 
-      const currencySelect = screen.getByLabelText("Reporting Currency") as HTMLSelectElement;
+      const currencySelect = screen.getByLabelText(
+        "Reporting Currency",
+      ) as HTMLSelectElement;
       fireEvent.change(currencySelect, { target: { value: "JPY" } });
 
-      const budgetInput = screen.getByLabelText("Monthly Budget") as HTMLInputElement;
+      const budgetInput = screen.getByLabelText(
+        "Monthly Budget",
+      ) as HTMLInputElement;
       expect(budgetInput.step).toBe("1");
       await user.clear(budgetInput);
       await user.type(budgetInput, "300000");
@@ -376,7 +469,10 @@ describe("DashboardFeature", () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": {
           status: 404,
-          body: { code: "PERIOD_NOT_FOUND", message: "No budget period found for 2026-05" },
+          body: {
+            code: "PERIOD_NOT_FOUND",
+            message: "No budget period found for 2026-05",
+          },
         },
         "/api/finance/defaults": { body: { defaults: testDefaults } },
         "/api/finance/periods": { status: 201, body: { period: testPeriod } },
@@ -395,7 +491,9 @@ describe("DashboardFeature", () => {
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -431,14 +529,18 @@ describe("DashboardFeature", () => {
           call.method === "POST",
       );
       expect(createCall).toBeDefined();
-      expect((createCall!.body as { budgetAmount: number }).budgetAmount).toBe(500000);
-      expect((createCall!.body as { reportingCurrencyCode: string }).reportingCurrencyCode).toBe("USD");
+      expect((createCall!.body as { budgetAmount: number }).budgetAmount).toBe(
+        500000,
+      );
+      expect(
+        (createCall!.body as { reportingCurrencyCode: string })
+          .reportingCurrencyCode,
+      ).toBe("USD");
 
       // Verify no PUT to /api/finance/defaults was made
       const defaultsUpdateCall = mockApi._calls.find(
         (call) =>
-          call.url.includes("/api/finance/defaults") &&
-          call.method === "PUT",
+          call.url.includes("/api/finance/defaults") && call.method === "PUT",
       );
       expect(defaultsUpdateCall).toBeUndefined();
     });

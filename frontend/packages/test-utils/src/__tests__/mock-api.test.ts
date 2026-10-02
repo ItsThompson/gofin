@@ -8,7 +8,9 @@ describe("createMockApi", () => {
         "/api/finance/periods": { period: { id: "p1" } },
       });
 
-      const response = await mockFetch("http://localhost:3000/api/finance/periods?year=2026");
+      const response = await mockFetch(
+        "http://localhost:3000/api/finance/periods?year=2026",
+      );
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -21,7 +23,9 @@ describe("createMockApi", () => {
         "/api/finance/periods": { periods: [] },
       });
 
-      const response = await mockFetch("http://localhost:3000/api/finance/periods/current");
+      const response = await mockFetch(
+        "http://localhost:3000/api/finance/periods/current",
+      );
       const data = await response.json();
 
       expect(data).toEqual({ period: { id: "current" } });
@@ -33,7 +37,9 @@ describe("createMockApi", () => {
         "/api/finance/summary": { summary: { total: 100 } },
       });
 
-      const response = await mockFetch("http://localhost:3000/api/finance/summary");
+      const response = await mockFetch(
+        "http://localhost:3000/api/finance/summary",
+      );
       const data = await response.json();
 
       expect(data).toEqual({ summary: { total: 100 } });
@@ -48,15 +54,17 @@ describe("createMockApi", () => {
 
       await expect(
         mockFetch("http://localhost:3000/api/unknown/path", { method: "POST" }),
-      ).rejects.toThrow("No mock route for: POST http://localhost:3000/api/unknown/path");
+      ).rejects.toThrow(
+        "No mock route for: POST http://localhost:3000/api/unknown/path",
+      );
     });
 
     it("defaults to GET method in rejection message", async () => {
       const mockFetch = createMockApi({});
 
-      await expect(
-        mockFetch("http://localhost:3000/api/test"),
-      ).rejects.toThrow("No mock route for: GET http://localhost:3000/api/test");
+      await expect(mockFetch("http://localhost:3000/api/test")).rejects.toThrow(
+        "No mock route for: GET http://localhost:3000/api/test",
+      );
     });
   });
 
@@ -80,19 +88,29 @@ describe("createMockApi", () => {
   describe("MockResponse with status and headers", () => {
     it("supports full MockResponse with custom status", async () => {
       const mockFetch = createMockApi({
-        "/api/auth/me": { status: 401, body: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+        "/api/auth/me": {
+          status: 401,
+          body: { code: "UNAUTHORIZED", message: "Not authenticated" },
+        },
       });
 
       const response = await mockFetch("http://localhost:3000/api/auth/me");
 
       expect(response.status).toBe(401);
       const data = await response.json();
-      expect(data).toEqual({ code: "UNAUTHORIZED", message: "Not authenticated" });
+      expect(data).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Not authenticated",
+      });
     });
 
     it("supports custom headers", async () => {
       const mockFetch = createMockApi({
-        "/api/data": { status: 200, body: {}, headers: { "x-custom": "value" } },
+        "/api/data": {
+          status: 200,
+          body: {},
+          headers: { "x-custom": "value" },
+        },
       });
 
       const response = await mockFetch("http://localhost:3000/api/data");
@@ -134,7 +152,10 @@ describe("mockSequence", () => {
 
     const response2 = await mockFetch("http://localhost:3000/api/auth/refresh");
     expect(response2.status).toBe(401);
-    expect(await response2.json()).toEqual({ code: "EXPIRED", message: "Token expired" });
+    expect(await response2.json()).toEqual({
+      code: "EXPIRED",
+      message: "Token expired",
+    });
   });
 
   it("rejects when sequence is exhausted", async () => {
@@ -144,9 +165,9 @@ describe("mockSequence", () => {
 
     await mockFetch("http://localhost:3000/api/poll");
 
-    await expect(
-      mockFetch("http://localhost:3000/api/poll"),
-    ).rejects.toThrow('Mock sequence exhausted for pattern "/api/poll" after 1 calls');
+    await expect(mockFetch("http://localhost:3000/api/poll")).rejects.toThrow(
+      'Mock sequence exhausted for pattern "/api/poll" after 1 calls',
+    );
   });
 });
 
@@ -176,7 +197,10 @@ describe("expectCalled", () => {
       "/api/finance/periods": { period: {} },
     });
 
-    await mockFetch("http://localhost:3000/api/finance/periods", { method: "POST", body: JSON.stringify({}) });
+    await mockFetch("http://localhost:3000/api/finance/periods", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
 
     expect(() =>
       expectCalled(mockFetch, "/api/finance/periods", { method: "POST" }),
@@ -217,7 +241,9 @@ describe("expectCalled", () => {
       "/api/finance/periods": { period: {} },
     });
 
-    await mockFetch("http://localhost:3000/api/finance/periods?year=2026&month=5");
+    await mockFetch(
+      "http://localhost:3000/api/finance/periods?year=2026&month=5",
+    );
 
     expect(() => expectCalled(mockFetch, "/api/finance/periods")).not.toThrow();
   });

@@ -16,9 +16,9 @@ interface CapturedContext {
 }
 
 const { captureException, toastError } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
   toastError: vi.fn(),
 }));
 
@@ -68,7 +68,8 @@ function errorResponse(status: number) {
   return {
     ok: false,
     status,
-    json: () => Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "boom" }),
+    json: () =>
+      Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "boom" }),
   };
 }
 
@@ -103,7 +104,10 @@ describe("checkAuth when the check never completes", () => {
     await useAuthStore.getState().checkAuth();
 
     const { context } = onlyCapture();
-    expect(context.tags).toMatchObject({ error_kind: "network", operation: "auth.check" });
+    expect(context.tags).toMatchObject({
+      error_kind: "network",
+      operation: "auth.check",
+    });
     expect(context.level).toBe("warning");
   });
 
@@ -111,7 +115,8 @@ describe("checkAuth when the check never completes", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "no session" }),
+      json: () =>
+        Promise.resolve({ code: "UNAUTHORIZED", message: "no session" }),
     });
 
     await useAuthStore.getState().checkAuth();

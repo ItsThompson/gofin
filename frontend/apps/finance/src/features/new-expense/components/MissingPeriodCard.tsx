@@ -26,10 +26,13 @@ export function MissingPeriodCard({
         <CardHeader>
           <div className="flex items-center gap-3">
             <LayoutDashboard className="size-6 text-primary" />
-            <CardTitle className="text-2xl">Create a budget period first</CardTitle>
+            <CardTitle className="text-2xl">
+              Create a budget period first
+            </CardTitle>
           </div>
           <CardDescription>
-            Expenses need a budget period for {month}/{year} before they can be saved.
+            Expenses need a budget period for {month}/{year} before they can be
+            saved.
           </CardDescription>
         </CardHeader>
         <CardContent>

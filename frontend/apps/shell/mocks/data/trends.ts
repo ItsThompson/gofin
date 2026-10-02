@@ -30,8 +30,8 @@ export function computeMockTrends(months: number): TrendPoint[] {
     const essentialsPct = 45 + Math.round(Math.sin(i * 0.9) * 8);
     const desiresPct = 30 + Math.round(Math.cos(i * 1.1) * 5);
 
-    const essentialsSpent = Math.round(totalSpent * essentialsPct / 100);
-    const desiresSpent = Math.round(totalSpent * desiresPct / 100);
+    const essentialsSpent = Math.round((totalSpent * essentialsPct) / 100);
+    const desiresSpent = Math.round((totalSpent * desiresPct) / 100);
     const savingsSpent = totalSpent - essentialsSpent - desiresSpent;
 
     points.push({

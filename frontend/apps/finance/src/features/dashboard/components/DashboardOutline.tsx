@@ -47,7 +47,9 @@ function renderOutlineItems(
 
 function getLinkClassName(isActive: boolean, isNested: boolean): string {
   const sizeClassName = isNested ? "py-0.5 text-[11px]" : "py-1";
-  const activeClassName = isActive ? "text-foreground font-medium" : "hover:text-foreground";
+  const activeClassName = isActive
+    ? "text-foreground font-medium"
+    : "hover:text-foreground";
 
   return `block ${sizeClassName} ${activeClassName} transition-colors`;
 }

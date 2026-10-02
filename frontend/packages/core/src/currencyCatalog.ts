@@ -24,7 +24,9 @@ export interface SupportedCurrencyOption {
 }
 
 /** Resolves to the catalog entries. Injectable so tests can skip the network. */
-export type CurrencyCatalogFetcher = () => Promise<readonly SupportedCurrency[]>;
+export type CurrencyCatalogFetcher = () => Promise<
+  readonly SupportedCurrency[]
+>;
 
 const CATALOG_ENDPOINT = "/api/finance/currencies";
 const DEFAULT_MINOR_UNIT_DIGITS = 2;

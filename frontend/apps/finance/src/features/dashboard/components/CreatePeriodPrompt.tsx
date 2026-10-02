@@ -129,16 +129,24 @@ export function CreatePeriodPrompt({
                   type="number"
                   min="0"
                   step={getCurrencyInputStep(reportingCurrencyCode)}
-                  placeholder={getMinorUnitDigits(reportingCurrencyCode) === 0 ? "0" : "0.00"}
+                  placeholder={
+                    getMinorUnitDigits(reportingCurrencyCode) === 0
+                      ? "0"
+                      : "0.00"
+                  }
                   value={form.fields.budgetDollars}
-                  onChange={(event) => form.setField("budgetDollars", event.target.value)}
+                  onChange={(event) =>
+                    form.setField("budgetDollars", event.target.value)
+                  }
                   className="pl-6"
                 />
               </div>
             </FormField>
 
             <FormField>
-              <FormLabel htmlFor="reporting-currency">Reporting Currency</FormLabel>
+              <FormLabel htmlFor="reporting-currency">
+                Reporting Currency
+              </FormLabel>
               <select
                 id="reporting-currency"
                 value={reportingCurrencyCode}
@@ -149,7 +157,9 @@ export function CreatePeriodPrompt({
                 aria-invalid={!!currencyError}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                {!reportingCurrencyCode && <option value="">Select a currency</option>}
+                {!reportingCurrencyCode && (
+                  <option value="">Select a currency</option>
+                )}
                 {currencyOptions.map((option) => (
                   <option key={option.code} value={option.code}>
                     {option.label}
@@ -158,8 +168,8 @@ export function CreatePeriodPrompt({
               </select>
               {currencyError && <FormMessage>{currencyError}</FormMessage>}
               <FormDescription>
-                Reporting currency cannot be changed after this period is created.
-                Default currency changes only apply to future periods.
+                Reporting currency cannot be changed after this period is
+                created. Default currency changes only apply to future periods.
               </FormDescription>
             </FormField>
 
@@ -171,7 +181,9 @@ export function CreatePeriodPrompt({
                 min="0"
                 max="100"
                 value={form.fields.essentials}
-                onChange={(event) => form.setField("essentials", event.target.value)}
+                onChange={(event) =>
+                  form.setField("essentials", event.target.value)
+                }
                 aria-invalid={!!form.splitError}
               />
             </FormField>
@@ -184,7 +196,9 @@ export function CreatePeriodPrompt({
                 min="0"
                 max="100"
                 value={form.fields.desires}
-                onChange={(event) => form.setField("desires", event.target.value)}
+                onChange={(event) =>
+                  form.setField("desires", event.target.value)
+                }
                 aria-invalid={!!form.splitError}
               />
             </FormField>
@@ -197,7 +211,9 @@ export function CreatePeriodPrompt({
                 min="0"
                 max="100"
                 value={form.fields.savings}
-                onChange={(event) => form.setField("savings", event.target.value)}
+                onChange={(event) =>
+                  form.setField("savings", event.target.value)
+                }
                 aria-invalid={!!form.splitError}
               />
             </FormField>

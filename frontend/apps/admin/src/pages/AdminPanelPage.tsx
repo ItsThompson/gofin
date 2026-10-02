@@ -18,7 +18,11 @@ import type { AdminPanelPageProps } from "../types";
  * Admin panel page displaying all registered users with identity assumption controls.
  * The shell imports this from source and lazy-loads it as a code-split chunk.
  */
-export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "http://localhost:3002" }: AdminPanelPageProps) {
+export function AdminPanelPage({
+  currentUser,
+  onAssumeIdentity,
+  grafanaUrl = "http://localhost:3002",
+}: AdminPanelPageProps) {
   const { state, actions } = useAdminPanel({ currentUser, onAssumeIdentity });
 
   if (state.loadState === "loading") {
@@ -34,7 +38,9 @@ export function AdminPanelPage({ currentUser, onAssumeIdentity, grafanaUrl = "ht
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-destructive">Something went wrong</CardTitle>
+          <CardTitle className="text-destructive">
+            Something went wrong
+          </CardTitle>
           <CardDescription>
             Could not load the admin panel. The error details were shown in a
             notification.

@@ -10,9 +10,9 @@ interface CapturedContext {
 }
 
 const { captureException } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
 }));
 
 vi.mock("@sentry/react-router", () => ({ captureException }));
@@ -66,7 +66,7 @@ describe("useFormMutation reporting", () => {
     expect(context.tags).not.toHaveProperty("expected");
   });
 
-  it("reports a 4xx at warning level tagged expected as the string \"true\"", async () => {
+  it('reports a 4xx at warning level tagged expected as the string "true"', async () => {
     await submitRejecting(
       new ApiRequestError(422, {
         code: "VALIDATION_ERROR",

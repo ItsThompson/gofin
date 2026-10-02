@@ -24,7 +24,10 @@ describe("usePolling", () => {
       onData: vi.fn(),
       ...overrides,
     };
-    return { ...renderHook((props) => usePolling(props), { initialProps: defaults }), options: defaults };
+    return {
+      ...renderHook((props) => usePolling(props), { initialProps: defaults }),
+      options: defaults,
+    };
   }
 
   describe("start/stop lifecycle", () => {
@@ -58,7 +61,11 @@ describe("usePolling", () => {
 
     it("stops polling when enabled changes from true to false", async () => {
       const fetcher = vi.fn().mockResolvedValue("data");
-      const { rerender, options } = renderPolling({ fetcher, enabled: true, intervalMs: 1000 });
+      const { rerender, options } = renderPolling({
+        fetcher,
+        enabled: true,
+        intervalMs: 1000,
+      });
 
       await act(async () => {
         vi.advanceTimersByTime(1000);
@@ -76,7 +83,11 @@ describe("usePolling", () => {
 
     it("cleans up interval on unmount", async () => {
       const fetcher = vi.fn().mockResolvedValue("data");
-      const { unmount } = renderPolling({ fetcher, enabled: true, intervalMs: 1000 });
+      const { unmount } = renderPolling({
+        fetcher,
+        enabled: true,
+        intervalMs: 1000,
+      });
 
       await act(async () => {
         vi.advanceTimersByTime(1000);
@@ -94,7 +105,11 @@ describe("usePolling", () => {
 
     it("restarts polling when intervalMs changes", async () => {
       const fetcher = vi.fn().mockResolvedValue("data");
-      const { rerender, options } = renderPolling({ fetcher, enabled: true, intervalMs: 1000 });
+      const { rerender, options } = renderPolling({
+        fetcher,
+        enabled: true,
+        intervalMs: 1000,
+      });
 
       await act(async () => {
         vi.advanceTimersByTime(1000);
@@ -121,7 +136,8 @@ describe("usePolling", () => {
   describe("data handling", () => {
     it("calls onData with fetched data on each tick", async () => {
       const onData = vi.fn();
-      const fetcher = vi.fn()
+      const fetcher = vi
+        .fn()
         .mockResolvedValueOnce("first")
         .mockResolvedValueOnce("second");
 
@@ -153,7 +169,8 @@ describe("usePolling", () => {
 
   describe("shouldStop", () => {
     it("stops polling when shouldStop returns true", async () => {
-      const fetcher = vi.fn()
+      const fetcher = vi
+        .fn()
         .mockResolvedValueOnce({ done: false })
         .mockResolvedValueOnce({ done: true });
       const onData = vi.fn();
@@ -209,7 +226,8 @@ describe("usePolling", () => {
 
   describe("error handling", () => {
     it("continues polling on error by default (silent)", async () => {
-      const fetcher = vi.fn()
+      const fetcher = vi
+        .fn()
         .mockRejectedValueOnce(new Error("transient"))
         .mockResolvedValueOnce("recovered");
       const onData = vi.fn();
@@ -228,7 +246,8 @@ describe("usePolling", () => {
     });
 
     it("keeps polling while failures stay below the limit", async () => {
-      const fetcher = vi.fn()
+      const fetcher = vi
+        .fn()
         .mockRejectedValueOnce(new Error("err1"))
         .mockRejectedValueOnce(new Error("err2"))
         .mockResolvedValueOnce("ok");
@@ -253,7 +272,8 @@ describe("usePolling", () => {
   describe("consecutive failure limit", () => {
     it("stops after the default number of consecutive failures", async () => {
       const lastError = new Error("still down");
-      const fetcher = vi.fn()
+      const fetcher = vi
+        .fn()
         .mockRejectedValueOnce(new Error("down 1"))
         .mockRejectedValueOnce(new Error("down 2"))
         .mockRejectedValue(lastError);
@@ -264,9 +284,7 @@ describe("usePolling", () => {
       await act(async () => {
         vi.advanceTimersByTime(3000);
       });
-      expect(fetcher).toHaveBeenCalledTimes(
-        DEFAULT_MAX_CONSECUTIVE_FAILURES,
-      );
+      expect(fetcher).toHaveBeenCalledTimes(DEFAULT_MAX_CONSECUTIVE_FAILURES);
       expect(onFailureLimitReached).toHaveBeenCalledTimes(1);
       expect(onFailureLimitReached).toHaveBeenCalledWith(lastError);
 
@@ -303,7 +321,8 @@ describe("usePolling", () => {
     });
 
     it("resets the failure count on any success", async () => {
-      const fetcher = vi.fn()
+      const fetcher = vi
+        .fn()
         .mockRejectedValueOnce(new Error("err1"))
         .mockRejectedValueOnce(new Error("err2"))
         .mockResolvedValueOnce("recovered")

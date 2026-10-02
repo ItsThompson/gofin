@@ -108,7 +108,9 @@ describe("the source-map upload in the builder stage", () => {
     // what keeps the original TypeScript out of the shipped image's layers. It
     // has to come after the upload, or Sentry receives nothing.
     const upload = builder.indexOf("sourcemaps upload");
-    const deleted = builder.indexOf('find apps/shell/build -name "*.map" -delete');
+    const deleted = builder.indexOf(
+      'find apps/shell/build -name "*.map" -delete',
+    );
 
     expect(deleted).toBeGreaterThan(upload);
   });
@@ -166,8 +168,12 @@ describe("the CD workflow", () => {
     // sentry-cli keys the maps to the exact release string the bundle was built
     // with, so both have to read the same declaration. Re-inlining the prefix
     // at either site is how one deploy ends up split across two releases.
-    expect(cdWorkflow).toContain("SENTRY_RELEASE_WEB: gofin-web@${{ github.sha }}");
-    expect(cdWorkflow).toContain("SENTRY_RELEASE_API: gofin-api@${{ github.sha }}");
+    expect(cdWorkflow).toContain(
+      "SENTRY_RELEASE_WEB: gofin-web@${{ github.sha }}",
+    );
+    expect(cdWorkflow).toContain(
+      "SENTRY_RELEASE_API: gofin-api@${{ github.sha }}",
+    );
     expect(workflowStep("Build and push ${{ matrix.service }}")).toContain(
       "VITE_SENTRY_RELEASE=${{ env.SENTRY_RELEASE_WEB }}",
     );
@@ -204,8 +210,12 @@ describe("the CD workflow", () => {
     const created = workflowStep("Create Sentry releases");
     const finalized = workflowStep("Finalize Sentry releases");
     for (const step of [created, finalized]) {
-      expect(step).toContain('--project "${SENTRY_PROJECT_BACKEND}" "${SENTRY_RELEASE_API}"');
-      expect(step).toContain('--project "${SENTRY_PROJECT_FRONTEND}" "${SENTRY_RELEASE_WEB}"');
+      expect(step).toContain(
+        '--project "${SENTRY_PROJECT_BACKEND}" "${SENTRY_RELEASE_API}"',
+      );
+      expect(step).toContain(
+        '--project "${SENTRY_PROJECT_FRONTEND}" "${SENTRY_RELEASE_WEB}"',
+      );
     }
   });
 

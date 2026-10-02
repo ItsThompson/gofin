@@ -51,7 +51,8 @@ describe("OnboardingPage - skip and navigation flows", () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
+      json: () =>
+        Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
     });
   });
 
@@ -93,12 +94,18 @@ describe("OnboardingPage - skip and navigation flows", () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ user: { ...newUser, hasCompletedOnboarding: true } }),
+        json: () =>
+          Promise.resolve({
+            user: { ...newUser, hasCompletedOnboarding: true },
+          }),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ user: { ...newUser, hasCompletedOnboarding: true } }),
+        json: () =>
+          Promise.resolve({
+            user: { ...newUser, hasCompletedOnboarding: true },
+          }),
       });
 
     renderOnboarding(OnboardingPage);
@@ -161,7 +168,9 @@ describe("OnboardingPage - skip and navigation flows", () => {
 
     fireEvent.click(screen.getByText("Get started"));
 
-    const currencySelect = screen.getByLabelText("Currency") as HTMLSelectElement;
+    const currencySelect = screen.getByLabelText(
+      "Currency",
+    ) as HTMLSelectElement;
     fireEvent.change(currencySelect, { target: { value: "EUR" } });
     expect(currencySelect.value).toBe("EUR");
   });
@@ -174,7 +183,9 @@ describe("OnboardingPage - skip and navigation flows", () => {
     fireEvent.click(screen.getByText("Get started"));
     fireEvent.click(screen.getByText("Continue"));
 
-    const budgetInput = screen.getByLabelText("Budget Amount") as HTMLInputElement;
+    const budgetInput = screen.getByLabelText(
+      "Budget Amount",
+    ) as HTMLInputElement;
     fireEvent.change(budgetInput, { target: { value: "5000" } });
     expect(budgetInput.value).toBe("5000");
   });

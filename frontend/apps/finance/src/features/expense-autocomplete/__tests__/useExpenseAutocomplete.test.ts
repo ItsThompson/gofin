@@ -6,7 +6,9 @@ import type { ExpenseSuggestion, ExpenseSuggestionsResponse } from "../types";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-function buildSuggestion(overrides: Partial<ExpenseSuggestion> = {}): ExpenseSuggestion {
+function buildSuggestion(
+  overrides: Partial<ExpenseSuggestion> = {},
+): ExpenseSuggestion {
   return {
     name: "Groceries",
     originalTransactionAmountInMinorUnits: 7423,
@@ -107,7 +109,10 @@ describe("useExpenseAutocomplete", () => {
 
   it("limits visible suggestions to five matches", async () => {
     const suggestions = Array.from({ length: 7 }, (_, index) =>
-      buildSuggestion({ name: `Coffee ${index + 1}`, frecencyScore: 100 - index }),
+      buildSuggestion({
+        name: `Coffee ${index + 1}`,
+        frecencyScore: 100 - index,
+      }),
     );
     mockApiResponse(buildResponse(suggestions));
 
@@ -122,13 +127,11 @@ describe("useExpenseAutocomplete", () => {
     });
 
     expect(result.current.state.visibleSuggestions).toHaveLength(5);
-    expect(result.current.state.visibleSuggestions.map((suggestion) => suggestion.name)).toEqual([
-      "Coffee 1",
-      "Coffee 2",
-      "Coffee 3",
-      "Coffee 4",
-      "Coffee 5",
-    ]);
+    expect(
+      result.current.state.visibleSuggestions.map(
+        (suggestion) => suggestion.name,
+      ),
+    ).toEqual(["Coffee 1", "Coffee 2", "Coffee 3", "Coffee 4", "Coffee 5"]);
   });
 
   it("keeps initial failures non-blocking", async () => {
@@ -136,7 +139,8 @@ describe("useExpenseAutocomplete", () => {
       ok: false,
       status: 500,
       statusText: "Internal Server Error",
-      json: () => Promise.resolve({ code: "internal_server_error", message: "failed" }),
+      json: () =>
+        Promise.resolve({ code: "internal_server_error", message: "failed" }),
     });
 
     const { result } = renderHook(() => useExpenseAutocomplete());
@@ -147,14 +151,30 @@ describe("useExpenseAutocomplete", () => {
 
     expect(result.current.state.candidates).toEqual([]);
     expect(result.current.state.visibleSuggestions).toEqual([]);
-    expect(result.current.state.error).toBe("Suggestions are unavailable right now.");
+    expect(result.current.state.error).toBe(
+      "Suggestions are unavailable right now.",
+    );
   });
 
   it("dedupes candidates by exact name and keeps the first ranked record", async () => {
-    const firstGroceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 1000, frecencyScore: 50 });
-    const duplicateGroceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 2000, frecencyScore: 10 });
-    const coffee = buildSuggestion({ name: "Coffee", originalTransactionAmountInMinorUnits: 500, frecencyScore: 20 });
-    mockApiResponse(buildResponse([firstGroceries, duplicateGroceries, coffee]));
+    const firstGroceries = buildSuggestion({
+      name: "Groceries",
+      originalTransactionAmountInMinorUnits: 1000,
+      frecencyScore: 50,
+    });
+    const duplicateGroceries = buildSuggestion({
+      name: "Groceries",
+      originalTransactionAmountInMinorUnits: 2000,
+      frecencyScore: 10,
+    });
+    const coffee = buildSuggestion({
+      name: "Coffee",
+      originalTransactionAmountInMinorUnits: 500,
+      frecencyScore: 20,
+    });
+    mockApiResponse(
+      buildResponse([firstGroceries, duplicateGroceries, coffee]),
+    );
 
     const { result } = renderHook(() => useExpenseAutocomplete());
 
@@ -166,11 +186,25 @@ describe("useExpenseAutocomplete", () => {
   });
 
   it("loads the next page and appends deduped candidates", async () => {
-    const groceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 1000, frecencyScore: 50 });
-    const duplicateGroceries = buildSuggestion({ name: "Groceries", originalTransactionAmountInMinorUnits: 2000, frecencyScore: 10 });
-    const coffee = buildSuggestion({ name: "Coffee", originalTransactionAmountInMinorUnits: 500, frecencyScore: 20 });
+    const groceries = buildSuggestion({
+      name: "Groceries",
+      originalTransactionAmountInMinorUnits: 1000,
+      frecencyScore: 50,
+    });
+    const duplicateGroceries = buildSuggestion({
+      name: "Groceries",
+      originalTransactionAmountInMinorUnits: 2000,
+      frecencyScore: 10,
+    });
+    const coffee = buildSuggestion({
+      name: "Coffee",
+      originalTransactionAmountInMinorUnits: 500,
+      frecencyScore: 20,
+    });
     mockApiResponse(buildResponse([groceries], { hasMore: true }));
-    mockApiResponse(buildResponse([duplicateGroceries, coffee], { page: 2, hasMore: false }));
+    mockApiResponse(
+      buildResponse([duplicateGroceries, coffee], { page: 2, hasMore: false }),
+    );
 
     const { result } = renderHook(() => useExpenseAutocomplete());
 
@@ -199,7 +233,8 @@ describe("useExpenseAutocomplete", () => {
       ok: false,
       status: 500,
       statusText: "Internal Server Error",
-      json: () => Promise.resolve({ code: "internal_server_error", message: "failed" }),
+      json: () =>
+        Promise.resolve({ code: "internal_server_error", message: "failed" }),
     });
 
     const { result } = renderHook(() => useExpenseAutocomplete());
@@ -214,11 +249,17 @@ describe("useExpenseAutocomplete", () => {
 
     expect(result.current.state.candidates).toEqual([groceries]);
     expect(result.current.state.hasMore).toBe(true);
-    expect(result.current.state.error).toBe("Suggestions are unavailable right now.");
+    expect(result.current.state.error).toBe(
+      "Suggestions are unavailable right now.",
+    );
   });
 
   it("does not request another page when hasMore is false", async () => {
-    mockApiResponse(buildResponse([buildSuggestion({ name: "Groceries" })], { hasMore: false }));
+    mockApiResponse(
+      buildResponse([buildSuggestion({ name: "Groceries" })], {
+        hasMore: false,
+      }),
+    );
 
     const { result } = renderHook(() => useExpenseAutocomplete());
 

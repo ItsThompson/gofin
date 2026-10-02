@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { ApiRequestError, useApiToast, useFormMutation } from "@gofin/api";
-import type { BudgetPeriod, DefaultSettings, CreatePeriodRequest, CreatePeriodResponse, DefaultsResponse } from "@gofin/core";
+import type {
+  BudgetPeriod,
+  DefaultSettings,
+  CreatePeriodRequest,
+  CreatePeriodResponse,
+  DefaultsResponse,
+} from "@gofin/core";
 import type { PeriodStateResult } from "../types";
 import { dashboardApi } from "../api";
 
@@ -40,42 +46,45 @@ export function usePeriodState(): PeriodStateResult {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
-  const fetchPeriod = useCallback(async (forceRefresh = false) => {
-    const requestGeneration = ++requestGenerationRef.current;
-    setState({ status: "loading" });
-    try {
-      const response = await dashboardApi.getCurrentPeriod(
-        currentYear,
-        currentMonth,
-        forceRefresh ? { forceRefresh: true } : undefined,
-      );
-      if (requestGeneration !== requestGenerationRef.current) return;
-      setState({ status: "active", period: response.period });
-    } catch (error) {
-      if (
-        error instanceof ApiRequestError &&
-        error.code === "PERIOD_NOT_FOUND"
-      ) {
-        const defaultsResponse = await defaultsCall(() =>
-          dashboardApi.getDefaults(),
+  const fetchPeriod = useCallback(
+    async (forceRefresh = false) => {
+      const requestGeneration = ++requestGenerationRef.current;
+      setState({ status: "loading" });
+      try {
+        const response = await dashboardApi.getCurrentPeriod(
+          currentYear,
+          currentMonth,
+          forceRefresh ? { forceRefresh: true } : undefined,
         );
         if (requestGeneration !== requestGenerationRef.current) return;
-        if (!defaultsResponse) {
-          setState({ status: "error" });
+        setState({ status: "active", period: response.period });
+      } catch (error) {
+        if (
+          error instanceof ApiRequestError &&
+          error.code === "PERIOD_NOT_FOUND"
+        ) {
+          const defaultsResponse = await defaultsCall(() =>
+            dashboardApi.getDefaults(),
+          );
+          if (requestGeneration !== requestGenerationRef.current) return;
+          if (!defaultsResponse) {
+            setState({ status: "error" });
+            return;
+          }
+          setState({
+            status: "no-period",
+            defaults: defaultsResponse.defaults,
+          });
           return;
         }
-        setState({
-          status: "no-period",
-          defaults: defaultsResponse.defaults,
-        });
-        return;
+        if (requestGeneration !== requestGenerationRef.current) return;
+        await toastCall(() => Promise.reject(error));
+        if (requestGeneration !== requestGenerationRef.current) return;
+        setState({ status: "error" });
       }
-      if (requestGeneration !== requestGenerationRef.current) return;
-      await toastCall(() => Promise.reject(error));
-      if (requestGeneration !== requestGenerationRef.current) return;
-      setState({ status: "error" });
-    }
-  }, [currentYear, currentMonth, toastCall, defaultsCall]);
+    },
+    [currentYear, currentMonth, toastCall, defaultsCall],
+  );
 
   const retry = useCallback(() => {
     void fetchPeriod(true);

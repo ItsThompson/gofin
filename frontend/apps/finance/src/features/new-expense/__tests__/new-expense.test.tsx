@@ -91,7 +91,9 @@ describe("NewExpenseFeature", () => {
   });
 
   it("displays currency symbol from the resolved budget period", async () => {
-    renderNewExpense({ period: { ...mockPeriod, reportingCurrencyCode: "EUR" } });
+    renderNewExpense({
+      period: { ...mockPeriod, reportingCurrencyCode: "EUR" },
+    });
     await waitForFormBootstrap();
 
     expect(screen.getByText("€")).toBeInTheDocument();
@@ -175,13 +177,23 @@ describe("NewExpenseFeature", () => {
     await waitForFormBootstrap();
 
     await user.type(screen.getByLabelText("Name"), "Ramen");
-    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "JPY");
-    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1200.50" } });
+    await user.selectOptions(
+      screen.getByLabelText("Transaction Currency"),
+      "JPY",
+    );
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "1200.50" },
+    });
 
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    expect(screen.getByText("Amount must be a whole JPY amount")).toBeInTheDocument();
-    expect(screen.getByLabelText("Amount")).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByText("Amount must be a whole JPY amount"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Amount")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     expect(findExpensePostCall()).toBeUndefined();
     expect(mockToastSuccess).not.toHaveBeenCalled();
     expect(mockToastError).not.toHaveBeenCalled();
@@ -194,7 +206,10 @@ describe("NewExpenseFeature", () => {
     await waitForFormBootstrap();
 
     await user.type(screen.getByLabelText("Name"), "Museum");
-    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "EUR");
+    await user.selectOptions(
+      screen.getByLabelText("Transaction Currency"),
+      "EUR",
+    );
     await user.type(screen.getByLabelText("Amount"), "12.34");
 
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
@@ -223,10 +238,14 @@ describe("NewExpenseFeature", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Create a budget period first")).toBeInTheDocument();
+      expect(
+        screen.getByText("Create a budget period first"),
+      ).toBeInTheDocument();
     });
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to dashboard setup" })).toHaveAttribute("href", "/dashboard");
+    expect(
+      screen.getByRole("link", { name: "Go to dashboard setup" }),
+    ).toHaveAttribute("href", "/dashboard");
   });
 
   it("shows the period load error when the period fetch fails unexpectedly", async () => {
@@ -238,9 +257,13 @@ describe("NewExpenseFeature", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Create a budget period first")).toBeInTheDocument();
+      expect(
+        screen.getByText("Create a budget period first"),
+      ).toBeInTheDocument();
     });
-    expect(screen.getByText("Failed to load budget period context.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Failed to load budget period context."),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   });
 
@@ -254,9 +277,12 @@ describe("NewExpenseFeature", () => {
 
     setNewExpenseFetchMock({
       expensePost: () =>
-        jsonResponse({
-          expense: { id: "exp-123", name: "Groceries", status: "active" },
-        }, 201),
+        jsonResponse(
+          {
+            expense: { id: "exp-123", name: "Groceries", status: "active" },
+          },
+          201,
+        ),
     });
 
     await user.type(screen.getByLabelText("Name"), "Groceries");
@@ -277,7 +303,9 @@ describe("NewExpenseFeature", () => {
       expectFormResetToFreshDefaults();
     });
     expect(countFetchCalls("/api/finance/tags")).toBe(tagFetchCount);
-    expect(countFetchCalls("/api/expenses/suggestions")).toBe(suggestionsFetchCount);
+    expect(countFetchCalls("/api/expenses/suggestions")).toBe(
+      suggestionsFetchCount,
+    );
   });
 
   it("shows API error message and generic failure toast on submission failure", async () => {
@@ -385,9 +413,7 @@ describe("NewExpenseFeature", () => {
 
     // The conversion-unavailable guidance banner is shown.
     await waitFor(() => {
-      expect(
-        screen.getByText(/Conversion unavailable/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Conversion unavailable/i)).toBeInTheDocument();
     });
 
     // The toast shows the conversion-unavailable guidance, not the generic failure.

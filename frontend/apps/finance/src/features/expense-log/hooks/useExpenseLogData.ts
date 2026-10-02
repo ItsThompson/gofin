@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useApiToast } from "@gofin/api";
 import type { BudgetPeriod, Expense, Tag } from "@gofin/core";
 import { expenseLogApi } from "../api";
-import { resolveTagNames, type ExpenseRow } from "../../../lib/expense-table-columns";
+import {
+  resolveTagNames,
+  type ExpenseRow,
+} from "../../../lib/expense-table-columns";
 import type { FilterCriteria } from "./useExpenseFilters";
 
 const EXPENSE_LOG_LOAD_ERROR = "Failed to load expense log.";
@@ -104,10 +107,16 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
     const rows = resolveTagNames(fetchResult.rawExpenses, fetchResult.tags);
 
     return rows.filter((row) => {
-      if (filters.selectedTypes.size > 0 && !filters.selectedTypes.has(row.expenseType)) {
+      if (
+        filters.selectedTypes.size > 0 &&
+        !filters.selectedTypes.has(row.expenseType)
+      ) {
         return false;
       }
-      if (filters.selectedTags.size > 0 && !filters.selectedTags.has(row.tagId)) {
+      if (
+        filters.selectedTags.size > 0 &&
+        !filters.selectedTags.has(row.tagId)
+      ) {
         return false;
       }
       if (filters.dateFrom && row.expenseDateIso < filters.dateFrom) {
@@ -116,21 +125,39 @@ export function useExpenseLogData(filters: FilterCriteria): ExpenseLogData {
       if (filters.dateTo && row.expenseDateIso > filters.dateTo) {
         return false;
       }
-      if (filters.selectedTransactionCurrencies.size > 0 && !filters.selectedTransactionCurrencies.has(row.transactionCurrencyEffective)) {
+      if (
+        filters.selectedTransactionCurrencies.size > 0 &&
+        !filters.selectedTransactionCurrencies.has(
+          row.transactionCurrencyEffective,
+        )
+      ) {
         return false;
       }
-      if (filters.selectedReportingCurrencies.size > 0 && !filters.selectedReportingCurrencies.has(row.reportingCurrencyEffective)) {
+      if (
+        filters.selectedReportingCurrencies.size > 0 &&
+        !filters.selectedReportingCurrencies.has(row.reportingCurrencyEffective)
+      ) {
         return false;
       }
       return true;
     });
-  }, [fetchResult.rawExpenses, fetchResult.tags, filters.selectedTypes, filters.selectedTags, filters.dateFrom, filters.dateTo, filters.selectedTransactionCurrencies, filters.selectedReportingCurrencies]);
+  }, [
+    fetchResult.rawExpenses,
+    fetchResult.tags,
+    filters.selectedTypes,
+    filters.selectedTags,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.selectedTransactionCurrencies,
+    filters.selectedReportingCurrencies,
+  ]);
 
   const state = useMemo<ExpenseLogDataState>(() => {
     if (loading) return { status: "loading" };
     if (error) return { status: "error", message: error };
     const selected = fetchResult.periods.find(
-      (period) => period.year === selectedYear && period.month === selectedMonth,
+      (period) =>
+        period.year === selectedYear && period.month === selectedMonth,
     );
     if (!selected) return { status: "missing", periods: fetchResult.periods };
     return {

@@ -3,14 +3,21 @@ import { dashboardApi } from "../api";
 import { expenseSuggestionsApi } from "../../expense-autocomplete/api";
 
 function mockSuccess(body: unknown) {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: () => Promise.resolve(body),
-  }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(body),
+    }),
+  );
 }
 
-function expectRefreshRequest(fetchMock: ReturnType<typeof vi.fn>, url: string, callIndex: number) {
+function expectRefreshRequest(
+  fetchMock: ReturnType<typeof vi.fn>,
+  url: string,
+  callIndex: number,
+) {
   expect(fetchMock).toHaveBeenNthCalledWith(
     callIndex,
     url,

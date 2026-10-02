@@ -95,9 +95,7 @@ describe("useFormMutation", () => {
         message: "Invalid input",
       });
 
-      const { result } = renderHook(() =>
-        useFormMutation<void>({ onError }),
-      );
+      const { result } = renderHook(() => useFormMutation<void>({ onError }));
 
       await act(async () => {
         result.current.submit(() => Promise.reject(apiError));
@@ -139,9 +137,7 @@ describe("useFormMutation", () => {
       const onError = vi.fn();
       const networkError = new TypeError("Load failed");
 
-      const { result } = renderHook(() =>
-        useFormMutation<void>({ onError }),
-      );
+      const { result } = renderHook(() => useFormMutation<void>({ onError }));
 
       await act(async () => {
         result.current.submit(() => Promise.reject(networkError));
@@ -178,9 +174,7 @@ describe("useFormMutation", () => {
 
     it("calls onError with generic message for unknown errors", async () => {
       const onError = vi.fn();
-      const { result } = renderHook(() =>
-        useFormMutation<void>({ onError }),
-      );
+      const { result } = renderHook(() => useFormMutation<void>({ onError }));
 
       await act(async () => {
         result.current.submit(() => Promise.reject(42));
@@ -299,7 +293,10 @@ describe("useFormMutation", () => {
     it("ignores second submit while first is in-flight", async () => {
       let resolveFirst: () => void;
       const firstOp = vi.fn(
-        () => new Promise<void>((resolve) => { resolveFirst = resolve; }),
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          }),
       );
       const secondOp = vi.fn(() => Promise.resolve());
 

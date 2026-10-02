@@ -10,17 +10,22 @@ import type { MultiStepDialogContentProps } from "./types";
  * navigation context to children. Only renders the active step;
  * non-step children (e.g., DialogHeader) render normally.
  */
-export function MultiStepDialogContent({ className, children }: MultiStepDialogContentProps) {
+export function MultiStepDialogContent({
+  className,
+  children,
+}: MultiStepDialogContentProps) {
   const [currentStep, setCurrentStep] = useState(0);
 
   const childArray = React.Children.toArray(children);
 
   const steps = childArray.filter(
-    (child) => React.isValidElement(child) && child.type === MultiStepDialogStep,
+    (child) =>
+      React.isValidElement(child) && child.type === MultiStepDialogStep,
   );
 
   const nonStepChildren = childArray.filter(
-    (child) => !(React.isValidElement(child) && child.type === MultiStepDialogStep),
+    (child) =>
+      !(React.isValidElement(child) && child.type === MultiStepDialogStep),
   );
 
   const totalSteps = steps.length;

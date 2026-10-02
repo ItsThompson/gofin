@@ -10,7 +10,11 @@ function LocationDisplay() {
 
 function ParamDisplay() {
   const params = useParams();
-  return React.createElement("div", { "data-testid": "params" }, JSON.stringify(params));
+  return React.createElement(
+    "div",
+    { "data-testid": "params" },
+    JSON.stringify(params),
+  );
 }
 
 function SearchParamDisplay() {

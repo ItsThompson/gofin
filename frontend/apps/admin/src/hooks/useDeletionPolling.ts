@@ -1,6 +1,9 @@
 import { useCallback } from "react";
 import { apiClient, usePolling } from "@gofin/api";
-import type { DeletionJobResponse, DeletionStatus } from "../components/DeleteUserDialog/types";
+import type {
+  DeletionJobResponse,
+  DeletionStatus,
+} from "../components/DeleteUserDialog/types";
 
 export interface UseDeletionPollingOptions {
   jobId: string;
@@ -46,7 +49,8 @@ export function useDeletionPolling({
   );
 
   usePolling<DeletionJobResponse>({
-    fetcher: () => apiClient<DeletionJobResponse>(`/api/datarights/deletions/${jobId}`),
+    fetcher: () =>
+      apiClient<DeletionJobResponse>(`/api/datarights/deletions/${jobId}`),
     enabled: enabled && !!jobId,
     intervalMs,
     onData: handleData,

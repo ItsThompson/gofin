@@ -25,7 +25,13 @@ const mockUser: User = {
 };
 
 const mockTags: Tag[] = [
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const mockPeriods: BudgetPeriod[] = [

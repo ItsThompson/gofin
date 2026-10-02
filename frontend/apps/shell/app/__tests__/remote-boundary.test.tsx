@@ -40,8 +40,8 @@ describe("RemoteBoundary", () => {
 
   it("shows RemoteLoadError component when the chunk fails to load", async () => {
     // Create a lazy component that rejects immediately
-    const LazyComponent = React.lazy(
-      () => Promise.reject(new Error("Failed to fetch chunk")),
+    const LazyComponent = React.lazy(() =>
+      Promise.reject(new Error("Failed to fetch chunk")),
     );
 
     render(
@@ -68,8 +68,8 @@ describe("RemoteBoundary", () => {
   it("clicking retry in RemoteLoadError triggers a page reload", async () => {
     const user = userEvent.setup();
 
-    const LazyComponent = React.lazy(
-      () => Promise.reject(new Error("Network error")),
+    const LazyComponent = React.lazy(() =>
+      Promise.reject(new Error("Network error")),
     );
 
     render(
@@ -158,8 +158,8 @@ describe("RemoteBoundary", () => {
     }
 
     // Create a lazy component that resolves with a valid module
-    const LazyComponent = React.lazy(
-      () => Promise.resolve({ default: SuccessContent }),
+    const LazyComponent = React.lazy(() =>
+      Promise.resolve({ default: SuccessContent }),
     );
 
     render(
@@ -172,9 +172,7 @@ describe("RemoteBoundary", () => {
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Remote module loaded!"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Remote module loaded!")).toBeInTheDocument();
     });
 
     expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
@@ -182,9 +180,7 @@ describe("RemoteBoundary", () => {
   });
 
   it("shows the loading fallback before resolving, then renders the child", async () => {
-    let resolveImport!: (
-      value: { default: React.ComponentType },
-    ) => void;
+    let resolveImport!: (value: { default: React.ComponentType }) => void;
 
     function LoadedContent() {
       return <div>Content loaded</div>;

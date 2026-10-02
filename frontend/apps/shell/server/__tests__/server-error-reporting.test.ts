@@ -9,9 +9,9 @@ interface CapturedContext {
 }
 
 const { captureException } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 }));
 
 vi.mock("@sentry/react-router", () => ({ captureException }));

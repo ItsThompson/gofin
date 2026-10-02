@@ -9,7 +9,11 @@ import {
   ComboboxList,
 } from "@gofin/ui/components/combobox";
 import { FormMessage } from "@gofin/ui/components/form";
-import { getCurrencySymbol, toMajorUnits, getMinorUnitDigits } from "@gofin/core";
+import {
+  getCurrencySymbol,
+  toMajorUnits,
+  getMinorUnitDigits,
+} from "@gofin/core";
 
 import { useExpenseAutocomplete } from "../hooks/useExpenseAutocomplete";
 import type { ExpenseSuggestion } from "../types";
@@ -60,8 +64,11 @@ export function ExpenseNameCombobox({
   }
 
   const hasTypedInput = value.trim().length > 0;
-  const shouldShowEmpty = hasTypedInput && state.visibleSuggestions.length === 0;
-  const loadMoreLabel = state.isLoadingMore ? "Loading more suggestions..." : "Load more suggestions";
+  const shouldShowEmpty =
+    hasTypedInput && state.visibleSuggestions.length === 0;
+  const loadMoreLabel = state.isLoadingMore
+    ? "Loading more suggestions..."
+    : "Load more suggestions";
 
   return (
     <Combobox open={hasTypedInput && isOpen} onOpenChange={setIsOpen}>
@@ -85,12 +92,16 @@ export function ExpenseNameCombobox({
               <div className="flex flex-col">
                 <span>{suggestion.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {formatSuggestionAmount(suggestion)} · {suggestion.transactionCurrencyCode} · Frecency: {suggestion.frecencyScore}
+                  {formatSuggestionAmount(suggestion)} ·{" "}
+                  {suggestion.transactionCurrencyCode} · Frecency:{" "}
+                  {suggestion.frecencyScore}
                 </span>
               </div>
             </ComboboxItem>
           ))}
-          {shouldShowEmpty && <ComboboxEmpty>No matching expenses</ComboboxEmpty>}
+          {shouldShowEmpty && (
+            <ComboboxEmpty>No matching expenses</ComboboxEmpty>
+          )}
           {state.hasMore && (
             <ComboboxItem
               value="load-more-suggestions"

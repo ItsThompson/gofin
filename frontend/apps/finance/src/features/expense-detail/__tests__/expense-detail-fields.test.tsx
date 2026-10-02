@@ -9,8 +9,20 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 const mockTags: Tag[] = [
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-transport", name: "Transport", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-transport",
+    name: "Transport",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const activeExpense: Expense = {
@@ -86,7 +98,9 @@ describe("ExpenseDetailModal - Correction form field changes", () => {
     await user.click(desiresRadio);
     expect(desiresRadio.checked).toBe(true);
 
-    const essentialsRadio = screen.getByLabelText("essentials") as HTMLInputElement;
+    const essentialsRadio = screen.getByLabelText(
+      "essentials",
+    ) as HTMLInputElement;
     expect(essentialsRadio.checked).toBe(false);
   });
 
@@ -163,7 +177,9 @@ describe("ExpenseDetailModal - Correction form field changes", () => {
 
     await user.click(screen.getByText("Save Correction"));
 
-    expect(screen.getByText("Amount must be greater than 0")).toBeInTheDocument();
+    expect(
+      screen.getByText("Amount must be greater than 0"),
+    ).toBeInTheDocument();
   });
 
   it("shows generic error when correction API throws non-API error", async () => {
@@ -194,13 +210,19 @@ describe("ExpenseDetailModal - Correction form field changes", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: () => Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "Server error" }),
+      json: () =>
+        Promise.resolve({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Server error",
+        }),
     });
 
     renderModal();
 
     await waitFor(() => {
-      expect(screen.getByText("Failed to load expense details.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Failed to load expense details."),
+      ).toBeInTheDocument();
     });
   });
 });

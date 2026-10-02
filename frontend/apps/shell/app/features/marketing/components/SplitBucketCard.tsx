@@ -18,7 +18,12 @@ const ACCENT_CLASSES: Record<SplitAccent, string> = {
  * an <h3> title, and a body paragraph. The icon is decorative (aria-hidden);
  * its meaning is carried by the adjacent text. Icon resolution mirrors StepCard.
  */
-export function SplitBucketCard({ accent, icon, title, body }: SplitBucketContent) {
+export function SplitBucketCard({
+  accent,
+  icon,
+  title,
+  body,
+}: SplitBucketContent) {
   const Icon = landingIcons[icon];
 
   return (

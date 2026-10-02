@@ -2,7 +2,11 @@ import { act, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockApi } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
-import { testPeriod, dashboardDataEmptyRoutes, dashboardDataWithExpensesRoutes } from "./fixtures";
+import {
+  testPeriod,
+  dashboardDataEmptyRoutes,
+  dashboardDataWithExpensesRoutes,
+} from "./fixtures";
 
 describe("DashboardFeature", () => {
   const originalMatchMedia = window.matchMedia;
@@ -22,7 +26,9 @@ describe("DashboardFeature", () => {
         expect(screen.getByText("Dashboard")).toBeInTheDocument();
       });
 
-      const logExpenseLinks = screen.getAllByRole("link", { name: /log expense/i });
+      const logExpenseLinks = screen.getAllByRole("link", {
+        name: /log expense/i,
+      });
       expect(logExpenseLinks.length).toBeGreaterThanOrEqual(1);
     });
 
@@ -30,7 +36,10 @@ describe("DashboardFeature", () => {
       let onViewportChange: ((event: MediaQueryListEvent) => void) | undefined;
       window.matchMedia = vi.fn().mockImplementation(() => ({
         matches: true,
-        addEventListener: (_event: string, listener: (event: MediaQueryListEvent) => void) => {
+        addEventListener: (
+          _event: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => {
           onViewportChange = listener;
         },
         removeEventListener: vi.fn(),
@@ -42,12 +51,16 @@ describe("DashboardFeature", () => {
       const { container } = renderDashboard();
 
       await waitFor(() => {
-        expect(container.querySelector('[data-testid="historical-comparison"]')).not.toBeNull();
+        expect(
+          container.querySelector('[data-testid="historical-comparison"]'),
+        ).not.toBeNull();
       });
 
       act(() => onViewportChange?.({ matches: false } as MediaQueryListEvent));
       await waitFor(() => {
-        expect(container.querySelector('[data-testid="historical-comparison"]')).toBeNull();
+        expect(
+          container.querySelector('[data-testid="historical-comparison"]'),
+        ).toBeNull();
       });
     });
 
@@ -59,7 +72,9 @@ describe("DashboardFeature", () => {
       const { container } = renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument();
+        expect(
+          screen.getByLabelText("Select breakdown chart"),
+        ).toBeInTheDocument();
       });
 
       // Charts are wrapped in a hidden md:block container

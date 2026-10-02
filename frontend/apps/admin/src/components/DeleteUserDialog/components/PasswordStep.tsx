@@ -7,7 +7,12 @@ import { apiClient, useFormMutation } from "@gofin/api";
 import { Loader2 } from "lucide-react";
 import type { PasswordStepProps, DeletionJobResponse } from "../types";
 
-export function PasswordStep({ userId, username, onSuccess, onOpenChange }: PasswordStepProps) {
+export function PasswordStep({
+  userId,
+  username,
+  onSuccess,
+  onOpenChange,
+}: PasswordStepProps) {
   const { back } = useMultiStepDialog();
   const [password, setPassword] = useState("");
 

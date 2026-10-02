@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  computeCategoryPercentages,
-} from "@/lib/trend-utils";
+import { computeCategoryPercentages } from "@/lib/trend-utils";
 
 describe("computeCategoryPercentages", () => {
   it("computes percentages correctly for normal spending", () => {

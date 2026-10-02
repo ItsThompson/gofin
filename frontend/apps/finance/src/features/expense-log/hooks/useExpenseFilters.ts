@@ -75,7 +75,10 @@ export function useExpenseFilters(): ExpenseFilters {
     [],
   );
 
-  const toggleType = useMemo(() => toggleSetField("selectedTypes"), [toggleSetField]);
+  const toggleType = useMemo(
+    () => toggleSetField("selectedTypes"),
+    [toggleSetField],
+  );
   const toggleTransactionCurrency = useMemo(
     () => toggleSetField("selectedTransactionCurrencies"),
     [toggleSetField],

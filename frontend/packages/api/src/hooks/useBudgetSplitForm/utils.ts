@@ -3,10 +3,7 @@ import {
   getMinorUnitDigits,
   toMajorUnits,
 } from "@gofin/core";
-import type {
-  BudgetSplitFields,
-  BudgetSplitFormOptions,
-} from "./types";
+import type { BudgetSplitFields, BudgetSplitFormOptions } from "./types";
 
 export interface SplitPercentageFields {
   essentials: string;
@@ -39,12 +36,17 @@ export function precisionError(currency: string): string {
   return `Budget amount supports up to ${minorUnitDigits} decimal places for ${currency}`;
 }
 
-export function buildInitialFields(options?: BudgetSplitFormOptions): BudgetSplitFields {
+export function buildInitialFields(
+  options?: BudgetSplitFormOptions,
+): BudgetSplitFields {
   const split = options?.initialSplit ?? DEFAULT_BUDGET_SPLIT;
   const currency = options?.currency ?? "USD";
   let budgetDollars = "";
   if (options?.initialBudgetCents != null) {
-    budgetDollars = toMajorUnits(options.initialBudgetCents, currency).toString();
+    budgetDollars = toMajorUnits(
+      options.initialBudgetCents,
+      currency,
+    ).toString();
   }
 
   return {

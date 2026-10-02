@@ -40,10 +40,7 @@ export function ExpenseLogSkeleton() {
               >
                 {["w-24", "w-36", "w-16", "w-20", "w-20", "w-16"].map(
                   (width, cellIndex) => (
-                    <Skeleton
-                      key={cellIndex}
-                      className={`h-4 ${width}`}
-                    />
+                    <Skeleton key={cellIndex} className={`h-4 ${width}`} />
                   ),
                 )}
               </div>

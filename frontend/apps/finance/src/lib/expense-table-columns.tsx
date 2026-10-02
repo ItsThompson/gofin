@@ -43,9 +43,7 @@ export function buildExpenseColumns() {
         const className = row.status === "corrected" ? "line-through" : "";
 
         if (!row.showReportingAmount) {
-          return (
-            <span className={className}>{transactionFormatted}</span>
-          );
+          return <span className={className}>{transactionFormatted}</span>;
         }
 
         // Foreign-currency row: show transaction amount and secondary reporting amount.
@@ -66,14 +64,13 @@ export function buildExpenseColumns() {
         );
       },
       sortingFn: (rowA, rowB) =>
-        (rowA.original?.reportingAmountEffective ?? 0) - (rowB.original?.reportingAmountEffective ?? 0),
+        (rowA.original?.reportingAmountEffective ?? 0) -
+        (rowB.original?.reportingAmountEffective ?? 0),
       sortDescFirst: false,
     }),
     columnHelper.accessor("expenseType", {
       header: "Type",
-      cell: (info) => (
-        <span className="capitalize">{info.getValue()}</span>
-      ),
+      cell: (info) => <span className="capitalize">{info.getValue()}</span>,
     }),
     columnHelper.accessor("tagName", {
       header: "Tag",
@@ -107,7 +104,8 @@ export function resolveTagNames(
 ): ExpenseRow[] {
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
   return expenses.map((expense) => {
-    const transactionAmountEffective = expense.originalTransactionAmountInMinorUnits;
+    const transactionAmountEffective =
+      expense.originalTransactionAmountInMinorUnits;
     const transactionCurrencyEffective = expense.transactionCurrencyCode;
     const reportingAmountEffective = expense.reportingAmountInMinorUnits;
     const reportingCurrencyEffective = expense.reportingCurrencyCode;

@@ -1,4 +1,8 @@
-import { canUseAdminFeatures, canUseFinanceFeatures, type User } from "@gofin/core";
+import {
+  canUseAdminFeatures,
+  canUseFinanceFeatures,
+  type User,
+} from "@gofin/core";
 
 /**
  * Access level attached to a route via its `handle`. It mirrors the backend

@@ -87,7 +87,9 @@ describe("useExpenseFields", () => {
       act(() => {
         result.current.validate();
       });
-      expect(result.current.fieldErrors.amount).toBe("Amount must be greater than 0");
+      expect(result.current.fieldErrors.amount).toBe(
+        "Amount must be greater than 0",
+      );
 
       act(() => {
         result.current.setField("amountDollars", "10.00");
@@ -108,7 +110,9 @@ describe("useExpenseFields", () => {
         result.current.setField("name", "Coffee");
       });
       expect(result.current.fieldErrors.name).toBeUndefined();
-      expect(result.current.fieldErrors.amount).toBe("Amount must be greater than 0");
+      expect(result.current.fieldErrors.amount).toBe(
+        "Amount must be greater than 0",
+      );
     });
   });
 
@@ -128,9 +132,7 @@ describe("useExpenseFields", () => {
     });
 
     it("is a no-op for fields without errors", () => {
-      const { result } = renderHook(() =>
-        useExpenseFields({ name: "Coffee" }),
-      );
+      const { result } = renderHook(() => useExpenseFields({ name: "Coffee" }));
 
       act(() => {
         result.current.validate();
@@ -173,7 +175,9 @@ describe("useExpenseFields", () => {
       });
       expect(isValid!).toBe(false);
       expect(result.current.fieldErrors.name).toBe("Name is required");
-      expect(result.current.fieldErrors.amount).toBe("Amount must be greater than 0");
+      expect(result.current.fieldErrors.amount).toBe(
+        "Amount must be greater than 0",
+      );
       expect(result.current.fieldErrors.tagId).toBe("Tag is required");
     });
 
@@ -189,10 +193,15 @@ describe("useExpenseFields", () => {
 
       let isValid: boolean;
       act(() => {
-        isValid = result.current.validate({ isProRata: true, proRataMonths: "1" });
+        isValid = result.current.validate({
+          isProRata: true,
+          proRataMonths: "1",
+        });
       });
       expect(isValid!).toBe(false);
-      expect(result.current.fieldErrors.proRataMonths).toBe("Must be at least 2 months");
+      expect(result.current.fieldErrors.proRataMonths).toBe(
+        "Must be at least 2 months",
+      );
     });
 
     it("passes pro-rata validation with valid months", () => {
@@ -207,7 +216,10 @@ describe("useExpenseFields", () => {
 
       let isValid: boolean;
       act(() => {
-        isValid = result.current.validate({ isProRata: true, proRataMonths: "3" });
+        isValid = result.current.validate({
+          isProRata: true,
+          proRataMonths: "3",
+        });
       });
       expect(isValid!).toBe(true);
     });
@@ -230,7 +242,9 @@ describe("useExpenseFields", () => {
         isValid = result.current.validate();
       });
       expect(isValid!).toBe(false);
-      expect(result.current.fieldErrors.amount).toBe("Amount must be a whole JPY amount");
+      expect(result.current.fieldErrors.amount).toBe(
+        "Amount must be a whole JPY amount",
+      );
     });
   });
 

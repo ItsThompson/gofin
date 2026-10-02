@@ -13,7 +13,10 @@ interface UpcomingProRataSectionProps {
   currency: string;
 }
 
-export function UpcomingProRataSection({ schedules, currency }: UpcomingProRataSectionProps) {
+export function UpcomingProRataSection({
+  schedules,
+  currency,
+}: UpcomingProRataSectionProps) {
   return (
     <Card data-testid="upcoming-prorata">
       <CardHeader className="pb-2">
@@ -32,11 +35,15 @@ export function UpcomingProRataSection({ schedules, currency }: UpcomingProRataS
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium">{schedule.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  Installment {schedule.installmentIndex} of {schedule.installmentTotal}
+                  Installment {schedule.installmentIndex} of{" "}
+                  {schedule.installmentTotal}
                 </span>
               </div>
               <span className="text-sm font-semibold">
-                {formatCurrency(schedule.installmentAmountInMinorUnits, currency)}
+                {formatCurrency(
+                  schedule.installmentAmountInMinorUnits,
+                  currency,
+                )}
               </span>
             </div>
           ))}

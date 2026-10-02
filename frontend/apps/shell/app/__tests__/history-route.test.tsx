@@ -5,9 +5,7 @@ import { useAuthStore } from "@/stores/auth-store";
 
 // Mock the finance feature module so this test does not pull in its real tree
 vi.mock("@gofin/finance/src/features/history", () => ({
-  HistoryFeature: () => (
-    <div data-testid="history-feature">Budget History</div>
-  ),
+  HistoryFeature: () => <div data-testid="history-feature">Budget History</div>,
 }));
 
 const mockFetch = vi.fn();
@@ -47,7 +45,8 @@ describe("HistoryRoute", () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
+      json: () =>
+        Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
     });
   });
 
@@ -69,9 +68,7 @@ describe("HistoryRoute", () => {
       expect(screen.getByTestId("history-feature")).toBeInTheDocument();
     });
 
-    expect(
-      screen.getByText("Budget History"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Budget History")).toBeInTheDocument();
   });
 
   it("renders nothing when user is null", async () => {
@@ -89,6 +86,8 @@ describe("HistoryRoute", () => {
     const { container } = render(<RouterProvider router={router} />);
 
     // Route renders null when no user
-    expect(container.querySelector("[data-testid='history-feature']")).toBeNull();
+    expect(
+      container.querySelector("[data-testid='history-feature']"),
+    ).toBeNull();
   });
 });

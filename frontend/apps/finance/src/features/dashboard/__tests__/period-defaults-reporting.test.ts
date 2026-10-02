@@ -11,9 +11,9 @@ interface CapturedContext {
 }
 
 const { captureException, toastError } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
   toastError: vi.fn(),
 }));
 

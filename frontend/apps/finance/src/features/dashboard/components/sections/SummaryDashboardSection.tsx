@@ -9,9 +9,21 @@ import { CategoryGauges } from "../widgets/CategoryGauges";
 import { PacingIndicator } from "../widgets/PacingIndicator";
 import type { DashboardSummarySectionProps } from "./types";
 
-export function SummaryDashboardSection({ period, enabled, refreshVersion, currency, summaryRetryVersion, onPeriodNotFound, onSuccess, onRetry }: DashboardSummarySectionProps) {
+export function SummaryDashboardSection({
+  period,
+  enabled,
+  refreshVersion,
+  currency,
+  summaryRetryVersion,
+  onPeriodNotFound,
+  onSuccess,
+  onRetry,
+}: DashboardSummarySectionProps) {
   const summary = useDashboardRequest<PeriodSummary>(
-    (signal, forceRefresh) => dashboardApi.getSummary(period.year, period.month, { signal, forceRefresh }).then((response) => response.summary),
+    (signal, forceRefresh) =>
+      dashboardApi
+        .getSummary(period.year, period.month, { signal, forceRefresh })
+        .then((response) => response.summary),
     {
       enabled,
       refreshVersion,
@@ -29,14 +41,40 @@ export function SummaryDashboardSection({ period, enabled, refreshVersion, curre
 
   return (
     <section id="summary" data-outline-title="Summary" className="space-y-6">
-      <SectionState label="Summary" state={summary.state} onRetry={onRetry} emptyMessage="No summary data is available for this period.">
-        {(data) => <>
-          <SectionErrorBoundary sectionName="Summary"><SummaryBar budgetAmount={period.budgetAmount} totalSpent={data.totalSpent} remaining={data.remaining} daysLeft={data.daysInPeriod - data.daysElapsed} currency={currency} /></SectionErrorBoundary>
-          <section id="budget-allocations" data-outline-title="Budget Allocations"><SectionErrorBoundary sectionName="Category Gauges"><CategoryGauges summary={data} currency={currency} /></SectionErrorBoundary></section>
-          <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-            <section id="spending-pace" data-outline-title="Spending Pace"><SectionErrorBoundary sectionName="Spending Pace"><PacingIndicator summary={data} currency={currency} /></SectionErrorBoundary></section>
-          </div>
-        </>}
+      <SectionState
+        label="Summary"
+        state={summary.state}
+        onRetry={onRetry}
+        emptyMessage="No summary data is available for this period."
+      >
+        {(data) => (
+          <>
+            <SectionErrorBoundary sectionName="Summary">
+              <SummaryBar
+                budgetAmount={period.budgetAmount}
+                totalSpent={data.totalSpent}
+                remaining={data.remaining}
+                daysLeft={data.daysInPeriod - data.daysElapsed}
+                currency={currency}
+              />
+            </SectionErrorBoundary>
+            <section
+              id="budget-allocations"
+              data-outline-title="Budget Allocations"
+            >
+              <SectionErrorBoundary sectionName="Category Gauges">
+                <CategoryGauges summary={data} currency={currency} />
+              </SectionErrorBoundary>
+            </section>
+            <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+              <section id="spending-pace" data-outline-title="Spending Pace">
+                <SectionErrorBoundary sectionName="Spending Pace">
+                  <PacingIndicator summary={data} currency={currency} />
+                </SectionErrorBoundary>
+              </section>
+            </div>
+          </>
+        )}
       </SectionState>
     </section>
   );

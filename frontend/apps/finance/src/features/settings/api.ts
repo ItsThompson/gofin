@@ -26,8 +26,7 @@ export interface AuthResponse {
 }
 
 export const settingsApi = {
-  getDefaults: () =>
-    apiClient<DefaultsResponse>("/api/finance/defaults"),
+  getDefaults: () => apiClient<DefaultsResponse>("/api/finance/defaults"),
 
   updateDefaults: (body: UpdateDefaultsRequest) =>
     apiClient<DefaultsResponse>("/api/finance/defaults", {
@@ -41,8 +40,7 @@ export const settingsApi = {
       body: JSON.stringify(body),
     }),
 
-  getProfile: () =>
-    apiClient<AuthResponse>("/api/auth/me"),
+  getProfile: () => apiClient<AuthResponse>("/api/auth/me"),
 
   changePassword: (body: ChangePasswordRequest) =>
     apiClient<AuthResponse>("/api/auth/me/password", {
@@ -50,8 +48,7 @@ export const settingsApi = {
       body: JSON.stringify(body),
     }),
 
-  getTags: () =>
-    apiClient<TagListResponse>("/api/finance/tags"),
+  getTags: () => apiClient<TagListResponse>("/api/finance/tags"),
 
   createTag: (name: string) =>
     apiClient<TagResponse>("/api/finance/tags", {

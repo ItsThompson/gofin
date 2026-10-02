@@ -3,8 +3,20 @@ import { computeChanges } from "../utils/computeChanges";
 import type { Expense, Tag } from "@gofin/core";
 
 const baseTags: Tag[] = [
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-transport", name: "Transport", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-transport",
+    name: "Transport",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const baseExpense: Expense = {
@@ -64,9 +76,7 @@ describe("computeChanges", () => {
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
-    expect(result).toEqual([
-      { field: "Amount", from: "$50.00", to: "$75.00" },
-    ]);
+    expect(result).toEqual([{ field: "Amount", from: "$50.00", to: "$75.00" }]);
   });
 
   it("detects expense type change", () => {
@@ -94,9 +104,7 @@ describe("computeChanges", () => {
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
-    expect(result).toEqual([
-      { field: "Tag", from: "Food", to: "Transport" },
-    ]);
+    expect(result).toEqual([{ field: "Tag", from: "Food", to: "Transport" }]);
   });
 
   it("falls back to tag ID when tag name is not found", () => {
@@ -109,9 +117,7 @@ describe("computeChanges", () => {
     };
 
     const result = computeChanges(baseExpense, corrected, baseTags, "USD");
-    expect(result).toEqual([
-      { field: "Tag", from: "Food", to: "tag-unknown" },
-    ]);
+    expect(result).toEqual([{ field: "Tag", from: "Food", to: "tag-unknown" }]);
   });
 
   it("detects date change", () => {
@@ -173,7 +179,12 @@ describe("computeChanges", () => {
       correctsId: "exp-1",
     };
 
-    const result = computeChanges(baseExpense, correctedExpense, baseTags, "USD");
+    const result = computeChanges(
+      baseExpense,
+      correctedExpense,
+      baseTags,
+      "USD",
+    );
     expect(result).toEqual([
       { field: "Name", from: "Groceries", to: "Updated Groceries" },
       { field: "Amount", from: "$50.00", to: "$60.00" },

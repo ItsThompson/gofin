@@ -33,7 +33,8 @@ export type ComboboxContentProps = React.ComponentPropsWithoutRef<"div">;
 export type ComboboxListProps = React.ComponentPropsWithoutRef<"div">;
 export type ComboboxEmptyProps = React.ComponentPropsWithoutRef<"div">;
 
-export interface ComboboxItemProps extends Omit<React.ComponentPropsWithoutRef<"div">, "onSelect"> {
+export interface ComboboxItemProps
+  extends Omit<React.ComponentPropsWithoutRef<"div">, "onSelect"> {
   value: string;
   disabled?: boolean;
   closeOnSelect?: boolean;

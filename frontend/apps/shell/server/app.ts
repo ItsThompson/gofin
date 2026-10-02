@@ -8,8 +8,7 @@ import { createHealthzHandler } from "./healthz";
 // outside the bundle and cannot import the workspace. See server/errors.ts.
 export { reportServerError, serverErrorBody } from "./errors";
 
-const API_GATEWAY_URL =
-  process.env.API_GATEWAY_URL || "http://localhost:8080";
+const API_GATEWAY_URL = process.env.API_GATEWAY_URL || "http://localhost:8080";
 
 export const app = express();
 

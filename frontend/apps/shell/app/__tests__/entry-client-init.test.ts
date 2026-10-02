@@ -36,7 +36,10 @@ describe("entry.client boot", () => {
 
   describe("with a DSN", () => {
     beforeEach(() => {
-      vi.stubEnv("VITE_SENTRY_DSN", "https://publickey@o1.ingest.us.sentry.io/2");
+      vi.stubEnv(
+        "VITE_SENTRY_DSN",
+        "https://publickey@o1.ingest.us.sentry.io/2",
+      );
       vi.stubEnv("VITE_SENTRY_RELEASE", "gofin-web@0123456789abcdef");
     });
 
@@ -112,7 +115,10 @@ describe("entry.client boot", () => {
       // The init sits inside boot() rather than at module scope precisely so this
       // ordering survives: the worker must intercept before the first render.
       vi.spyOn(console, "log").mockImplementation(() => {});
-      vi.stubEnv("VITE_SENTRY_DSN", "https://publickey@o1.ingest.us.sentry.io/2");
+      vi.stubEnv(
+        "VITE_SENTRY_DSN",
+        "https://publickey@o1.ingest.us.sentry.io/2",
+      );
       vi.stubEnv("VITE_MOCK_API", "true");
 
       await bootEntry();

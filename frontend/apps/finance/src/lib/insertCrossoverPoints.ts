@@ -32,7 +32,8 @@ export function insertCrossoverPoints(points: ChartPoint[]): ChartPoint[] {
       // no synthetic point is needed.
       if (prevDiff !== 0 && currDiff !== 0 && prevDiff * currDiff < 0) {
         // Linear interpolation: find fraction t where diff = 0
-        const t = Math.abs(prevDiff) / (Math.abs(prevDiff) + Math.abs(currDiff));
+        const t =
+          Math.abs(prevDiff) / (Math.abs(prevDiff) + Math.abs(currDiff));
         const crossoverDay = prev.day + t * (current.day - prev.day);
         const crossoverValue = prev.actual + t * (current.actual - prev.actual);
 

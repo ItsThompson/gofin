@@ -95,8 +95,8 @@ export function DefaultBudgetSection({ user }: { user: User }) {
           ))}
         </select>
         <FormDescription>
-          Default currency applies only when you create a new budget period. It does not
-          change current or past periods.
+          Default currency applies only when you create a new budget period. It
+          does not change current or past periods.
         </FormDescription>
       </FormField>
 
@@ -109,10 +109,7 @@ export function DefaultBudgetSection({ user }: { user: User }) {
         </p>
       )}
 
-      <Button
-        type="submit"
-        disabled={state.saveStatus.kind === "saving"}
-      >
+      <Button type="submit" disabled={state.saveStatus.kind === "saving"}>
         {state.saveStatus.kind === "saving" && (
           <Loader2 className="size-4 animate-spin" />
         )}

@@ -147,16 +147,16 @@ describe("buildPeriodSummary", () => {
 
     expect(summary.totalBudget).toBe(300000);
     expect(summary.essentials.allocated).toBe(150000); // 300000 * 50 / 100
-    expect(summary.desires.allocated).toBe(90000);     // 300000 * 30 / 100
-    expect(summary.savings.allocated).toBe(60000);     // 300000 * 20 / 100
+    expect(summary.desires.allocated).toBe(90000); // 300000 * 30 / 100
+    expect(summary.savings.allocated).toBe(60000); // 300000 * 20 / 100
   });
 
   it("derives allocations from overridden totalBudget", () => {
     const summary = buildPeriodSummary({ totalBudget: 500000 });
 
     expect(summary.essentials.allocated).toBe(250000); // 500000 * 50 / 100
-    expect(summary.desires.allocated).toBe(150000);    // 500000 * 30 / 100
-    expect(summary.savings.allocated).toBe(100000);    // 500000 * 20 / 100
+    expect(summary.desires.allocated).toBe(150000); // 500000 * 30 / 100
+    expect(summary.savings.allocated).toBe(100000); // 500000 * 20 / 100
   });
 
   it("defaults totalSpent to 0 with correct remaining", () => {
@@ -168,7 +168,12 @@ describe("buildPeriodSummary", () => {
 
   it("allows overriding nested category summaries", () => {
     const summary = buildPeriodSummary({
-      essentials: { allocated: 150000, spent: 50000, remaining: 100000, percentUsed: 33.33 },
+      essentials: {
+        allocated: 150000,
+        spent: 50000,
+        remaining: 100000,
+        percentUsed: 33.33,
+      },
     });
 
     expect(summary.essentials.spent).toBe(50000);

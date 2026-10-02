@@ -24,9 +24,27 @@ const mockAdmin: User = {
 };
 
 const mockUsers = [
-  { id: "user-1", username: "alice", email: "alice@example.com", role: "user", createdAt: "2026-01-15T00:00:00Z" },
-  { id: "admin-1", username: "admin", email: "admin@gofin.local", role: "admin", createdAt: "2026-01-01T00:00:00Z" },
-  { id: "user-2", username: "bob", email: "bob@example.com", role: "user", createdAt: "2026-02-01T00:00:00Z" },
+  {
+    id: "user-1",
+    username: "alice",
+    email: "alice@example.com",
+    role: "user",
+    createdAt: "2026-01-15T00:00:00Z",
+  },
+  {
+    id: "admin-1",
+    username: "admin",
+    email: "admin@gofin.local",
+    role: "admin",
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "user-2",
+    username: "bob",
+    email: "bob@example.com",
+    role: "user",
+    createdAt: "2026-02-01T00:00:00Z",
+  },
 ];
 
 function mockFetchSuccess() {
@@ -41,7 +59,11 @@ function mockFetchError() {
   mockFetch.mockResolvedValueOnce({
     ok: false,
     status: 500,
-    json: () => Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "Server error" }),
+    json: () =>
+      Promise.resolve({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Server error",
+      }),
   });
 }
 
@@ -186,10 +208,16 @@ describe("useAdminPanel", () => {
     });
 
     act(() => {
-      result.current.actions.deletion.startDeletion({ id: "user-1", username: "alice" });
+      result.current.actions.deletion.startDeletion({
+        id: "user-1",
+        username: "alice",
+      });
     });
 
-    expect(result.current.state.deletion.deletingUser).toEqual({ id: "user-1", username: "alice" });
+    expect(result.current.state.deletion.deletingUser).toEqual({
+      id: "user-1",
+      username: "alice",
+    });
 
     act(() => {
       result.current.actions.deletion.cancelDeletion();
@@ -214,7 +242,10 @@ describe("useAdminPanel", () => {
 
     // Start deletion and trigger success (starts polling)
     act(() => {
-      result.current.actions.deletion.startDeletion({ id: "user-1", username: "alice" });
+      result.current.actions.deletion.startDeletion({
+        id: "user-1",
+        username: "alice",
+      });
     });
 
     act(() => {
@@ -231,14 +262,15 @@ describe("useAdminPanel", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({
-        id: "job-1",
-        userId: "user-1",
-        status: "completed",
-        error: null,
-        createdAt: "2026-05-10T00:00:00Z",
-        completedAt: "2026-05-10T00:01:00Z",
-      }),
+      json: () =>
+        Promise.resolve({
+          id: "job-1",
+          userId: "user-1",
+          status: "completed",
+          error: null,
+          createdAt: "2026-05-10T00:00:00Z",
+          completedAt: "2026-05-10T00:01:00Z",
+        }),
     });
 
     await act(async () => {
@@ -246,7 +278,9 @@ describe("useAdminPanel", () => {
     });
 
     expect(result.current.state.users).toHaveLength(2);
-    expect(result.current.state.users.find((user) => user.id === "user-1")).toBeUndefined();
+    expect(
+      result.current.state.users.find((user) => user.id === "user-1"),
+    ).toBeUndefined();
 
     vi.useRealTimers();
   });

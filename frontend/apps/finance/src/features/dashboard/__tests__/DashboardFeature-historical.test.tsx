@@ -17,17 +17,30 @@ describe("DashboardFeature", () => {
   it("keeps an empty historical expense state read-only", async () => {
     globalThis.fetch = createMockApi({
       "/api/finance/summary": { body: { summary: testSummary } },
-      "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+      "/api/expenses": {
+        body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+      },
       "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
       "/api/finance/spending/cumulative": { body: { points: [] } },
-      "/api/finance/spending/comparison": { status: 404, body: { code: "PERIOD_NOT_FOUND", message: "No comparison" } },
+      "/api/finance/spending/comparison": {
+        status: 404,
+        body: { code: "PERIOD_NOT_FOUND", message: "No comparison" },
+      },
       "/api/finance/prorata/upcoming": { body: { schedules: [] } },
       "/api/finance/spending/trends": { body: { trends: [] } },
     }) as unknown as typeof fetch;
-    renderWithRouter(<ActiveDashboard period={testPeriod} readOnly />, { route: "/history" });
+    renderWithRouter(<ActiveDashboard period={testPeriod} readOnly />, {
+      route: "/history",
+    });
 
-    await waitFor(() => expect(screen.getByText("No expenses recorded for this period.")).toBeInTheDocument());
-    expect(screen.queryByRole("link", { name: /log expense/i })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByText("No expenses recorded for this period."),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("link", { name: /log expense/i }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("No expenses yet")).not.toBeInTheDocument();
   });
 
@@ -68,7 +81,9 @@ describe("DashboardFeature", () => {
       expect(screen.getByTestId("budget-settings-editor")).toBeInTheDocument();
 
       await userEvent.click(screen.getByText("Cancel"));
-      expect(screen.queryByTestId("budget-settings-editor")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("budget-settings-editor"),
+      ).not.toBeInTheDocument();
     });
 
     it("validates E/D/S split sums to 100% on save", async () => {
@@ -108,7 +123,9 @@ describe("DashboardFeature", () => {
         expect(screen.getByTestId("historical-comparison")).toBeInTheDocument();
       });
 
-      expect(screen.getAllByText("Historical Comparison").length).toBeGreaterThanOrEqual(1);
+      expect(
+        screen.getAllByText("Historical Comparison").length,
+      ).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Current Period")).toBeInTheDocument();
       expect(screen.getByText("Previous Period")).toBeInTheDocument();
       expect(screen.getByText("$480.00")).toBeInTheDocument();
@@ -119,10 +136,20 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         "/api/finance/summary": { body: { summary: testSummary } },
-        "/api/finance/spending/by-tag": { body: { tagSpending: testTagSpending } },
-        "/api/finance/spending/cumulative": { body: { points: testCumulativeData } },
+        "/api/finance/spending/by-tag": {
+          body: { tagSpending: testTagSpending },
+        },
+        "/api/finance/spending/cumulative": {
+          body: { points: testCumulativeData },
+        },
         "/api/expenses": {
-          body: { data: testExpenses, total: 2, page: 1, pageSize: 5, hasMore: false },
+          body: {
+            data: testExpenses,
+            total: 2,
+            page: 1,
+            pageSize: 5,
+            hasMore: false,
+          },
         },
         "/api/finance/spending/comparison": {
           body: {

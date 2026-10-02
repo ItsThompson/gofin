@@ -34,8 +34,8 @@ export function BudgetStep({
       <CardHeader>
         <CardTitle className="text-2xl">Monthly Budget</CardTitle>
         <CardDescription>
-          How much do you plan to spend each month? You can leave this at
-          $0 and set it later.
+          How much do you plan to spend each month? You can leave this at $0 and
+          set it later.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -58,7 +58,8 @@ export function BudgetStep({
               />
             </div>
             <FormDescription>
-              Stored in {currency}. Enter the amount in major units (e.g., dollars).
+              Stored in {currency}. Enter the amount in major units (e.g.,
+              dollars).
             </FormDescription>
           </FormField>
           <div className="flex gap-2">

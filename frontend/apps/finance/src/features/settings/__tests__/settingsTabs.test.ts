@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { buildUser } from "@gofin/test-utils";
-import { getSettingsTabs, adminTabs, userTabs } from "@/features/settings/settingsTabs";
+import {
+  getSettingsTabs,
+  adminTabs,
+  userTabs,
+} from "@/features/settings/settingsTabs";
 
 describe("settingsTabs", () => {
   it("exposes admin tabs as exactly [Profile, Password]", () => {

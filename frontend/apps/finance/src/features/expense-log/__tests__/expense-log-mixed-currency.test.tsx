@@ -19,8 +19,20 @@ const mockUser: User = {
 };
 
 const mockTags: Tag[] = [
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-travel", name: "Travel", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-travel",
+    name: "Travel",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const mockPeriods: BudgetPeriod[] = [
@@ -105,7 +117,9 @@ const jpyExpense: Expense = {
   createdAt: "2026-05-03T10:00:00Z",
 };
 
-function mockAllDataSuccess(expenses: Expense[] = [sameCurrencyExpense, foreignCurrencyExpense]) {
+function mockAllDataSuccess(
+  expenses: Expense[] = [sameCurrencyExpense, foreignCurrencyExpense],
+) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -172,7 +186,9 @@ describe("ExpenseLogFeature mixed-currency", () => {
     // Transaction amount formatted in EUR
     expect(screen.getAllByText("€150.00").length).toBeGreaterThanOrEqual(1);
     // Secondary reporting amount formatted in USD with a distinguishing label
-    expect(screen.getAllByText("Budget impact: $162.00").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("Budget impact: $162.00").length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("JPY transaction shows zero-decimal transaction amount and USD reporting amount", async () => {
@@ -180,13 +196,17 @@ describe("ExpenseLogFeature mixed-currency", () => {
     renderExpenseLog();
 
     await waitFor(() => {
-      expect(screen.getAllByText("Tokyo Lunch").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Tokyo Lunch").length).toBeGreaterThanOrEqual(
+        1,
+      );
     });
 
     // JPY has 0 minor unit digits
     expect(screen.getAllByText("¥2,000").length).toBeGreaterThanOrEqual(1);
     // USD reporting amount
-    expect(screen.getAllByText("Budget impact: $13.50").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("Budget impact: $13.50").length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("sorts by reporting amount when clicking Amount header", async () => {
@@ -233,8 +253,12 @@ describe("ExpenseLogFeature mixed-currency", () => {
     await user.click(screen.getByRole("button", { name: /filters/i }));
 
     // Click EUR in the Transaction Currency filter section.
-    const transactionCurrencySection = screen.getByText("Transaction Currency").closest("div")!;
-    const eurButton = within(transactionCurrencySection).getByRole("button", { name: "EUR" });
+    const transactionCurrencySection = screen
+      .getByText("Transaction Currency")
+      .closest("div")!;
+    const eurButton = within(transactionCurrencySection).getByRole("button", {
+      name: "EUR",
+    });
     await user.click(eurButton);
 
     // Only the EUR transaction expense should be visible
@@ -254,8 +278,12 @@ describe("ExpenseLogFeature mixed-currency", () => {
     await user.click(screen.getByRole("button", { name: /filters/i }));
 
     // Click USD in the Reporting Currency filter section -- both rows have USD reporting
-    const reportingCurrencySection = screen.getByText("Reporting Currency").closest("div")!;
-    const usdButton = within(reportingCurrencySection).getByRole("button", { name: "USD" });
+    const reportingCurrencySection = screen
+      .getByText("Reporting Currency")
+      .closest("div")!;
+    const usdButton = within(reportingCurrencySection).getByRole("button", {
+      name: "USD",
+    });
     await user.click(usdButton);
 
     // Both should still be visible since both report in USD
@@ -275,12 +303,20 @@ describe("ExpenseLogFeature mixed-currency", () => {
     await user.click(screen.getByRole("button", { name: /filters/i }));
 
     // Filter by EUR transaction currency AND USD reporting currency
-    const transactionCurrencySection = screen.getByText("Transaction Currency").closest("div")!;
-    const eurButton = within(transactionCurrencySection).getByRole("button", { name: "EUR" });
+    const transactionCurrencySection = screen
+      .getByText("Transaction Currency")
+      .closest("div")!;
+    const eurButton = within(transactionCurrencySection).getByRole("button", {
+      name: "EUR",
+    });
     await user.click(eurButton);
 
-    const reportingCurrencySection = screen.getByText("Reporting Currency").closest("div")!;
-    const usdButton = within(reportingCurrencySection).getByRole("button", { name: "USD" });
+    const reportingCurrencySection = screen
+      .getByText("Reporting Currency")
+      .closest("div")!;
+    const usdButton = within(reportingCurrencySection).getByRole("button", {
+      name: "USD",
+    });
     await user.click(usdButton);
 
     // Only the EUR/USD expense (Hotel) matches both filters
@@ -307,7 +343,9 @@ describe("ExpenseLogFeature mixed-currency", () => {
     expect(mobileReportingAmounts.length).toBe(1);
 
     // The desktop table also renders the secondary amount.
-    const desktopReportingAmounts = screen.getAllByText("Budget impact: $162.00");
+    const desktopReportingAmounts = screen.getAllByText(
+      "Budget impact: $162.00",
+    );
     expect(desktopReportingAmounts.length).toBeGreaterThanOrEqual(2);
   });
 });

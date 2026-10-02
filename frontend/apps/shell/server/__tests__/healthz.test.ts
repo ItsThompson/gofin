@@ -10,9 +10,9 @@ interface CapturedContext {
 }
 
 const { captureException } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 }));
 
 vi.mock("@sentry/react-router", () => ({ captureException }));
@@ -68,11 +68,7 @@ async function invokeHandler(fetchFn: typeof fetch): Promise<CapturedResponse> {
     timeoutMs: 5000,
   });
   // The handler ignores the request; a bare object stands in for it.
-  await handler(
-    {} as never,
-    createMockRes(captured),
-    (() => {}) as never,
-  );
+  await handler({} as never, createMockRes(captured), (() => {}) as never);
   return captured;
 }
 

@@ -25,7 +25,8 @@ export function ExpenseList({ table, onRowClick }: ExpenseListProps) {
               expense.transactionAmountEffective,
               expense.transactionCurrencyEffective,
             );
-            const className = expense.status === "corrected" ? "line-through" : "";
+            const className =
+              expense.status === "corrected" ? "line-through" : "";
 
             return (
               <div
@@ -42,26 +43,25 @@ export function ExpenseList({ table, onRowClick }: ExpenseListProps) {
                 }}
               >
                 <div className="flex flex-col gap-0.5">
-                  <span
-                    className={`text-sm font-medium ${className}`}
-                  >
+                  <span className={`text-sm font-medium ${className}`}>
                     {expense.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {expense.expenseDateIso}
                   </span>
                   {expense.showReportingAmount && (
-                    <span className={`text-xs text-muted-foreground ${className}`}>
-                      Budget impact: {formatAmount(
+                    <span
+                      className={`text-xs text-muted-foreground ${className}`}
+                    >
+                      Budget impact:{" "}
+                      {formatAmount(
                         expense.reportingAmountEffective,
                         expense.reportingCurrencyEffective,
                       )}
                     </span>
                   )}
                 </div>
-                <span
-                  className={`text-sm font-semibold ${className}`}
-                >
+                <span className={`text-sm font-semibold ${className}`}>
                   {transactionFormatted}
                 </span>
               </div>

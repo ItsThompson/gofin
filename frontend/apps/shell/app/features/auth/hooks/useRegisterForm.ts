@@ -2,11 +2,7 @@ import { useState, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuthStore } from "@/stores/auth-store";
 import { ApiRequestError, useFormMutation } from "@gofin/api";
-import {
-  validateEmail,
-  validatePassword,
-  validateUsername,
-} from "@gofin/core";
+import { validateEmail, validatePassword, validateUsername } from "@gofin/core";
 
 /** Grouped registration form fields. */
 export interface RegisterFields {
@@ -34,7 +30,10 @@ const INITIAL_FIELDS: RegisterFields = {
   confirmPassword: "",
 };
 
-export function useRegisterForm(): { state: RegisterFormState; actions: RegisterFormActions } {
+export function useRegisterForm(): {
+  state: RegisterFormState;
+  actions: RegisterFormActions;
+} {
   const { isAuthenticated, isLoading, checkAuth, register } = useAuthStore();
   const navigate = useNavigate();
 
@@ -51,15 +50,13 @@ export function useRegisterForm(): { state: RegisterFormState; actions: Register
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  const setField = useCallback(
-    (key: keyof RegisterFields, value: string) => {
-      setFields((prev) => ({ ...prev, [key]: value }));
-    },
-    [],
-  );
+  const setField = useCallback((key: keyof RegisterFields, value: string) => {
+    setFields((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const mutation = useFormMutation<void>({
-    onError: (errorMessage) => setErrors((prev) => ({ ...prev, form: errorMessage })),
+    onError: (errorMessage) =>
+      setErrors((prev) => ({ ...prev, form: errorMessage })),
   });
 
   const handleSubmit = (event: FormEvent) => {

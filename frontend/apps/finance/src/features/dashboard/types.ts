@@ -44,7 +44,11 @@ export interface PeriodError extends PeriodStateBase {
 }
 
 /** Discriminated union of all possible period states. */
-export type PeriodStateResult = PeriodLoading | PeriodNotFound | PeriodActive | PeriodError;
+export type PeriodStateResult =
+  | PeriodLoading
+  | PeriodNotFound
+  | PeriodActive
+  | PeriodError;
 
 export interface SectionError {
   message: string;
@@ -65,7 +69,12 @@ export interface ExpenseSuggestionsState {
   errorMessage: string | null;
 }
 
-export type DashboardControllerStatus = "active" | "loading" | "error" | "no-period" | "not-found";
+export type DashboardControllerStatus =
+  | "active"
+  | "loading"
+  | "error"
+  | "no-period"
+  | "not-found";
 
 export type DashboardPeriodState =
   | { status: "active"; period: BudgetPeriod }
@@ -73,7 +82,11 @@ export type DashboardPeriodState =
   | { status: "loading"; period: BudgetPeriod }
   | { status: "error"; period: BudgetPeriod; error: string }
   | { status: "not-found"; period: BudgetPeriod; error: string }
-  | { status: "no-period"; period: BudgetPeriod; defaults: DefaultSettings | null };
+  | {
+      status: "no-period";
+      period: BudgetPeriod;
+      defaults: DefaultSettings | null;
+    };
 
 export interface DashboardPeriodRecovery {
   defaults: DefaultSettings | null;

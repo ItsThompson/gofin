@@ -25,7 +25,9 @@ const CATEGORY_BARS = [
  * reducedMotion the bars render at their final width and the numbers show their
  * end value, which doubles as the static end state and the tested markup.
  */
-export function DashboardPreviewCard({ reducedMotion }: DashboardPreviewCardProps) {
+export function DashboardPreviewCard({
+  reducedMotion,
+}: DashboardPreviewCardProps) {
   return (
     <div className="flex h-full w-full flex-col gap-4 rounded-xl bg-card p-6 text-card-foreground ring-1 ring-foreground/10">
       <div className="flex items-baseline justify-between">

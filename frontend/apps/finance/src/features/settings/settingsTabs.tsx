@@ -37,7 +37,9 @@ const passwordTab: SettingsTabDefinition = {
   id: "password",
   label: "Password",
   icon: Lock,
-  render: ({ onUserUpdated }) => <PasswordSection onUserUpdated={onUserUpdated} />,
+  render: ({ onUserUpdated }) => (
+    <PasswordSection onUserUpdated={onUserUpdated} />
+  ),
 };
 
 // Admin (operator) tabs: Profile + Password only. The finance-only sections

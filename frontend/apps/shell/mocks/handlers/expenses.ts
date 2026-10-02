@@ -8,26 +8,34 @@ import type {
   PaginatedResponse,
   ApiError,
 } from "@gofin/core";
-import { mockExpenses, currentMockUser, currentYear, currentMonth } from "../data";
+import {
+  mockExpenses,
+  currentMockUser,
+  currentYear,
+  currentMonth,
+} from "../data";
 import { simulateLatency } from "./latency";
 
 export const expensesHandlers = [
-  http.get<never, never, PaginatedResponse<Expense>>("/api/expenses", async ({ request }) => {
-    await simulateLatency();
-    const url = new URL(request.url);
-    const page = Number(url.searchParams.get("page") ?? "1");
-    const pageSize = Number(url.searchParams.get("pageSize") ?? "20");
-    const start = (page - 1) * pageSize;
-    const slice = mockExpenses.slice(start, start + pageSize);
+  http.get<never, never, PaginatedResponse<Expense>>(
+    "/api/expenses",
+    async ({ request }) => {
+      await simulateLatency();
+      const url = new URL(request.url);
+      const page = Number(url.searchParams.get("page") ?? "1");
+      const pageSize = Number(url.searchParams.get("pageSize") ?? "20");
+      const start = (page - 1) * pageSize;
+      const slice = mockExpenses.slice(start, start + pageSize);
 
-    return HttpResponse.json({
-      data: slice,
-      total: mockExpenses.length,
-      page,
-      pageSize,
-      hasMore: start + pageSize < mockExpenses.length,
-    });
-  }),
+      return HttpResponse.json({
+        data: slice,
+        total: mockExpenses.length,
+        page,
+        pageSize,
+        hasMore: start + pageSize < mockExpenses.length,
+      });
+    },
+  ),
 
   http.post<never, CreateExpenseRequest, ExpenseResponse>(
     "/api/expenses",
@@ -116,7 +124,13 @@ export const expensesHandlers = [
     "/api/expenses/prorata/:groupId",
     async () => {
       await simulateLatency();
-      return HttpResponse.json({ data: [], total: 0, page: 1, pageSize: 100, hasMore: false });
+      return HttpResponse.json({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 100,
+        hasMore: false,
+      });
     },
   ),
 
@@ -133,7 +147,10 @@ export const expensesHandlers = [
       }
       if (expense.status !== "active") {
         return HttpResponse.json(
-          { code: "ALREADY_CORRECTED", message: "This expense has already been corrected or deleted" },
+          {
+            code: "ALREADY_CORRECTED",
+            message: "This expense has already been corrected or deleted",
+          },
           { status: 409 },
         );
       }
@@ -142,7 +159,10 @@ export const expensesHandlers = [
         expense.periodMonth !== currentMonth
       ) {
         return HttpResponse.json(
-          { code: "PERIOD_LOCKED", message: "Cannot delete expenses from a past period" },
+          {
+            code: "PERIOD_LOCKED",
+            message: "Cannot delete expenses from a past period",
+          },
           { status: 403 },
         );
       }

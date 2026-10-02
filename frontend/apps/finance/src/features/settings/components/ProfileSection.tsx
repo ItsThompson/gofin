@@ -10,7 +10,13 @@ import {
 import { Check, Loader2 } from "lucide-react";
 import { useProfileForm } from "../hooks/useProfileForm";
 
-export function ProfileSection({ user, onUserUpdated }: { user: User; onUserUpdated?: () => void }) {
+export function ProfileSection({
+  user,
+  onUserUpdated,
+}: {
+  user: User;
+  onUserUpdated?: () => void;
+}) {
   const { state, actions } = useProfileForm(user, onUserUpdated);
 
   const saveError =

@@ -15,7 +15,9 @@ function dedupeSuggestions(
   currentCandidates: ExpenseSuggestion[],
   newCandidates: ExpenseSuggestion[],
 ): ExpenseSuggestion[] {
-  const seenNames = new Set(currentCandidates.map((candidate) => candidate.name));
+  const seenNames = new Set(
+    currentCandidates.map((candidate) => candidate.name),
+  );
   const dedupedCandidates = [...currentCandidates];
 
   for (const candidate of newCandidates) {
@@ -46,7 +48,10 @@ function getMatchScore(candidateName: string, query: string): number | null {
   let score = 0;
 
   for (const queryCharacter of normalizedQuery) {
-    const matchedIndex = normalizedName.indexOf(queryCharacter, searchFromIndex);
+    const matchedIndex = normalizedName.indexOf(
+      queryCharacter,
+      searchFromIndex,
+    );
     if (matchedIndex === -1) {
       return null;
     }
@@ -63,18 +68,17 @@ function getVisibleSuggestions(
   query: string,
 ): ExpenseSuggestion[] {
   return candidates
-    .reduce<Array<{ suggestion: ExpenseSuggestion; score: number; index: number }>>(
-      (matches, candidate, index) => {
-        const score = getMatchScore(candidate.name, query);
-        if (score === null) {
-          return matches;
-        }
-
-        matches.push({ suggestion: candidate, score, index });
+    .reduce<
+      Array<{ suggestion: ExpenseSuggestion; score: number; index: number }>
+    >((matches, candidate, index) => {
+      const score = getMatchScore(candidate.name, query);
+      if (score === null) {
         return matches;
-      },
-      [],
-    )
+      }
+
+      matches.push({ suggestion: candidate, score, index });
+      return matches;
+    }, [])
     .sort((leftMatch, rightMatch) => {
       if (leftMatch.score !== rightMatch.score) {
         return leftMatch.score - rightMatch.score;
@@ -165,7 +169,10 @@ export function useExpenseAutocomplete(): {
 
     setIsLoadingMore(true);
     try {
-      const response = await expenseSuggestionsApi.getSuggestions(page + 1, PAGE_SIZE);
+      const response = await expenseSuggestionsApi.getSuggestions(
+        page + 1,
+        PAGE_SIZE,
+      );
       if (!isMountedRef.current) {
         return;
       }

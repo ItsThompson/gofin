@@ -72,7 +72,10 @@ export function HealthScoreCard({ score, trend }: HealthScoreCardProps) {
         <InsightPanel insight={score.insight} />
         {trend && <HealthScoreSparkline points={trend} />}
       </CardContent>
-      <HealthScoreInfoModal open={infoOpen} onClose={() => setInfoOpen(false)} />
+      <HealthScoreInfoModal
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+      />
     </Card>
   );
 }

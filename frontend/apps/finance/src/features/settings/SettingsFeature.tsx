@@ -1,5 +1,10 @@
 import { useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@gofin/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@gofin/ui/components/card";
 import { Settings } from "lucide-react";
 import type { SettingsPageProps } from "../../types";
 import { getSettingsTabs, type SettingsTabId } from "./settingsTabs";
@@ -9,7 +14,8 @@ export function SettingsFeature({ user, onUserUpdated }: SettingsPageProps) {
   const defaultTabId = tabList[0].id;
 
   const [activeTab, setActiveTab] = useState<SettingsTabId>(defaultTabId);
-  const [expandedAccordion, setExpandedAccordion] = useState<SettingsTabId | null>(defaultTabId);
+  const [expandedAccordion, setExpandedAccordion] =
+    useState<SettingsTabId | null>(defaultTabId);
 
   const toggleAccordion = useCallback((tab: SettingsTabId) => {
     setExpandedAccordion((prev) => (prev === tab ? null : tab));

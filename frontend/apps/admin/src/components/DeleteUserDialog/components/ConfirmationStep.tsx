@@ -16,7 +16,9 @@ export function ConfirmationStep() {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         This action is permanent and cannot be undone. To confirm, type{" "}
-        <span className="font-mono font-semibold text-destructive">{CONFIRMATION_PHRASE}</span>{" "}
+        <span className="font-mono font-semibold text-destructive">
+          {CONFIRMATION_PHRASE}
+        </span>{" "}
         below.
       </p>
       <div className="space-y-2">

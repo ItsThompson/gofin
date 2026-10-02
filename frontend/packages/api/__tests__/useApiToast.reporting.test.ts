@@ -10,9 +10,9 @@ interface CapturedContext {
 }
 
 const { captureException } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 }));
 
 vi.mock("@sentry/react-router", () => ({ captureException }));
@@ -94,7 +94,10 @@ describe("useApiToast reporting", () => {
     );
 
     await act(async () => {
-      await result.current.call(() => Promise.reject(new Error("trend unavailable")), { op: "dashboard.trends" });
+      await result.current.call(
+        () => Promise.reject(new Error("trend unavailable")),
+        { op: "dashboard.trends" },
+      );
     });
 
     expect(onlyCapture().context.tags).toEqual({
@@ -300,13 +303,16 @@ describe("useApiToast reporting", () => {
     expect(context.level).toBe("warning");
   });
 
-  it("tags a sub-500 status expected as the string \"true\"", async () => {
+  it('tags a sub-500 status expected as the string "true"', async () => {
     const { result } = renderHook(() => useApiToast());
 
     await act(async () => {
       await result.current.call(() =>
         Promise.reject(
-          new ApiRequestError(401, { code: "UNAUTHORIZED", message: "Expired" }),
+          new ApiRequestError(401, {
+            code: "UNAUTHORIZED",
+            message: "Expired",
+          }),
         ),
       );
     });

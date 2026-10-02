@@ -23,11 +23,7 @@ export function HeroAnimation({ alt }: HeroAnimationProps) {
 
   if (prefersReducedMotion) {
     return (
-      <div
-        role="img"
-        aria-label={alt}
-        className="relative aspect-[4/3] w-full"
-      >
+      <div role="img" aria-label={alt} className="relative aspect-[4/3] w-full">
         <DashboardPreviewCard reducedMotion />
       </div>
     );

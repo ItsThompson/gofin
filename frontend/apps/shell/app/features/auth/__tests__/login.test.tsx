@@ -25,14 +25,20 @@ function resetStore(overrides: Record<string, unknown> = {}) {
 
 function setupUnauthenticatedMock(extraRoutes: Record<string, unknown> = {}) {
   const mockFetch = createMockApi({
-    "/api/auth/me": { status: 401, body: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+    "/api/auth/me": {
+      status: 401,
+      body: { code: "UNAUTHORIZED", message: "Not authenticated" },
+    },
     ...extraRoutes,
   });
   global.fetch = mockFetch;
   return mockFetch;
 }
 
-async function renderLoginPage(options?: { route?: string; searchParams?: Record<string, string> }) {
+async function renderLoginPage(options?: {
+  route?: string;
+  searchParams?: Record<string, string>;
+}) {
   const LoginPage = await importLoginPage();
   const route = options?.route ?? "/login";
 
@@ -67,7 +73,9 @@ describe("login page", () => {
       setupUnauthenticatedMock();
       await renderLoginPage();
 
-      const form = screen.getByRole("button", { name: "Sign in" }).closest("form")!;
+      const form = screen
+        .getByRole("button", { name: "Sign in" })
+        .closest("form")!;
       fireEvent.submit(form);
 
       await waitFor(() => {
@@ -79,12 +87,18 @@ describe("login page", () => {
       setupUnauthenticatedMock();
       await renderLoginPage();
 
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "not-an-email" } });
-      const form = screen.getByRole("button", { name: "Sign in" }).closest("form")!;
+      fireEvent.change(screen.getByLabelText("Email"), {
+        target: { value: "not-an-email" },
+      });
+      const form = screen
+        .getByRole("button", { name: "Sign in" })
+        .closest("form")!;
       fireEvent.submit(form);
 
       await waitFor(() => {
-        expect(screen.getByText("Please enter a valid email address")).toBeInTheDocument();
+        expect(
+          screen.getByText("Please enter a valid email address"),
+        ).toBeInTheDocument();
       });
     });
 
@@ -92,8 +106,12 @@ describe("login page", () => {
       setupUnauthenticatedMock();
       await renderLoginPage();
 
-      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "user@example.com" } });
-      const form = screen.getByRole("button", { name: "Sign in" }).closest("form")!;
+      fireEvent.change(screen.getByLabelText("Email"), {
+        target: { value: "user@example.com" },
+      });
+      const form = screen
+        .getByRole("button", { name: "Sign in" })
+        .closest("form")!;
       fireEvent.submit(form);
 
       await waitFor(() => {
@@ -106,7 +124,13 @@ describe("login page", () => {
     it("displays the server error message on wrong credentials", async () => {
       const user = userEvent.setup();
       setupUnauthenticatedMock({
-        "/api/auth/login": { status: 401, body: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" } },
+        "/api/auth/login": {
+          status: 401,
+          body: {
+            code: "INVALID_CREDENTIALS",
+            message: "Invalid email or password",
+          },
+        },
       });
       await renderLoginPage();
 
@@ -115,7 +139,9 @@ describe("login page", () => {
       await user.click(screen.getByRole("button", { name: "Sign in" }));
 
       await waitFor(() => {
-        expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
+        expect(
+          screen.getByText("Invalid email or password"),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -179,7 +205,9 @@ describe("login page", () => {
       await renderLoginPage({ searchParams: { expired: "true" } });
 
       await waitFor(() => {
-        expect(screen.getByText(/Your session has expired/)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Your session has expired/),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -192,10 +220,12 @@ describe("login page", () => {
         "/api/auth/login": { user: loginUser },
       });
 
-      vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
-        if (key === "gofin_return_to") return "/expenses";
-        return null;
-      });
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(
+        (key: string) => {
+          if (key === "gofin_return_to") return "/expenses";
+          return null;
+        },
+      );
       vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {});
 
       await renderLoginPage();
@@ -221,10 +251,12 @@ describe("login page", () => {
         "/api/auth/login": { user: admin },
       });
 
-      vi.spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
-        if (key === "gofin_return_to") return "/settings";
-        return null;
-      });
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(
+        (key: string) => {
+          if (key === "gofin_return_to") return "/settings";
+          return null;
+        },
+      );
       vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {});
 
       await renderLoginPage();

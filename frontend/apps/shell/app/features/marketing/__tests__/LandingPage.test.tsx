@@ -31,7 +31,10 @@ describe("LandingPage", () => {
 
     expect(screen.getByRole("main")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 1, name: landingContent.hero.heading }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: landingContent.hero.heading,
+      }),
     ).toBeInTheDocument();
 
     expect(
@@ -64,7 +67,10 @@ describe("LandingPage", () => {
     // No redirect: the marketing page is still mounted.
     expect(screen.getByRole("main")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 1, name: landingContent.hero.heading }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: landingContent.hero.heading,
+      }),
     ).toBeInTheDocument();
 
     // Auth-aware header: avatar menu + Dashboard link, no Log in link.

@@ -140,7 +140,9 @@ describe("apiClient", () => {
           }),
       });
 
-      await expect(apiClient("/api/auth/login", { method: "POST" })).rejects.toThrow();
+      await expect(
+        apiClient("/api/auth/login", { method: "POST" }),
+      ).rejects.toThrow();
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
@@ -148,11 +150,12 @@ describe("apiClient", () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
-        json: () =>
-          Promise.resolve({ code: "UNAUTHORIZED", message: "Error" }),
+        json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "Error" }),
       });
 
-      await expect(apiClient("/api/auth/register", { method: "POST" })).rejects.toThrow();
+      await expect(
+        apiClient("/api/auth/register", { method: "POST" }),
+      ).rejects.toThrow();
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
@@ -229,7 +232,9 @@ describe("apiClient", () => {
       // Refresh fails
       mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
 
-      await expect(apiClient("/api/expenses")).rejects.toThrow("session has expired");
+      await expect(apiClient("/api/expenses")).rejects.toThrow(
+        "session has expired",
+      );
 
       expect(sessionStorage.getItem("gofin_return_to")).toBe("/dashboard");
       expect(window.location.href).toBe("/login?expired=true");

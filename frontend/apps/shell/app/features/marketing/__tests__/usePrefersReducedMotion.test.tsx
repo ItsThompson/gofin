@@ -14,8 +14,10 @@ function stubMatchMedia(initialMatches: boolean): FakeMediaQuery {
     matches: state.matches,
     media: query,
     onchange: null,
-    addEventListener: (_: string, listener: (event: MediaQueryListEvent) => void) =>
-      state.listeners.push(listener),
+    addEventListener: (
+      _: string,
+      listener: (event: MediaQueryListEvent) => void,
+    ) => state.listeners.push(listener),
     removeEventListener: (
       _: string,
       listener: (event: MediaQueryListEvent) => void,

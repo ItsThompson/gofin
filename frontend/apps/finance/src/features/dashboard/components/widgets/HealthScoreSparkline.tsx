@@ -49,7 +49,9 @@ export function HealthScoreSparkline({ points }: HealthScoreSparklineProps) {
           >
             <XAxis dataKey="label" hide />
             <YAxis hide domain={[0, 100]} />
-            <Tooltip contentStyle={{ fontSize: "0.75rem", borderRadius: "0.5rem" }} />
+            <Tooltip
+              contentStyle={{ fontSize: "0.75rem", borderRadius: "0.5rem" }}
+            />
             <Line
               name="Score"
               type="monotone"

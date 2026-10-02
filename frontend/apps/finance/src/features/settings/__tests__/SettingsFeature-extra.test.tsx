@@ -30,9 +30,27 @@ const mockDefaults = {
 };
 
 const mockTags = [
-  { id: "tag-1", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-2", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-3", name: "Custom", isDefault: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-1",
+    name: "Bills",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-2",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-3",
+    name: "Custom",
+    isDefault: false,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 function mockDefaultsFound() {
@@ -109,7 +127,11 @@ describe("SettingsFeature - Tags delete and edit cancel", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 409,
-      json: () => Promise.resolve({ code: "TAG_IN_USE", message: "Cannot delete tag: it is used by 5 expenses" }),
+      json: () =>
+        Promise.resolve({
+          code: "TAG_IN_USE",
+          message: "Cannot delete tag: it is used by 5 expenses",
+        }),
     });
 
     const deleteButton = screen.getByLabelText("Delete Custom");
@@ -175,7 +197,11 @@ describe("SettingsFeature - Tags delete and edit cancel", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 409,
-      json: () => Promise.resolve({ code: "DUPLICATE_TAG", message: "Tag already exists" }),
+      json: () =>
+        Promise.resolve({
+          code: "DUPLICATE_TAG",
+          message: "Tag already exists",
+        }),
     });
 
     // Click the save button (Check icon)
@@ -221,10 +247,16 @@ describe("SettingsFeature - Mobile accordion", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: () => Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "Service unavailable" }),
+      json: () =>
+        Promise.resolve({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Service unavailable",
+        }),
     });
 
-    const submitButton = screen.getAllByRole("button", { name: /save defaults/i })[0];
+    const submitButton = screen.getAllByRole("button", {
+      name: /save defaults/i,
+    })[0];
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -255,10 +287,13 @@ describe("SettingsFeature - Mobile accordion", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ user: { ...mockUser, username: "newalice" } }),
+      json: () =>
+        Promise.resolve({ user: { ...mockUser, username: "newalice" } }),
     });
 
-    const submitButton = screen.getByRole("button", { name: /update profile/i });
+    const submitButton = screen.getByRole("button", {
+      name: /update profile/i,
+    });
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -279,14 +314,17 @@ describe("SettingsFeature - Network error handling", () => {
 
     await waitFor(() => {
       expect(
-        (screen.getAllByLabelText("Monthly Budget")[0] as HTMLInputElement).value,
+        (screen.getAllByLabelText("Monthly Budget")[0] as HTMLInputElement)
+          .value,
       ).toBe("3000");
     });
 
     // Simulate network failure on save
     mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
-    const submitButton = screen.getAllByRole("button", { name: /save defaults/i })[0];
+    const submitButton = screen.getAllByRole("button", {
+      name: /save defaults/i,
+    })[0];
     await user.click(submitButton);
 
     await waitFor(() => {

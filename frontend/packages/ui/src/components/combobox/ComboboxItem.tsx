@@ -15,8 +15,13 @@ export function ComboboxItem({
   ...props
 }: ComboboxItemProps) {
   const itemId = React.useId();
-  const { highlightedId, setHighlightedId, setIsOpen, registerOption, unregisterOption } =
-    useComboboxContext();
+  const {
+    highlightedId,
+    setHighlightedId,
+    setIsOpen,
+    registerOption,
+    unregisterOption,
+  } = useComboboxContext();
   const isHighlighted = highlightedId === itemId;
 
   const selectItem = React.useCallback(() => {
@@ -31,10 +36,24 @@ export function ComboboxItem({
   }, [closeOnSelect, disabled, onSelect, setIsOpen, value]);
 
   React.useEffect(() => {
-    registerOption({ id: itemId, value, disabled, closeOnSelect, onSelect: selectItem });
+    registerOption({
+      id: itemId,
+      value,
+      disabled,
+      closeOnSelect,
+      onSelect: selectItem,
+    });
 
     return () => unregisterOption(itemId);
-  }, [closeOnSelect, disabled, itemId, registerOption, selectItem, unregisterOption, value]);
+  }, [
+    closeOnSelect,
+    disabled,
+    itemId,
+    registerOption,
+    selectItem,
+    unregisterOption,
+    value,
+  ]);
 
   return (
     <div

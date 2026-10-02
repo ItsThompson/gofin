@@ -47,7 +47,9 @@ export function RegisterPage() {
                 type="text"
                 placeholder="johndoe"
                 value={state.fields.username}
-                onChange={(event) => actions.setField("username", event.target.value)}
+                onChange={(event) =>
+                  actions.setField("username", event.target.value)
+                }
                 autoComplete="username"
                 aria-invalid={!!state.errors.username}
                 required
@@ -62,7 +64,9 @@ export function RegisterPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={state.fields.email}
-                onChange={(event) => actions.setField("email", event.target.value)}
+                onChange={(event) =>
+                  actions.setField("email", event.target.value)
+                }
                 autoComplete="email"
                 aria-invalid={!!state.errors.email}
                 required
@@ -77,7 +81,9 @@ export function RegisterPage() {
                 type="password"
                 placeholder="At least 8 characters"
                 value={state.fields.password}
-                onChange={(event) => actions.setField("password", event.target.value)}
+                onChange={(event) =>
+                  actions.setField("password", event.target.value)
+                }
                 autoComplete="new-password"
                 aria-invalid={!!state.errors.password}
                 required
@@ -92,7 +98,9 @@ export function RegisterPage() {
                 type="password"
                 placeholder="Re-enter your password"
                 value={state.fields.confirmPassword}
-                onChange={(event) => actions.setField("confirmPassword", event.target.value)}
+                onChange={(event) =>
+                  actions.setField("confirmPassword", event.target.value)
+                }
                 autoComplete="new-password"
                 aria-invalid={!!state.errors.confirmPassword}
                 required
@@ -100,9 +108,15 @@ export function RegisterPage() {
               <FormMessage>{state.errors.confirmPassword}</FormMessage>
             </FormField>
 
-            {state.errors.form && <FormMessage>{state.errors.form}</FormMessage>}
+            {state.errors.form && (
+              <FormMessage>{state.errors.form}</FormMessage>
+            )}
 
-            <Button type="submit" className="w-full" disabled={state.submitting}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={state.submitting}
+            >
               {state.submitting ? "Creating account..." : "Create account"}
             </Button>
 

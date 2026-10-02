@@ -62,7 +62,13 @@ const mockExpenses: Expense[] = [
 ];
 
 const mockTags: Tag[] = [
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const mockPeriods: BudgetPeriod[] = [
@@ -86,7 +92,13 @@ function mockSuccessfulFetch(
   tags: Tag[] = mockTags,
   periods: BudgetPeriod[] = mockPeriods,
 ) {
-  mockGetExpenses.mockResolvedValue({ data: expenses, total: expenses.length, page: 1, pageSize: 1000, hasMore: false });
+  mockGetExpenses.mockResolvedValue({
+    data: expenses,
+    total: expenses.length,
+    page: 1,
+    pageSize: 1000,
+    hasMore: false,
+  });
   mockGetTags.mockResolvedValue({ tags });
   mockGetPeriods.mockResolvedValue({ periods });
 }
@@ -244,12 +256,14 @@ describe("useExpenseLogData", () => {
         expect(result.current.state.status).toBe("active");
       });
 
-      const aprilExpenses: Expense[] = [{
-        ...mockExpenses[0],
-        id: "exp-apr-1",
-        name: "April Purchase",
-        periodMonth: 4,
-      }];
+      const aprilExpenses: Expense[] = [
+        {
+          ...mockExpenses[0],
+          id: "exp-apr-1",
+          name: "April Purchase",
+          periodMonth: 4,
+        },
+      ];
       const aprilPeriods: BudgetPeriod[] = [
         {
           ...mockPeriods[0],

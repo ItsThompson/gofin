@@ -51,7 +51,10 @@ describe("usePeriodState", () => {
         expect(result.current.status).toBe("active");
       });
 
-      const activeState = result.current as Extract<PeriodStateResult, { status: "active" }>;
+      const activeState = result.current as Extract<
+        PeriodStateResult,
+        { status: "active" }
+      >;
       expect(activeState.period).toEqual(testPeriod);
       expect(activeState.period.id).toBe("period-abc");
       expect(activeState.retry).toBeInstanceOf(Function);
@@ -94,7 +97,10 @@ describe("usePeriodState", () => {
         expect(result.current.status).toBe("no-period");
       });
 
-      const noPeriodState = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+      const noPeriodState = result.current as Extract<
+        PeriodStateResult,
+        { status: "no-period" }
+      >;
       expect(noPeriodState.defaults).toEqual(testDefaults);
       expect(noPeriodState.createPeriod).toBeInstanceOf(Function);
       expect(noPeriodState.creating).toBe(false);
@@ -130,7 +136,10 @@ describe("usePeriodState", () => {
       global.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 500,
-          body: { code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" },
+          body: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Database connection failed",
+          },
         },
       }) as unknown as typeof fetch;
 
@@ -173,7 +182,10 @@ describe("usePeriodState", () => {
         expect(result.current.status).toBe("active");
       });
 
-      const activeState = result.current as Extract<PeriodStateResult, { status: "active" }>;
+      const activeState = result.current as Extract<
+        PeriodStateResult,
+        { status: "active" }
+      >;
       expect(activeState.period.id).toBe("period-abc");
     });
   });
@@ -206,7 +218,10 @@ describe("usePeriodState", () => {
         expect(result.current.status).toBe("no-period");
       });
 
-      const noPeriodState = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+      const noPeriodState = result.current as Extract<
+        PeriodStateResult,
+        { status: "no-period" }
+      >;
 
       act(() => {
         noPeriodState.createPeriod({
@@ -224,7 +239,10 @@ describe("usePeriodState", () => {
         expect(result.current.status).toBe("active");
       });
 
-      const activeState = result.current as Extract<PeriodStateResult, { status: "active" }>;
+      const activeState = result.current as Extract<
+        PeriodStateResult,
+        { status: "active" }
+      >;
       expect(activeState.period.id).toBe("new-period-123");
       expect(activeState.period.budgetAmount).toBe(300000);
     });
@@ -254,14 +272,21 @@ describe("usePeriodState", () => {
       global.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : input.toString();
         if (url.includes("/api/finance/periods") && !url.includes("/current")) {
-          return createPromise.then((body) =>
-            new Response(JSON.stringify(body), { status: 201, headers: { "content-type": "application/json" } }),
+          return createPromise.then(
+            (body) =>
+              new Response(JSON.stringify(body), {
+                status: 201,
+                headers: { "content-type": "application/json" },
+              }),
           );
         }
         return originalFetch(input, init);
       }) as typeof fetch;
 
-      const noPeriodState = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+      const noPeriodState = result.current as Extract<
+        PeriodStateResult,
+        { status: "no-period" }
+      >;
 
       act(() => {
         noPeriodState.createPeriod({
@@ -276,7 +301,10 @@ describe("usePeriodState", () => {
       });
 
       await waitFor(() => {
-        const current = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+        const current = result.current as Extract<
+          PeriodStateResult,
+          { status: "no-period" }
+        >;
         expect(current.creating).toBe(true);
       });
 
@@ -300,7 +328,10 @@ describe("usePeriodState", () => {
         "/api/finance/defaults": { body: { defaults: testDefaults } },
         "/api/finance/periods": {
           status: 400,
-          body: { code: "VALIDATION_ERROR", message: "Budget amount must be positive" },
+          body: {
+            code: "VALIDATION_ERROR",
+            message: "Budget amount must be positive",
+          },
         },
       }) as unknown as typeof fetch;
 
@@ -310,7 +341,10 @@ describe("usePeriodState", () => {
         expect(result.current.status).toBe("no-period");
       });
 
-      const noPeriodState = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+      const noPeriodState = result.current as Extract<
+        PeriodStateResult,
+        { status: "no-period" }
+      >;
 
       act(() => {
         noPeriodState.createPeriod({
@@ -325,11 +359,17 @@ describe("usePeriodState", () => {
       });
 
       await waitFor(() => {
-        const current = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+        const current = result.current as Extract<
+          PeriodStateResult,
+          { status: "no-period" }
+        >;
         expect(current.createError).not.toBeNull();
       });
 
-      const errorState = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+      const errorState = result.current as Extract<
+        PeriodStateResult,
+        { status: "no-period" }
+      >;
       expect(errorState.status).toBe("no-period");
       expect(errorState.createError).toBe("Budget amount must be positive");
     });
@@ -354,7 +394,9 @@ describe("usePeriodState", () => {
       });
 
       act(() => {
-        (result.current as Extract<PeriodStateResult, { status: "no-period" }>).createPeriod({
+        (
+          result.current as Extract<PeriodStateResult, { status: "no-period" }>
+        ).createPeriod({
           year: 2026,
           month: 5,
           budgetAmount: 300000,
@@ -366,15 +408,23 @@ describe("usePeriodState", () => {
       });
 
       await waitFor(() => {
-        const current = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+        const current = result.current as Extract<
+          PeriodStateResult,
+          { status: "no-period" }
+        >;
         expect(current.createError).not.toBeNull();
       });
 
       act(() => {
-        (result.current as Extract<PeriodStateResult, { status: "no-period" }>).clearCreateError();
+        (
+          result.current as Extract<PeriodStateResult, { status: "no-period" }>
+        ).clearCreateError();
       });
 
-      const current = result.current as Extract<PeriodStateResult, { status: "no-period" }>;
+      const current = result.current as Extract<
+        PeriodStateResult,
+        { status: "no-period" }
+      >;
       expect(current.createError).toBeNull();
     });
   });

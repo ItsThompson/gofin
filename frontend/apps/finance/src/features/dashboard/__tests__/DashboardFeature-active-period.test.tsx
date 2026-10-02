@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { buildUser, buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
+import {
+  buildUser,
+  buildPeriod,
+  buildPeriodSummary,
+  createMockApi,
+  mockSequence,
+} from "@gofin/test-utils";
 import { renderDashboard } from "./render";
 import {
   testUser,
@@ -19,7 +25,9 @@ describe("DashboardFeature", () => {
 
     const skeletons = document.querySelectorAll('[data-slot="skeleton"]');
     expect(skeletons.length).toBeGreaterThan(0);
-    expect(document.querySelector('[data-testid="health-score-skeleton"]')).not.toBeNull();
+    expect(
+      document.querySelector('[data-testid="health-score-skeleton"]'),
+    ).not.toBeNull();
   });
 
   describe("active period exists", () => {
@@ -32,53 +40,92 @@ describe("DashboardFeature", () => {
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
         "/api/finance/health-score/trend": { body: { trends: [] } },
-        "/api/finance/health-score": { body: { healthScore: { configureBudget: true } } },
+        "/api/finance/health-score": {
+          body: { healthScore: { configureBudget: true } },
+        },
       });
-      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
         const url = String(input);
         if (url.includes("/api/finance/periods/current")) {
           currentPeriodCalls += 1;
           if (currentPeriodCalls === 3) {
-            return new Promise<Response>((resolve) => { resolveAutomaticVerification = resolve; });
+            return new Promise<Response>((resolve) => {
+              resolveAutomaticVerification = resolve;
+            });
           }
         }
         if (url.includes("/api/finance/summary")) {
           summaryCalls += 1;
           if (summaryCalls === 1) return baseApi(input, init);
           if (summaryCalls === 2) {
-            return new Response(JSON.stringify({ code: "PERIOD_NOT_FOUND", message: "Period is missing" }), {
-              status: 404,
-              headers: { "Content-Type": "application/json" },
-            });
+            return new Response(
+              JSON.stringify({
+                code: "PERIOD_NOT_FOUND",
+                message: "Period is missing",
+              }),
+              {
+                status: 404,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
           }
-          return new Promise<Response>((resolve) => { resolveRecoveredSummary = resolve; });
+          return new Promise<Response>((resolve) => {
+            resolveRecoveredSummary = resolve;
+          });
         }
         return baseApi(input, init);
       }) as typeof fetch;
       const user = userEvent.setup();
       renderDashboard();
 
-      await waitFor(() => expect(screen.getByText("No expenses yet")).toBeInTheDocument());
-      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+      await waitFor(() =>
+        expect(screen.getByText("No expenses yet")).toBeInTheDocument(),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Refresh all data" }),
+      );
       await waitFor(() => expect(summaryCalls).toBe(2));
       await waitFor(() => expect(currentPeriodCalls).toBe(3));
 
-      expect(screen.queryByRole("button", { name: "Refresh all data" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("heading", { name: "Dashboard" })).not.toBeInTheDocument();
-      expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+      expect(
+        screen.queryByRole("button", { name: "Refresh all data" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Dashboard" }),
+      ).not.toBeInTheDocument();
+      expect(
+        document.querySelectorAll('[data-slot="skeleton"]').length,
+      ).toBeGreaterThan(0);
 
-      await act(async () => resolveAutomaticVerification(new Response(JSON.stringify({ period: testPeriod }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })));
+      await act(async () =>
+        resolveAutomaticVerification(
+          new Response(JSON.stringify({ period: testPeriod }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
       await waitFor(() => expect(summaryCalls).toBe(3));
-      expect(screen.getByRole("button", { name: "Refresh all data" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Refresh all data" }),
+      ).toBeInTheDocument();
 
-      await act(async () => resolveRecoveredSummary(new Response(JSON.stringify({ summary: testSummary }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })));
-      await waitFor(() => expect(screen.getByRole("button", { name: "Refresh all data" })).toBeInTheDocument());
+      await act(async () =>
+        resolveRecoveredSummary(
+          new Response(JSON.stringify({ summary: testSummary }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        ),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Refresh all data" }),
+        ).toBeInTheDocument(),
+      );
     });
 
     it("shows the Log Expense link while dashboard data is loading", async () => {
@@ -100,13 +147,14 @@ describe("DashboardFeature", () => {
       // returns, so the header assertions must wait for ActiveDashboard to
       // mount (same pattern as the other period-dependent tests below).
       await waitFor(() => {
-        expect(screen.getByRole("link", { name: "Log Expense" })).toHaveAttribute(
-          "href",
-          "/expenses/new",
-        );
+        expect(
+          screen.getByRole("link", { name: "Log Expense" }),
+        ).toHaveAttribute("href", "/expenses/new");
       });
       // Data routes never resolve, so the content area is still loading.
-      expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+      expect(
+        document.querySelectorAll('[data-slot="skeleton"]').length,
+      ).toBeGreaterThan(0);
     });
 
     it("keeps the trend window selector available when six months has no data", async () => {
@@ -115,57 +163,136 @@ describe("DashboardFeature", () => {
         ...dashboardDataEmptyRoutes(),
         "/api/finance/spending/trends": mockSequence([
           { body: { trends: [] } },
-          { body: { trends: [{ year: 2026, month: 1, totalSpent: 100, budgetAmount: 300000, essentialsSpent: 50, desiresSpent: 50, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+          {
+            body: {
+              trends: [
+                {
+                  year: 2026,
+                  month: 1,
+                  totalSpent: 100,
+                  budgetAmount: 300000,
+                  essentialsSpent: 50,
+                  desiresSpent: 50,
+                  savingsSpent: 0,
+                  essentialsPercent: 50,
+                  desiresPercent: 30,
+                  savingsPercent: 20,
+                },
+              ],
+            },
+          },
         ]),
       });
       globalThis.fetch = mockApi as unknown as typeof fetch;
       const user = userEvent.setup();
       renderDashboard();
 
-      await waitFor(() => expect(screen.getByLabelText("12 months")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByLabelText("12 months")).toBeInTheDocument(),
+      );
       await user.click(screen.getByLabelText("12 months"));
       await waitFor(() => {
-        expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Monthly Spending").length,
+        ).toBeGreaterThanOrEqual(1);
         expect(screen.getByText("Jan '26: $1.00 spent")).toBeInTheDocument();
       });
-      expect(mockApi._calls.some((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=12"))).toBe(true);
+      expect(
+        mockApi._calls.some(
+          (call) =>
+            call.url.includes("/api/finance/spending/trends") &&
+            call.url.includes("months=12"),
+        ),
+      ).toBe(true);
     });
 
     it("shows pending states for deferred trend and breakdown selections", async () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
-        "/api/finance/summary": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" } },
-        "/api/finance/spending/trends": { body: { trends: [{ year: 2026, month: 5, totalSpent: 100, budgetAmount: 300000, essentialsSpent: 50, desiresSpent: 50, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+        "/api/finance/summary": {
+          status: 500,
+          body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" },
+        },
+        "/api/finance/spending/trends": {
+          body: {
+            trends: [
+              {
+                year: 2026,
+                month: 5,
+                totalSpent: 100,
+                budgetAmount: 300000,
+                essentialsSpent: 50,
+                desiresSpent: 50,
+                savingsSpent: 0,
+                essentialsPercent: 50,
+                desiresPercent: 30,
+                savingsPercent: 20,
+              },
+            ],
+          },
+        },
       });
       globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input).includes("/periods/current") && periodLookupPending) return new Promise<Response>(() => {});
+        if (String(input).includes("/periods/current") && periodLookupPending)
+          return new Promise<Response>(() => {});
         return mockApi(input, init);
       }) as typeof fetch;
       let periodLookupPending = false;
       const user = userEvent.setup();
       renderDashboard();
-      await waitFor(() => expect(screen.getByText("May '26: $1.00 spent")).toBeInTheDocument());
-      const summaryAlert = screen.getByText("Could not load Summary").closest('[role="alert"]');
+      await waitFor(() =>
+        expect(screen.getByText("May '26: $1.00 spent")).toBeInTheDocument(),
+      );
+      const summaryAlert = screen
+        .getByText("Could not load Summary")
+        .closest('[role="alert"]');
       expect(summaryAlert).not.toBeNull();
       periodLookupPending = true;
-      await user.click(within(summaryAlert as HTMLElement).getByRole("button", { name: "Retry" }));
+      await user.click(
+        within(summaryAlert as HTMLElement).getByRole("button", {
+          name: "Retry",
+        }),
+      );
       await user.click(screen.getByLabelText("12 months"));
       expect(screen.getByLabelText("Trends loading")).toBeInTheDocument();
-      expect(screen.queryByText("May '26: $1.00 spent")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("May '26: $1.00 spent"),
+      ).not.toBeInTheDocument();
       await user.click(screen.getByLabelText("Select breakdown chart"));
-      await user.click(screen.getByRole("option", { name: "Repeated Expenses" }));
-      expect(screen.getByText("Loading repeated expenses...")).toBeInTheDocument();
-      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/trends"))).toHaveLength(1);
-      expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions"))).toHaveLength(0);
+      await user.click(
+        screen.getByRole("option", { name: "Repeated Expenses" }),
+      );
+      expect(
+        screen.getByText("Loading repeated expenses..."),
+      ).toBeInTheDocument();
+      expect(
+        mockApi._calls.filter((call) =>
+          call.url.includes("/api/finance/spending/trends"),
+        ),
+      ).toHaveLength(1);
+      expect(
+        mockApi._calls.filter((call) =>
+          call.url.includes("/api/expenses/suggestions"),
+        ),
+      ).toHaveLength(0);
     });
 
     it("shows a pending tag retry while period verification is unresolved", async () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
-        "/api/finance/summary": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" } },
-        "/api/finance/spending/by-tag": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Tag spending failed" } },
+        "/api/finance/summary": {
+          status: 500,
+          body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" },
+        },
+        "/api/finance/spending/by-tag": {
+          status: 500,
+          body: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Tag spending failed",
+          },
+        },
         "/api/finance/defaults": { body: { defaults: null } },
       });
       let resolvePeriod!: (value: Response) => void;
@@ -173,7 +300,10 @@ describe("DashboardFeature", () => {
       globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).includes("/periods/current")) {
           periodRequests += 1;
-          if (periodRequests === 2) return new Promise<Response>((resolve) => { resolvePeriod = resolve; });
+          if (periodRequests === 2)
+            return new Promise<Response>((resolve) => {
+              resolvePeriod = resolve;
+            });
         }
         return mockApi(input, init);
       }) as typeof fetch;
@@ -181,29 +311,75 @@ describe("DashboardFeature", () => {
       renderDashboard();
       const summaryAlert = await screen.findByText("Could not load Summary");
       const tagAlert = await screen.findByText("Could not load Tag spending");
-      await user.click(within(summaryAlert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Retry" }));
-      await user.click(within(tagAlert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Retry" }));
+      await user.click(
+        within(summaryAlert.closest('[role="alert"]') as HTMLElement).getByRole(
+          "button",
+          { name: "Retry" },
+        ),
+      );
+      await user.click(
+        within(tagAlert.closest('[role="alert"]') as HTMLElement).getByRole(
+          "button",
+          { name: "Retry" },
+        ),
+      );
       expect(screen.getByLabelText("Tag spending loading")).toBeInTheDocument();
-      expect(screen.queryByText("Could not load Tag spending")).not.toBeInTheDocument();
-      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/by-tag"))).toHaveLength(1);
+      expect(
+        screen.queryByText("Could not load Tag spending"),
+      ).not.toBeInTheDocument();
+      expect(
+        mockApi._calls.filter((call) =>
+          call.url.includes("/api/finance/spending/by-tag"),
+        ),
+      ).toHaveLength(1);
 
-      await act(async () => resolvePeriod(new Response(JSON.stringify({ code: "PERIOD_NOT_FOUND", message: "No period" }), { status: 404, headers: { "Content-Type": "application/json" } })));
-      expect(await screen.findByText(/No budget configured yet/)).toBeInTheDocument();
-      expect(screen.queryByText("Could not load Tag spending")).not.toBeInTheDocument();
-      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/by-tag"))).toHaveLength(1);
+      await act(async () =>
+        resolvePeriod(
+          new Response(
+            JSON.stringify({ code: "PERIOD_NOT_FOUND", message: "No period" }),
+            { status: 404, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      );
+      expect(
+        await screen.findByText(/No budget configured yet/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Could not load Tag spending"),
+      ).not.toBeInTheDocument();
+      expect(
+        mockApi._calls.filter((call) =>
+          call.url.includes("/api/finance/spending/by-tag"),
+        ),
+      ).toHaveLength(1);
     });
 
     it("does not offer an unconfigured budget when defaults fail during period recovery", async () => {
       const mockApi = createMockApi({
         "/api/finance/periods/current": mockSequence([
           { body: { period: testPeriod } },
-          { status: 404, body: { code: "PERIOD_NOT_FOUND", message: "No period" } },
-          { status: 404, body: { code: "PERIOD_NOT_FOUND", message: "No period" } },
+          {
+            status: 404,
+            body: { code: "PERIOD_NOT_FOUND", message: "No period" },
+          },
+          {
+            status: 404,
+            body: { code: "PERIOD_NOT_FOUND", message: "No period" },
+          },
         ]),
         ...dashboardDataEmptyRoutes(),
-        "/api/finance/summary": { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" } },
+        "/api/finance/summary": {
+          status: 500,
+          body: { code: "INTERNAL_SERVER_ERROR", message: "Summary failed" },
+        },
         "/api/finance/defaults": mockSequence([
-          { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Defaults unavailable" } },
+          {
+            status: 500,
+            body: {
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Defaults unavailable",
+            },
+          },
           { body: { defaults: null } },
         ]),
       });
@@ -211,14 +387,27 @@ describe("DashboardFeature", () => {
       const user = userEvent.setup();
       renderDashboard();
       const summaryAlert = await screen.findByText("Could not load Summary");
-      await user.click(within(summaryAlert.closest('[role="alert"]') as HTMLElement).getByRole("button", { name: "Retry" }));
+      await user.click(
+        within(summaryAlert.closest('[role="alert"]') as HTMLElement).getByRole(
+          "button",
+          { name: "Retry" },
+        ),
+      );
 
-      expect(await screen.findByText("Could not load the dashboard")).toBeInTheDocument();
-      expect(screen.queryByText(/No budget configured yet/)).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Create .* Period/ })).not.toBeInTheDocument();
+      expect(
+        await screen.findByText("Could not load the dashboard"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/No budget configured yet/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Create .* Period/ }),
+      ).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "Retry" }));
-      expect(await screen.findByText(/No budget configured yet/)).toBeInTheDocument();
+      expect(
+        await screen.findByText(/No budget configured yet/),
+      ).toBeInTheDocument();
     });
 
     it("recovers the previous trend window after a wider-window error", async () => {
@@ -226,22 +415,78 @@ describe("DashboardFeature", () => {
         "/api/finance/periods/current": { body: { period: testPeriod } },
         ...dashboardDataEmptyRoutes(),
         "/api/finance/spending/trends": mockSequence([
-          { body: { trends: [{ year: 2026, month: 5, totalSpent: 100, budgetAmount: 300000, essentialsSpent: 50, desiresSpent: 50, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
-          { status: 500, body: { code: "INTERNAL_SERVER_ERROR", message: "Trend window failed" } },
-          { body: { trends: [{ year: 2026, month: 5, totalSpent: 200, budgetAmount: 300000, essentialsSpent: 100, desiresSpent: 100, savingsSpent: 0, essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20 }] } },
+          {
+            body: {
+              trends: [
+                {
+                  year: 2026,
+                  month: 5,
+                  totalSpent: 100,
+                  budgetAmount: 300000,
+                  essentialsSpent: 50,
+                  desiresSpent: 50,
+                  savingsSpent: 0,
+                  essentialsPercent: 50,
+                  desiresPercent: 30,
+                  savingsPercent: 20,
+                },
+              ],
+            },
+          },
+          {
+            status: 500,
+            body: {
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Trend window failed",
+            },
+          },
+          {
+            body: {
+              trends: [
+                {
+                  year: 2026,
+                  month: 5,
+                  totalSpent: 200,
+                  budgetAmount: 300000,
+                  essentialsSpent: 100,
+                  desiresSpent: 100,
+                  savingsSpent: 0,
+                  essentialsPercent: 50,
+                  desiresPercent: 30,
+                  savingsPercent: 20,
+                },
+              ],
+            },
+          },
         ]),
       });
       globalThis.fetch = mockApi as unknown as typeof fetch;
       const user = userEvent.setup();
       renderDashboard();
 
-      await waitFor(() => expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(2));
+      await waitFor(() =>
+        expect(
+          screen.getAllByText("Monthly Spending").length,
+        ).toBeGreaterThanOrEqual(2),
+      );
       await user.click(screen.getByLabelText("12 months"));
-      await waitFor(() => expect(screen.getByText("Could not load Trends")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText("Could not load Trends")).toBeInTheDocument(),
+      );
 
       await user.click(screen.getByLabelText("6 months"));
-      await waitFor(() => expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(2));
-      expect(mockApi._calls.filter((call) => call.url.includes("/api/finance/spending/trends") && call.url.includes("months=6")).length).toBeGreaterThanOrEqual(2);
+      await waitFor(() =>
+        expect(
+          screen.getAllByText("Monthly Spending").length,
+        ).toBeGreaterThanOrEqual(2),
+      );
+      expect(
+        mockApi._calls.filter(
+          (call) =>
+            call.url.includes("/api/finance/spending/trends") &&
+            call.url.includes("months=6"),
+        ).length,
+      ).toBeGreaterThanOrEqual(2);
     });
 
     it("renders an explicit empty state for a health trend with no points", async () => {
@@ -253,7 +498,9 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByText("No health score trend is available.")).toBeInTheDocument();
+        expect(
+          screen.getByText("No health score trend is available."),
+        ).toBeInTheDocument();
       });
     });
 
@@ -306,9 +553,15 @@ describe("DashboardFeature", () => {
         expect(screen.getByText("No expenses yet")).toBeInTheDocument();
       });
 
-      expect(document.querySelector('[data-outline-title="Historical Comparison"]')).toBeNull();
-      expect(document.querySelector('[data-outline-title="Trends"]')).not.toBeNull();
-      expect(document.querySelector('[data-outline-title="Cumulative Spending"]')).toBeNull();
+      expect(
+        document.querySelector('[data-outline-title="Historical Comparison"]'),
+      ).toBeNull();
+      expect(
+        document.querySelector('[data-outline-title="Trends"]'),
+      ).not.toBeNull();
+      expect(
+        document.querySelector('[data-outline-title="Cumulative Spending"]'),
+      ).toBeNull();
     });
 
     it("keeps repeated expenses available when tag spending fails", async () => {
@@ -324,14 +577,28 @@ describe("DashboardFeature", () => {
       const user = userEvent.setup();
       renderDashboard();
 
-      await waitFor(() => expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText("Select breakdown chart"),
+        ).toBeInTheDocument(),
+      );
       await user.click(screen.getByLabelText("Select breakdown chart"));
-      await user.click(await screen.findByRole("option", { name: "Repeated Expenses" }));
+      await user.click(
+        await screen.findByRole("option", { name: "Repeated Expenses" }),
+      );
 
-      await waitFor(() => expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument());
+      await waitFor(() =>
+        expect(
+          screen.getByText(/Frequency shows how often/i),
+        ).toBeInTheDocument(),
+      );
       await user.click(screen.getByLabelText("Select breakdown chart"));
-      await user.click(await screen.findByRole("option", { name: "Spending by Tag" }));
-      expect(screen.getByText("Could not load Tag spending")).toBeInTheDocument();
+      await user.click(
+        await screen.findByRole("option", { name: "Spending by Tag" }),
+      );
+      expect(
+        screen.getByText("Could not load Tag spending"),
+      ).toBeInTheDocument();
     });
 
     it("renders repeated-expenses chart with frequency and recency context", async () => {
@@ -345,27 +612,41 @@ describe("DashboardFeature", () => {
 
       // Wait for the Breakdown section to render with default "Spending by Tag"
       await waitFor(() => {
-        expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument();
+        expect(
+          screen.getByLabelText("Select breakdown chart"),
+        ).toBeInTheDocument();
       });
 
       const breakdownTrigger = screen.getByLabelText("Select breakdown chart");
       await user.click(breakdownTrigger);
-      const repeatedOption = await screen.findByRole("option", { name: "Repeated Expenses" });
+      const repeatedOption = await screen.findByRole("option", {
+        name: "Repeated Expenses",
+      });
       await user.click(repeatedOption);
 
       await waitFor(() => {
-        expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Frequency shows how often/i),
+        ).toBeInTheDocument();
       });
 
       expect(screen.getAllByText("Groceries").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Coffee").length).toBeGreaterThan(0);
-      expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Today");
-      expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Last 7 days");
-      expect(screen.getByLabelText("Recency legend")).toHaveTextContent("Last 30 days");
-      expect(screen.getByLabelText("Recency legend")).not.toHaveTextContent("Older");
-      expect(screen.getByLabelText("Repeated expense details")).toHaveTextContent(
-        "Groceries: Frequency 114, Recency Last 7 days",
+      expect(screen.getByLabelText("Recency legend")).toHaveTextContent(
+        "Today",
       );
+      expect(screen.getByLabelText("Recency legend")).toHaveTextContent(
+        "Last 7 days",
+      );
+      expect(screen.getByLabelText("Recency legend")).toHaveTextContent(
+        "Last 30 days",
+      );
+      expect(screen.getByLabelText("Recency legend")).not.toHaveTextContent(
+        "Older",
+      );
+      expect(
+        screen.getByLabelText("Repeated expense details"),
+      ).toHaveTextContent("Groceries: Frequency 114, Recency Last 7 days");
       expect(
         mockApi._calls.some((call) =>
           call.url.includes("/api/expenses/suggestions?page=1&pageSize=10"),
@@ -387,7 +668,9 @@ describe("DashboardFeature", () => {
 
       const breakdownTrigger = screen.getByLabelText("Select breakdown chart");
       await user.click(breakdownTrigger);
-      const repeatedOption = await screen.findByRole("option", { name: "Repeated Expenses" });
+      const repeatedOption = await screen.findByRole("option", {
+        name: "Repeated Expenses",
+      });
       await user.click(repeatedOption);
 
       await waitFor(() => {
@@ -403,7 +686,10 @@ describe("DashboardFeature", () => {
         ...dashboardDataWithExpensesRoutes(),
         "/api/expenses/suggestions": {
           status: 500,
-          body: { code: "INTERNAL_SERVER_ERROR", message: "Suggestions failed" },
+          body: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Suggestions failed",
+          },
         },
       });
       globalThis.fetch = mockApi as unknown as typeof fetch;
@@ -411,12 +697,16 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Recent Expenses").length,
+        ).toBeGreaterThanOrEqual(1);
       });
 
       const breakdownTrigger = screen.getByLabelText("Select breakdown chart");
       await user.click(breakdownTrigger);
-      const repeatedOption = await screen.findByRole("option", { name: "Repeated Expenses" });
+      const repeatedOption = await screen.findByRole("option", {
+        name: "Repeated Expenses",
+      });
       await user.click(repeatedOption);
 
       await waitFor(() => {
@@ -425,13 +715,21 @@ describe("DashboardFeature", () => {
         ).toBeInTheDocument();
       });
       expect(screen.queryByText("Suggestions failed")).not.toBeInTheDocument();
-      const errorMessage = screen.getByText("Repeated expenses are unavailable right now.");
+      const errorMessage = screen.getByText(
+        "Repeated expenses are unavailable right now.",
+      );
       const retryButton = errorMessage.parentElement?.querySelector("button");
       expect(retryButton).not.toBeNull();
-      const requestCount = mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length;
+      const requestCount = mockApi._calls.filter((call) =>
+        call.url.includes("/api/expenses/suggestions"),
+      ).length;
       await user.click(retryButton as HTMLElement);
       await waitFor(() => {
-        expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length).toBeGreaterThan(requestCount);
+        expect(
+          mockApi._calls.filter((call) =>
+            call.url.includes("/api/expenses/suggestions"),
+          ).length,
+        ).toBeGreaterThan(requestCount);
       });
     });
 
@@ -443,14 +741,32 @@ describe("DashboardFeature", () => {
       globalThis.fetch = mockApi as unknown as typeof fetch;
       const user = userEvent.setup();
       renderDashboard();
-      await waitFor(() => expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument());
+      await waitFor(() =>
+        expect(
+          screen.getByLabelText("Select breakdown chart"),
+        ).toBeInTheDocument(),
+      );
       await user.click(screen.getByLabelText("Select breakdown chart"));
-      await user.click(await screen.findByRole("option", { name: "Repeated Expenses" }));
-      await waitFor(() => expect(screen.getByText(/Frequency shows how often/i)).toBeInTheDocument());
-      const requestCount = mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length;
-      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+      await user.click(
+        await screen.findByRole("option", { name: "Repeated Expenses" }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByText(/Frequency shows how often/i),
+        ).toBeInTheDocument(),
+      );
+      const requestCount = mockApi._calls.filter((call) =>
+        call.url.includes("/api/expenses/suggestions"),
+      ).length;
+      await user.click(
+        screen.getByRole("button", { name: "Refresh all data" }),
+      );
       await waitFor(() => {
-        expect(mockApi._calls.filter((call) => call.url.includes("/api/expenses/suggestions")).length).toBeGreaterThan(requestCount);
+        expect(
+          mockApi._calls.filter((call) =>
+            call.url.includes("/api/expenses/suggestions"),
+          ).length,
+        ).toBeGreaterThan(requestCount);
       });
     });
 
@@ -505,8 +821,12 @@ describe("DashboardFeature", () => {
       const user = userEvent.setup();
       renderDashboard();
 
-      await waitFor(() => expect(screen.getByText("$3,000.00")).toBeInTheDocument());
-      await user.click(screen.getByRole("button", { name: "Refresh all data" }));
+      await waitFor(() =>
+        expect(screen.getByText("$3,000.00")).toBeInTheDocument(),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Refresh all data" }),
+      );
 
       await waitFor(() => {
         expect(screen.getByText("$4,500.00")).toBeInTheDocument();
@@ -543,7 +863,12 @@ describe("DashboardFeature", () => {
               totalBudget: 0,
               totalSpent: 0,
               remaining: 0,
-              essentials: { allocated: 0, spent: 0, remaining: 0, percentUsed: 0 },
+              essentials: {
+                allocated: 0,
+                spent: 0,
+                remaining: 0,
+                percentUsed: 0,
+              },
               desires: { allocated: 0, spent: 0, remaining: 0, percentUsed: 0 },
               savings: { allocated: 0, spent: 0, remaining: 0, percentUsed: 0 },
             }),
@@ -551,7 +876,9 @@ describe("DashboardFeature", () => {
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },

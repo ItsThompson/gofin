@@ -14,7 +14,9 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Recent Expenses").length,
+        ).toBeGreaterThanOrEqual(1);
       });
 
       expect(screen.getAllByText("Groceries").length).toBeGreaterThan(0);
@@ -31,7 +33,9 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Recent Expenses").length,
+        ).toBeGreaterThanOrEqual(1);
       });
 
       const viewAllLink = screen.getByRole("link", { name: /view all/i });
@@ -46,7 +50,9 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Recent Expenses").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Recent Expenses").length,
+        ).toBeGreaterThanOrEqual(1);
       });
 
       // totalSpent from summary: 54500 cents = $545.00

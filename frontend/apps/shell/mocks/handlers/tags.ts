@@ -38,7 +38,11 @@ export const tagsHandlers = [
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      const tag: Tag = { ...base, name: body.name, updatedAt: new Date().toISOString() };
+      const tag: Tag = {
+        ...base,
+        name: body.name,
+        updatedAt: new Date().toISOString(),
+      };
       return HttpResponse.json({ tag });
     },
   ),

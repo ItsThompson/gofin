@@ -62,7 +62,9 @@ function layoutRoute(
   return {
     path,
     element: <AuthLayout />,
-    children: [{ index: true, element: <div>{content}</div>, handle: { access } }],
+    children: [
+      { index: true, element: <div>{content}</div>, handle: { access } },
+    ],
   };
 }
 
@@ -198,7 +200,11 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
 
   it("renders a 403 for a direct admin on /onboarding (personal), never the onboarding outlet", async () => {
     const unonboardedAdmin = { ...adminUser, hasCompletedOnboarding: false };
-    resetStore({ isAuthenticated: true, isAdmin: true, user: unonboardedAdmin });
+    resetStore({
+      isAuthenticated: true,
+      isAdmin: true,
+      user: unonboardedAdmin,
+    });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -208,7 +214,12 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
 
     renderRouter(
       [
-        layoutRoute(AuthLayout, "/onboarding", "personal", "Onboarding content"),
+        layoutRoute(
+          AuthLayout,
+          "/onboarding",
+          "personal",
+          "Onboarding content",
+        ),
         ...destinationRoutes,
       ],
       "/onboarding",
@@ -220,7 +231,11 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
 
   it("never routes an admin to onboarding: unonboarded admin renders the admin route", async () => {
     const unonboardedAdmin = { ...adminUser, hasCompletedOnboarding: false };
-    resetStore({ isAuthenticated: true, isAdmin: true, user: unonboardedAdmin });
+    resetStore({
+      isAuthenticated: true,
+      isAdmin: true,
+      user: unonboardedAdmin,
+    });
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -242,7 +257,11 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
   });
 
   it("lets an assumed session (role=user) pass a personal route and shows Return to Admin", async () => {
-    resetStore({ isAuthenticated: true, isAssuming: true, user: authenticatedUser });
+    resetStore({
+      isAuthenticated: true,
+      isAssuming: true,
+      user: authenticatedUser,
+    });
     const AuthLayout = await importAuthLayout();
 
     renderRouter(
@@ -269,7 +288,12 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
 
     renderRouter(
       [
-        layoutRoute(AuthLayout, "/settings", "authenticated", "Settings content"),
+        layoutRoute(
+          AuthLayout,
+          "/settings",
+          "authenticated",
+          "Settings content",
+        ),
         ...destinationRoutes,
       ],
       "/settings",
@@ -289,7 +313,11 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
   });
 
   it("keeps full user nav plus Return to Admin for an assumed session", async () => {
-    resetStore({ isAuthenticated: true, isAssuming: true, user: authenticatedUser });
+    resetStore({
+      isAuthenticated: true,
+      isAssuming: true,
+      user: authenticatedUser,
+    });
     const AuthLayout = await importAuthLayout();
 
     renderRouter(
@@ -314,7 +342,11 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
   });
 
   it("restores identity and navigates to /admin on Return to Admin click", async () => {
-    resetStore({ isAuthenticated: true, isAssuming: true, user: authenticatedUser });
+    resetStore({
+      isAuthenticated: true,
+      isAssuming: true,
+      user: authenticatedUser,
+    });
     const AuthLayout = await importAuthLayout();
 
     mockFetch
@@ -355,7 +387,12 @@ describe("AuthLayout - navbar, actions, and access guard", () => {
 
     renderRouter(
       [
-        layoutRoute(AuthLayout, "/expenses/new", "personal", "New expense form"),
+        layoutRoute(
+          AuthLayout,
+          "/expenses/new",
+          "personal",
+          "New expense form",
+        ),
         ...destinationRoutes,
       ],
       "/expenses/new",

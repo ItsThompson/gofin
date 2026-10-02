@@ -30,9 +30,7 @@ export function PaginationControls({ table }: PaginationControlsProps) {
         <span className="text-sm text-muted-foreground">Rows per page:</span>
         <select
           value={pageSize}
-          onChange={(event) =>
-            table.setPageSize(Number(event.target.value))
-          }
+          onChange={(event) => table.setPageSize(Number(event.target.value))}
           className="h-8 rounded-lg border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           aria-label="Page size"
         >

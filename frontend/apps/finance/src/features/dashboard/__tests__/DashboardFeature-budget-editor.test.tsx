@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
+import {
+  buildPeriod,
+  buildPeriodSummary,
+  createMockApi,
+  mockSequence,
+} from "@gofin/test-utils";
 import { renderDashboard } from "./render";
 import { testPeriod, testSummary } from "./fixtures";
 
@@ -10,7 +15,9 @@ function dashboardDataRoutes() {
     "/api/finance/summary": { body: { summary: testSummary } },
     "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
     "/api/finance/spending/cumulative": { body: { points: [] } },
-    "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+    "/api/expenses": {
+      body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+    },
     "/api/finance/spending/comparison": {
       status: 404,
       body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -51,7 +58,9 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
           },
         },
       ]),
-      [`/api/finance/periods/${testPeriod.id}`]: { body: { period: updatedPeriod } },
+      [`/api/finance/periods/${testPeriod.id}`]: {
+        body: { period: updatedPeriod },
+      },
     });
     global.fetch = mockApi as unknown as typeof fetch;
     renderDashboard();
@@ -83,7 +92,9 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
 
     // Editor should close after successful save
     await waitFor(() => {
-      expect(screen.queryByTestId("budget-settings-editor")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("budget-settings-editor"),
+      ).not.toBeInTheDocument();
     });
 
     await waitFor(() => {
@@ -101,10 +112,18 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
         call.method === "PUT",
     );
     expect(putCall).toBeDefined();
-    expect((putCall!.body as { budgetAmount: number }).budgetAmount).toBe(400000);
-    expect((putCall!.body as { essentialsPercent: number }).essentialsPercent).toBe(60);
-    expect((putCall!.body as { desiresPercent: number }).desiresPercent).toBe(25);
-    expect((putCall!.body as { savingsPercent: number }).savingsPercent).toBe(15);
+    expect((putCall!.body as { budgetAmount: number }).budgetAmount).toBe(
+      400000,
+    );
+    expect(
+      (putCall!.body as { essentialsPercent: number }).essentialsPercent,
+    ).toBe(60);
+    expect((putCall!.body as { desiresPercent: number }).desiresPercent).toBe(
+      25,
+    );
+    expect((putCall!.body as { savingsPercent: number }).savingsPercent).toBe(
+      15,
+    );
   });
 
   it("gates stale section content while an edited period reloads", async () => {
@@ -114,18 +133,27 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     const mockApi = createMockApi({
       "/api/finance/periods/current": { body: { period: testPeriod } },
       ...dashboardDataRoutes(),
-      [`/api/finance/periods/${testPeriod.id}`]: { body: { period: updatedPeriod } },
+      [`/api/finance/periods/${testPeriod.id}`]: {
+        body: { period: updatedPeriod },
+      },
     });
     global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes("/api/finance/summary")) {
         summaryCalls += 1;
-        if (summaryCalls > 1) return new Promise<Response>((resolve) => { resolveUpdatedSummary = resolve; });
-        return new Response(JSON.stringify({ summary: testSummary }), { headers: { "Content-Type": "application/json" } });
+        if (summaryCalls > 1)
+          return new Promise<Response>((resolve) => {
+            resolveUpdatedSummary = resolve;
+          });
+        return new Response(JSON.stringify({ summary: testSummary }), {
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return mockApi(input, init);
     }) as typeof fetch;
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("$3,000.00")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("$3,000.00")).toBeInTheDocument(),
+    );
 
     const user = userEvent.setup();
     await user.click(screen.getByLabelText("Budget Settings"));
@@ -138,8 +166,23 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     expect(screen.queryByText("$3,000.00")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Summary loading")).toBeInTheDocument();
 
-    await act(async () => resolveUpdatedSummary(new Response(JSON.stringify({ summary: buildPeriodSummary({ ...testSummary, totalBudget: 400000, remaining: 400000 }) }), { headers: { "Content-Type": "application/json" } })));
-    await waitFor(() => expect(screen.getAllByText("$4,000.00").length).toBeGreaterThan(0));
+    await act(async () =>
+      resolveUpdatedSummary(
+        new Response(
+          JSON.stringify({
+            summary: buildPeriodSummary({
+              ...testSummary,
+              totalBudget: 400000,
+              remaining: 400000,
+            }),
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("$4,000.00").length).toBeGreaterThan(0),
+    );
   });
 
   it("uses the period currency precision for budget input", async () => {
@@ -163,15 +206,21 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     await user.click(screen.getByLabelText("Budget Settings"));
 
     const editor = screen.getByTestId("budget-settings-editor");
-    const budgetInput = within(editor).getByLabelText("Monthly Budget") as HTMLInputElement;
+    const budgetInput = within(editor).getByLabelText(
+      "Monthly Budget",
+    ) as HTMLInputElement;
     expect(budgetInput).toHaveAttribute("step", "1");
     expect(budgetInput.value).toBe("300000");
     expect(within(editor).getByText("¥")).toBeInTheDocument();
 
-    const currencyInput = within(editor).getByLabelText("Reporting Currency") as HTMLInputElement;
+    const currencyInput = within(editor).getByLabelText(
+      "Reporting Currency",
+    ) as HTMLInputElement;
     expect(currencyInput.value).toBe("JPY");
     expect(currencyInput).toHaveAttribute("readonly");
-    expect(within(editor).getByText(/cannot change after period creation/i)).toBeInTheDocument();
+    expect(
+      within(editor).getByText(/cannot change after period creation/i),
+    ).toBeInTheDocument();
   });
 
   it("shows API error when budget save fails", async () => {
@@ -226,7 +275,9 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
       "/api/finance/summary": { body: { summary: testSummary } },
       "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
       "/api/finance/spending/cumulative": { body: { points: [] } },
-      "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+      "/api/expenses": {
+        body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+      },
       "/api/finance/spending/comparison": {
         status: 404,
         body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -261,14 +312,28 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
   it("shows monthly trends section when trend data exists", async () => {
     const trendData = [
       {
-        year: 2026, month: 4, totalSpent: 250000, budgetAmount: 300000,
-        essentialsSpent: 125000, desiresSpent: 75000, savingsSpent: 50000,
-        essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20,
+        year: 2026,
+        month: 4,
+        totalSpent: 250000,
+        budgetAmount: 300000,
+        essentialsSpent: 125000,
+        desiresSpent: 75000,
+        savingsSpent: 50000,
+        essentialsPercent: 50,
+        desiresPercent: 30,
+        savingsPercent: 20,
       },
       {
-        year: 2026, month: 5, totalSpent: 54500, budgetAmount: 300000,
-        essentialsSpent: 50000, desiresSpent: 4500, savingsSpent: 0,
-        essentialsPercent: 50, desiresPercent: 30, savingsPercent: 20,
+        year: 2026,
+        month: 5,
+        totalSpent: 54500,
+        budgetAmount: 300000,
+        essentialsSpent: 50000,
+        desiresSpent: 4500,
+        savingsSpent: 0,
+        essentialsPercent: 50,
+        desiresPercent: 30,
+        savingsPercent: 20,
       },
     ];
 
@@ -277,7 +342,9 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
       "/api/finance/summary": { body: { summary: testSummary } },
       "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
       "/api/finance/spending/cumulative": { body: { points: [] } },
-      "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+      "/api/expenses": {
+        body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+      },
       "/api/finance/spending/comparison": {
         status: 404,
         body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -292,7 +359,9 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     });
 
     // Default chart is "Monthly Spending" shown in Select trigger and chart title
-    expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("Monthly Spending").length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("shows network error message when budget save has connection failure", async () => {
@@ -311,7 +380,10 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     await user.click(screen.getByLabelText("Budget Settings"));
 
     // Override fetch to simulate network failure
-    global.fetch = (() => Promise.reject(new TypeError("Failed to fetch"))) as unknown as typeof fetch;
+    global.fetch = (() =>
+      Promise.reject(
+        new TypeError("Failed to fetch"),
+      )) as unknown as typeof fetch;
 
     await user.click(screen.getByText("Save Changes"));
 

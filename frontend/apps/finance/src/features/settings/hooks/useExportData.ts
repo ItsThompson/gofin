@@ -27,7 +27,10 @@ function hasActiveJobs(jobs: ExportJob[]): boolean {
   );
 }
 
-function computeCanExport(jobs: ExportJob[], nextExportDate: string | null): boolean {
+function computeCanExport(
+  jobs: ExportJob[],
+  nextExportDate: string | null,
+): boolean {
   if (nextExportDate && new Date(nextExportDate) > new Date()) {
     return false;
   }
@@ -60,7 +63,10 @@ function computeNextExportDate(jobs: ExportJob[]): string | null {
   return null;
 }
 
-export function useExportData(): { state: ExportDataState; actions: ExportDataActions } {
+export function useExportData(): {
+  state: ExportDataState;
+  actions: ExportDataActions;
+} {
   const [status, setStatus] = useState<ExportStatus>("loading");
   const [jobs, setJobs] = useState<ExportJob[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +169,9 @@ export function useExportData(): { state: ExportDataState; actions: ExportDataAc
       if (err instanceof ApiRequestError && err.status === 429) {
         const isoMatch = err.message.match(/(\d{4}-\d{2}-\d{2})(T[\d:]+Z)?/);
         if (isoMatch) {
-          const dateStr = isoMatch[2] ? isoMatch[0] : `${isoMatch[1]}T00:00:00Z`;
+          const dateStr = isoMatch[2]
+            ? isoMatch[0]
+            : `${isoMatch[1]}T00:00:00Z`;
           setNextExportDate(dateStr);
         }
         setStatus("idle");

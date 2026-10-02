@@ -10,7 +10,12 @@ import type {
   SplitForm,
 } from "./types";
 
-export type { OnboardingStep, OnboardingState, OnboardingActions, SplitForm } from "./types";
+export type {
+  OnboardingStep,
+  OnboardingState,
+  OnboardingActions,
+  SplitForm,
+} from "./types";
 
 const STEP_ORDER: OnboardingStep[] = ["welcome", "currency", "budget", "split"];
 
@@ -20,7 +25,10 @@ const DEFAULTS = {
   budgetDollars: 0,
 };
 
-export function useOnboarding(): { state: OnboardingState; actions: OnboardingActions } {
+export function useOnboarding(): {
+  state: OnboardingState;
+  actions: OnboardingActions;
+} {
   const navigate = useNavigate();
   const { checkAuth } = useAuthStore();
 
@@ -69,11 +77,19 @@ export function useOnboarding(): { state: OnboardingState; actions: OnboardingAc
   function handleSubmit(event?: FormEvent, useDefaults = false) {
     if (event) event.preventDefault();
 
-    const finalEssentials = useDefaults ? DEFAULT_BUDGET_SPLIT.essentials : (parseInt(form.fields.essentials, 10) || 0);
-    const finalDesires = useDefaults ? DEFAULT_BUDGET_SPLIT.desires : (parseInt(form.fields.desires, 10) || 0);
-    const finalSavings = useDefaults ? DEFAULT_BUDGET_SPLIT.savings : (parseInt(form.fields.savings, 10) || 0);
+    const finalEssentials = useDefaults
+      ? DEFAULT_BUDGET_SPLIT.essentials
+      : parseInt(form.fields.essentials, 10) || 0;
+    const finalDesires = useDefaults
+      ? DEFAULT_BUDGET_SPLIT.desires
+      : parseInt(form.fields.desires, 10) || 0;
+    const finalSavings = useDefaults
+      ? DEFAULT_BUDGET_SPLIT.savings
+      : parseInt(form.fields.savings, 10) || 0;
     const finalCurrency = useDefaults ? DEFAULTS.currency : currency;
-    const finalBudgetDollars = useDefaults ? DEFAULTS.budgetDollars : (parseFloat(budgetDollars) || 0);
+    const finalBudgetDollars = useDefaults
+      ? DEFAULTS.budgetDollars
+      : parseFloat(budgetDollars) || 0;
 
     if (!useDefaults) {
       const validationError = form.validate();
@@ -111,7 +127,7 @@ export function useOnboarding(): { state: OnboardingState; actions: OnboardingAc
     setDesires: (value: string) => form.setField("desires", value),
     setSavings: (value: string) => form.setField("savings", value),
     splitError: form.splitError,
-    clearSplitError: () => {},  // No-op: splitError is derived and auto-clears when fields become valid
+    clearSplitError: () => {}, // No-op: splitError is derived and auto-clears when fields become valid
   };
 
   return {

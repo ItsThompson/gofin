@@ -20,8 +20,13 @@ const OBSERVED_ATTRIBUTES = [
   "aria-hidden",
 ];
 
-export function useDashboardOutline(rootRef: RefObject<HTMLElement | null>): DashboardOutlineState {
-  const [state, setState] = useState<DashboardOutlineState>({ items: [], activeId: null });
+export function useDashboardOutline(
+  rootRef: RefObject<HTMLElement | null>,
+): DashboardOutlineState {
+  const [state, setState] = useState<DashboardOutlineState>({
+    items: [],
+    activeId: null,
+  });
   const outlineElementsRef = useRef<DashboardOutlineElement[]>([]);
   const intersectingIdsRef = useRef<Set<string>>(new Set());
 
@@ -38,9 +43,14 @@ export function useDashboardOutline(rootRef: RefObject<HTMLElement | null>): Das
     const items = toDashboardOutlineItems(outlineElements);
     outlineElementsRef.current = outlineElements;
     intersectingIdsRef.current = new Set(
-      Array.from(intersectingIdsRef.current).filter((id) => hasOutlineItem(items, id)),
+      Array.from(intersectingIdsRef.current).filter((id) =>
+        hasOutlineItem(items, id),
+      ),
     );
-    const activeId = chooseActiveDashboardOutlineItem(items, intersectingIdsRef.current);
+    const activeId = chooseActiveDashboardOutlineItem(
+      items,
+      intersectingIdsRef.current,
+    );
     setState({ items, activeId });
 
     return flattenOutlineElements(outlineElements).map((item) => item.element);
@@ -69,30 +79,35 @@ export function useDashboardOutline(rootRef: RefObject<HTMLElement | null>): Das
   }, [recollect, rootRef]);
 
   useEffect(() => {
-    const observedElements = flattenOutlineElements(outlineElementsRef.current).map((item) => item.element);
+    const observedElements = flattenOutlineElements(
+      outlineElementsRef.current,
+    ).map((item) => item.element);
     if (observedElements.length === 0) return;
 
-    const intersectionObserver = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        const target = entry.target;
-        if (!(target instanceof HTMLElement)) continue;
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const target = entry.target;
+          if (!(target instanceof HTMLElement)) continue;
 
-        if (entry.isIntersecting) {
-          intersectingIdsRef.current.add(target.id);
-          continue;
+          if (entry.isIntersecting) {
+            intersectingIdsRef.current.add(target.id);
+            continue;
+          }
+
+          intersectingIdsRef.current.delete(target.id);
         }
 
-        intersectingIdsRef.current.delete(target.id);
-      }
-
-      setState((previousState) => {
-        const activeId = chooseActiveDashboardOutlineItem(
-          previousState.items,
-          intersectingIdsRef.current,
-        );
-        return { ...previousState, activeId };
-      });
-    }, { threshold: 0.1 });
+        setState((previousState) => {
+          const activeId = chooseActiveDashboardOutlineItem(
+            previousState.items,
+            intersectingIdsRef.current,
+          );
+          return { ...previousState, activeId };
+        });
+      },
+      { threshold: 0.1 },
+    );
 
     for (const element of observedElements) {
       intersectionObserver.observe(element);
@@ -106,10 +121,17 @@ export function useDashboardOutline(rootRef: RefObject<HTMLElement | null>): Das
   return state;
 }
 
-function flattenOutlineElements(items: DashboardOutlineElement[]): DashboardOutlineElement[] {
-  return items.flatMap((item) => [item, ...flattenOutlineElements(item.children)]);
+function flattenOutlineElements(
+  items: DashboardOutlineElement[],
+): DashboardOutlineElement[] {
+  return items.flatMap((item) => [
+    item,
+    ...flattenOutlineElements(item.children),
+  ]);
 }
 
 function hasOutlineItem(items: DashboardOutlineItem[], id: string): boolean {
-  return items.some((item) => item.id === id || hasOutlineItem(item.children, id));
+  return items.some(
+    (item) => item.id === id || hasOutlineItem(item.children, id),
+  );
 }

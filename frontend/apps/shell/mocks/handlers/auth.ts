@@ -9,21 +9,22 @@ export const authHandlers = [
     return HttpResponse.json({ user: currentMockUser });
   }),
 
-  http.post<never, { email: string; password: string }, { user: User } | ApiError>(
-    "/api/auth/login",
-    async ({ request }) => {
-      await simulateLatency();
-      const body = await request.json();
-      const user = allUsers.find((u) => u.email === body.email);
-      if (!user) {
-        return HttpResponse.json(
-          { code: "INVALID_CREDENTIALS", message: "Invalid email or password" },
-          { status: 401 },
-        );
-      }
-      return HttpResponse.json({ user });
-    },
-  ),
+  http.post<
+    never,
+    { email: string; password: string },
+    { user: User } | ApiError
+  >("/api/auth/login", async ({ request }) => {
+    await simulateLatency();
+    const body = await request.json();
+    const user = allUsers.find((u) => u.email === body.email);
+    if (!user) {
+      return HttpResponse.json(
+        { code: "INVALID_CREDENTIALS", message: "Invalid email or password" },
+        { status: 401 },
+      );
+    }
+    return HttpResponse.json({ user });
+  }),
 
   http.post<never, { username: string; email: string }, { user: User }>(
     "/api/auth/register",
@@ -51,26 +52,33 @@ export const authHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.put<never, { username: string; email: string; currency: string }, { user: User }>(
-    "/api/auth/me",
-    async ({ request }) => {
-      await simulateLatency();
-      const body = await request.json();
-      const updated: User = { ...currentMockUser, ...body };
-      return HttpResponse.json({ user: updated });
-    },
-  ),
+  http.put<
+    never,
+    { username: string; email: string; currency: string },
+    { user: User }
+  >("/api/auth/me", async ({ request }) => {
+    await simulateLatency();
+    const body = await request.json();
+    const updated: User = { ...currentMockUser, ...body };
+    return HttpResponse.json({ user: updated });
+  }),
 
   http.post("/api/auth/me/password", async () => {
     await simulateLatency();
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.post<never, never, { user: User }>("/api/auth/onboarding-complete", async () => {
-    await simulateLatency();
-    const updated: User = { ...currentMockUser, hasCompletedOnboarding: true };
-    return HttpResponse.json({ user: updated });
-  }),
+  http.post<never, never, { user: User }>(
+    "/api/auth/onboarding-complete",
+    async () => {
+      await simulateLatency();
+      const updated: User = {
+        ...currentMockUser,
+        hasCompletedOnboarding: true,
+      };
+      return HttpResponse.json({ user: updated });
+    },
+  ),
 
   http.post<never, { userId: string }, { user: User } | ApiError>(
     "/api/auth/assume",

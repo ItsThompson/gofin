@@ -12,9 +12,9 @@ interface CapturedContext {
 }
 
 const { captureException } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 }));
 
 vi.mock("@sentry/react-router", () => ({ captureException }));
@@ -36,9 +36,7 @@ function onlyCapture(): { error: unknown; context: CapturedContext } {
  * `{ __type: "Error", message }` with its stack dropped.
  */
 function serializeServerError(message: string): void {
-  (
-    globalThis as { __reactRouterContext?: unknown }
-  ).__reactRouterContext = {
+  (globalThis as { __reactRouterContext?: unknown }).__reactRouterContext = {
     state: { errors: { root: { __type: "Error", message } } },
   };
 }
@@ -52,10 +50,9 @@ function clearHydrationPayload(): void {
  * is read. One boundary cast keeps the rest out of every call site.
  */
 function routeBoundary(error: unknown): React.ReactElement {
-  return React.createElement(
-    ErrorBoundary,
-    { error } as React.ComponentProps<typeof ErrorBoundary>,
-  );
+  return React.createElement(ErrorBoundary, { error } as React.ComponentProps<
+    typeof ErrorBoundary
+  >);
 }
 
 function ThrowingChild(): React.ReactNode {
@@ -168,7 +165,9 @@ describe("the root route ErrorBoundary", () => {
 
     render(routeBoundary(new Error("leaky internals")));
 
-    expect(document.body.textContent).toContain("An unexpected error occurred.");
+    expect(document.body.textContent).toContain(
+      "An unexpected error occurred.",
+    );
     expect(document.body.textContent).not.toContain("leaky internals");
     expect(document.querySelector("pre")).toBeNull();
 
@@ -200,9 +199,7 @@ describe("an SSR error arriving back through hydration", () => {
 
     render(routeBoundary(new Error("Unexpected Server Error")));
 
-    await waitFor(() =>
-      expect(document.body.textContent).toContain("Oops!"),
-    );
+    await waitFor(() => expect(document.body.textContent).toContain("Oops!"));
     expect(captureException).not.toHaveBeenCalled();
   });
 

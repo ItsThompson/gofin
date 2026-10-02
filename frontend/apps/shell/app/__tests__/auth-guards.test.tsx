@@ -63,7 +63,8 @@ describe("auth guard redirect logic", () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
+      json: () =>
+        Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
     });
   });
 
@@ -108,10 +109,7 @@ describe("auth guard redirect logic", () => {
       resetStore({ isLoading: false, isAuthenticated: false });
       const AuthLayout = await importAuthLayout();
 
-      renderRoute(
-        "/dashboard",
-        <AuthLayout />,
-      );
+      renderRoute("/dashboard", <AuthLayout />);
 
       // Should navigate to /login
       expect(screen.getByText("Login redirect target")).toBeInTheDocument();
@@ -276,9 +274,7 @@ describe("auth guard redirect logic", () => {
           {
             path: "/dashboard",
             element: <AuthLayout />,
-            children: [
-              { index: true, element: <div>Dashboard content</div> },
-            ],
+            children: [{ index: true, element: <div>Dashboard content</div> }],
           },
           { path: "/login", element: <div>Login redirect target</div> },
         ],
@@ -311,9 +307,7 @@ describe("auth guard redirect logic", () => {
           {
             path: "/dashboard",
             element: <AuthLayout />,
-            children: [
-              { index: true, element: <div>Dashboard content</div> },
-            ],
+            children: [{ index: true, element: <div>Dashboard content</div> }],
           },
           { path: "/login", element: <div>Login redirect target</div> },
         ],
@@ -342,9 +336,7 @@ describe("auth guard redirect logic", () => {
           {
             path: "/history",
             element: <AuthLayout />,
-            children: [
-              { index: true, element: <div>History content</div> },
-            ],
+            children: [{ index: true, element: <div>History content</div> }],
           },
           { path: "/login", element: <div>Login redirect target</div> },
         ],
@@ -368,9 +360,7 @@ describe("auth guard redirect logic", () => {
           {
             path: "/history",
             element: <AuthLayout />,
-            children: [
-              { index: true, element: <div>History content</div> },
-            ],
+            children: [{ index: true, element: <div>History content</div> }],
           },
           { path: "/login", element: <div>Login redirect target</div> },
         ],

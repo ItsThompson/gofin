@@ -57,16 +57,12 @@ describe("SectionErrorBoundary", () => {
       </SectionErrorBoundary>,
     );
 
-    expect(
-      screen.getByText("Could not load this section"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Could not load this section")).toBeInTheDocument();
   });
 
   it("renders custom fallback when provided", () => {
     render(
-      <SectionErrorBoundary
-        fallback={<div>Custom error UI</div>}
-      >
+      <SectionErrorBoundary fallback={<div>Custom error UI</div>}>
         <ThrowingComponent shouldThrow={true} />
       </SectionErrorBoundary>,
     );

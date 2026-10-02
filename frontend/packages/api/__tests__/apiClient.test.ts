@@ -108,7 +108,8 @@ describe("apiClient", () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 401,
-          json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "Expired" }),
+          json: () =>
+            Promise.resolve({ code: "UNAUTHORIZED", message: "Expired" }),
         })
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({
@@ -181,7 +182,9 @@ describe("apiClient", () => {
         expect((error as ApiRequestError).status).toBe(422);
         expect((error as ApiRequestError).code).toBe("VALIDATION_ERROR");
         expect((error as ApiRequestError).message).toBe("Invalid input");
-        expect((error as ApiRequestError).fields).toEqual({ email: "Required" });
+        expect((error as ApiRequestError).fields).toEqual({
+          email: "Required",
+        });
       }
     });
 
@@ -198,7 +201,9 @@ describe("apiClient", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ApiRequestError);
         expect((error as ApiRequestError).code).toBe("UNKNOWN_ERROR");
-        expect((error as ApiRequestError).message).toBe("Internal Server Error");
+        expect((error as ApiRequestError).message).toBe(
+          "Internal Server Error",
+        );
       }
     });
 

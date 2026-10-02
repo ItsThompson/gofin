@@ -53,7 +53,9 @@ export function ExportDataSection() {
   }
 
   const isButtonDisabled =
-    state.status === "creating" || state.status === "polling" || !state.canExport;
+    state.status === "creating" ||
+    state.status === "polling" ||
+    !state.canExport;
 
   const showCooldown =
     !state.canExport &&
@@ -66,8 +68,8 @@ export function ExportDataSection() {
       <div>
         <h3 className="text-base font-medium">Data Export</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Export all your personal data as a ZIP of CSV files. The export will be
-          emailed to your registered address.
+          Export all your personal data as a ZIP of CSV files. The export will
+          be emailed to your registered address.
         </p>
       </div>
 

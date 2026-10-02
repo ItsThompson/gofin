@@ -1,4 +1,10 @@
-import { useState, useCallback, useEffect, useRef, type FormEvent } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type FormEvent,
+} from "react";
 import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
 import type { User } from "@gofin/core";
 import type { UpdateDefaultsRequest } from "@gofin/core";
@@ -27,7 +33,10 @@ export interface DefaultBudgetActions {
   handleSubmit: (event: FormEvent) => void;
 }
 
-export function useDefaultBudget(user: User): { state: DefaultBudgetState; actions: DefaultBudgetActions } {
+export function useDefaultBudget(user: User): {
+  state: DefaultBudgetState;
+  actions: DefaultBudgetActions;
+} {
   const [currency, setCurrency] = useState(user.currency);
   const form = useBudgetSplitForm({ currency });
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ kind: "idle" });
@@ -131,7 +140,8 @@ export function useDefaultBudget(user: User): { state: DefaultBudgetState; actio
       fetching,
     },
     actions: {
-      setBudgetDollars: (value: string) => form.setField("budgetDollars", value),
+      setBudgetDollars: (value: string) =>
+        form.setField("budgetDollars", value),
       setEssentials: (value: string) => form.setField("essentials", value),
       setDesires: (value: string) => form.setField("desires", value),
       setSavings: (value: string) => form.setField("savings", value),

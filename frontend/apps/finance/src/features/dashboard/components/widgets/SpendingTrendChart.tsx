@@ -22,7 +22,10 @@ interface SpendingTrendChartProps {
   currency: string;
 }
 
-export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) {
+export function SpendingTrendChart({
+  data,
+  currency,
+}: SpendingTrendChartProps) {
   const chartData = data.map((point) => ({
     label: `${MONTH_LABELS[point.month]} '${String(point.year).slice(2)}`,
     spending: point.totalSpent / 100,
@@ -38,7 +41,12 @@ export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) 
       </CardHeader>
       <CardContent>
         <p className="sr-only">
-          {chartData.map((point) => `${point.label}: ${formatCurrency(point.spending * 100, currency)} spent`).join("; ")}
+          {chartData
+            .map(
+              (point) =>
+                `${point.label}: ${formatCurrency(point.spending * 100, currency)} spent`,
+            )
+            .join("; ")}
         </p>
         <ResponsiveContainer width="100%" height={260}>
           <ComposedChart

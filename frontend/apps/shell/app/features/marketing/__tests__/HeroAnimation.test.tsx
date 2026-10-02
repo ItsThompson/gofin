@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { HeroAnimation } from "../components/HeroAnimation";
 
-const ALT = "A GoFin spending breakdown split into essentials, desires, and savings.";
+const ALT =
+  "A GoFin spending breakdown split into essentials, desires, and savings.";
 
 /** Drive the hero's reduced-motion detection by faking matchMedia.matches. */
 function setPrefersReducedMotion(reduce: boolean): void {

@@ -26,9 +26,7 @@ describe("RemoteLoadError", () => {
   it("displays a generic label when sectionName is not provided", () => {
     render(<RemoteLoadError />);
 
-    expect(
-      screen.getByText("Could not load this section"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Could not load this section")).toBeInTheDocument();
   });
 
   it("renders a helpful troubleshooting message", () => {

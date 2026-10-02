@@ -2,7 +2,13 @@ import { Input } from "../input";
 import { useComboboxContext } from "./ComboboxContext";
 import type { ComboboxInputProps } from "./types";
 
-export function ComboboxInput({ id, onBlur, onFocus, onKeyDown, ...props }: ComboboxInputProps) {
+export function ComboboxInput({
+  id,
+  onBlur,
+  onFocus,
+  onKeyDown,
+  ...props
+}: ComboboxInputProps) {
   const {
     inputId,
     listboxId,
@@ -26,11 +32,12 @@ export function ComboboxInput({ id, onBlur, onFocus, onKeyDown, ...props }: Comb
     const currentIndex = highlightedId
       ? options.findIndex((option) => option.id === highlightedId)
       : -1;
-    const nextIndex = currentIndex === -1
-      ? direction === 1
-        ? 0
-        : options.length - 1
-      : (currentIndex + direction + options.length) % options.length;
+    const nextIndex =
+      currentIndex === -1
+        ? direction === 1
+          ? 0
+          : options.length - 1
+        : (currentIndex + direction + options.length) % options.length;
 
     setIsOpen(true);
     setHighlightedId(options[nextIndex].id);

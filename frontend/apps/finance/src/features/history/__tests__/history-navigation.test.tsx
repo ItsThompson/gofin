@@ -49,9 +49,24 @@ function mockPeriodsAndSummary() {
           dailySpendRate: 6451,
           budgetPace: 9677,
           isOnTrack: true,
-          essentials: { allocated: 150000, spent: 100000, remaining: 50000, percentUsed: 66.67 },
-          desires: { allocated: 90000, spent: 60000, remaining: 30000, percentUsed: 66.67 },
-          savings: { allocated: 60000, spent: 40000, remaining: 20000, percentUsed: 66.67 },
+          essentials: {
+            allocated: 150000,
+            spent: 100000,
+            remaining: 50000,
+            percentUsed: 66.67,
+          },
+          desires: {
+            allocated: 90000,
+            spent: 60000,
+            remaining: 30000,
+            percentUsed: 66.67,
+          },
+          savings: {
+            allocated: 60000,
+            spent: 40000,
+            remaining: 20000,
+            percentUsed: 66.67,
+          },
         },
       }),
   });
@@ -95,9 +110,24 @@ describe("HistoryFeature - back navigation", () => {
             daysInPeriod: 31,
             daysElapsed: 31,
             isOnTrack: true,
-            essentials: { allocated: 150000, spent: 100000, remaining: 50000, percentUsed: 66.67 },
-            desires: { allocated: 90000, spent: 60000, remaining: 30000, percentUsed: 66.67 },
-            savings: { allocated: 60000, spent: 40000, remaining: 20000, percentUsed: 66.67 },
+            essentials: {
+              allocated: 150000,
+              spent: 100000,
+              remaining: 50000,
+              percentUsed: 66.67,
+            },
+            desires: {
+              allocated: 90000,
+              spent: 60000,
+              remaining: 30000,
+              percentUsed: 66.67,
+            },
+            savings: {
+              allocated: 60000,
+              spent: 40000,
+              remaining: 20000,
+              percentUsed: 66.67,
+            },
           },
         }),
     });
@@ -114,7 +144,14 @@ describe("HistoryFeature - back navigation", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+      json: () =>
+        Promise.resolve({
+          data: [],
+          total: 0,
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+        }),
     });
     mockFetch.mockResolvedValueOnce({
       ok: false,

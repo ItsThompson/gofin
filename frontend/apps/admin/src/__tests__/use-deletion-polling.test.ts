@@ -10,14 +10,15 @@ function buildPollResponse(status: string, error: string | null = null) {
   return {
     ok: true,
     status: 200,
-    json: () => Promise.resolve({
-      id: "job-1",
-      userId: "user-1",
-      status,
-      error,
-      createdAt: "2026-05-10T00:00:00Z",
-      completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
-    }),
+    json: () =>
+      Promise.resolve({
+        id: "job-1",
+        userId: "user-1",
+        status,
+        error,
+        createdAt: "2026-05-10T00:00:00Z",
+        completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
+      }),
   };
 }
 
@@ -84,7 +85,9 @@ describe("useDeletionPolling", () => {
     const onStatusChange = vi.fn();
     mockFetch.mockResolvedValue(buildPollResponse("completed"));
 
-    renderHook(() => useDeletionPolling({ ...defaultOptions, onCompleted, onStatusChange }));
+    renderHook(() =>
+      useDeletionPolling({ ...defaultOptions, onCompleted, onStatusChange }),
+    );
 
     await act(async () => {
       vi.advanceTimersByTime(2500);
@@ -97,16 +100,23 @@ describe("useDeletionPolling", () => {
   it("calls onFailed with error message when status is failed", async () => {
     const onFailed = vi.fn();
     const onStatusChange = vi.fn();
-    mockFetch.mockResolvedValue(buildPollResponse("failed", "auth provider timeout"));
+    mockFetch.mockResolvedValue(
+      buildPollResponse("failed", "auth provider timeout"),
+    );
 
-    renderHook(() => useDeletionPolling({ ...defaultOptions, onFailed, onStatusChange }));
+    renderHook(() =>
+      useDeletionPolling({ ...defaultOptions, onFailed, onStatusChange }),
+    );
 
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
 
     expect(onFailed).toHaveBeenCalledWith("auth provider timeout");
-    expect(onStatusChange).toHaveBeenCalledWith("failed", "auth provider timeout");
+    expect(onStatusChange).toHaveBeenCalledWith(
+      "failed",
+      "auth provider timeout",
+    );
   });
 
   it("calls onFailed with 'Unknown error' when error field is null", async () => {
@@ -147,7 +157,9 @@ describe("useDeletionPolling", () => {
     mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     mockFetch.mockResolvedValueOnce(buildPollResponse("running"));
 
-    renderHook(() => useDeletionPolling({ ...defaultOptions, onFailed, onStatusChange }));
+    renderHook(() =>
+      useDeletionPolling({ ...defaultOptions, onFailed, onStatusChange }),
+    );
 
     await act(async () => {
       vi.advanceTimersByTime(2500);

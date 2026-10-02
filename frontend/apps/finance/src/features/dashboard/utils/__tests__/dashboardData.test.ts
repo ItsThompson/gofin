@@ -11,9 +11,16 @@ describe("dashboard data utilities", () => {
   });
 
   it("formats known and unknown period errors", () => {
-    const apiError = new ApiRequestError(404, { code: "PERIOD_NOT_FOUND", message: "Missing period" });
+    const apiError = new ApiRequestError(404, {
+      code: "PERIOD_NOT_FOUND",
+      message: "Missing period",
+    });
     expect(getPeriodErrorMessage(apiError)).toBe("Missing period");
-    expect(getPeriodErrorMessage(new Error("Network failure"))).toBe("Network failure");
-    expect(getPeriodErrorMessage({})).toBe("This period is unavailable right now.");
+    expect(getPeriodErrorMessage(new Error("Network failure"))).toBe(
+      "Network failure",
+    );
+    expect(getPeriodErrorMessage({})).toBe(
+      "This period is unavailable right now.",
+    );
   });
 });

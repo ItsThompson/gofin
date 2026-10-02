@@ -2,7 +2,11 @@ import { useState, useCallback } from "react";
 import { isNetworkError, reportError } from "@gofin/api";
 import { toast } from "sonner";
 import { useDeletionPolling } from "./useDeletionPolling";
-import type { DeletionJobResponse, DeletionStateMap, DeletionStatus } from "../components/DeleteUserDialog/types";
+import type {
+  DeletionJobResponse,
+  DeletionStateMap,
+  DeletionStatus,
+} from "../components/DeleteUserDialog/types";
 
 export interface UserDeletionState {
   /** User currently targeted for deletion confirmation dialog, or null. */
@@ -30,27 +34,40 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
   state: UserDeletionState;
   actions: UserDeletionActions;
 } {
-  const [deletingUser, setDeletingUser] = useState<{ id: string; username: string } | null>(null);
+  const [deletingUser, setDeletingUser] = useState<{
+    id: string;
+    username: string;
+  } | null>(null);
   const [deletionStates, setDeletionStates] = useState<DeletionStateMap>({});
-  const [activePolling, setActivePolling] = useState<{ jobId: string; userId: string; username: string } | null>(null);
+  const [activePolling, setActivePolling] = useState<{
+    jobId: string;
+    userId: string;
+    username: string;
+  } | null>(null);
 
-  const handleDeletionSuccess = useCallback((job: DeletionJobResponse) => {
-    const username = deletingUser?.username ?? "";
-    setDeletionStates((prev) => ({
-      ...prev,
-      [job.userId]: { jobId: job.id, status: "pending" },
-    }));
-    setActivePolling({ jobId: job.id, userId: job.userId, username });
-    setDeletingUser(null);
-  }, [deletingUser]);
+  const handleDeletionSuccess = useCallback(
+    (job: DeletionJobResponse) => {
+      const username = deletingUser?.username ?? "";
+      setDeletionStates((prev) => ({
+        ...prev,
+        [job.userId]: { jobId: job.id, status: "pending" },
+      }));
+      setActivePolling({ jobId: job.id, userId: job.userId, username });
+      setDeletingUser(null);
+    },
+    [deletingUser],
+  );
 
-  const handleStatusChange = useCallback((status: DeletionStatus, error?: string) => {
-    if (!activePolling) return;
-    setDeletionStates((prev) => ({
-      ...prev,
-      [activePolling.userId]: { jobId: activePolling.jobId, status, error },
-    }));
-  }, [activePolling]);
+  const handleStatusChange = useCallback(
+    (status: DeletionStatus, error?: string) => {
+      if (!activePolling) return;
+      setDeletionStates((prev) => ({
+        ...prev,
+        [activePolling.userId]: { jobId: activePolling.jobId, status, error },
+      }));
+    },
+    [activePolling],
+  );
 
   const handlePollingCompleted = useCallback(() => {
     if (!activePolling) return;
@@ -65,12 +82,15 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
     options.onUserRemoved(userId);
   }, [activePolling, options]);
 
-  const handlePollingFailed = useCallback((error: string) => {
-    if (!activePolling) return;
-    const { username } = activePolling;
-    setActivePolling(null);
-    toast.error(`Deletion of "${username}" failed: ${error}`);
-  }, [activePolling]);
+  const handlePollingFailed = useCallback(
+    (error: string) => {
+      if (!activePolling) return;
+      const { username } = activePolling;
+      setActivePolling(null);
+      toast.error(`Deletion of "${username}" failed: ${error}`);
+    },
+    [activePolling],
+  );
 
   const handleStatusUnavailable = useCallback(
     (error: unknown) => {
@@ -112,9 +132,12 @@ export function useUserDeletion(options: UseUserDeletionOptions): {
     onStatusUnavailable: handleStatusUnavailable,
   });
 
-  const startDeletion = useCallback((user: { id: string; username: string }) => {
-    setDeletingUser(user);
-  }, []);
+  const startDeletion = useCallback(
+    (user: { id: string; username: string }) => {
+      setDeletingUser(user);
+    },
+    [],
+  );
 
   const cancelDeletion = useCallback(() => {
     setDeletingUser(null);

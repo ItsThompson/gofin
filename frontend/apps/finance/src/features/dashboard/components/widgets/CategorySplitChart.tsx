@@ -16,7 +16,10 @@ import {
   CardTitle,
 } from "@gofin/ui/components/card";
 import type { TrendPoint } from "@gofin/core";
-import { computeCategoryPercentages, MONTH_LABELS } from "../../../../lib/trend-utils";
+import {
+  computeCategoryPercentages,
+  MONTH_LABELS,
+} from "../../../../lib/trend-utils";
 
 interface CategorySplitChartProps {
   data: TrendPoint[];
@@ -60,7 +63,9 @@ export function CategorySplitChart({ data }: CategorySplitChartProps) {
             />
             <Tooltip
               formatter={(value, name) => {
-                const label = (name as string).replace("Actual", "").replace("Budget", " target");
+                const label = (name as string)
+                  .replace("Actual", "")
+                  .replace("Budget", " target");
                 return [`${value}%`, label];
               }}
             />

@@ -19,7 +19,10 @@ export function HealthScoreConfigurePrompt() {
         <CardTitle className="text-base">Financial Health</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
-        <HeartPulse className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <HeartPulse
+          className="size-8 text-muted-foreground/50"
+          aria-hidden="true"
+        />
         <p className="text-sm text-muted-foreground">
           Set a budget to see your health score.
         </p>

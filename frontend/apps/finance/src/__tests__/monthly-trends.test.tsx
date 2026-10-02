@@ -98,7 +98,9 @@ describe("TrendsSection", () => {
 
     expect(screen.getByLabelText("Select trend chart")).toBeInTheDocument();
     // Monthly Spending appears in both the Select trigger and chart title
-    expect(screen.getAllByText("Monthly Spending").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("Monthly Spending").length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("keeps the trend controls visible when data is empty", () => {
@@ -128,7 +130,9 @@ describe("TrendsSection", () => {
     );
 
     expect(screen.getByRole("radio", { name: "6 months" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "12 months" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "12 months" }),
+    ).toBeInTheDocument();
   });
 
   it("calls onToggle when 12M is clicked", async () => {
@@ -183,10 +187,14 @@ describe("TrendsSection", () => {
 
     const trigger = screen.getByLabelText("Select trend chart");
     await user.click(trigger);
-    const categorySplitOption = await screen.findByRole("option", { name: "Category Split" });
+    const categorySplitOption = await screen.findByRole("option", {
+      name: "Category Split",
+    });
     await user.click(categorySplitOption);
 
     // Category Split appears in both Select trigger and chart title
-    expect(screen.getAllByText("Category Split").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Category Split").length).toBeGreaterThanOrEqual(
+      2,
+    );
   });
 });

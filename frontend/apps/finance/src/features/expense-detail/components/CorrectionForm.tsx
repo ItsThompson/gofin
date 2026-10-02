@@ -103,11 +103,7 @@ export function CorrectionForm({
 
       <FormField>
         <FormLabel>Type</FormLabel>
-        <div
-          className="flex gap-4"
-          role="radiogroup"
-          aria-label="Expense type"
-        >
+        <div className="flex gap-4" role="radiogroup" aria-label="Expense type">
           {EXPENSE_TYPES.map((type) => (
             <label
               key={type}

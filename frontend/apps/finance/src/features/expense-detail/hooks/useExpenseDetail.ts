@@ -1,6 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useApiToast, useFormMutation } from "@gofin/api";
-import type { Expense, CorrectExpenseRequest, ExpenseResponse, PaginatedResponse } from "@gofin/core";
+import type {
+  Expense,
+  CorrectExpenseRequest,
+  ExpenseResponse,
+  PaginatedResponse,
+} from "@gofin/core";
 import { expenseDetailApi } from "../api";
 import type {
   ExpenseDetailState,
@@ -18,7 +23,9 @@ export function useExpenseDetail(
   const [expense, setExpense] = useState<Expense | null>(null);
   const [history, setHistory] = useState<Expense[]>([]);
   const [proRataGroup, setProRataGroup] = useState<Expense[]>([]);
-  const [status, setStatus] = useState<"loading" | "detail" | "correct" | "error">("loading");
+  const [status, setStatus] = useState<
+    "loading" | "detail" | "correct" | "error"
+  >("loading");
   const [error, setError] = useState<string | null>(null);
 
   // The installment list is supplementary to the detail view, but a failure to

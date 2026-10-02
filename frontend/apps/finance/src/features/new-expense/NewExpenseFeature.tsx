@@ -25,10 +25,7 @@ export function NewExpenseFeature({ user }: FinancePageProps) {
     return <LoadingPeriodCard />;
   }
 
-  if (
-    periodContext.status === "missing" ||
-    periodContext.status === "error"
-  ) {
+  if (periodContext.status === "missing" || periodContext.status === "error") {
     return (
       <MissingPeriodCard
         year={currentYear}

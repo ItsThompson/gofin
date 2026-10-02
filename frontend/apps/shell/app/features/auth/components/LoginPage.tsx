@@ -52,7 +52,9 @@ export function LoginPage() {
                 type="email"
                 placeholder="you@example.com"
                 value={state.credentials.email}
-                onChange={(event) => actions.setField("email", event.target.value)}
+                onChange={(event) =>
+                  actions.setField("email", event.target.value)
+                }
                 autoComplete="email"
                 required
               />
@@ -65,7 +67,9 @@ export function LoginPage() {
                 type="password"
                 placeholder="Enter your password"
                 value={state.credentials.password}
-                onChange={(event) => actions.setField("password", event.target.value)}
+                onChange={(event) =>
+                  actions.setField("password", event.target.value)
+                }
                 autoComplete="current-password"
                 required
               />
@@ -73,7 +77,11 @@ export function LoginPage() {
 
             {state.error && <FormMessage>{state.error}</FormMessage>}
 
-            <Button type="submit" className="w-full" disabled={state.submitting}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={state.submitting}
+            >
               {state.submitting ? "Signing in..." : "Sign in"}
             </Button>
 

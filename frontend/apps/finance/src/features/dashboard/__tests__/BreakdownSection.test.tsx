@@ -7,7 +7,12 @@ import type { ExpenseSuggestionsState } from "../types";
 
 const mockTagSpending = [
   { tagId: "tag-food", tagName: "Food", amount: 50000, percentOfTotal: 91.74 },
-  { tagId: "tag-social", tagName: "Social", amount: 4500, percentOfTotal: 8.26 },
+  {
+    tagId: "tag-social",
+    tagName: "Social",
+    amount: 4500,
+    percentOfTotal: 8.26,
+  },
 ];
 
 const mockFrecencyData: ExpenseSuggestionsState = {
@@ -28,7 +33,9 @@ const mockFrecencyData: ExpenseSuggestionsState = {
   errorMessage: null,
 };
 
-function renderBreakdown(props?: Partial<Parameters<typeof BreakdownSection>[0]>) {
+function renderBreakdown(
+  props?: Partial<Parameters<typeof BreakdownSection>[0]>,
+) {
   return render(
     <MemoryRouter>
       <BreakdownSection
@@ -45,13 +52,17 @@ describe("BreakdownSection", () => {
   it("renders Select with 'Spending by Tag' as default", () => {
     renderBreakdown();
     expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument();
-    expect(screen.getAllByText("Spending by Tag").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("Spending by Tag").length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("shows TagSpendingChart by default", () => {
     renderBreakdown();
     // TagSpendingChart renders a card with title "Spending by Tag"
-    expect(screen.getAllByText("Spending by Tag").length).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getAllByText("Spending by Tag").length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("switches to Repeated Expenses chart when selected", async () => {
@@ -60,7 +71,9 @@ describe("BreakdownSection", () => {
 
     const trigger = screen.getByLabelText("Select breakdown chart");
     await user.click(trigger);
-    const option = await screen.findByRole("option", { name: "Repeated Expenses" });
+    const option = await screen.findByRole("option", {
+      name: "Repeated Expenses",
+    });
     await user.click(option);
 
     // ExpenseFrecencyChart renders with success state content
@@ -72,7 +85,11 @@ describe("BreakdownSection", () => {
   it("shows empty state when tag spending is empty and frecency is empty", () => {
     renderBreakdown({
       tagSpending: [],
-      expenseFrecencyData: { status: "empty", suggestions: [], errorMessage: null },
+      expenseFrecencyData: {
+        status: "empty",
+        suggestions: [],
+        errorMessage: null,
+      },
     });
     // TagSpendingChart still renders its card even with no data (no tags shown)
     expect(screen.getByLabelText("Select breakdown chart")).toBeInTheDocument();

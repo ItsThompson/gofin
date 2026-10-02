@@ -44,14 +44,21 @@ export interface TagsCrudActions {
   handleDelete: (tagId: string) => void;
 }
 
-export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions } {
+export function useTagsCrud(): {
+  state: TagsCrudState;
+  actions: TagsCrudActions;
+} {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTagName, setNewTagName] = useState("");
   const [editing, setEditing] = useState<EditingTag | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const { submit, error: mutationError, submitting: saving } = useFormMutation<void>();
+  const {
+    submit,
+    error: mutationError,
+    submitting: saving,
+  } = useFormMutation<void>();
 
   const fetchTags = useCallback(async () => {
     try {
@@ -83,7 +90,11 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
       submit(async () => {
         try {
           const response = await settingsApi.createTag(trimmed);
-          setTags((prev) => [...prev, response.tag].sort((a, b) => a.name.localeCompare(b.name)));
+          setTags((prev) =>
+            [...prev, response.tag].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          );
           setNewTagName("");
         } catch (err) {
           if (err instanceof ApiRequestError && err.code === "DUPLICATE_TAG") {
@@ -111,33 +122,32 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
     setEditing((prev) => (prev ? { ...prev, name } : prev));
   }, []);
 
-  const handleSaveEdit = useCallback(
-    () => {
-      if (!editing) return;
-      const trimmed = editing.name.trim();
-      if (!trimmed) return;
+  const handleSaveEdit = useCallback(() => {
+    if (!editing) return;
+    const trimmed = editing.name.trim();
+    if (!trimmed) return;
 
-      const tagId = editing.id;
-      submit(async () => {
-        try {
-          const response = await settingsApi.updateTag(tagId, trimmed);
-          setTags((prev) =>
-            prev.map((tag) => (tag.id === tagId ? response.tag : tag)).sort((a, b) => a.name.localeCompare(b.name)),
-          );
-          setEditing(null);
-        } catch (err) {
-          if (err instanceof ApiRequestError && err.code === "DUPLICATE_TAG") {
-            throw new ApiRequestError(err.status, {
-              code: err.code,
-              message: `A tag named "${trimmed}" already exists.`,
-            });
-          }
-          throw err;
+    const tagId = editing.id;
+    submit(async () => {
+      try {
+        const response = await settingsApi.updateTag(tagId, trimmed);
+        setTags((prev) =>
+          prev
+            .map((tag) => (tag.id === tagId ? response.tag : tag))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+        setEditing(null);
+      } catch (err) {
+        if (err instanceof ApiRequestError && err.code === "DUPLICATE_TAG") {
+          throw new ApiRequestError(err.status, {
+            code: err.code,
+            message: `A tag named "${trimmed}" already exists.`,
+          });
         }
-      });
-    },
-    [editing, submit],
-  );
+        throw err;
+      }
+    });
+  }, [editing, submit]);
 
   const handleDelete = useCallback(
     (tagId: string) => {
@@ -162,7 +172,23 @@ export function useTagsCrud(): { state: TagsCrudState; actions: TagsCrudActions 
   );
 
   return {
-    state: { tags, loading, newTagName, editing, error: mutationError, loadError, saving },
-    actions: { setNewTagName, setEditingValue, handleAddTag, handleStartEdit, handleCancelEdit, handleSaveEdit, handleDelete },
+    state: {
+      tags,
+      loading,
+      newTagName,
+      editing,
+      error: mutationError,
+      loadError,
+      saving,
+    },
+    actions: {
+      setNewTagName,
+      setEditingValue,
+      handleAddTag,
+      handleStartEdit,
+      handleCancelEdit,
+      handleSaveEdit,
+      handleDelete,
+    },
   };
 }

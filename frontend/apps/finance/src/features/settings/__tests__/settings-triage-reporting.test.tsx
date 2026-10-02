@@ -11,9 +11,9 @@ interface CapturedContext {
 }
 
 const { captureException, toastError } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
   toastError: vi.fn(),
 }));
 
@@ -68,7 +68,9 @@ describe("the tags list", () => {
     render(<TagsSection />);
 
     await waitFor(() =>
-      expect(screen.getByText("No tags yet. Add one above.")).toBeInTheDocument(),
+      expect(
+        screen.getByText("No tags yet. Add one above."),
+      ).toBeInTheDocument(),
     );
     expect(captureException).not.toHaveBeenCalled();
   });

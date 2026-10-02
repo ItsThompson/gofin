@@ -35,10 +35,34 @@ const mockThompsonAdmin: User = {
 };
 
 const mockUsers = [
-  { id: "user-1", username: "alice", email: "alice@example.com", role: "user", createdAt: "2026-01-15T00:00:00Z" },
-  { id: "admin-1", username: "admin", email: "admin@gofin.local", role: "admin", createdAt: "2026-01-01T00:00:00Z" },
-  { id: "user-2", username: "bob", email: "bob@example.com", role: "user", createdAt: "2026-02-01T00:00:00Z" },
-  { id: "thompson-1", username: "thompson", email: "thompson@gofin.local", role: "admin", createdAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "user-1",
+    username: "alice",
+    email: "alice@example.com",
+    role: "user",
+    createdAt: "2026-01-15T00:00:00Z",
+  },
+  {
+    id: "admin-1",
+    username: "admin",
+    email: "admin@gofin.local",
+    role: "admin",
+    createdAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "user-2",
+    username: "bob",
+    email: "bob@example.com",
+    role: "user",
+    createdAt: "2026-02-01T00:00:00Z",
+  },
+  {
+    id: "thompson-1",
+    username: "thompson",
+    email: "thompson@gofin.local",
+    role: "admin",
+    createdAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const mockDeletionJob = {
@@ -78,12 +102,13 @@ function mockDeletionPollResponse(status: string, error: string | null = null) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     status: 200,
-    json: () => Promise.resolve({
-      ...mockDeletionJob,
-      status,
-      error,
-      completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
-    }),
+    json: () =>
+      Promise.resolve({
+        ...mockDeletionJob,
+        status,
+        error,
+        completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
+      }),
   });
 }
 
@@ -98,14 +123,24 @@ describe("AdminPanelPage", () => {
   it("renders loading state initially", () => {
     // Never resolve the fetch
     mockFetch.mockReturnValueOnce(new Promise(() => {}));
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     expect(screen.getByText("Loading users...")).toBeInTheDocument();
   });
 
   it("renders user table on successful fetch", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
@@ -118,7 +153,12 @@ describe("AdminPanelPage", () => {
 
   it("highlights current admin with 'You' badge", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("You")).toBeInTheDocument();
@@ -127,7 +167,12 @@ describe("AdminPanelPage", () => {
 
   it("shows Assume button for non-admin users only", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
@@ -143,7 +188,12 @@ describe("AdminPanelPage", () => {
     mockOnAssume.mockResolvedValueOnce(undefined);
 
     const user = userEvent.setup();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
@@ -157,7 +207,12 @@ describe("AdminPanelPage", () => {
 
   it("renders error state on fetch failure", async () => {
     mockFetchError("Server error");
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Something went wrong")).toBeInTheDocument();
@@ -168,13 +223,20 @@ describe("AdminPanelPage", () => {
 
   it("renders System Monitoring section with Grafana link", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("System Monitoring")).toBeInTheDocument();
     });
 
-    const grafanaLink = screen.getByRole("link", { name: /open grafana dashboards/i });
+    const grafanaLink = screen.getByRole("link", {
+      name: /open grafana dashboards/i,
+    });
     expect(grafanaLink).toHaveAttribute("href", "http://localhost:3002");
     expect(grafanaLink).toHaveAttribute("target", "_blank");
     expect(grafanaLink).toHaveAttribute("rel", "noopener noreferrer");
@@ -194,14 +256,21 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("System Monitoring")).toBeInTheDocument();
     });
 
-    const grafanaLink = screen.getByRole("link", { name: /open grafana dashboards/i });
+    const grafanaLink = screen.getByRole("link", {
+      name: /open grafana dashboards/i,
+    });
     expect(grafanaLink).toHaveAttribute("href", "https://grafana.example.com");
   });
 
   it("retries fetch on retry button click", async () => {
     mockFetchError("Server error");
     const user = userEvent.setup();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Something went wrong")).toBeInTheDocument();
@@ -219,7 +288,12 @@ describe("AdminPanelPage", () => {
 
   it("shows delete button for non-protected, non-self users only", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
@@ -228,50 +302,86 @@ describe("AdminPanelPage", () => {
     // Delete buttons should appear for alice and bob only
     const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
     expect(deleteButtons).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Delete alice" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete bob" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete alice" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete bob" }),
+    ).toBeInTheDocument();
   });
 
   it("hides delete button for protected user thompson", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("thompson")).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole("button", { name: "Delete thompson" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete thompson" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides delete button for current admin (self)", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete admin" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides delete button when logged in as thompson viewing admin", async () => {
     mockFetchSuccess();
-    render(<AdminPanelPage currentUser={mockThompsonAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockThompsonAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole("button", { name: "Delete admin" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete thompson" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete alice" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete bob" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete admin" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete thompson" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete alice" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete bob" }),
+    ).toBeInTheDocument();
   });
 
   it("opens delete dialog when trashcan button is clicked", async () => {
     mockFetchSuccess();
     const user = userEvent.setup();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
@@ -287,14 +397,22 @@ describe("AdminPanelPage", () => {
   it("shows spinner and 'Deleting...' for pending/running user", async () => {
     mockFetchSuccess();
     const user = userEvent.setup();
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     mockDeletionPostSuccess();
@@ -306,7 +424,9 @@ describe("AdminPanelPage", () => {
     });
 
     // Assume and Delete buttons should NOT be present for alice
-    expect(screen.queryByRole("button", { name: "Delete alice" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete alice" }),
+    ).not.toBeInTheDocument();
   });
 
   it("removes user from table after polling returns completed", async () => {
@@ -314,14 +434,22 @@ describe("AdminPanelPage", () => {
     mockFetchSuccess();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const { toast } = await import("sonner");
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     mockDeletionPostSuccess();
@@ -351,14 +479,22 @@ describe("AdminPanelPage", () => {
     mockFetchSuccess();
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const { toast } = await import("sonner");
-    render(<AdminPanelPage currentUser={mockAdmin} onAssumeIdentity={mockOnAssume} />);
+    render(
+      <AdminPanelPage
+        currentUser={mockAdmin}
+        onAssumeIdentity={mockOnAssume}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("alice")).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Delete alice" }));
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     mockDeletionPostSuccess();
@@ -369,7 +505,10 @@ describe("AdminPanelPage", () => {
       expect(screen.getByText("Deleting...")).toBeInTheDocument();
     });
 
-    mockDeletionPollResponse("failed", "Provider finance failed: connection timeout");
+    mockDeletionPollResponse(
+      "failed",
+      "Provider finance failed: connection timeout",
+    );
     await act(async () => {
       vi.advanceTimersByTime(2500);
     });
@@ -379,7 +518,9 @@ describe("AdminPanelPage", () => {
     });
 
     // Delete button should be re-enabled for retry
-    expect(screen.getByRole("button", { name: "Delete alice" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete alice" }),
+    ).toBeInTheDocument();
     expect(toast.error).toHaveBeenCalledWith(
       'Deletion of "alice" failed: Provider finance failed: connection timeout',
     );

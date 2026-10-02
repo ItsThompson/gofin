@@ -41,7 +41,9 @@ export interface ClientInitOptions extends BrowserOptions {
   beforeSend: NonNullable<BrowserOptions["beforeSend"]>;
 }
 
-export declare function clientOptions(args: ClientOptionsArgs): ClientInitOptions;
+export declare function clientOptions(
+  args: ClientOptionsArgs,
+): ClientInitOptions;
 
 export interface ServerOptionsArgs {
   dsn: string;
@@ -58,4 +60,6 @@ export interface ServerInitOptions extends NodeOptions {
   beforeSend: NonNullable<NodeOptions["beforeSend"]>;
 }
 
-export declare function serverOptions(args: ServerOptionsArgs): ServerInitOptions;
+export declare function serverOptions(
+  args: ServerOptionsArgs,
+): ServerInitOptions;

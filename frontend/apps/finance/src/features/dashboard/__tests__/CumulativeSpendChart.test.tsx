@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import {
-  CumulativeSpendChart,
-} from "../components/widgets/CumulativeSpendChart";
+import { CumulativeSpendChart } from "../components/widgets/CumulativeSpendChart";
 import {
   tooltipFormatter,
   tooltipLabelFormatter,

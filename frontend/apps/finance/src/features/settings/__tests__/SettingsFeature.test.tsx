@@ -86,7 +86,9 @@ describe("SettingsFeature", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
 
     // Each tab label renders 3 times: desktop sidebar + desktop card title + mobile accordion
-    expect(screen.getAllByText("Default Budget").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("Default Budget").length).toBeGreaterThanOrEqual(
+      2,
+    );
     expect(screen.getAllByText("Profile").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Password").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Tags").length).toBeGreaterThanOrEqual(2);
@@ -115,7 +117,9 @@ describe("SettingsFeature", () => {
       expect((savingsInputs[0] as HTMLInputElement).value).toBe("20");
 
       expect(
-        screen.getAllByText(/default currency applies only when you create a new budget period/i).length,
+        screen.getAllByText(
+          /default currency applies only when you create a new budget period/i,
+        ).length,
       ).toBeGreaterThanOrEqual(1);
     });
 
@@ -125,12 +129,21 @@ describe("SettingsFeature", () => {
       renderSettings();
 
       await waitFor(() => {
-        expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute("step", "0.01");
+        expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute(
+          "step",
+          "0.01",
+        );
       });
 
-      await user.selectOptions(screen.getAllByLabelText("Default Currency")[0], "JPY");
+      await user.selectOptions(
+        screen.getAllByLabelText("Default Currency")[0],
+        "JPY",
+      );
 
-      expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute("step", "1");
+      expect(screen.getAllByLabelText("Monthly Budget")[0]).toHaveAttribute(
+        "step",
+        "1",
+      );
     });
 
     it("validates E/D/S split sums to 100%", async () => {
@@ -238,12 +251,17 @@ describe("SettingsFeature", () => {
       global.fetch = createMockApi({
         "/api/finance/defaults": {
           status: 500,
-          body: { code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" },
+          body: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Database connection failed",
+          },
         },
       }) as unknown as typeof fetch;
 
       const settingsUser = buildUser({ currency: "USD" });
-      renderWithRouter(<SettingsFeature user={settingsUser} />, { route: "/settings" });
+      renderWithRouter(<SettingsFeature user={settingsUser} />, {
+        route: "/settings",
+      });
 
       // Page should still render with fallback defaults (0 budget, 50/30/20 split)
       await waitFor(() => {
@@ -332,7 +350,11 @@ describe("SettingsFeature", () => {
       await user.type(emailInput, "taken@example.com");
 
       // Mock 409 duplicate email
-      mockApiError(409, "DUPLICATE_EMAIL", "An account with this email already exists");
+      mockApiError(
+        409,
+        "DUPLICATE_EMAIL",
+        "An account with this email already exists",
+      );
 
       const submitButton = screen.getByRole("button", {
         name: /update profile/i,
@@ -458,19 +480,12 @@ describe("SettingsFeature", () => {
         expect(screen.getByLabelText("Current Password")).toBeInTheDocument();
       });
 
-      await user.type(
-        screen.getByLabelText("Current Password"),
-        "WrongPass1",
-      );
+      await user.type(screen.getByLabelText("Current Password"), "WrongPass1");
       await user.type(screen.getByLabelText("New Password"), "NewPass456");
 
       // /api/auth/me/password is an auth endpoint: 401 passes through
       // directly without triggering the refresh cycle.
-      mockApiError(
-        401,
-        "INVALID_CREDENTIALS",
-        "Current password is incorrect",
-      );
+      mockApiError(401, "INVALID_CREDENTIALS", "Current password is incorrect");
 
       const submitButton = screen.getByRole("button", {
         name: /change password/i,
@@ -487,9 +502,27 @@ describe("SettingsFeature", () => {
 
   describe("Tags section", () => {
     const mockTags = [
-      { id: "tag-1", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-      { id: "tag-2", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-      { id: "tag-3", name: "Custom", isDefault: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+      {
+        id: "tag-1",
+        name: "Bills",
+        isDefault: true,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "tag-2",
+        name: "Food",
+        isDefault: true,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "tag-3",
+        name: "Custom",
+        isDefault: false,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
     ];
 
     function mockTagsApiSuccess() {
@@ -544,9 +577,16 @@ describe("SettingsFeature", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 201,
-        json: () => Promise.resolve({
-          tag: { id: "tag-4", name: "Groceries", isDefault: false, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-        }),
+        json: () =>
+          Promise.resolve({
+            tag: {
+              id: "tag-4",
+              name: "Groceries",
+              isDefault: false,
+              createdAt: "2026-01-01T00:00:00Z",
+              updatedAt: "2026-01-01T00:00:00Z",
+            },
+          }),
       });
 
       const addButton = screen.getByRole("button", { name: /add tag/i });
@@ -573,7 +613,11 @@ describe("SettingsFeature", () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 409,
-        json: () => Promise.resolve({ code: "DUPLICATE_TAG", message: "A tag named \"Bills\" already exists" }),
+        json: () =>
+          Promise.resolve({
+            code: "DUPLICATE_TAG",
+            message: 'A tag named "Bills" already exists',
+          }),
       });
 
       const addButton = screen.getByRole("button", { name: /add tag/i });
@@ -624,9 +668,16 @@ describe("SettingsFeature", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({
-          tag: { id: "tag-1", name: "Utilities", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-        }),
+        json: () =>
+          Promise.resolve({
+            tag: {
+              id: "tag-1",
+              name: "Utilities",
+              isDefault: true,
+              createdAt: "2026-01-01T00:00:00Z",
+              updatedAt: "2026-01-01T00:00:00Z",
+            },
+          }),
       });
 
       // Click save (check button)

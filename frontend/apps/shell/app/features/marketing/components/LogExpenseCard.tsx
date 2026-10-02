@@ -1,8 +1,5 @@
 import { motion } from "framer-motion";
-import {
-  reverseCycleRepeatDelay,
-  loopCycleRepeatDelay,
-} from "./heroTimeline";
+import { reverseCycleRepeatDelay, loopCycleRepeatDelay } from "./heroTimeline";
 
 /** Duration of a single field's fill/slide-in. */
 const FIELD_FILL_SECONDS = 0.4;

@@ -34,18 +34,12 @@ interface SequenceResponse {
 export type MockRoutes = Record<string, unknown | MockResponse>;
 
 function isFullMockResponse(value: unknown): value is MockResponse {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "body" in value
-  );
+  return typeof value === "object" && value !== null && "body" in value;
 }
 
 function isSequenceResponse(value: unknown): value is SequenceResponse {
   return (
-    typeof value === "object" &&
-    value !== null &&
-    SEQUENCE_MARKER in value
+    typeof value === "object" && value !== null && SEQUENCE_MARKER in value
   );
 }
 
@@ -63,7 +57,10 @@ function buildResponse(definition: unknown): Response {
     body = definition;
   }
 
-  const responseHeaders = new Headers({ "content-type": "application/json", ...headers });
+  const responseHeaders = new Headers({
+    "content-type": "application/json",
+    ...headers,
+  });
 
   return new Response(JSON.stringify(body), {
     status,
@@ -127,9 +124,7 @@ export function createMockApi(routes: MockRoutes): MockFetch {
       }
     }
 
-    return Promise.reject(
-      new Error(`No mock route for: ${method} ${url}`),
-    );
+    return Promise.reject(new Error(`No mock route for: ${method} ${url}`));
   };
 
   mockFetch._calls = calls;
@@ -167,7 +162,10 @@ export function expectCalled(
 
   if (expectedOptions) {
     const hasMatch = matchingCalls.some((call) => {
-      if (expectedOptions.method && call.method !== expectedOptions.method.toUpperCase()) {
+      if (
+        expectedOptions.method &&
+        call.method !== expectedOptions.method.toUpperCase()
+      ) {
         return false;
       }
       if (expectedOptions.body !== undefined) {

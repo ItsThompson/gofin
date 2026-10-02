@@ -32,7 +32,9 @@ describe("computeMockHealthScore", () => {
   });
 
   it("accepts the configure-budget variant in the response contract", () => {
-    const configurePrompt: HealthScoreResponse = { healthScore: { configureBudget: true } };
+    const configurePrompt: HealthScoreResponse = {
+      healthScore: { configureBudget: true },
+    };
     expect(configurePrompt.healthScore).toEqual({ configureBudget: true });
   });
 });
@@ -47,7 +49,9 @@ describe("GET /api/finance/health-score", () => {
 
     // Narrow the discriminated union to the score variant via `in` rather than a cast.
     if ("configureBudget" in healthScore) {
-      throw new Error("expected the score variant, got the configure-budget prompt");
+      throw new Error(
+        "expected the score variant, got the configure-budget prompt",
+      );
     }
     expect(healthScore.components).toHaveLength(4);
     expect(["green", "amber", "red"]).toContain(healthScore.band);

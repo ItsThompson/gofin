@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { apiClient, useApiToast } from "@gofin/api";
 import type { PeriodListResponse, SummaryResponse } from "@gofin/core";
-import type { HistoricalPeriodRow, LoadedPeriodRow, HistoryDataResult, PeriodDelta } from "../types";
+import type {
+  HistoricalPeriodRow,
+  LoadedPeriodRow,
+  HistoryDataResult,
+  PeriodDelta,
+} from "../types";
 
 /**
  * Fetches all budget periods and computes totalSpent/surplus for each. A period
@@ -17,8 +22,9 @@ export function useHistoryData(): HistoryDataResult {
   useEffect(() => {
     async function fetchPeriods() {
       const result = await toastCall(async () => {
-        const periodsRes =
-          await apiClient<PeriodListResponse>("/api/finance/periods");
+        const periodsRes = await apiClient<PeriodListResponse>(
+          "/api/finance/periods",
+        );
         const allPeriods = periodsRes.periods;
 
         const rows = await Promise.all(
@@ -55,7 +61,8 @@ export function useHistoryData(): HistoryDataResult {
           const prev = rows[i + 1];
           if (prev && prev.status === "loaded") {
             const comparable =
-              row.period.reportingCurrencyCode === prev.period.reportingCurrencyCode;
+              row.period.reportingCurrencyCode ===
+              prev.period.reportingCurrencyCode;
             const delta: PeriodDelta = {
               amount: row.totalSpent - prev.totalSpent,
               comparable,

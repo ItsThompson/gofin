@@ -98,18 +98,28 @@ describe("DetailView money display", () => {
 
 describe("DetailView delete button", () => {
   it("shows a delete button for active, current-period expenses", () => {
-    renderDetail(buildExpense({ status: "active", periodYear: 2026, periodMonth: 5 }));
+    renderDetail(
+      buildExpense({ status: "active", periodYear: 2026, periodMonth: 5 }),
+    );
     expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
   });
 
   it("hides the delete button for corrected expenses", () => {
-    renderDetail(buildExpense({ status: "corrected", periodYear: 2026, periodMonth: 5 }));
-    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+    renderDetail(
+      buildExpense({ status: "corrected", periodYear: 2026, periodMonth: 5 }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /delete/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the delete button for past-period expenses", () => {
-    renderDetail(buildExpense({ status: "active", periodYear: 2026, periodMonth: 4 }));
-    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+    renderDetail(
+      buildExpense({ status: "active", periodYear: 2026, periodMonth: 4 }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /delete/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens a confirmation dialog when delete is clicked", async () => {

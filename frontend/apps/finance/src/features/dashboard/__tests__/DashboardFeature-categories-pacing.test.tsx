@@ -2,7 +2,11 @@ import { describe, it, expect } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import { buildPeriodSummary, createMockApi } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
-import { testPeriod, testSummary, dashboardDataWithExpensesRoutes } from "./fixtures";
+import {
+  testPeriod,
+  testSummary,
+  dashboardDataWithExpensesRoutes,
+} from "./fixtures";
 
 describe("DashboardFeature", () => {
   describe("category gauges", () => {
@@ -18,9 +22,13 @@ describe("DashboardFeature", () => {
       });
 
       const essentialsGauge = screen.getByTestId("gauge-essentials");
-      expect(within(essentialsGauge).getByText("Essentials")).toBeInTheDocument();
+      expect(
+        within(essentialsGauge).getByText("Essentials"),
+      ).toBeInTheDocument();
       expect(within(essentialsGauge).getByText("33%")).toBeInTheDocument();
-      expect(within(essentialsGauge).getByText(/\$500\.00 of \$1,500\.00/)).toBeInTheDocument();
+      expect(
+        within(essentialsGauge).getByText(/\$500\.00 of \$1,500\.00/),
+      ).toBeInTheDocument();
 
       const desiresGauge = screen.getByTestId("gauge-desires");
       expect(within(desiresGauge).getByText("Desires")).toBeInTheDocument();
@@ -38,13 +46,20 @@ describe("DashboardFeature", () => {
           body: {
             summary: buildPeriodSummary({
               ...testSummary,
-              essentials: { allocated: 150000, spent: 200000, remaining: -50000, percentUsed: 133.33 },
+              essentials: {
+                allocated: 150000,
+                spent: 200000,
+                remaining: -50000,
+                percentUsed: 133.33,
+              },
             }),
           },
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -70,13 +85,20 @@ describe("DashboardFeature", () => {
           body: {
             summary: buildPeriodSummary({
               ...testSummary,
-              savings: { allocated: 0, spent: 5000, remaining: -5000, percentUsed: 150 },
+              savings: {
+                allocated: 0,
+                spent: 5000,
+                remaining: -5000,
+                percentUsed: 150,
+              },
             }),
           },
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -104,7 +126,9 @@ describe("DashboardFeature", () => {
       renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Spending Pace").length).toBeGreaterThanOrEqual(1);
+        expect(
+          screen.getAllByText("Spending Pace").length,
+        ).toBeGreaterThanOrEqual(1);
       });
 
       expect(screen.getByText("Daily Average")).toBeInTheDocument();
@@ -127,7 +151,9 @@ describe("DashboardFeature", () => {
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -158,7 +184,9 @@ describe("DashboardFeature", () => {
         },
         "/api/finance/spending/by-tag": { body: { tagSpending: [] } },
         "/api/finance/spending/cumulative": { body: { points: [] } },
-        "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+        "/api/expenses": {
+          body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+        },
         "/api/finance/spending/comparison": {
           status: 404,
           body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },

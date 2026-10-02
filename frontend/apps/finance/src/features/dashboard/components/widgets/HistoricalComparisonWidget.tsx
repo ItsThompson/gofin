@@ -6,11 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@gofin/ui/components/card";
-import {
-  History,
-  TrendingUp,
-  TrendingDown,
-} from "lucide-react";
+import { History, TrendingUp, TrendingDown } from "lucide-react";
 
 interface HistoricalComparisonWidgetProps {
   comparison: HistoricalComparison;
@@ -21,8 +17,10 @@ export function HistoricalComparisonWidget({
   comparison,
   currency,
 }: HistoricalComparisonWidgetProps) {
-  const hasPrevious = comparison.previousSpent > 0 || comparison.currentSpent > 0;
-  const isOnlyOnePeriod = comparison.previousSpent === 0 && comparison.changePercent === 0;
+  const hasPrevious =
+    comparison.previousSpent > 0 || comparison.currentSpent > 0;
+  const isOnlyOnePeriod =
+    comparison.previousSpent === 0 && comparison.changePercent === 0;
   const prevCurrency = comparison.previousReportingCurrency || currency;
 
   return (
@@ -52,14 +50,19 @@ export function HistoricalComparisonWidget({
                 {formatCurrency(comparison.previousSpent, prevCurrency)}
               </p>
               {!comparison.comparable && (
-                <p className="text-xs text-muted-foreground" data-testid="not-comparable">
+                <p
+                  className="text-xs text-muted-foreground"
+                  data-testid="not-comparable"
+                >
                   Different currency - not comparable
                 </p>
               )}
             </div>
             <div>
               <p className="text-xs text-muted-foreground">
-                {comparison.rollingAverage != null ? "Rolling Average (3mo)" : "Change"}
+                {comparison.rollingAverage != null
+                  ? "Rolling Average (3mo)"
+                  : "Change"}
               </p>
               {comparison.rollingAverage != null ? (
                 <p className="text-lg font-semibold">

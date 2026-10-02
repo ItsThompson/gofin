@@ -24,10 +24,7 @@ export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Recent Expenses</CardTitle>
-          <Link
-            to="/expenses"
-            className="text-sm text-primary hover:underline"
-          >
+          <Link to="/expenses" className="text-sm text-primary hover:underline">
             View All
           </Link>
         </div>
@@ -35,7 +32,8 @@ export function RecentExpenses({ expenses, currency }: RecentExpensesProps) {
       <CardContent>
         <div className="divide-y">
           {expenses.map((expense) => {
-            const reportingAmountInMinorUnits = expense.reportingAmountInMinorUnits;
+            const reportingAmountInMinorUnits =
+              expense.reportingAmountInMinorUnits;
             return (
               <div
                 key={expense.id}

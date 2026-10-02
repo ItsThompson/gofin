@@ -224,7 +224,9 @@ describe("the client beforeSend chain", () => {
     const event = errorEvent();
     event.tags = { expected: true as unknown as string };
 
-    expect(options().beforeSend(event, hintFor(new Error("a 422")))).toBe(event);
+    expect(options().beforeSend(event, hintFor(new Error("a 422")))).toBe(
+      event,
+    );
   });
 
   it("drops a fetch failure classified by the injected isNetworkError", () => {
@@ -284,13 +286,17 @@ describe("serverOptions", () => {
     // would emit gofin-web@gofin-web@<sha> and split one deploy in two.
     expect(serverBuilt().release).toBe("gofin-web@0123456789abcdef");
     expect(
-      serverOptions({ dsn: "https://publickey@o1.ingest.us.sentry.io/3", release: "" })
-        .release,
+      serverOptions({
+        dsn: "https://publickey@o1.ingest.us.sentry.io/3",
+        release: "",
+      }).release,
     ).toBe("");
   });
 
   it("passes the dsn through", () => {
-    expect(serverBuilt().dsn).toBe("https://publickey@o1.ingest.us.sentry.io/3");
+    expect(serverBuilt().dsn).toBe(
+      "https://publickey@o1.ingest.us.sentry.io/3",
+    );
   });
 
   it("carries no browser-only setting", () => {
@@ -337,7 +343,10 @@ describe("the server beforeSend chain", () => {
     const event = errorEvent();
 
     expect(
-      serverBuilt().beforeSend(event, hintFor(new TypeError("Failed to fetch"))),
+      serverBuilt().beforeSend(
+        event,
+        hintFor(new TypeError("Failed to fetch")),
+      ),
     ).toBe(event);
   });
 

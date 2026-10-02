@@ -1,7 +1,11 @@
 import { type FormEvent } from "react";
 import { getCurrencyInputStep, getCurrencySymbol } from "@gofin/core";
 import { useBudgetSplitForm, useFormMutation } from "@gofin/api";
-import type { BudgetPeriod, PeriodResponse, UpdatePeriodRequest } from "@gofin/core";
+import type {
+  BudgetPeriod,
+  PeriodResponse,
+  UpdatePeriodRequest,
+} from "@gofin/core";
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
 import {
@@ -93,20 +97,26 @@ export function BudgetSettingsEditor({
                   min="0"
                   step={getCurrencyInputStep(period.reportingCurrencyCode)}
                   value={form.fields.budgetDollars}
-                  onChange={(event) => form.setField("budgetDollars", event.target.value)}
+                  onChange={(event) =>
+                    form.setField("budgetDollars", event.target.value)
+                  }
                   className="pl-6"
                 />
               </div>
             </FormField>
             <FormField>
-              <FormLabel htmlFor="edit-reporting-currency">Reporting Currency</FormLabel>
+              <FormLabel htmlFor="edit-reporting-currency">
+                Reporting Currency
+              </FormLabel>
               <Input
                 id="edit-reporting-currency"
                 value={period.reportingCurrencyCode}
                 readOnly
                 aria-readonly="true"
               />
-              <FormDescription>Cannot change after period creation.</FormDescription>
+              <FormDescription>
+                Cannot change after period creation.
+              </FormDescription>
             </FormField>
             <FormField>
               <FormLabel htmlFor="edit-essentials">Essentials %</FormLabel>
@@ -116,7 +126,9 @@ export function BudgetSettingsEditor({
                 min="0"
                 max="100"
                 value={form.fields.essentials}
-                onChange={(event) => form.setField("essentials", event.target.value)}
+                onChange={(event) =>
+                  form.setField("essentials", event.target.value)
+                }
               />
             </FormField>
             <FormField>
@@ -127,7 +139,9 @@ export function BudgetSettingsEditor({
                 min="0"
                 max="100"
                 value={form.fields.desires}
-                onChange={(event) => form.setField("desires", event.target.value)}
+                onChange={(event) =>
+                  form.setField("desires", event.target.value)
+                }
               />
             </FormField>
             <FormField>
@@ -138,7 +152,9 @@ export function BudgetSettingsEditor({
                 min="0"
                 max="100"
                 value={form.fields.savings}
-                onChange={(event) => form.setField("savings", event.target.value)}
+                onChange={(event) =>
+                  form.setField("savings", event.target.value)
+                }
               />
             </FormField>
           </div>

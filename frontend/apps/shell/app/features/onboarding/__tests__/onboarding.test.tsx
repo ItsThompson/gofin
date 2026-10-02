@@ -45,7 +45,8 @@ describe("onboarding page", () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
+      json: () =>
+        Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
     });
   });
 
@@ -137,12 +138,18 @@ describe("onboarding page", () => {
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ user: { ...newUser, hasCompletedOnboarding: true } }),
+        json: () =>
+          Promise.resolve({
+            user: { ...newUser, hasCompletedOnboarding: true },
+          }),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ user: { ...newUser, hasCompletedOnboarding: true } }),
+        json: () =>
+          Promise.resolve({
+            user: { ...newUser, hasCompletedOnboarding: true },
+          }),
       });
 
     const router = createMemoryRouter(
@@ -187,7 +194,11 @@ describe("onboarding page", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
-      json: () => Promise.resolve({ code: "INTERNAL_SERVER_ERROR", message: "Database error" }),
+      json: () =>
+        Promise.resolve({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database error",
+        }),
     });
 
     const router = createMemoryRouter(
@@ -218,7 +229,8 @@ describe("onboarding redirect guards", () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
+      json: () =>
+        Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
     });
   });
 
@@ -235,9 +247,7 @@ describe("onboarding redirect guards", () => {
         {
           path: "/dashboard",
           element: <AuthLayout />,
-          children: [
-            { index: true, element: <div>Dashboard content</div> },
-          ],
+          children: [{ index: true, element: <div>Dashboard content</div> }],
         },
         { path: "/onboarding", element: <div>Onboarding page</div> },
         { path: "/login", element: <div>Login redirect target</div> },
@@ -274,9 +284,7 @@ describe("onboarding redirect guards", () => {
         {
           path: "/onboarding",
           element: <AuthLayout />,
-          children: [
-            { index: true, element: <div>Onboarding content</div> },
-          ],
+          children: [{ index: true, element: <div>Onboarding content</div> }],
         },
         { path: "/dashboard", element: <div>Dashboard page</div> },
         { path: "/login", element: <div>Login redirect target</div> },
@@ -304,9 +312,7 @@ describe("onboarding redirect guards", () => {
         {
           path: "/onboarding",
           element: <AuthLayout />,
-          children: [
-            { index: true, element: <OnboardingPage /> },
-          ],
+          children: [{ index: true, element: <OnboardingPage /> }],
         },
         { path: "/login", element: <div>Login redirect target</div> },
       ],

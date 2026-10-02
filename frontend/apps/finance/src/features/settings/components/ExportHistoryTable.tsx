@@ -6,9 +6,11 @@ interface ExportHistoryTableProps {
 }
 
 const STATUS_BADGE_STYLES: Record<ExportJobStatus, string> = {
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  pending:
+    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
   running: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  completed:
+    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   failed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
 };
 
@@ -43,7 +45,8 @@ export function ExportHistoryTable({ jobs }: ExportHistoryTableProps) {
       <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
         <p className="font-medium">No exports yet</p>
         <p className="mt-1 text-sm">
-          Click &quot;Export My Data&quot; to download a copy of all your personal data.
+          Click &quot;Export My Data&quot; to download a copy of all your
+          personal data.
         </p>
       </div>
     );
@@ -78,7 +81,9 @@ export function ExportHistoryTable({ jobs }: ExportHistoryTableProps) {
                   {job.completedAt ? formatDate(job.completedAt) : "—"}
                 </td>
                 <td className="py-2.5">
-                  {job.fileSizeBytes != null ? formatFileSize(job.fileSizeBytes) : "—"}
+                  {job.fileSizeBytes != null
+                    ? formatFileSize(job.fileSizeBytes)
+                    : "—"}
                 </td>
               </tr>
             ))}
@@ -106,7 +111,10 @@ export function ExportHistoryTable({ jobs }: ExportHistoryTableProps) {
                 Completed: {job.completedAt ? formatDate(job.completedAt) : "—"}
               </span>
               <span>
-                Size: {job.fileSizeBytes != null ? formatFileSize(job.fileSizeBytes) : "—"}
+                Size:{" "}
+                {job.fileSizeBytes != null
+                  ? formatFileSize(job.fileSizeBytes)
+                  : "—"}
               </span>
             </div>
           </div>

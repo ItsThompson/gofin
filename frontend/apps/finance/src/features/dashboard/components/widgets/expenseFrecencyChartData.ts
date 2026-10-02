@@ -4,7 +4,10 @@ import type {
   ExpenseSuggestion,
 } from "../../../expense-autocomplete/types";
 
-export type { ActiveExpenseSuggestion, ActiveRecencyBucket } from "../../../expense-autocomplete/types";
+export type {
+  ActiveExpenseSuggestion,
+  ActiveRecencyBucket,
+} from "../../../expense-autocomplete/types";
 
 export interface ExpenseFrecencyChartDatum {
   name: string;

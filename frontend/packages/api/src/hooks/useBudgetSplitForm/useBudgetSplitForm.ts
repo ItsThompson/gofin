@@ -15,7 +15,9 @@ import {
   precisionError,
 } from "./utils";
 
-export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSplitForm {
+export function useBudgetSplitForm(
+  options?: BudgetSplitFormOptions,
+): BudgetSplitForm {
   const currency = options?.currency ?? "USD";
   const [fields, setFields] = useState<BudgetSplitFields>(() =>
     buildInitialFields(options),
@@ -28,8 +30,11 @@ export function useBudgetSplitForm(options?: BudgetSplitFormOptions): BudgetSpli
     [],
   );
 
-  const { essentials: essentialsNum, desires: desiresNum, savings: savingsNum } =
-    parseSplitPercentages(fields);
+  const {
+    essentials: essentialsNum,
+    desires: desiresNum,
+    savings: savingsNum,
+  } = parseSplitPercentages(fields);
 
   const splitTotal = essentialsNum + desiresNum + savingsNum;
   const splitError = validateEDSSplit(essentialsNum, desiresNum, savingsNum);

@@ -29,7 +29,9 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
     data.state.status === "active" ? data.state.expenses : [],
   );
 
-  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
+  const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(
+    null,
+  );
 
   function handlePeriodChange(value: string) {
     const [yearStr, monthStr] = value.split("-");
@@ -127,9 +129,7 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
         </span>
       </div>
 
-      {filters.showFilters && (
-        <FilterPanel filters={filters} tags={tags} />
-      )}
+      {filters.showFilters && <FilterPanel filters={filters} tags={tags} />}
 
       {expenses.length === 0 ? (
         <Card>
@@ -149,10 +149,7 @@ export function ExpenseLogFeature({ user: _user }: FinancePageProps) {
 
           {/* Mobile List (visible on mobile only) */}
           <div className="md:hidden">
-            <ExpenseList
-              table={table}
-              onRowClick={handleRowClick}
-            />
+            <ExpenseList table={table} onRowClick={handleRowClick} />
           </div>
 
           <PaginationControls table={table} />

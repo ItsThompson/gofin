@@ -96,13 +96,18 @@ async function executeFetch<T>(
   const requestHeaders: Record<string, string> = Object.fromEntries(
     new Headers(headers).entries(),
   );
-  if (!Object.keys(requestHeaders).some((name) => name.toLowerCase() === "content-type")) {
+  if (
+    !Object.keys(requestHeaders).some(
+      (name) => name.toLowerCase() === "content-type",
+    )
+  ) {
     requestHeaders["Content-Type"] = "application/json";
   }
   if (forceRefresh) {
-    const cacheControlName = Object.keys(requestHeaders).find(
-      (name) => name.toLowerCase() === "cache-control",
-    ) ?? "Cache-Control";
+    const cacheControlName =
+      Object.keys(requestHeaders).find(
+        (name) => name.toLowerCase() === "cache-control",
+      ) ?? "Cache-Control";
     requestHeaders[cacheControlName] = "no-cache";
   }
 
@@ -127,7 +132,9 @@ async function executeFetch<T>(
 /**
  * Parses an error response into an ApiRequestError.
  */
-async function parseErrorResponse(response: Response): Promise<ApiRequestError> {
+async function parseErrorResponse(
+  response: Response,
+): Promise<ApiRequestError> {
   let apiError: ApiError;
   try {
     apiError = (await response.json()) as ApiError;

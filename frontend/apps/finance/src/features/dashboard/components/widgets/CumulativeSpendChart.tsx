@@ -28,7 +28,10 @@ interface CumulativeSpendChartProps {
   currency: string;
 }
 
-export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartProps) {
+export function CumulativeSpendChart({
+  data,
+  currency,
+}: CumulativeSpendChartProps) {
   const currentDay = new Date().getDate();
 
   const basePoints = data.map((point) => ({
@@ -88,13 +91,21 @@ export function CumulativeSpendChart({ data, currency }: CumulativeSpendChartPro
               domain={[1, basePoints.length]}
               ticks={basePoints.map((p) => p.day)}
               allowDecimals={false}
-              label={{ value: "Day of Month", position: "insideBottom", offset: -5 }}
+              label={{
+                value: "Day of Month",
+                position: "insideBottom",
+                offset: -5,
+              }}
             />
             <YAxis
-              tickFormatter={(value) => `${getCurrencySymbol(currency)}${value}`}
+              tickFormatter={(value) =>
+                `${getCurrencySymbol(currency)}${value}`
+              }
             />
             <Tooltip
-              formatter={(value, name) => tooltipFormatter(value, name as string, currency)}
+              formatter={(value, name) =>
+                tooltipFormatter(value, name as string, currency)
+              }
               labelFormatter={(label) => tooltipLabelFormatter(label)}
             />
             <Area

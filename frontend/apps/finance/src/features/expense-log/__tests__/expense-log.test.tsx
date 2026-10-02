@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  within,
+  fireEvent,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { ExpenseLogFeature } from "../index";
@@ -29,9 +35,27 @@ const mockUser: User = {
 };
 
 const mockTags: Tag[] = [
-  { id: "tag-food", name: "Food", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-transport", name: "Transport", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
-  { id: "tag-bills", name: "Bills", isDefault: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" },
+  {
+    id: "tag-food",
+    name: "Food",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-transport",
+    name: "Transport",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: "tag-bills",
+    name: "Bills",
+    isDefault: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  },
 ];
 
 const mockPeriods: BudgetPeriod[] = [
@@ -218,11 +242,15 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       expect(screen.getAllByText("Bus Pass").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Old Coffee").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Old Coffee").length).toBeGreaterThanOrEqual(
+        1,
+      );
       expect(screen.getAllByText("$50.00").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("$20.00").length).toBeGreaterThanOrEqual(1);
 
@@ -258,7 +286,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Old Coffee").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Old Coffee").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       const correctedNames = screen.getAllByText("Old Coffee");
@@ -273,7 +303,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Corrected").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Corrected").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
     });
 
@@ -294,7 +326,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       const nameHeader = screen.getByText("Name");
@@ -311,7 +345,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       const dateHeader = screen.getByText("Date");
@@ -350,13 +386,17 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       await user.click(screen.getByRole("button", { name: /filters/i }));
       await user.click(screen.getByRole("button", { name: "desires" }));
 
-      expect(screen.getAllByText("Old Coffee").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Old Coffee").length).toBeGreaterThanOrEqual(
+        1,
+      );
       expect(screen.queryByText("Groceries")).not.toBeInTheDocument();
       expect(screen.queryByText("Bus Pass")).not.toBeInTheDocument();
       expect(screen.getByText("1 expense")).toBeInTheDocument();
@@ -368,7 +408,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       await user.click(screen.getByRole("button", { name: /filters/i }));
@@ -385,7 +427,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       await user.click(screen.getByRole("button", { name: /filters/i }));
@@ -403,7 +447,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       await user.click(screen.getByRole("button", { name: /filters/i }));
@@ -422,7 +468,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       await user.click(screen.getByRole("button", { name: /filters/i }));
@@ -464,23 +512,26 @@ describe("ExpenseLogFeature", () => {
     });
 
     it("paginates data when page size is smaller than total", async () => {
-      const manyExpenses: Expense[] = Array.from({ length: 15 }, (_, index) => ({
-        id: `exp-${index}`,
-        userId: "user-1",
-        name: `Expense ${index + 1}`,
-        transactionCurrencyCode: "USD",
-        originalTransactionAmountInMinorUnits: 1000 + index * 100,
-        reportingAmountInMinorUnits: 1000 + index * 100,
-        reportingCurrencyCode: "USD",
-        expenseType: "essentials" as const,
-        tagId: "tag-food",
-        expenseDateIso: `2026-05-${String(index + 1).padStart(2, "0")}`,
-        periodYear: 2026,
-        periodMonth: 5,
-        status: "active",
-        isProRata: false,
-        createdAt: `2026-05-${String(index + 1).padStart(2, "0")}T10:00:00Z`,
-      }));
+      const manyExpenses: Expense[] = Array.from(
+        { length: 15 },
+        (_, index) => ({
+          id: `exp-${index}`,
+          userId: "user-1",
+          name: `Expense ${index + 1}`,
+          transactionCurrencyCode: "USD",
+          originalTransactionAmountInMinorUnits: 1000 + index * 100,
+          reportingAmountInMinorUnits: 1000 + index * 100,
+          reportingCurrencyCode: "USD",
+          expenseType: "essentials" as const,
+          tagId: "tag-food",
+          expenseDateIso: `2026-05-${String(index + 1).padStart(2, "0")}`,
+          periodYear: 2026,
+          periodMonth: 5,
+          status: "active",
+          isProRata: false,
+          createdAt: `2026-05-${String(index + 1).padStart(2, "0")}T10:00:00Z`,
+        }),
+      );
 
       mockAllDataSuccess(manyExpenses);
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -497,23 +548,26 @@ describe("ExpenseLogFeature", () => {
     });
 
     it("allows changing page size", async () => {
-      const manyExpenses: Expense[] = Array.from({ length: 30 }, (_, index) => ({
-        id: `exp-${index}`,
-        userId: "user-1",
-        name: `Expense ${index + 1}`,
-        transactionCurrencyCode: "USD",
-        originalTransactionAmountInMinorUnits: 1000,
-        reportingAmountInMinorUnits: 1000,
-        reportingCurrencyCode: "USD",
-        expenseType: "essentials" as const,
-        tagId: "tag-food",
-        expenseDateIso: "2026-05-01",
-        periodYear: 2026,
-        periodMonth: 5,
-        status: "active",
-        isProRata: false,
-        createdAt: "2026-05-01T10:00:00Z",
-      }));
+      const manyExpenses: Expense[] = Array.from(
+        { length: 30 },
+        (_, index) => ({
+          id: `exp-${index}`,
+          userId: "user-1",
+          name: `Expense ${index + 1}`,
+          transactionCurrencyCode: "USD",
+          originalTransactionAmountInMinorUnits: 1000,
+          reportingAmountInMinorUnits: 1000,
+          reportingCurrencyCode: "USD",
+          expenseType: "essentials" as const,
+          tagId: "tag-food",
+          expenseDateIso: "2026-05-01",
+          periodYear: 2026,
+          periodMonth: 5,
+          status: "active",
+          isProRata: false,
+          createdAt: "2026-05-01T10:00:00Z",
+        }),
+      );
 
       mockAllDataSuccess(manyExpenses);
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -581,7 +635,9 @@ describe("ExpenseLogFeature", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getAllByText("April Rent").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("April Rent").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       expect(screen.queryByText("Groceries")).not.toBeInTheDocument();
@@ -595,7 +651,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       mockFetch.mockResolvedValueOnce({
@@ -655,7 +713,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       const tables = document.querySelectorAll("table");
@@ -742,7 +802,9 @@ describe("ExpenseLogFeature", () => {
       renderExpenseLog();
 
       await waitFor(() => {
-        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(
+          1,
+        );
       });
 
       expect(screen.getAllByText("tag-food").length).toBeGreaterThanOrEqual(2);

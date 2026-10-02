@@ -8,10 +8,7 @@ describe("GET /api/auth/me role switching via the live currentMockUser binding",
   afterEach(() => setCurrentMockUser(adminUser));
 
   async function fetchMe(): Promise<{ user: User }> {
-    const res = await resolveMockRequest(
-      authHandlers,
-      "/api/auth/me",
-    );
+    const res = await resolveMockRequest(authHandlers, "/api/auth/me");
     return res.json();
   }
 

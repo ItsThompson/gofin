@@ -9,7 +9,10 @@ describe("FaqSection", () => {
     render(<FaqSection {...landingContent.faq} />);
 
     expect(
-      screen.getByRole("heading", { level: 2, name: landingContent.faq.heading }),
+      screen.getByRole("heading", {
+        level: 2,
+        name: landingContent.faq.heading,
+      }),
     ).toBeInTheDocument();
 
     const questions = screen.getAllByRole("heading", { level: 3 });

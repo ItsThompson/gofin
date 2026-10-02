@@ -62,9 +62,24 @@ function mockSummaryResponse(totalSpent: number) {
           dailySpendRate: 0,
           budgetPace: 0,
           isOnTrack: true,
-          essentials: { allocated: 150000, spent: 0, remaining: 150000, percentUsed: 0 },
-          desires: { allocated: 90000, spent: 0, remaining: 90000, percentUsed: 0 },
-          savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0 },
+          essentials: {
+            allocated: 150000,
+            spent: 0,
+            remaining: 150000,
+            percentUsed: 0,
+          },
+          desires: {
+            allocated: 90000,
+            spent: 0,
+            remaining: 90000,
+            percentUsed: 0,
+          },
+          savings: {
+            allocated: 60000,
+            spent: 0,
+            remaining: 60000,
+            percentUsed: 0,
+          },
         },
       }),
   };
@@ -159,7 +174,13 @@ describe("HistoryFeature", () => {
       ok: true,
       status: 200,
       json: () =>
-        Promise.resolve({ data: [], total: 0, page: 1, pageSize: 5, hasMore: false }),
+        Promise.resolve({
+          data: [],
+          total: 0,
+          page: 1,
+          pageSize: 5,
+          hasMore: false,
+        }),
     }); // expenses
     mockFetch.mockResolvedValueOnce({
       ok: false,

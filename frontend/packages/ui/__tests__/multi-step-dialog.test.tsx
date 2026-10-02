@@ -114,7 +114,9 @@ describe("MultiStepDialog", () => {
 
   it("resets to step 1 when closed and reopened", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<TestDialog open={true} onOpenChange={() => {}} />);
+    const { rerender } = render(
+      <TestDialog open={true} onOpenChange={() => {}} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Step 2 Content")).toBeInTheDocument();

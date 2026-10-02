@@ -4,33 +4,57 @@ import type {
   CumulativeSpendPoint,
   HistoricalComparison,
 } from "@gofin/core";
-import { daysInMonth, daysElapsed, currentYear, currentMonth } from "./foundation";
+import {
+  daysInMonth,
+  daysElapsed,
+  currentYear,
+  currentMonth,
+} from "./foundation";
 import { mockPeriod } from "./periods";
 import { mockExpenses } from "./expenses";
 import { mockTags } from "./tags";
 
 function computeSummary(): PeriodSummary {
-  const totalSpent = mockExpenses.reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+  const totalSpent = mockExpenses.reduce(
+    (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+    0,
+  );
   const totalBudget = mockPeriod.budgetAmount;
   const remaining = totalBudget - totalSpent;
   const daysRemaining = daysInMonth - daysElapsed;
-  const essentialsAllocated = Math.round(totalBudget * mockPeriod.essentialsPercent / 100);
-  const desiresAllocated = Math.round(totalBudget * mockPeriod.desiresPercent / 100);
+  const essentialsAllocated = Math.round(
+    (totalBudget * mockPeriod.essentialsPercent) / 100,
+  );
+  const desiresAllocated = Math.round(
+    (totalBudget * mockPeriod.desiresPercent) / 100,
+  );
   const savingsAllocated = totalBudget - essentialsAllocated - desiresAllocated;
 
   const essentialsSpent = mockExpenses
     .filter((expense) => expense.expenseType === "essentials")
-    .reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+    .reduce(
+      (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+      0,
+    );
   const desiresSpent = mockExpenses
     .filter((expense) => expense.expenseType === "desires")
-    .reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+    .reduce(
+      (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+      0,
+    );
   const savingsSpent = mockExpenses
     .filter((expense) => expense.expenseType === "savings")
-    .reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+    .reduce(
+      (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+      0,
+    );
 
-  const dailySpendRate = daysElapsed > 0 ? Math.round(totalSpent / daysElapsed) : 0;
-  const idealDailyRate = daysInMonth > 0 ? Math.round(totalBudget / daysInMonth) : 0;
-  const budgetPace = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
+  const dailySpendRate =
+    daysElapsed > 0 ? Math.round(totalSpent / daysElapsed) : 0;
+  const idealDailyRate =
+    daysInMonth > 0 ? Math.round(totalBudget / daysInMonth) : 0;
+  const budgetPace =
+    daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
 
   return {
     periodId: mockPeriod.id,
@@ -48,19 +72,24 @@ function computeSummary(): PeriodSummary {
       allocated: essentialsAllocated,
       spent: essentialsSpent,
       remaining: essentialsAllocated - essentialsSpent,
-      percentUsed: essentialsAllocated > 0 ? (essentialsSpent / essentialsAllocated) * 100 : 0,
+      percentUsed:
+        essentialsAllocated > 0
+          ? (essentialsSpent / essentialsAllocated) * 100
+          : 0,
     },
     desires: {
       allocated: desiresAllocated,
       spent: desiresSpent,
       remaining: desiresAllocated - desiresSpent,
-      percentUsed: desiresAllocated > 0 ? (desiresSpent / desiresAllocated) * 100 : 0,
+      percentUsed:
+        desiresAllocated > 0 ? (desiresSpent / desiresAllocated) * 100 : 0,
     },
     savings: {
       allocated: savingsAllocated,
       spent: savingsSpent,
       remaining: savingsAllocated - savingsSpent,
-      percentUsed: savingsAllocated > 0 ? (savingsSpent / savingsAllocated) * 100 : 0,
+      percentUsed:
+        savingsAllocated > 0 ? (savingsSpent / savingsAllocated) * 100 : 0,
     },
   };
 }
@@ -68,10 +97,17 @@ function computeSummary(): PeriodSummary {
 export const mockSummary: PeriodSummary = computeSummary();
 
 export function computeTagSpending(): TagSpending[] {
-  const totalSpent = mockExpenses.reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+  const totalSpent = mockExpenses.reduce(
+    (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+    0,
+  );
   const byTag = new Map<string, number>();
   mockExpenses.forEach((expense) => {
-    byTag.set(expense.tagId, (byTag.get(expense.tagId) ?? 0) + expense.originalTransactionAmountInMinorUnits);
+    byTag.set(
+      expense.tagId,
+      (byTag.get(expense.tagId) ?? 0) +
+        expense.originalTransactionAmountInMinorUnits,
+    );
   });
 
   return Array.from(byTag.entries())
@@ -96,7 +132,10 @@ export function computeCumulativeSpend(): CumulativeSpendPoint[] {
 
     const dayExpenses = mockExpenses
       .filter((expense) => expense.expenseDateIso === dateStr)
-      .reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+      .reduce(
+        (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+        0,
+      );
 
     cumulative += dayExpenses;
 

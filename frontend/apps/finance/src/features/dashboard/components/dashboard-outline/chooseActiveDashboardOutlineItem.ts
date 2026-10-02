@@ -10,7 +10,9 @@ export function chooseActiveDashboardOutlineItem(
   items: DashboardOutlineItem[],
   activeIds: Set<string>,
 ): string | null {
-  const activeItems = flattenOutlineItems(items).filter((item) => activeIds.has(item.id));
+  const activeItems = flattenOutlineItems(items).filter((item) =>
+    activeIds.has(item.id),
+  );
   if (activeItems.length === 0) return null;
 
   activeItems.sort((left, right) => {
@@ -21,7 +23,9 @@ export function chooseActiveDashboardOutlineItem(
   return activeItems[0].id;
 }
 
-function flattenOutlineItems(items: DashboardOutlineItem[]): FlattenedOutlineItem[] {
+function flattenOutlineItems(
+  items: DashboardOutlineItem[],
+): FlattenedOutlineItem[] {
   const flattenedItems: FlattenedOutlineItem[] = [];
   let order = 0;
 

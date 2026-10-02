@@ -6,12 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@gofin/ui/components/card";
-import {
-  Activity,
-  TrendingUp,
-  AlertTriangle,
-  Target,
-} from "lucide-react";
+import { Activity, TrendingUp, AlertTriangle, Target } from "lucide-react";
 
 interface PacingIndicatorProps {
   summary: PeriodSummary;
@@ -20,7 +15,9 @@ interface PacingIndicatorProps {
 
 export function PacingIndicator({ summary, currency }: PacingIndicatorProps) {
   const isOverBudget = summary.totalSpent > summary.totalBudget;
-  const overAmount = isOverBudget ? summary.totalSpent - summary.totalBudget : 0;
+  const overAmount = isOverBudget
+    ? summary.totalSpent - summary.totalBudget
+    : 0;
 
   return (
     <Card className="h-full">

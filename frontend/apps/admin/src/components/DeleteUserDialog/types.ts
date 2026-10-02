@@ -1,4 +1,9 @@
-export type DeletionStatus = "idle" | "pending" | "running" | "failed" | "completed";
+export type DeletionStatus =
+  | "idle"
+  | "pending"
+  | "running"
+  | "failed"
+  | "completed";
 
 export interface DeletionJobResponse {
   id: string;

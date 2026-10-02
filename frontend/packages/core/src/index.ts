@@ -1,5 +1,9 @@
 export type * from "./types";
-export { EXPENSE_TYPES, DEFAULT_BUDGET_SPLIT, type ExpenseType } from "./constants";
+export {
+  EXPENSE_TYPES,
+  DEFAULT_BUDGET_SPLIT,
+  type ExpenseType,
+} from "./constants";
 export {
   SUPPORTED_CURRENCIES,
   SUPPORTED_CURRENCY_OPTIONS,

@@ -28,9 +28,10 @@ export function validateInputPrecision(
   if (fraction.length <= minorUnitDigits) return { isValid: true };
 
   const code = getCurrencyDefinition(currencyCode)?.code ?? currencyCode;
-  const fieldError = minorUnitDigits === 0
-    ? `Amount must be a whole ${code} amount`
-    : `Amount supports up to ${minorUnitDigits} decimal places for ${code}`;
+  const fieldError =
+    minorUnitDigits === 0
+      ? `Amount must be a whole ${code} amount`
+      : `Amount supports up to ${minorUnitDigits} decimal places for ${code}`;
 
   return { isValid: false, fieldError };
 }
@@ -71,10 +72,7 @@ export function formatCurrency(
   return formatAmount(amountMinorUnits, currencyCode);
 }
 
-export function parseInput(
-  amountString: string,
-  currencyCode: string,
-): number {
+export function parseInput(amountString: string, currencyCode: string): number {
   const trimmed = amountString.trim();
   if (trimmed === "") return 0;
 
@@ -82,7 +80,8 @@ export function parseInput(
   if (!match) return 0;
 
   const minorUnitDigits = getMinorUnitDigits(currencyCode);
-  const [, sign, whole = "0", fractionWithWhole = "", fractionOnly = ""] = match;
+  const [, sign, whole = "0", fractionWithWhole = "", fractionOnly = ""] =
+    match;
   const fraction = fractionOnly || fractionWithWhole;
   if (fraction.length > minorUnitDigits) {
     throw new Error(
@@ -92,8 +91,8 @@ export function parseInput(
   }
 
   const paddedFraction = fraction.padEnd(minorUnitDigits, "0");
-  const absoluteMinorUnits = Number(whole) * 10 ** minorUnitDigits +
-    Number(paddedFraction || "0");
+  const absoluteMinorUnits =
+    Number(whole) * 10 ** minorUnitDigits + Number(paddedFraction || "0");
 
   return sign === "-" ? -absoluteMinorUnits : absoluteMinorUnits;
 }

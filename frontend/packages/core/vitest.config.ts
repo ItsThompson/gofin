@@ -7,10 +7,7 @@ export default defineConfig({
     coverage: {
       provider: "istanbul",
       reporter: ["text", "lcov"],
-      exclude: [
-        "**/__tests__/**",
-        "**/index.ts",
-      ],
+      exclude: ["**/__tests__/**", "**/index.ts"],
       thresholds: {
         statements: 95,
         branches: 90,

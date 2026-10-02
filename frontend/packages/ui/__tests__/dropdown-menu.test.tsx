@@ -50,7 +50,9 @@ describe("DropdownMenu", () => {
     render(<TestMenu onSelect={onSelect} />);
 
     await user.click(screen.getByRole("button", { name: "Open menu" }));
-    await user.click(await screen.findByRole("menuitem", { name: "First item" }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: "First item" }),
+    );
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();

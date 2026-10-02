@@ -45,7 +45,10 @@ function AdminSkeleton() {
         <CardContent>
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="flex gap-4 border-b pb-3 last:border-0">
+              <div
+                key={index}
+                className="flex gap-4 border-b pb-3 last:border-0"
+              >
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-4 w-36" />
                 <Skeleton className="h-4 w-12" />

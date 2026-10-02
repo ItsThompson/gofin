@@ -11,9 +11,9 @@ interface CapturedContext {
 }
 
 const { captureException, toastError } = vi.hoisted(() => ({
-  captureException: vi.fn<(error: unknown, context?: CapturedContext) => string>(
-    () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  ),
+  captureException: vi.fn<
+    (error: unknown, context?: CapturedContext) => string
+  >(() => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
   toastError: vi.fn(),
 }));
 
@@ -83,7 +83,13 @@ describe("useExpenseDetail's installment list", () => {
 
   it("reports nothing when the installment list loads", async () => {
     global.fetch = mockApi({
-      body: { data: [PRO_RATA_EXPENSE], total: 1, page: 1, pageSize: 50, hasMore: false },
+      body: {
+        data: [PRO_RATA_EXPENSE],
+        total: 1,
+        page: 1,
+        pageSize: 50,
+        hasMore: false,
+      },
     });
 
     const { result } = renderHook(() => useExpenseDetail("exp-1"));

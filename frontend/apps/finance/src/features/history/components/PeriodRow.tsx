@@ -26,8 +26,9 @@ export function PeriodRow({ row, onSelect }: PeriodRowProps) {
         <div className="flex flex-col gap-0.5">
           <span className="font-medium">{monthName}</span>
           <span className="text-xs text-muted-foreground">
-            Budget: {formatCurrency(row.period.budgetAmount, reportingCurrencyCode)}{" "}
-            · E/D/S: {row.period.essentialsPercent}/{row.period.desiresPercent}/
+            Budget:{" "}
+            {formatCurrency(row.period.budgetAmount, reportingCurrencyCode)} ·
+            E/D/S: {row.period.essentialsPercent}/{row.period.desiresPercent}/
             {row.period.savingsPercent}
           </span>
         </div>

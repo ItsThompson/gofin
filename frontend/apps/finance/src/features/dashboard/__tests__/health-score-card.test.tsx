@@ -30,9 +30,24 @@ function buildHealthScore(overrides?: Partial<HealthScore>): HealthScore {
     formulaVersion: 2,
     reportingCurrencyCode: "USD",
     components: [
-      { key: "savings_achievement", score: 20, max: 30, detail: "Saved $400 of $600 target" },
-      { key: "budget_adherence", score: 30, max: 30, detail: "Spent $2,000 of $2,400 plan" },
-      { key: "allocation_balance", score: 6, max: 40, detail: "Desires 12 pts over target share" },
+      {
+        key: "savings_achievement",
+        score: 20,
+        max: 30,
+        detail: "Saved $400 of $600 target",
+      },
+      {
+        key: "budget_adherence",
+        score: 30,
+        max: 30,
+        detail: "Spent $2,000 of $2,400 plan",
+      },
+      {
+        key: "allocation_balance",
+        score: 6,
+        max: 40,
+        detail: "Desires 12 pts over target share",
+      },
     ],
     insight: {
       summary: "Your category balance is the softest score this month.",
@@ -46,9 +61,33 @@ function buildHealthScore(overrides?: Partial<HealthScore>): HealthScore {
 
 function buildTrend(): HealthScoreTrendPoint[] {
   return [
-    { year: 2026, month: 3, total: 58, band: "amber", provisional: false, formulaVersion: 2, reportingCurrencyCode: "USD" },
-    { year: 2026, month: 4, total: 64, band: "amber", provisional: false, formulaVersion: 2, reportingCurrencyCode: "USD" },
-    { year: 2026, month: 5, total: 56, band: "amber", provisional: true, formulaVersion: 2, reportingCurrencyCode: "USD" },
+    {
+      year: 2026,
+      month: 3,
+      total: 58,
+      band: "amber",
+      provisional: false,
+      formulaVersion: 2,
+      reportingCurrencyCode: "USD",
+    },
+    {
+      year: 2026,
+      month: 4,
+      total: 64,
+      band: "amber",
+      provisional: false,
+      formulaVersion: 2,
+      reportingCurrencyCode: "USD",
+    },
+    {
+      year: 2026,
+      month: 5,
+      total: 56,
+      band: "amber",
+      provisional: true,
+      formulaVersion: 2,
+      reportingCurrencyCode: "USD",
+    },
   ];
 }
 
@@ -84,7 +123,9 @@ describe("HealthScoreCard", () => {
     expect(screen.getByText("6/40")).toBeInTheDocument();
 
     expect(screen.getByText("Saved $400 of $600 target")).toBeInTheDocument();
-    expect(screen.getByText("Desires 12 pts over target share")).toBeInTheDocument();
+    expect(
+      screen.getByText("Desires 12 pts over target share"),
+    ).toBeInTheDocument();
 
     expect(screen.getAllByRole("progressbar")).toHaveLength(3);
   });
@@ -95,17 +136,39 @@ describe("HealthScoreCard", () => {
         total: 76,
         band: "amber",
         components: [
-          { key: "savings_achievement", score: 17, max: 25, detail: "Saved $400 of $600 target" },
-          { key: "budget_adherence", score: 25, max: 25, detail: "Spent $2,000 of $2,400 plan" },
-          { key: "allocation_balance", score: 20, max: 30, detail: "Desires 8 pts over target share" },
-          { key: "spending_stability", score: 14, max: 20, detail: "Desires spend varied ~29% month to month" },
+          {
+            key: "savings_achievement",
+            score: 17,
+            max: 25,
+            detail: "Saved $400 of $600 target",
+          },
+          {
+            key: "budget_adherence",
+            score: 25,
+            max: 25,
+            detail: "Spent $2,000 of $2,400 plan",
+          },
+          {
+            key: "allocation_balance",
+            score: 20,
+            max: 30,
+            detail: "Desires 8 pts over target share",
+          },
+          {
+            key: "spending_stability",
+            score: 14,
+            max: 20,
+            detail: "Desires spend varied ~29% month to month",
+          },
         ],
       }),
     );
 
     expect(screen.getByText("Spending stability")).toBeInTheDocument();
     expect(screen.getByText("14/20")).toBeInTheDocument();
-    expect(screen.getByText("Desires spend varied ~29% month to month")).toBeInTheDocument();
+    expect(
+      screen.getByText("Desires spend varied ~29% month to month"),
+    ).toBeInTheDocument();
     expect(screen.getAllByRole("progressbar")).toHaveLength(4);
     // Stability present -> not the building-baseline state.
     expect(screen.queryByText(/Building baseline/)).toBeNull();
@@ -115,7 +178,9 @@ describe("HealthScoreCard", () => {
     // The default fixture has three components (no stability) -> building baseline.
     renderCard(buildHealthScore());
     expect(
-      screen.getByText(/Building baseline: spending stability needs 3\+ months/),
+      screen.getByText(
+        /Building baseline: spending stability needs 3\+ months/,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -130,10 +195,14 @@ describe("HealthScoreCard", () => {
   it("renders the insight summary and nudge with a lucide icon (no emoji)", () => {
     const { container } = renderCard(buildHealthScore());
     expect(
-      screen.getByText("Your category balance is the softest score this month."),
+      screen.getByText(
+        "Your category balance is the softest score this month.",
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Shifting spend toward Savings could recover up to 34 points\./),
+      screen.getByText(
+        /Shifting spend toward Savings could recover up to 34 points\./,
+      ),
     ).toBeInTheDocument();
     // lucide renders an inline svg; no emoji fallback.
     expect(container.querySelector("svg")).not.toBeNull();
@@ -168,7 +237,9 @@ describe("HealthScoreCard", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /about the financial health score/i }),
     );
-    expect(screen.getByText("About your Financial Health Score")).toBeInTheDocument();
+    expect(
+      screen.getByText("About your Financial Health Score"),
+    ).toBeInTheDocument();
     // The modal explains the sub-scores and bands (headings are modal-only).
     expect(screen.getByText("Sub-scores")).toBeInTheDocument();
     expect(screen.getByText("Bands")).toBeInTheDocument();
@@ -193,27 +264,50 @@ describe("HealthScoreCard", () => {
       total: 88,
       band: "green",
       components: [
-        { key: "budget_adherence", score: 43, max: 43, detail: "Spent $3,000 of $3,000 plan" },
-        { key: "allocation_balance", score: 45, max: 57, detail: "Essentials 5 pts over target share" },
+        {
+          key: "budget_adherence",
+          score: 43,
+          max: 43,
+          detail: "Spent $3,000 of $3,000 plan",
+        },
+        {
+          key: "allocation_balance",
+          score: 45,
+          max: 57,
+          detail: "Essentials 5 pts over target share",
+        },
       ],
       insight: {
         summary: "Your category balance is the softest score this month.",
         driver: "allocation_balance",
-        nudge: "Essentials is running 5 pts over its target share. Shifting spend toward Desires could recover up to 12 points.",
+        nudge:
+          "Essentials is running 5 pts over its target share. Shifting spend toward Desires could recover up to 12 points.",
       },
     });
     renderCard(dropped);
 
     expect(screen.getAllByRole("progressbar")).toHaveLength(2);
-    expect(screen.getByText("Savings isn't budgeted this month.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Savings isn't budgeted this month."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Savings")).toBeNull();
   });
 
   it("renders an unknown component key with a humanized label (backward/forward compatible)", () => {
     const withUnknown = buildHealthScore({
       components: [
-        { key: "budget_adherence", score: 25, max: 25, detail: "Spent $2,000 of $2,400 plan" },
-        { key: "allocation_balance", score: 20, max: 30, detail: "Balanced across categories" },
+        {
+          key: "budget_adherence",
+          score: 25,
+          max: 25,
+          detail: "Spent $2,000 of $2,400 plan",
+        },
+        {
+          key: "allocation_balance",
+          score: 20,
+          max: 30,
+          detail: "Balanced across categories",
+        },
         // A key this build has never seen (a future backend component).
         { key: "future_component", score: 10, max: 20, detail: "A new signal" },
       ],
@@ -233,14 +327,30 @@ describe("HealthScoreCard", () => {
       total: 79,
       band: "amber",
       components: [
-        { key: "savings_achievement", score: 15, max: 30, detail: "Saved $300 of $600 target" },
-        { key: "budget_adherence", score: 30, max: 30, detail: "Spent $2,200 of $2,400 plan" },
-        { key: "allocation_balance", score: 34, max: 40, detail: "Desires 6 pts over target share" },
+        {
+          key: "savings_achievement",
+          score: 15,
+          max: 30,
+          detail: "Saved $300 of $600 target",
+        },
+        {
+          key: "budget_adherence",
+          score: 30,
+          max: 30,
+          detail: "Spent $2,200 of $2,400 plan",
+        },
+        {
+          key: "allocation_balance",
+          score: 34,
+          max: 40,
+          detail: "Desires 6 pts over target share",
+        },
       ],
       insight: {
         summary: "Savings is the softest score this month.",
         driver: "savings_achievement",
-        nudge: "Move an extra $300 to savings to reach your target and lift your score about 15 points.",
+        nudge:
+          "Move an extra $300 to savings to reach your target and lift your score about 15 points.",
       },
     });
     renderCard(historical);

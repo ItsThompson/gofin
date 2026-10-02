@@ -1,8 +1,4 @@
-export {
-  apiClient,
-  ApiRequestError,
-  type ApiClientOptions,
-} from "./client";
+export { apiClient, ApiRequestError, type ApiClientOptions } from "./client";
 export { consumeReturnToPath, handleSessionExpiry } from "./session";
 export { reportError } from "./errors/report";
 export {

@@ -3,10 +3,17 @@ import * as React from "react";
 import { ComboboxContext } from "./ComboboxContext";
 import type { ComboboxOptionRegistration, ComboboxProps } from "./types";
 
-export function Combobox({ children, open, defaultOpen = false, onOpenChange }: ComboboxProps) {
+export function Combobox({
+  children,
+  open,
+  defaultOpen = false,
+  onOpenChange,
+}: ComboboxProps) {
   const inputId = React.useId();
   const listboxId = React.useId();
-  const optionsRef = React.useRef(new Map<string, ComboboxOptionRegistration>());
+  const optionsRef = React.useRef(
+    new Map<string, ComboboxOptionRegistration>(),
+  );
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   const [highlightedId, setHighlightedId] = React.useState<string | null>(null);
   const isOpen = open ?? uncontrolledOpen;
@@ -26,9 +33,12 @@ export function Combobox({ children, open, defaultOpen = false, onOpenChange }: 
     [onOpenChange, open],
   );
 
-  const registerOption = React.useCallback((option: ComboboxOptionRegistration) => {
-    optionsRef.current.set(option.id, option);
-  }, []);
+  const registerOption = React.useCallback(
+    (option: ComboboxOptionRegistration) => {
+      optionsRef.current.set(option.id, option);
+    },
+    [],
+  );
 
   const unregisterOption = React.useCallback((id: string) => {
     optionsRef.current.delete(id);
@@ -36,7 +46,10 @@ export function Combobox({ children, open, defaultOpen = false, onOpenChange }: 
   }, []);
 
   const getSelectableOptions = React.useCallback(
-    () => Array.from(optionsRef.current.values()).filter((option) => !option.disabled),
+    () =>
+      Array.from(optionsRef.current.values()).filter(
+        (option) => !option.disabled,
+      ),
     [],
   );
 
@@ -74,5 +87,9 @@ export function Combobox({ children, open, defaultOpen = false, onOpenChange }: 
     ],
   );
 
-  return <ComboboxContext.Provider value={value}>{children}</ComboboxContext.Provider>;
+  return (
+    <ComboboxContext.Provider value={value}>
+      {children}
+    </ComboboxContext.Provider>
+  );
 }

@@ -33,15 +33,17 @@ export function ExpenseFrecencyChart({
   suggestions,
   onRetry,
 }: ExpenseFrecencyChartProps) {
-  const chartData: ExpenseFrecencyChartDatum[] = suggestions.map((suggestion) => ({
-    name: suggestion.name,
-    frequency: suggestion.frequency,
-    recencyBucket: suggestion.recencyBucket,
-    lastUsedAt: suggestion.lastUsedAt,
-    amount: suggestion.originalTransactionAmountInMinorUnits,
-    currency: suggestion.transactionCurrencyCode,
-    expenseType: suggestion.expenseType,
-  }));
+  const chartData: ExpenseFrecencyChartDatum[] = suggestions.map(
+    (suggestion) => ({
+      name: suggestion.name,
+      frequency: suggestion.frequency,
+      recencyBucket: suggestion.recencyBucket,
+      lastUsedAt: suggestion.lastUsedAt,
+      amount: suggestion.originalTransactionAmountInMinorUnits,
+      currency: suggestion.transactionCurrencyCode,
+      expenseType: suggestion.expenseType,
+    }),
+  );
 
   return (
     <Card>
@@ -59,7 +61,16 @@ export function ExpenseFrecencyChart({
             <p className="text-sm text-muted-foreground">
               {"Repeated expenses are unavailable right now."}
             </p>
-            {onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry}>Retry</Button>}
+            {onRetry && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRetry}
+              >
+                Retry
+              </Button>
+            )}
           </div>
         )}
         {status === "empty" && (
@@ -122,7 +133,8 @@ export function ExpenseFrecencyChart({
             <ul className="sr-only" aria-label="Repeated expense details">
               {chartData.map((datum) => (
                 <li key={datum.name}>
-                  {datum.name}: Frequency {datum.frequency}, Recency {RECENCY_LABELS[datum.recencyBucket]}
+                  {datum.name}: Frequency {datum.frequency}, Recency{" "}
+                  {RECENCY_LABELS[datum.recencyBucket]}
                 </li>
               ))}
             </ul>

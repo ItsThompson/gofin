@@ -81,9 +81,17 @@ export function ExpenseForm({
                 <Input
                   id="expense-amount"
                   type="number"
-                  min={getMinorUnitDigits(state.transactionCurrencyCode) === 0 ? "1" : "0.01"}
+                  min={
+                    getMinorUnitDigits(state.transactionCurrencyCode) === 0
+                      ? "1"
+                      : "0.01"
+                  }
                   step={getCurrencyInputStep(state.transactionCurrencyCode)}
-                  placeholder={getMinorUnitDigits(state.transactionCurrencyCode) === 0 ? "0" : "0.00"}
+                  placeholder={
+                    getMinorUnitDigits(state.transactionCurrencyCode) === 0
+                      ? "0"
+                      : "0.00"
+                  }
                   value={state.fields.amountDollars}
                   onChange={(event) => {
                     actions.setField("amountDollars", event.target.value);
@@ -96,11 +104,15 @@ export function ExpenseForm({
             </FormField>
 
             <FormField>
-              <FormLabel htmlFor="transaction-currency">Transaction Currency</FormLabel>
+              <FormLabel htmlFor="transaction-currency">
+                Transaction Currency
+              </FormLabel>
               <select
                 id="transaction-currency"
                 value={state.transactionCurrencyCode}
-                onChange={(event) => actions.setTransactionCurrency(event.target.value)}
+                onChange={(event) =>
+                  actions.setTransactionCurrency(event.target.value)
+                }
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {SUPPORTED_CURRENCY_OPTIONS.map((option) => (

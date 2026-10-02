@@ -24,7 +24,10 @@ export const periodsHandlers = [
         return HttpResponse.json({ period: mockPeriod });
       }
       return HttpResponse.json(
-        { code: "PERIOD_NOT_FOUND", message: "No budget period for this month" },
+        {
+          code: "PERIOD_NOT_FOUND",
+          message: "No budget period for this month",
+        },
         { status: 404 },
       );
     },
@@ -51,13 +54,20 @@ export const periodsHandlers = [
     async ({ request }) => {
       await simulateLatency();
       const body = await request.json();
-      const period: BudgetPeriod = { ...mockPeriod, ...body, updatedAt: new Date().toISOString() };
+      const period: BudgetPeriod = {
+        ...mockPeriod,
+        ...body,
+        updatedAt: new Date().toISOString(),
+      };
       return HttpResponse.json({ period });
     },
   ),
 
-  http.get<never, never, PeriodListResponse>("/api/finance/periods", async () => {
-    await simulateLatency();
-    return HttpResponse.json({ periods: [mockPeriod] });
-  }),
+  http.get<never, never, PeriodListResponse>(
+    "/api/finance/periods",
+    async () => {
+      await simulateLatency();
+      return HttpResponse.json({ periods: [mockPeriod] });
+    },
+  ),
 ];

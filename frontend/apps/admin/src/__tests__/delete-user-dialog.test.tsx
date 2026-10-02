@@ -87,11 +87,16 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     expect(screen.getByLabelText("Your Password")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete User" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Delete User" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Back" })).toBeInTheDocument();
   });
 
@@ -106,7 +111,10 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.click(screen.getByRole("button", { name: "Back" }));
 
@@ -130,7 +138,10 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     await user.type(screen.getByLabelText("Your Password"), "mypassword");
@@ -154,7 +165,11 @@ describe("DeleteUserDialog", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
-      json: () => Promise.resolve({ code: "INVALID_CREDENTIALS", message: "Invalid password" }),
+      json: () =>
+        Promise.resolve({
+          code: "INVALID_CREDENTIALS",
+          message: "Invalid password",
+        }),
     });
 
     const user = userEvent.setup();
@@ -167,7 +182,10 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     await user.type(screen.getByLabelText("Your Password"), "wrongpassword");
@@ -185,7 +203,11 @@ describe("DeleteUserDialog", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 403,
-      json: () => Promise.resolve({ code: "PROTECTED_USER", message: "Cannot delete a protected user" }),
+      json: () =>
+        Promise.resolve({
+          code: "PROTECTED_USER",
+          message: "Cannot delete a protected user",
+        }),
     });
 
     const user = userEvent.setup();
@@ -198,13 +220,18 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.type(screen.getByLabelText("Your Password"), "mypassword");
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Cannot delete a protected user")).toBeInTheDocument();
+      expect(
+        screen.getByText("Cannot delete a protected user"),
+      ).toBeInTheDocument();
     });
 
     expect(mockOnSuccess).not.toHaveBeenCalled();
@@ -214,7 +241,11 @@ describe("DeleteUserDialog", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 409,
-      json: () => Promise.resolve({ code: "EXPORT_CONFLICT", message: "Cannot delete user while data export is in progress" }),
+      json: () =>
+        Promise.resolve({
+          code: "EXPORT_CONFLICT",
+          message: "Cannot delete user while data export is in progress",
+        }),
     });
 
     const user = userEvent.setup();
@@ -227,13 +258,18 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.type(screen.getByLabelText("Your Password"), "mypassword");
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Cannot delete user while data export is in progress")).toBeInTheDocument();
+      expect(
+        screen.getByText("Cannot delete user while data export is in progress"),
+      ).toBeInTheDocument();
     });
 
     expect(mockOnSuccess).not.toHaveBeenCalled();
@@ -243,7 +279,11 @@ describe("DeleteUserDialog", () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
-      json: () => Promise.resolve({ code: "BAD_REQUEST", message: "Cannot delete your own account" }),
+      json: () =>
+        Promise.resolve({
+          code: "BAD_REQUEST",
+          message: "Cannot delete your own account",
+        }),
     });
 
     const user = userEvent.setup();
@@ -256,13 +296,18 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.type(screen.getByLabelText("Your Password"), "mypassword");
     await user.click(screen.getByRole("button", { name: "Delete User" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Cannot delete your own account")).toBeInTheDocument();
+      expect(
+        screen.getByText("Cannot delete your own account"),
+      ).toBeInTheDocument();
     });
 
     expect(mockOnSuccess).not.toHaveBeenCalled();
@@ -279,7 +324,10 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
 
     expect(screen.getByRole("button", { name: "Delete User" })).toBeDisabled();
@@ -296,7 +344,10 @@ describe("DeleteUserDialog", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Confirmation"), "permanently delete");
+    await user.type(
+      screen.getByLabelText("Confirmation"),
+      "permanently delete",
+    );
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByLabelText("Your Password")).toBeInTheDocument();
 

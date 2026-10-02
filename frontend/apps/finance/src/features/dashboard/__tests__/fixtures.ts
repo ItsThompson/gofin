@@ -49,14 +49,29 @@ export const testSummary = buildPeriodSummary({
   dailySpendRate: 18166,
   budgetPace: 8767,
   isOnTrack: false,
-  essentials: { allocated: 150000, spent: 50000, remaining: 100000, percentUsed: 33.33 },
-  desires: { allocated: 90000, spent: 4500, remaining: 85500, percentUsed: 5.0 },
+  essentials: {
+    allocated: 150000,
+    spent: 50000,
+    remaining: 100000,
+    percentUsed: 33.33,
+  },
+  desires: {
+    allocated: 90000,
+    spent: 4500,
+    remaining: 85500,
+    percentUsed: 5.0,
+  },
   savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0.0 },
 });
 
 export const testTagSpending = [
   { tagId: "tag-food", tagName: "Food", amount: 50000, percentOfTotal: 91.74 },
-  { tagId: "tag-social", tagName: "Social", amount: 4500, percentOfTotal: 8.26 },
+  {
+    tagId: "tag-social",
+    tagName: "Social",
+    amount: 4500,
+    percentOfTotal: 8.26,
+  },
 ];
 
 export const testCumulativeData = Array.from({ length: 31 }, (_, index) => ({
@@ -138,9 +153,24 @@ export function dashboardDataEmptyRoutes() {
           dailySpendRate: 0,
           budgetPace: 9677,
           isOnTrack: true,
-          essentials: { allocated: 150000, spent: 0, remaining: 150000, percentUsed: 0 },
-          desires: { allocated: 90000, spent: 0, remaining: 90000, percentUsed: 0 },
-          savings: { allocated: 60000, spent: 0, remaining: 60000, percentUsed: 0 },
+          essentials: {
+            allocated: 150000,
+            spent: 0,
+            remaining: 150000,
+            percentUsed: 0,
+          },
+          desires: {
+            allocated: 90000,
+            spent: 0,
+            remaining: 90000,
+            percentUsed: 0,
+          },
+          savings: {
+            allocated: 60000,
+            spent: 0,
+            remaining: 60000,
+            percentUsed: 0,
+          },
         }),
       },
     },
@@ -149,7 +179,9 @@ export function dashboardDataEmptyRoutes() {
     "/api/expenses/suggestions": {
       body: { data: [], total: 0, page: 1, pageSize: 10, hasMore: false },
     },
-    "/api/expenses": { body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false } },
+    "/api/expenses": {
+      body: { data: [], total: 0, page: 1, pageSize: 5, hasMore: false },
+    },
     "/api/finance/spending/comparison": {
       status: 404,
       body: { code: "PERIOD_NOT_FOUND", message: "Not enough data" },
@@ -164,12 +196,26 @@ export function dashboardDataWithExpensesRoutes() {
   return {
     "/api/finance/summary": { body: { summary: testSummary } },
     "/api/finance/spending/by-tag": { body: { tagSpending: testTagSpending } },
-    "/api/finance/spending/cumulative": { body: { points: testCumulativeData } },
+    "/api/finance/spending/cumulative": {
+      body: { points: testCumulativeData },
+    },
     "/api/expenses/suggestions": {
-      body: { data: testExpenseSuggestions, total: 2, page: 1, pageSize: 10, hasMore: false },
+      body: {
+        data: testExpenseSuggestions,
+        total: 2,
+        page: 1,
+        pageSize: 10,
+        hasMore: false,
+      },
     },
     "/api/expenses": {
-      body: { data: testExpenses, total: 2, page: 1, pageSize: 5, hasMore: false },
+      body: {
+        data: testExpenses,
+        total: 2,
+        page: 1,
+        pageSize: 5,
+        hasMore: false,
+      },
     },
     "/api/finance/spending/comparison": {
       body: {

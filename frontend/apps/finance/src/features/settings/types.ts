@@ -27,7 +27,12 @@ export interface ExportListResponse {
 }
 
 /** Export lifecycle phases: exactly one is active at any time. */
-export type ExportStatus = 'idle' | 'loading' | 'creating' | 'polling' | 'error';
+export type ExportStatus =
+  | "idle"
+  | "loading"
+  | "creating"
+  | "polling"
+  | "error";
 
 /**
  * Save lifecycle for a settings form mutation. Exactly one kind is active;
@@ -35,10 +40,10 @@ export type ExportStatus = 'idle' | 'loading' | 'creating' | 'polling' | 'error'
  * cannot carry a stale message.
  */
 export type SaveStatus =
-  | { kind: 'idle' }
-  | { kind: 'saving' }
-  | { kind: 'saved' }
-  | { kind: 'failed'; message: string };
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved" }
+  | { kind: "failed"; message: string };
 
 /** State returned by the useExportData hook. */
 export interface ExportDataState {

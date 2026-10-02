@@ -45,7 +45,10 @@ describe("SectionErrorBoundary", () => {
   });
 
   it("retains the caught error and the component stack", () => {
-    const didCatch = vi.spyOn(SectionErrorBoundary.prototype, "componentDidCatch");
+    const didCatch = vi.spyOn(
+      SectionErrorBoundary.prototype,
+      "componentDidCatch",
+    );
     const boundary = React.createRef<SectionErrorBoundary>();
 
     render(
@@ -116,9 +119,7 @@ describe("SectionErrorBoundary", () => {
       </SectionErrorBoundary>,
     );
 
-    expect(
-      screen.getByText("Could not load this section"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Could not load this section")).toBeInTheDocument();
   });
 
   it("renders custom fallback when provided", () => {

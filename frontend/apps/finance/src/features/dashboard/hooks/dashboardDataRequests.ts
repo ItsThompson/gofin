@@ -4,7 +4,10 @@ import {
   type ActiveExpenseSuggestion,
 } from "../components/widgets/expenseFrecencyChartData";
 
-export type DashboardSectionPayload = { section: "suggestions"; data: readonly ActiveExpenseSuggestion[] };
+export type DashboardSectionPayload = {
+  section: "suggestions";
+  data: readonly ActiveExpenseSuggestion[];
+};
 
 async function fetchSuggestions(
   pageSize: number,
@@ -15,10 +18,14 @@ async function fetchSuggestions(
   let page = 1;
   let hasMore = true;
   while (suggestions.length < pageSize && hasMore && !signal.aborted) {
-    const response = await expenseSuggestionsApi.getSuggestions(page, pageSize, {
-      signal,
-      forceRefresh,
-    });
+    const response = await expenseSuggestionsApi.getSuggestions(
+      page,
+      pageSize,
+      {
+        signal,
+        forceRefresh,
+      },
+    );
     suggestions.push(...response.data.filter(isActiveExpenseSuggestion));
     hasMore = response.hasMore;
     page += 1;

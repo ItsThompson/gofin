@@ -2,23 +2,30 @@ import type { DashboardOutlineElement, DashboardOutlineItem } from "./types";
 
 const OUTLINE_SELECTOR = "[id][data-outline-title]";
 
-export function collectDashboardOutline(root: HTMLElement): DashboardOutlineElement[] {
-  const candidates = Array.from(root.querySelectorAll<HTMLElement>(OUTLINE_SELECTOR));
-  const outlineElements = candidates.reduce<DashboardOutlineElement[]>((items, element) => {
-    if (!isElementVisible(element)) return items;
+export function collectDashboardOutline(
+  root: HTMLElement,
+): DashboardOutlineElement[] {
+  const candidates = Array.from(
+    root.querySelectorAll<HTMLElement>(OUTLINE_SELECTOR),
+  );
+  const outlineElements = candidates.reduce<DashboardOutlineElement[]>(
+    (items, element) => {
+      if (!isElementVisible(element)) return items;
 
-    const title = element.dataset.outlineTitle?.trim();
-    if (!title) return items;
+      const title = element.dataset.outlineTitle?.trim();
+      if (!title) return items;
 
-    items.push({
-      id: element.id,
-      title,
-      element,
-      children: [],
-    });
+      items.push({
+        id: element.id,
+        title,
+        element,
+        children: [],
+      });
 
-    return items;
-  }, []);
+      return items;
+    },
+    [],
+  );
 
   return buildOutlineTree(outlineElements);
 }
@@ -33,7 +40,9 @@ export function toDashboardOutlineItems(
   }));
 }
 
-function buildOutlineTree(items: DashboardOutlineElement[]): DashboardOutlineElement[] {
+function buildOutlineTree(
+  items: DashboardOutlineElement[],
+): DashboardOutlineElement[] {
   const roots: DashboardOutlineElement[] = [];
 
   for (const item of items) {
@@ -59,7 +68,8 @@ function findNearestCollectedParent(
 
   for (const candidate of items.slice(0, itemIndex)) {
     if (!candidate.element.contains(item.element)) continue;
-    if (nearestParent && !nearestParent.element.contains(candidate.element)) continue;
+    if (nearestParent && !nearestParent.element.contains(candidate.element))
+      continue;
 
     nearestParent = candidate;
   }
@@ -68,7 +78,8 @@ function findNearestCollectedParent(
 }
 
 function isElementVisible(element: HTMLElement): boolean {
-  if (element.hidden || element.getAttribute("aria-hidden") === "true") return false;
+  if (element.hidden || element.getAttribute("aria-hidden") === "true")
+    return false;
 
   const style = window.getComputedStyle(element);
   if (style.display === "none" || style.visibility === "hidden") return false;

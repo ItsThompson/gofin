@@ -1,7 +1,10 @@
 import * as React from "react";
 import { cn } from "@gofin/ui/lib/utils";
 
-export function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+export function DialogHeader({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"

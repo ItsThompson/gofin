@@ -31,7 +31,9 @@ export function DashboardFeature({ user }: DashboardFeatureProps) {
       return (
         <Card>
           <CardHeader>
-            <CardTitle className="text-destructive">Something went wrong</CardTitle>
+            <CardTitle className="text-destructive">
+              Something went wrong
+            </CardTitle>
             <CardDescription>
               Could not load the dashboard. The error details were shown in a
               notification.

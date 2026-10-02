@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isNetworkError, NETWORK_ERROR_MESSAGE } from "../src/hooks/useApiToast";
+import {
+  isNetworkError,
+  NETWORK_ERROR_MESSAGE,
+} from "../src/hooks/useApiToast";
 
 describe("isNetworkError", () => {
   it("returns true for TypeError with 'Failed to fetch' message", () => {
@@ -8,7 +11,9 @@ describe("isNetworkError", () => {
   });
 
   it("returns true for TypeError with 'NetworkError' message", () => {
-    const error = new TypeError("NetworkError when attempting to fetch resource");
+    const error = new TypeError(
+      "NetworkError when attempting to fetch resource",
+    );
     expect(isNetworkError(error)).toBe(true);
   });
 

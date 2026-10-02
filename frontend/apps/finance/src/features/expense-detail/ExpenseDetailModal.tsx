@@ -52,9 +52,7 @@ export function ExpenseDetailModal({
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {state.status === "correct"
-              ? "Correct Expense"
-              : "Expense Detail"}
+            {state.status === "correct" ? "Correct Expense" : "Expense Detail"}
           </DialogTitle>
           <DialogClose onClick={onClose} />
         </DialogHeader>

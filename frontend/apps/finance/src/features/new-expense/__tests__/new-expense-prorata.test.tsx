@@ -42,7 +42,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     renderNewExpense();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent(
+        "Loading tags...",
+      );
     });
 
     const checkbox = screen.getByLabelText("Spread across months");
@@ -56,7 +58,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     renderNewExpense();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent(
+        "Loading tags...",
+      );
     });
 
     const checkbox = screen.getByLabelText("Spread across months");
@@ -141,7 +145,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText("Spread across months")).not.toBeChecked();
-      expect(screen.queryByLabelText("Number of months")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Number of months"),
+      ).not.toBeInTheDocument();
       expect(screen.getByLabelText("Name")).toHaveValue("");
       expect(screen.getByLabelText("Amount")).toHaveValue(null);
       expect(screen.getByLabelText("essentials")).toBeChecked();
@@ -169,7 +175,13 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
       }
 
       if (url.includes("/api/expenses/suggestions")) {
-        return jsonResponse({ data: [], total: 0, page: 1, pageSize: 50, hasMore: false });
+        return jsonResponse({
+          data: [],
+          total: 0,
+          page: 1,
+          pageSize: 50,
+          hasMore: false,
+        });
       }
 
       return jsonResponse({ message: "Unhandled request" }, 404);
@@ -239,7 +251,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     renderNewExpense();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent(
+        "Loading tags...",
+      );
     });
 
     const checkbox = screen.getByLabelText("Spread across months");
@@ -253,7 +267,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
 
     // Re-check: months should be empty
     await user.click(checkbox);
-    const monthsInputAgain = screen.getByLabelText("Number of months") as HTMLInputElement;
+    const monthsInputAgain = screen.getByLabelText(
+      "Number of months",
+    ) as HTMLInputElement;
     expect(monthsInputAgain.value).toBe("");
   });
 
@@ -262,7 +278,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     renderNewExpense();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent(
+        "Loading tags...",
+      );
     });
 
     // Submit empty to trigger errors
@@ -279,7 +297,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     renderNewExpense();
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Tag")).not.toHaveTextContent("Loading tags...");
+      expect(screen.getByLabelText("Tag")).not.toHaveTextContent(
+        "Loading tags...",
+      );
     });
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
@@ -301,8 +321,13 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
     await waitForFormBootstrap();
 
     await user.type(screen.getByLabelText("Name"), "Annual subscription");
-    await user.selectOptions(screen.getByLabelText("Transaction Currency"), "JPY");
-    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1200.50" } });
+    await user.selectOptions(
+      screen.getByLabelText("Transaction Currency"),
+      "JPY",
+    );
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "1200.50" },
+    });
 
     const checkbox = screen.getByLabelText("Spread across months");
     await user.click(checkbox);
@@ -310,7 +335,9 @@ describe("NewExpenseFeature - Pro-rata flow", () => {
 
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    expect(screen.getByText("Amount must be a whole JPY amount")).toBeInTheDocument();
+    expect(
+      screen.getByText("Amount must be a whole JPY amount"),
+    ).toBeInTheDocument();
     expect(findProRataPostCall()).toBeUndefined();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });

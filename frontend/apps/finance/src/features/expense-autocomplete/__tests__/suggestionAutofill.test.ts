@@ -53,7 +53,14 @@ describe("createExpenseSuggestionPatch", () => {
 
   it("formats zero-decimal suggestion amounts with their currency precision", () => {
     expect(
-      createExpenseSuggestionPatch({ ...suggestion, originalTransactionAmountInMinorUnits: 1299, transactionCurrencyCode: "JPY" }, tags),
+      createExpenseSuggestionPatch(
+        {
+          ...suggestion,
+          originalTransactionAmountInMinorUnits: 1299,
+          transactionCurrencyCode: "JPY",
+        },
+        tags,
+      ),
     ).toEqual({
       name: "Groceries",
       amountDollars: "1299",

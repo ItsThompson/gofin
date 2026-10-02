@@ -74,7 +74,9 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
                 type="button"
                 onClick={() => filters.toggleTransactionCurrency(currency.code)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  filters.criteria.selectedTransactionCurrencies.has(currency.code)
+                  filters.criteria.selectedTransactionCurrencies.has(
+                    currency.code,
+                  )
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-input bg-transparent hover:bg-muted"
                 }`}
@@ -96,7 +98,9 @@ export function FilterPanel({ filters, tags }: FilterPanelProps) {
                 type="button"
                 onClick={() => filters.toggleReportingCurrency(currency.code)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  filters.criteria.selectedReportingCurrencies.has(currency.code)
+                  filters.criteria.selectedReportingCurrencies.has(
+                    currency.code,
+                  )
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-input bg-transparent hover:bg-muted"
                 }`}

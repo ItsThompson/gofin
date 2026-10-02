@@ -19,8 +19,12 @@ export const prorataHandlers = [
         userId: currentMockUser.id,
         name: body.name,
         transactionCurrencyCode: body.transactionCurrencyCode,
-        originalTransactionAmountInMinorUnits: Math.round(body.totalAmountInMinorUnits / body.spreadOverMonths),
-        reportingAmountInMinorUnits: Math.round(body.totalAmountInMinorUnits / body.spreadOverMonths),
+        originalTransactionAmountInMinorUnits: Math.round(
+          body.totalAmountInMinorUnits / body.spreadOverMonths,
+        ),
+        reportingAmountInMinorUnits: Math.round(
+          body.totalAmountInMinorUnits / body.spreadOverMonths,
+        ),
         reportingCurrencyCode: body.transactionCurrencyCode,
         expenseType: body.expenseType,
         tagId: body.tagId,

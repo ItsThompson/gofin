@@ -63,10 +63,12 @@ export function CorrectionTimeline({
               {!hasSameCurrencySnapshot(entry) && (
                 <span className="text-muted-foreground/80">
                   {" "}
-                  ({formatCurrency(
+                  (
+                  {formatCurrency(
                     entry.reportingAmountInMinorUnits,
                     entry.reportingCurrencyCode,
-                  )})
+                  )}
+                  )
                 </span>
               )}{" "}
               · {entry.expenseType} · {tagMap.get(entry.tagId) ?? entry.tagId}

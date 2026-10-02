@@ -70,7 +70,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
 
     await user.type(screen.getByLabelText("Amount"), "12.34");
     await user.click(screen.getByLabelText("desires"));
@@ -145,7 +147,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Name"), "zzzz");
 
     expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Load more suggestions" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Load more suggestions" }),
+    ).toBeInTheDocument();
   });
 
   it("hides load more when the latest page has no more results", async () => {
@@ -157,7 +161,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await screen.findByText("Coffee Shop");
 
-    expect(screen.queryByRole("option", { name: "Load more suggestions" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Load more suggestions" }),
+    ).not.toBeInTheDocument();
   });
 
   it("loads the next page by pointer and refreshes fuzzy matches without dropping existing suggestions", async () => {
@@ -196,9 +202,13 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Name"), "Custom");
     expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("option", { name: "Load more suggestions" }));
+    await user.click(
+      screen.getByRole("option", { name: "Load more suggestions" }),
+    );
 
-    expect(await screen.findByText("Custom Coffee Roaster")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Custom Coffee Roaster"),
+    ).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/expenses/suggestions?page=2&pageSize=50",
       expect.objectContaining({ credentials: "include" }),
@@ -230,13 +240,21 @@ describe("NewExpenseFeature autocomplete integration", () => {
       }
 
       if (url.includes("/api/expenses/suggestions?page=2")) {
-        return jsonResponse({ data: [secondPageSuggestion], total: 1, page: 2, pageSize: 50, hasMore: false });
+        return jsonResponse({
+          data: [secondPageSuggestion],
+          total: 1,
+          page: 2,
+          pageSize: 50,
+          hasMore: false,
+        });
       }
 
       return jsonResponse({ message: "Unhandled request" }, 404);
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
     await user.type(screen.getByLabelText("Amount"), "7.77");
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await screen.findByRole("option", { name: "Load more suggestions" });
@@ -254,7 +272,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
 
     await user.type(screen.getByLabelText("Name"), "Custom Coffee");
     expect(await screen.findByText("No matching expenses")).toBeInTheDocument();
@@ -263,7 +283,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Amount"), "5.00");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"),
+    );
     expect(mockNavigate).not.toHaveBeenCalled();
 
     expect(getSubmittedExpenseRequest().name).toBe("Custom Coffee");
@@ -278,23 +300,33 @@ describe("NewExpenseFeature autocomplete integration", () => {
       }
 
       if (url.includes("/api/expenses/suggestions")) {
-        return jsonResponse({ code: "internal_server_error", message: "failed" }, 500);
+        return jsonResponse(
+          { code: "internal_server_error", message: "failed" },
+          500,
+        );
       }
 
       if (url.includes("/api/expenses") && init?.method === "POST") {
-        return jsonResponse({ expense: { id: "exp-1", name: "Manual Expense" } }, 201);
+        return jsonResponse(
+          { expense: { id: "exp-1", name: "Manual Expense" } },
+          201,
+        );
       }
 
       return jsonResponse({ message: "Unhandled request" }, 404);
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
 
     await user.type(screen.getByLabelText("Name"), "Manual Expense");
     await user.type(screen.getByLabelText("Amount"), "8.25");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"),
+    );
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(getSubmittedExpenseRequest().name).toBe("Manual Expense");
   });
@@ -312,17 +344,24 @@ describe("NewExpenseFeature autocomplete integration", () => {
       }
 
       if (url.includes("/api/expenses/suggestions?page=2")) {
-        return jsonResponse({ code: "internal_server_error", message: "failed" }, 500);
+        return jsonResponse(
+          { code: "internal_server_error", message: "failed" },
+          500,
+        );
       }
 
       return jsonResponse({ message: "Unhandled request" }, 404);
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await screen.findByText("Coffee Shop");
 
-    await user.click(screen.getByRole("option", { name: "Load more suggestions" }));
+    await user.click(
+      screen.getByRole("option", { name: "Load more suggestions" }),
+    );
     await user.click(await screen.findByText("Coffee Shop"));
 
     expect(screen.getByLabelText("Name")).toHaveValue("Coffee Shop");
@@ -336,8 +375,12 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
-    const dateBeforeSelection = (screen.getByLabelText("Date") as HTMLInputElement).value;
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
+    const dateBeforeSelection = (
+      screen.getByLabelText("Date") as HTMLInputElement
+    ).value;
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.click(await screen.findByText("Coffee Shop"));
@@ -402,7 +445,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await screen.findByText("Coffee Shop");
@@ -420,7 +465,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
     await user.type(screen.getByLabelText("Amount"), "9.99");
     await user.click(screen.getByLabelText("essentials"));
     await user.selectOptions(screen.getByLabelText("Tag"), "tag-bills");
@@ -465,7 +512,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.click(await screen.findByText("Coffee Shop"));
@@ -482,7 +531,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
 
     await waitForFormBootstrap();
 
-    await waitFor(() => expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Tag")).toHaveValue("tag-bills"),
+    );
 
     await user.type(screen.getByLabelText("Name"), "Coffee");
     await user.click(await screen.findByText("Coffee Shop"));
@@ -496,7 +547,9 @@ describe("NewExpenseFeature autocomplete integration", () => {
     await user.type(screen.getByLabelText("Date"), "2026-05-02");
     await user.click(screen.getByRole("button", { name: "Log Expense" }));
 
-    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"));
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith("Expense saved"),
+    );
     expect(mockNavigate).not.toHaveBeenCalled();
 
     expect(getSubmittedExpenseRequest()).toMatchObject({

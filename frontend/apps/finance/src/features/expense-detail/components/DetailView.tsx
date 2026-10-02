@@ -44,8 +44,7 @@ export function DetailView({
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
 
   const isCurrentPeriod =
-    expense.periodYear === currentYear &&
-    expense.periodMonth === currentMonth;
+    expense.periodYear === currentYear && expense.periodMonth === currentMonth;
   const canCorrect = expense.status === "active" && isCurrentPeriod;
   const hasCorrections = history.length > 1;
 
@@ -59,7 +58,8 @@ export function DetailView({
     : null;
 
   const transactionCurrencyCode = expense.transactionCurrencyCode;
-  const originalTransactionAmountInMinorUnits = expense.originalTransactionAmountInMinorUnits;
+  const originalTransactionAmountInMinorUnits =
+    expense.originalTransactionAmountInMinorUnits;
   const reportingCurrencyCode = expense.reportingCurrencyCode;
   const reportingAmountInMinorUnits = expense.reportingAmountInMinorUnits;
   const sameCurrency = hasSameCurrencySnapshot(expense);
@@ -93,20 +93,32 @@ export function DetailView({
         {sameCurrency ? (
           <DetailField
             label="Period Amount"
-            value={formatCurrency(reportingAmountInMinorUnits, reportingCurrencyCode)}
+            value={formatCurrency(
+              reportingAmountInMinorUnits,
+              reportingCurrencyCode,
+            )}
           />
         ) : (
           <>
             <DetailField
               label="Transaction Amount"
-              value={formatCurrency(originalTransactionAmountInMinorUnits, transactionCurrencyCode)}
+              value={formatCurrency(
+                originalTransactionAmountInMinorUnits,
+                transactionCurrencyCode,
+              )}
             />
             <DetailField
               label="Budget Impact"
-              value={formatCurrency(reportingAmountInMinorUnits, reportingCurrencyCode)}
+              value={formatCurrency(
+                reportingAmountInMinorUnits,
+                reportingCurrencyCode,
+              )}
             />
             {expense.sourceToTargetExchangeRate && (
-              <DetailField label="Exchange Rate" value={expense.sourceToTargetExchangeRate} />
+              <DetailField
+                label="Exchange Rate"
+                value={expense.sourceToTargetExchangeRate}
+              />
             )}
             {expense.exchangeRateTimestamp && (
               <DetailField
@@ -118,9 +130,7 @@ export function DetailView({
         )}
         <DetailField
           label="Type"
-          value={
-            <span className="capitalize">{expense.expenseType}</span>
-          }
+          value={<span className="capitalize">{expense.expenseType}</span>}
         />
         <DetailField
           label="Tag"
@@ -159,19 +169,26 @@ export function DetailView({
                 value={`${expense.proRataIndex} of ${expense.proRataTotal}`}
               />
             )}
-            {proRataGroup.length > 0 && proRataGroup.length === expense.proRataTotal && (
-              <DetailField
-                label="Total Amount (all installments)"
-                value={formatCurrency(
-                  proRataGroup.reduce((sum, entry) => sum + entry.originalTransactionAmountInMinorUnits, 0),
-                  currency,
-                )}
-              />
-            )}
+            {proRataGroup.length > 0 &&
+              proRataGroup.length === expense.proRataTotal && (
+                <DetailField
+                  label="Total Amount (all installments)"
+                  value={formatCurrency(
+                    proRataGroup.reduce(
+                      (sum, entry) =>
+                        sum + entry.originalTransactionAmountInMinorUnits,
+                      0,
+                    ),
+                    currency,
+                  )}
+                />
+              )}
           </div>
           {proRataGroup.length > 1 && (
             <div className="mt-3">
-              <div className="mb-2 text-xs text-muted-foreground">Related Installments</div>
+              <div className="mb-2 text-xs text-muted-foreground">
+                Related Installments
+              </div>
               <div className="space-y-1">
                 {proRataGroup.map((entry) => (
                   <div
@@ -187,7 +204,11 @@ export function DetailView({
                       {entry.id === expense.id && " (current)"}
                     </span>
                     <span className="text-muted-foreground">
-                      {formatCurrency(entry.originalTransactionAmountInMinorUnits, currency)} · {entry.expenseDateIso}
+                      {formatCurrency(
+                        entry.originalTransactionAmountInMinorUnits,
+                        currency,
+                      )}{" "}
+                      · {entry.expenseDateIso}
                     </span>
                   </div>
                 ))}
@@ -243,7 +264,8 @@ export function DetailView({
               <DialogClose onClick={() => setConfirmDelete(false)} />
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to delete this expense? This cannot be undone from the UI.
+              Are you sure you want to delete this expense? This cannot be
+              undone from the UI.
             </p>
             {deleteError && (
               <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">

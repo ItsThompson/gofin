@@ -4,7 +4,11 @@ import type { MultiStepDialogProps } from "./types";
 /**
  * Multi-step dialog wrapper. Resets to step 0 when closed.
  */
-export function MultiStepDialog({ open, onOpenChange, children }: MultiStepDialogProps) {
+export function MultiStepDialog({
+  open,
+  onOpenChange,
+  children,
+}: MultiStepDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {children}

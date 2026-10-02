@@ -4,10 +4,13 @@ import { computeMockTrends } from "../data";
 import { simulateLatency } from "./latency";
 
 export const trendsHandlers = [
-  http.get<never, never, TrendResponse>("/api/finance/spending/trends", async ({ request }) => {
-    await simulateLatency();
-    const url = new URL(request.url);
-    const months = Number(url.searchParams.get("months") ?? "6");
-    return HttpResponse.json({ trends: computeMockTrends(months) });
-  }),
+  http.get<never, never, TrendResponse>(
+    "/api/finance/spending/trends",
+    async ({ request }) => {
+      await simulateLatency();
+      const url = new URL(request.url);
+      const months = Number(url.searchParams.get("months") ?? "6");
+      return HttpResponse.json({ trends: computeMockTrends(months) });
+    },
+  ),
 ];

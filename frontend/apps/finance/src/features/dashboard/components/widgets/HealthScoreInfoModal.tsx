@@ -45,7 +45,10 @@ const BANDS: { band: keyof typeof BAND_LABEL; range: string }[] = [
  * and the provisional and building-baseline states. Reuses the shared Dialog
  * (backdrop + focus trap + Escape).
  */
-export function HealthScoreInfoModal({ open, onClose }: HealthScoreInfoModalProps) {
+export function HealthScoreInfoModal({
+  open,
+  onClose,
+}: HealthScoreInfoModalProps) {
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
@@ -56,9 +59,10 @@ export function HealthScoreInfoModal({ open, onClose }: HealthScoreInfoModalProp
 
         <div className="space-y-4 text-sm">
           <p className="text-muted-foreground">
-            Your Financial Health Score is a single 0-100 read of the month, like
-            a fitness tracker&apos;s readiness score. It sums a few sub-scores so
-            you can see at a glance how the month went and what moved the number.
+            Your Financial Health Score is a single 0-100 read of the month,
+            like a fitness tracker&apos;s readiness score. It sums a few
+            sub-scores so you can see at a glance how the month went and what
+            moved the number.
           </p>
 
           <div className="space-y-2">
@@ -90,7 +94,9 @@ export function HealthScoreInfoModal({ open, onClose }: HealthScoreInfoModalProp
           </div>
 
           <div className="space-y-2">
-            <h3 className="font-semibold">Month to date &amp; building baseline</h3>
+            <h3 className="font-semibold">
+              Month to date &amp; building baseline
+            </h3>
             <p className="text-muted-foreground">
               The current month is marked &quot;Month to date&quot; and firms up
               when the month closes. Spending stability needs three months of

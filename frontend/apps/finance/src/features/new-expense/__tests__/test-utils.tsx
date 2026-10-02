@@ -72,14 +72,28 @@ export interface RenderNewExpenseOptions {
  * overrides for POST behavior, or a full `fetchHandler` for custom routing.
  */
 export function renderNewExpense(options: RenderNewExpenseOptions = {}) {
-  const { user = mockUser, period, periodResponse, tags, suggestions, expensePost, proRataPost, fetchHandler } =
-    options;
+  const {
+    user = mockUser,
+    period,
+    periodResponse,
+    tags,
+    suggestions,
+    expensePost,
+    proRataPost,
+    fetchHandler,
+  } = options;
 
   if (fetchHandler) {
-    const respondPeriod = periodResponse ?? (period ? jsonResponse({ period }) : jsonResponse({ period: mockPeriod }));
+    const respondPeriod =
+      periodResponse ??
+      (period
+        ? jsonResponse({ period })
+        : jsonResponse({ period: mockPeriod }));
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (url.includes("/api/finance/periods/current")) {
-        return typeof respondPeriod === "function" ? respondPeriod(url, init) : respondPeriod;
+        return typeof respondPeriod === "function"
+          ? respondPeriod(url, init)
+          : respondPeriod;
       }
       return fetchHandler(url, init);
     });

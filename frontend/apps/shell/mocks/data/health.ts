@@ -35,7 +35,12 @@ function clampRound(value: number, max: number): number {
 // authoritative Go formula in services/finance/internal/service/healthscore.go.
 // dev-mock has no backend, so this port must stay faithful to keep the card
 // representative.
-const HEALTH_BASE_WEIGHTS = { savings: 25, budget: 25, allocation: 30, stability: 20 };
+const HEALTH_BASE_WEIGHTS = {
+  savings: 25,
+  budget: 25,
+  allocation: 30,
+  stability: 20,
+};
 const STABILITY_MIN_MONTHS = 3;
 const STABILITY_COV_CAP = 1.0;
 
@@ -57,7 +62,10 @@ type HealthWeights = {
 // resolveMockWeights renormalizes the base weights over the present set by
 // division, rounding the remainder into allocation, exactly like resolveWeights
 // on the backend.
-function resolveMockWeights(savingsPresent: boolean, stabilityPresent: boolean): HealthWeights {
+function resolveMockWeights(
+  savingsPresent: boolean,
+  stabilityPresent: boolean,
+): HealthWeights {
   const base = HEALTH_BASE_WEIGHTS;
   let denom = base.budget + base.allocation;
   if (savingsPresent) denom += base.savings;
@@ -74,17 +82,34 @@ function resolveMockWeights(savingsPresent: boolean, stabilityPresent: boolean):
   const maxStability = stabilityPresent ? Math.round(stability) : 0;
   const maxAllocation = 100 - (maxSavings + maxBudget + maxStability);
 
-  return { savings, budget, allocation, stability, maxSavings, maxBudget, maxAllocation, maxStability };
+  return {
+    savings,
+    budget,
+    allocation,
+    stability,
+    maxSavings,
+    maxBudget,
+    maxAllocation,
+    maxStability,
+  };
 }
 
 // mockStability ports stabilityComponent: full marks for a zero mean, otherwise
 // weight * clamp(1 - CoV / cap, 0, 1) with a sample (n-1) standard deviation.
-function mockStability(window: number[], weight: number): { score: number; detail: string } {
+function mockStability(
+  window: number[],
+  weight: number,
+): { score: number; detail: string } {
   const mean = window.reduce((sum, value) => sum + value, 0) / window.length;
-  if (mean === 0) return { score: weight, detail: "Desires spend held steady month to month" };
+  if (mean === 0)
+    return {
+      score: weight,
+      detail: "Desires spend held steady month to month",
+    };
 
   const variance =
-    window.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (window.length - 1);
+    window.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+    (window.length - 1);
   const cov = Math.sqrt(variance) / mean;
   const ratio = Math.min(1, Math.max(0, 1 - cov / STABILITY_COV_CAP));
   const pct = Math.round(cov * 100);
@@ -105,7 +130,10 @@ export function computeMockHealthScore(): HealthScore {
   const sumByType = (type: string) =>
     mockExpenses
       .filter((expense) => expense.expenseType === type)
-      .reduce((sum, expense) => sum + expense.originalTransactionAmountInMinorUnits, 0);
+      .reduce(
+        (sum, expense) => sum + expense.originalTransactionAmountInMinorUnits,
+        0,
+      );
   const essentialsActual = sumByType("essentials");
   const desiresActual = sumByType("desires");
   const savingsActual = sumByType("savings");
@@ -127,7 +155,8 @@ export function computeMockHealthScore(): HealthScore {
     });
   }
 
-  const budgetRatio = combinedTarget === 0 ? (edActual === 0 ? 0 : 2) : edActual / combinedTarget;
+  const budgetRatio =
+    combinedTarget === 0 ? (edActual === 0 ? 0 : 2) : edActual / combinedTarget;
   const budgetFactor =
     budgetRatio <= 1 ? 1 : budgetRatio >= 1.5 ? 0 : (1.5 - budgetRatio) / 0.5;
   components.push({
@@ -145,12 +174,18 @@ export function computeMockHealthScore(): HealthScore {
   let allocDetail = "Balanced across categories";
   const devs: { label: string; dev: number }[] = [];
   if (spendDenom > 0) {
-    const devE = essentialsActual / spendDenom - mockPeriod.essentialsPercent / percentSum;
-    const devD = desiresActual / spendDenom - mockPeriod.desiresPercent / percentSum;
+    const devE =
+      essentialsActual / spendDenom - mockPeriod.essentialsPercent / percentSum;
+    const devD =
+      desiresActual / spendDenom - mockPeriod.desiresPercent / percentSum;
     let wdev = 0.5 * Math.abs(devE) + (devD > 0 ? 1 : 0.5) * Math.abs(devD);
-    devs.push({ label: "Essentials", dev: devE }, { label: "Desires", dev: devD });
+    devs.push(
+      { label: "Essentials", dev: devE },
+      { label: "Desires", dev: devD },
+    );
     if (!savingsDropped) {
-      const devS = savingsActual / spendDenom - mockPeriod.savingsPercent / percentSum;
+      const devS =
+        savingsActual / spendDenom - mockPeriod.savingsPercent / percentSum;
       wdev += (devS < 0 ? 1 : 0.5) * Math.abs(devS);
       devs.push({ label: "Savings", dev: devS });
     }
@@ -178,7 +213,8 @@ export function computeMockHealthScore(): HealthScore {
   }
 
   const total = components.reduce((sum, component) => sum + component.score, 0);
-  const band: HealthBand = total >= 80 ? "green" : total >= 55 ? "amber" : "red";
+  const band: HealthBand =
+    total >= 80 ? "green" : total >= 55 ? "amber" : "red";
 
   const driver = components.reduce((lowest, component) =>
     component.score < lowest.score ? component : lowest,
@@ -242,8 +278,12 @@ function buildMockInsight(
       nudge: `Steadier discretionary spending month to month could lift your score about ${ctx.maxStability - driver.score} points.`,
     };
   }
-  const over = ctx.devs.filter((d) => d.dev > 0).sort((a, b) => b.dev - a.dev)[0];
-  const under = ctx.devs.filter((d) => d.dev < 0).sort((a, b) => a.dev - b.dev)[0];
+  const over = ctx.devs
+    .filter((d) => d.dev > 0)
+    .sort((a, b) => b.dev - a.dev)[0];
+  const under = ctx.devs
+    .filter((d) => d.dev < 0)
+    .sort((a, b) => a.dev - b.dev)[0];
   return {
     summary: "Your category balance is the softest score this month.",
     driver: driver.key,
@@ -260,7 +300,9 @@ export const mockHealthScore: HealthScore = computeMockHealthScore();
 // uses the real computed total and is flagged provisional as the last point.
 const MOCK_TREND_TOTALS = [55, 61, 58, 66, 72, 69, 74, 70, 63, 68, 71];
 
-export function computeMockHealthScoreTrend(months: number): HealthScoreTrendPoint[] {
+export function computeMockHealthScoreTrend(
+  months: number,
+): HealthScoreTrendPoint[] {
   // Match the Go service clamp policy: default 6, cap 12.
   const requested = Number.isFinite(months) ? months : 6;
   const count = requested < 1 ? 6 : Math.min(requested, 12);
@@ -279,9 +321,18 @@ export function computeMockHealthScoreTrend(months: number): HealthScoreTrendPoi
     const total = provisional
       ? mockHealthScore.total
       : MOCK_TREND_TOTALS[(count - 1 - offset) % MOCK_TREND_TOTALS.length];
-    points.push({ year, month, total, band: bandFor(total), provisional, formulaVersion: 2, reportingCurrencyCode: "USD" });
+    points.push({
+      year,
+      month,
+      total,
+      band: bandFor(total),
+      provisional,
+      formulaVersion: 2,
+      reportingCurrencyCode: "USD",
+    });
   }
   return points;
 }
 
-export const mockHealthScoreTrend: HealthScoreTrendPoint[] = computeMockHealthScoreTrend(6);
+export const mockHealthScoreTrend: HealthScoreTrendPoint[] =
+  computeMockHealthScoreTrend(6);

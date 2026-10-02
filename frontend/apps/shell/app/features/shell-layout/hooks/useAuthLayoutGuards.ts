@@ -27,7 +27,9 @@ function deepestAccess(matches: UIMatch[]): RouteAccess {
   const matched = [...matches]
     .reverse()
     .find((match) => (match.handle as AccessHandle | undefined)?.access);
-  return (matched?.handle as AccessHandle | undefined)?.access ?? "authenticated";
+  return (
+    (matched?.handle as AccessHandle | undefined)?.access ?? "authenticated"
+  );
 }
 
 /**

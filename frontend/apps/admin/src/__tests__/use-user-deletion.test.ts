@@ -13,7 +13,9 @@ vi.mock("sonner", () => ({
   },
 }));
 
-function buildJob(overrides?: Partial<DeletionJobResponse>): DeletionJobResponse {
+function buildJob(
+  overrides?: Partial<DeletionJobResponse>,
+): DeletionJobResponse {
   return {
     id: "job-1",
     userId: "user-1",
@@ -29,14 +31,15 @@ function buildPollResponse(status: string, error: string | null = null) {
   return {
     ok: true,
     status: 200,
-    json: () => Promise.resolve({
-      id: "job-1",
-      userId: "user-1",
-      status,
-      error,
-      createdAt: "2026-05-10T00:00:00Z",
-      completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
-    }),
+    json: () =>
+      Promise.resolve({
+        id: "job-1",
+        userId: "user-1",
+        status,
+        error,
+        createdAt: "2026-05-10T00:00:00Z",
+        completedAt: status === "completed" ? "2026-05-10T00:01:00Z" : null,
+      }),
   };
 }
 
@@ -72,7 +75,10 @@ describe("useUserDeletion", () => {
       result.current.actions.startDeletion({ id: "user-1", username: "alice" });
     });
 
-    expect(result.current.state.deletingUser).toEqual({ id: "user-1", username: "alice" });
+    expect(result.current.state.deletingUser).toEqual({
+      id: "user-1",
+      username: "alice",
+    });
   });
 
   it("cancelDeletion clears deletingUser", () => {
@@ -140,7 +146,9 @@ describe("useUserDeletion", () => {
 
   it("shows error toast and stops polling when deletion fails", async () => {
     const { toast } = await import("sonner");
-    mockFetch.mockResolvedValue(buildPollResponse("failed", "auth provider timeout"));
+    mockFetch.mockResolvedValue(
+      buildPollResponse("failed", "auth provider timeout"),
+    );
 
     const { result } = renderHook(() =>
       useUserDeletion({ onUserRemoved: mockOnUserRemoved }),

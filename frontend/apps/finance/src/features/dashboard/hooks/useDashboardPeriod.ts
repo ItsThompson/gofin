@@ -7,10 +7,18 @@ import {
   reportError,
   useFormMutation,
 } from "@gofin/api";
-import type { BudgetPeriod, CreatePeriodRequest, CreatePeriodResponse } from "@gofin/core";
+import type {
+  BudgetPeriod,
+  CreatePeriodRequest,
+  CreatePeriodResponse,
+} from "@gofin/core";
 import { dashboardApi } from "../api";
 import { getPeriodErrorMessage, isSamePeriod } from "../utils/dashboardData";
-import type { DashboardPeriodRecovery, DashboardControllerStatus, DashboardPeriodState } from "../types";
+import type {
+  DashboardPeriodRecovery,
+  DashboardControllerStatus,
+  DashboardPeriodState,
+} from "../types";
 
 export interface DashboardPeriodController {
   period: BudgetPeriod;
@@ -27,8 +35,14 @@ export interface DashboardPeriodController {
   error: string | null;
 }
 
-export function useDashboardPeriod(period: BudgetPeriod, readOnly = false): DashboardPeriodController {
-  const [state, setState] = useState<DashboardPeriodState>({ status: "active", period });
+export function useDashboardPeriod(
+  period: BudgetPeriod,
+  readOnly = false,
+): DashboardPeriodController {
+  const [state, setState] = useState<DashboardPeriodState>({
+    status: "active",
+    period,
+  });
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [summaryRetryVersion, setSummaryRetryVersion] = useState(0);
   const generationRef = useRef(0);
@@ -45,79 +59,141 @@ export function useDashboardPeriod(period: BudgetPeriod, readOnly = false): Dash
     defaultsControllerRef.current = null;
   }, []);
 
-  const enterPeriodRecovery = useCallback(async (requestGeneration: number) => {
-    if (readOnly) {
-      setState((current) => ({ status: "not-found", period: current.period, error: "This historical period is no longer available." }));
-      return;
-    }
-    const controller = new AbortController();
-    defaultsControllerRef.current = controller;
-    try {
-      const { defaults } = await dashboardApi.getDefaults({ signal: controller.signal });
-      if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
-      setState((current) => ({ status: "no-period", period: current.period, defaults }));
-    } catch (error) {
-      if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
-      reportError(error, {
-        ...(isNetworkError(error) ? NETWORK_FAILURE : classifyApiFailure(error)),
-        op: "budget.defaults",
-        domain: "budgets",
-      });
-      setState((current) => ({ status: "error", period: current.period, error: "Could not load budget settings. Retry to continue." }));
-    } finally {
-      if (defaultsControllerRef.current === controller) defaultsControllerRef.current = null;
-    }
-  }, [readOnly]);
-
-  const verify = useCallback((requestGeneration: number, onVerified: (verifiedPeriod: BudgetPeriod) => void) => {
-    abortVerification();
-    const controller = new AbortController();
-    verificationControllerRef.current = controller;
-    const { year, month } = periodRef.current;
-    void dashboardApi.getCurrentPeriod(year, month, { forceRefresh: true, signal: controller.signal })
-      .then(({ period: verifiedPeriod }) => {
-        if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
-        onVerified(verifiedPeriod);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted || requestGeneration !== generationRef.current) return;
-        abortVerification();
-        if (error instanceof ApiRequestError && error.code === "PERIOD_NOT_FOUND") {
-          void enterPeriodRecovery(requestGeneration);
-          return;
-        }
-        reportError(error, {
-          ...(isNetworkError(error) ? NETWORK_FAILURE : classifyApiFailure(error)),
-          op: "budget.period",
-          domain: "budgets",
-        });
-        setState((current) => ({ status: "error", period: current.period, error: getPeriodErrorMessage(error) }));
-      });
-  }, [abortVerification, enterPeriodRecovery]);
-
-  const activatePeriod = useCallback((nextPeriod: BudgetPeriod, loadAll: boolean) => {
-    abortVerification();
-    generationRef.current += 1;
-    periodRef.current = nextPeriod;
-    setState({ status: "active", period: nextPeriod });
-    if (loadAll) setRefreshVersion((version) => version + 1);
-  }, [abortVerification]);
-
-  const beginRefresh = useCallback((preserveRecoveryAttempt: boolean) => {
-    if (!preserveRecoveryAttempt) recoveryAttemptedRef.current = false;
-    abortVerification();
-    const requestGeneration = ++generationRef.current;
-    setState((current) => ({ status: "loading", period: current.period }));
-    if (!preserveRecoveryAttempt) setRefreshVersion((version) => version + 1);
-    verify(requestGeneration, (verifiedPeriod) => {
-      if (!isSamePeriod(verifiedPeriod, periodRef.current)) {
-        activatePeriod(verifiedPeriod, true);
+  const enterPeriodRecovery = useCallback(
+    async (requestGeneration: number) => {
+      if (readOnly) {
+        setState((current) => ({
+          status: "not-found",
+          period: current.period,
+          error: "This historical period is no longer available.",
+        }));
         return;
       }
-      setState({ status: "active", period: periodRef.current });
-      if (preserveRecoveryAttempt) setSummaryRetryVersion((version) => version + 1);
-    });
-  }, [abortVerification, activatePeriod, verify]);
+      const controller = new AbortController();
+      defaultsControllerRef.current = controller;
+      try {
+        const { defaults } = await dashboardApi.getDefaults({
+          signal: controller.signal,
+        });
+        if (
+          controller.signal.aborted ||
+          requestGeneration !== generationRef.current
+        )
+          return;
+        setState((current) => ({
+          status: "no-period",
+          period: current.period,
+          defaults,
+        }));
+      } catch (error) {
+        if (
+          controller.signal.aborted ||
+          requestGeneration !== generationRef.current
+        )
+          return;
+        reportError(error, {
+          ...(isNetworkError(error)
+            ? NETWORK_FAILURE
+            : classifyApiFailure(error)),
+          op: "budget.defaults",
+          domain: "budgets",
+        });
+        setState((current) => ({
+          status: "error",
+          period: current.period,
+          error: "Could not load budget settings. Retry to continue.",
+        }));
+      } finally {
+        if (defaultsControllerRef.current === controller)
+          defaultsControllerRef.current = null;
+      }
+    },
+    [readOnly],
+  );
+
+  const verify = useCallback(
+    (
+      requestGeneration: number,
+      onVerified: (verifiedPeriod: BudgetPeriod) => void,
+    ) => {
+      abortVerification();
+      const controller = new AbortController();
+      verificationControllerRef.current = controller;
+      const { year, month } = periodRef.current;
+      void dashboardApi
+        .getCurrentPeriod(year, month, {
+          forceRefresh: true,
+          signal: controller.signal,
+        })
+        .then(({ period: verifiedPeriod }) => {
+          if (
+            controller.signal.aborted ||
+            requestGeneration !== generationRef.current
+          )
+            return;
+          onVerified(verifiedPeriod);
+        })
+        .catch((error: unknown) => {
+          if (
+            controller.signal.aborted ||
+            requestGeneration !== generationRef.current
+          )
+            return;
+          abortVerification();
+          if (
+            error instanceof ApiRequestError &&
+            error.code === "PERIOD_NOT_FOUND"
+          ) {
+            void enterPeriodRecovery(requestGeneration);
+            return;
+          }
+          reportError(error, {
+            ...(isNetworkError(error)
+              ? NETWORK_FAILURE
+              : classifyApiFailure(error)),
+            op: "budget.period",
+            domain: "budgets",
+          });
+          setState((current) => ({
+            status: "error",
+            period: current.period,
+            error: getPeriodErrorMessage(error),
+          }));
+        });
+    },
+    [abortVerification, enterPeriodRecovery],
+  );
+
+  const activatePeriod = useCallback(
+    (nextPeriod: BudgetPeriod, loadAll: boolean) => {
+      abortVerification();
+      generationRef.current += 1;
+      periodRef.current = nextPeriod;
+      setState({ status: "active", period: nextPeriod });
+      if (loadAll) setRefreshVersion((version) => version + 1);
+    },
+    [abortVerification],
+  );
+
+  const beginRefresh = useCallback(
+    (preserveRecoveryAttempt: boolean) => {
+      if (!preserveRecoveryAttempt) recoveryAttemptedRef.current = false;
+      abortVerification();
+      const requestGeneration = ++generationRef.current;
+      setState((current) => ({ status: "loading", period: current.period }));
+      if (!preserveRecoveryAttempt) setRefreshVersion((version) => version + 1);
+      verify(requestGeneration, (verifiedPeriod) => {
+        if (!isSamePeriod(verifiedPeriod, periodRef.current)) {
+          activatePeriod(verifiedPeriod, true);
+          return;
+        }
+        setState({ status: "active", period: periodRef.current });
+        if (preserveRecoveryAttempt)
+          setSummaryRetryVersion((version) => version + 1);
+      });
+    },
+    [abortVerification, activatePeriod, verify],
+  );
 
   const refresh = useCallback(() => {
     beginRefresh(false);
@@ -149,17 +225,23 @@ export function useDashboardPeriod(period: BudgetPeriod, readOnly = false): Dash
     recoveryAttemptedRef.current = false;
   }, []);
 
-  const replacePeriodAfterEdit = useCallback((nextPeriod: BudgetPeriod) => {
-    recoveryAttemptedRef.current = false;
-    activatePeriod(nextPeriod, true);
-  }, [activatePeriod]);
+  const replacePeriodAfterEdit = useCallback(
+    (nextPeriod: BudgetPeriod) => {
+      recoveryAttemptedRef.current = false;
+      activatePeriod(nextPeriod, true);
+    },
+    [activatePeriod],
+  );
 
   const createMutation = useFormMutation<CreatePeriodResponse>({
     onSuccess: (response) => activatePeriod(response.period, true),
   });
-  const createPeriod = useCallback((body: CreatePeriodRequest) => {
-    createMutation.submit(() => dashboardApi.createPeriod(body));
-  }, [createMutation.submit]);
+  const createPeriod = useCallback(
+    (body: CreatePeriodRequest) => {
+      createMutation.submit(() => dashboardApi.createPeriod(body));
+    },
+    [createMutation.submit],
+  );
 
   useEffect(() => {
     if (isSamePeriod(period, previousPeriodRef.current)) return;
@@ -172,10 +254,13 @@ export function useDashboardPeriod(period: BudgetPeriod, readOnly = false): Dash
     setRefreshVersion((version) => version + 1);
   }, [abortVerification, period]);
 
-  useEffect(() => () => {
-    generationRef.current += 1;
-    abortVerification();
-  }, [abortVerification]);
+  useEffect(
+    () => () => {
+      generationRef.current += 1;
+      abortVerification();
+    },
+    [abortVerification],
+  );
 
   const periodChanged = !isSamePeriod(period, previousPeriodRef.current);
   const visibleStatus: DashboardControllerStatus = periodChanged
@@ -195,15 +280,19 @@ export function useDashboardPeriod(period: BudgetPeriod, readOnly = false): Dash
     onSummaryPeriodNotFound,
     onSummarySuccess,
     replacePeriodAfterEdit,
-    recovery: state.status === "no-period"
-      ? {
-          defaults: state.defaults ?? null,
-          createPeriod,
-          creating: createMutation.submitting,
-          createError: createMutation.error,
-          clearCreateError: createMutation.clearError,
-        }
-      : null,
-    error: state.status === "error" || state.status === "not-found" ? state.error : null,
+    recovery:
+      state.status === "no-period"
+        ? {
+            defaults: state.defaults ?? null,
+            createPeriod,
+            creating: createMutation.submitting,
+            createError: createMutation.error,
+            clearCreateError: createMutation.clearError,
+          }
+        : null,
+    error:
+      state.status === "error" || state.status === "not-found"
+        ? state.error
+        : null,
   };
 }

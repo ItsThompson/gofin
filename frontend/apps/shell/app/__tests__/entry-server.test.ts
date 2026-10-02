@@ -4,7 +4,8 @@ const { captureException, createSentryHandleRequest } = vi.hoisted(() => ({
   captureException: vi.fn<(error: unknown) => string>(
     () => "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   ),
-  createSentryHandleRequest: vi.fn<(options: Record<string, unknown>) => void>(),
+  createSentryHandleRequest:
+    vi.fn<(options: Record<string, unknown>) => void>(),
 }));
 
 // Only the two factories are stubbed, and each keeps the shape the real one

@@ -1,6 +1,9 @@
 import { useState, useCallback } from "react";
 import { parseInput } from "@gofin/core";
-import type { ExpenseFields, ValidateExpenseOptions } from "../../../lib/validate-expense-fields";
+import type {
+  ExpenseFields,
+  ValidateExpenseOptions,
+} from "../../../lib/validate-expense-fields";
 import { validateExpenseFields } from "../../../lib/validate-expense-fields";
 import { toLocalISODate } from "../../../lib/date-utils";
 
@@ -55,7 +58,9 @@ export function useExpenseFields(
   init?: ExpenseFieldsInit,
   currency = "USD",
 ): UseExpenseFieldsResult {
-  const [fields, setFields] = useState<ExpenseFields>(() => buildInitialFields(init));
+  const [fields, setFields] = useState<ExpenseFields>(() =>
+    buildInitialFields(init),
+  );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const setField = useCallback((key: keyof ExpenseFields, value: string) => {

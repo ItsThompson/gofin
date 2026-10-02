@@ -57,10 +57,7 @@ function resolveTags(
  * `groupExact` drops it deliberately, and is ignored without a key so the
  * emitted fingerprint is never empty.
  */
-function resolveFingerprint(
-  kind: ErrorKind,
-  options: ReportOptions,
-): string[] {
+function resolveFingerprint(kind: ErrorKind, options: ReportOptions): string[] {
   if (options.groupExact && options.groupKey) return [options.groupKey];
 
   const groupKey =

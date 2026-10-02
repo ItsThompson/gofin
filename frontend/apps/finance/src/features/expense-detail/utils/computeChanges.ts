@@ -34,7 +34,10 @@ export function computeChanges(
     changes.push({ field: "Name", from: original.name, to: corrected.name });
   }
 
-  if (original.originalTransactionAmountInMinorUnits !== corrected.originalTransactionAmountInMinorUnits) {
+  if (
+    original.originalTransactionAmountInMinorUnits !==
+    corrected.originalTransactionAmountInMinorUnits
+  ) {
     changes.push({
       field: "Amount",
       from: formatCurrency(

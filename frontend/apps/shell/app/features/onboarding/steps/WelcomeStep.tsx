@@ -16,8 +16,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
       <CardHeader>
         <CardTitle className="text-2xl">Welcome to GoFin 🎉</CardTitle>
         <CardDescription>
-          Let&apos;s set up your budget in a few quick steps. You can
-          always change these later in Settings.
+          Let&apos;s set up your budget in a few quick steps. You can always
+          change these later in Settings.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -19,10 +19,13 @@ export const dashboardHandlers = [
     return HttpResponse.json({ summary: mockSummary });
   }),
 
-  http.get<never, never, TagSpendingResponse>("/api/finance/spending/by-tag", async () => {
-    await simulateLatency();
-    return HttpResponse.json({ tagSpending: computeTagSpending() });
-  }),
+  http.get<never, never, TagSpendingResponse>(
+    "/api/finance/spending/by-tag",
+    async () => {
+      await simulateLatency();
+      return HttpResponse.json({ tagSpending: computeTagSpending() });
+    },
+  ),
 
   http.get<never, never, CumulativeSpendResponse>(
     "/api/finance/spending/cumulative",

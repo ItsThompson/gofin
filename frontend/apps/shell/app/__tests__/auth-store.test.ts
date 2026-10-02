@@ -212,7 +212,9 @@ describe("auth store", () => {
         json: () => Promise.resolve({ user: mockUser }),
       });
 
-      const user = await useAuthStore.getState().login("test@example.com", "Password1");
+      const user = await useAuthStore
+        .getState()
+        .login("test@example.com", "Password1");
 
       expect(user).toEqual(mockUser);
       const state = useAuthStore.getState();
@@ -234,7 +236,10 @@ describe("auth store", () => {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "test@example.com", password: "Password1" }),
+        body: JSON.stringify({
+          email: "test@example.com",
+          password: "Password1",
+        }),
       });
     });
 
@@ -385,7 +390,11 @@ describe("auth store", () => {
         isLoading: false,
       });
 
-      const assumedUser = { ...mockUser, id: "assumed-789", username: "assumed" };
+      const assumedUser = {
+        ...mockUser,
+        id: "assumed-789",
+        username: "assumed",
+      };
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -489,7 +498,8 @@ describe("auth store", () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
-        json: () => Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
+        json: () =>
+          Promise.resolve({ code: "UNAUTHORIZED", message: "No session" }),
       });
       await useAuthStore.getState().checkAuth();
       expect(useAuthStore.getState().isAuthenticated).toBe(false);

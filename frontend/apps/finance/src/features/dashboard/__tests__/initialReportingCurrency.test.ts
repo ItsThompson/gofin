@@ -16,25 +16,27 @@ describe("initialReportingCurrency", () => {
 
   it("falls back to the user currency when the defaults currency is unsupported", () => {
     const defaults = buildDefaults({ currency: "ZZZ" });
-    expect(initialReportingCurrency(defaults, buildUser({ currency: "gbp" }))).toBe(
-      "GBP",
-    );
+    expect(
+      initialReportingCurrency(defaults, buildUser({ currency: "gbp" })),
+    ).toBe("GBP");
   });
 
   it("returns an empty string when no supported candidate exists", () => {
     const defaults = buildDefaults({ currency: "ZZZ" });
-    expect(initialReportingCurrency(defaults, buildUser({ currency: "ZZZ" }))).toBe(
-      "",
-    );
+    expect(
+      initialReportingCurrency(defaults, buildUser({ currency: "ZZZ" })),
+    ).toBe("");
     expect(initialReportingCurrency(null, buildUser({ currency: "ZZZ" }))).toBe(
       "",
     );
-    expect(initialReportingCurrency(null, buildUser({ currency: "" }))).toBe("");
+    expect(initialReportingCurrency(null, buildUser({ currency: "" }))).toBe(
+      "",
+    );
   });
 
   it("trims whitespace from the candidate", () => {
-    expect(initialReportingCurrency(null, buildUser({ currency: " usd " }))).toBe(
-      "USD",
-    );
+    expect(
+      initialReportingCurrency(null, buildUser({ currency: " usd " })),
+    ).toBe("USD");
   });
 });

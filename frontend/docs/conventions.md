@@ -52,6 +52,7 @@ export const dashboardApi = {
 ```
 
 Benefits:
+
 - Easy to mock at the boundary in tests (replace the object)
 - No import coupling between features
 - Each feature owns its endpoints
@@ -74,11 +75,11 @@ Everything not in the barrel is private to the feature. ESLint enforces this
 The shared ESLint config (`packages/config/eslint.config.js`) includes
 `no-restricted-imports` rules that prevent reaching into feature internals:
 
-| Restricted pattern | What it blocks |
-|---|---|
-| `**/features/*/components/*` | Direct component imports |
-| `**/features/*/hooks/*` | Direct hook imports |
-| `**/features/*/api` | Direct API module imports |
+| Restricted pattern           | What it blocks            |
+| ---------------------------- | ------------------------- |
+| `**/features/*/components/*` | Direct component imports  |
+| `**/features/*/hooks/*`      | Direct hook imports       |
+| `**/features/*/api`          | Direct API module imports |
 
 Importing from the feature barrel (`features/<name>`) is always allowed.
 

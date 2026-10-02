@@ -127,7 +127,7 @@ describe("reportError", () => {
       });
     });
 
-    it("emits expected as the string \"true\", not a boolean", () => {
+    it('emits expected as the string "true", not a boolean', () => {
       reportError(new Error("boom"), { expected: true });
 
       const expected = onlyCapture().context.tags?.expected;

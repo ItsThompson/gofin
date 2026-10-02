@@ -1,14 +1,6 @@
 import { Button } from "@gofin/ui/components/button";
 import { Input } from "@gofin/ui/components/input";
-import {
-  Check,
-  Loader2,
-  Pencil,
-  Trash2,
-  Plus,
-  X,
-  Shield,
-} from "lucide-react";
+import { Check, Loader2, Pencil, Trash2, Plus, X, Shield } from "lucide-react";
 import { useTagsCrud } from "../hooks/useTagsCrud";
 
 export function TagsSection() {
@@ -26,11 +18,15 @@ export function TagsSection() {
   return (
     <div className="space-y-4">
       {state.error && (
-        <p className="text-sm text-red-600" role="alert">{state.error}</p>
+        <p className="text-sm text-red-600" role="alert">
+          {state.error}
+        </p>
       )}
 
       {state.loadError && (
-        <p className="text-sm text-red-600" role="alert">{state.loadError}</p>
+        <p className="text-sm text-red-600" role="alert">
+          {state.loadError}
+        </p>
       )}
 
       <form onSubmit={actions.handleAddTag} className="flex gap-2">
@@ -43,7 +39,11 @@ export function TagsSection() {
           aria-label="New tag name"
           className="flex-1"
         />
-        <Button type="submit" disabled={state.saving || !state.newTagName.trim()} size="sm">
+        <Button
+          type="submit"
+          disabled={state.saving || !state.newTagName.trim()}
+          size="sm"
+        >
           <Plus className="size-4" />
           Add Tag
         </Button>
@@ -51,13 +51,18 @@ export function TagsSection() {
 
       <ul className="divide-y" role="list">
         {state.tags.map((tag) => (
-          <li key={tag.id} className="flex items-center justify-between py-2 gap-2">
+          <li
+            key={tag.id}
+            className="flex items-center justify-between py-2 gap-2"
+          >
             {state.editing?.id === tag.id ? (
               <div className="flex flex-1 items-center gap-2">
                 <Input
                   type="text"
                   value={state.editing.name}
-                  onChange={(event) => actions.setEditingValue(event.target.value)}
+                  onChange={(event) =>
+                    actions.setEditingValue(event.target.value)
+                  }
                   maxLength={50}
                   aria-label="Edit tag name"
                   className="flex-1"
@@ -121,7 +126,9 @@ export function TagsSection() {
       </ul>
 
       {state.tags.length === 0 && !state.loadError && (
-        <p className="text-sm text-muted-foreground">No tags yet. Add one above.</p>
+        <p className="text-sm text-muted-foreground">
+          No tags yet. Add one above.
+        </p>
       )}
     </div>
   );

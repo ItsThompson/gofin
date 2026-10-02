@@ -50,7 +50,9 @@ describe("SettingsFeature - admin composition", () => {
     // Profile is tabList[0] for an admin, so its fields render without any
     // click. Both the desktop card and the default-expanded mobile accordion
     // render the section, hence getAllByLabelText.
-    const usernameInputs = screen.getAllByLabelText("Username") as HTMLInputElement[];
+    const usernameInputs = screen.getAllByLabelText(
+      "Username",
+    ) as HTMLInputElement[];
     expect(usernameInputs.length).toBeGreaterThanOrEqual(1);
     expect(usernameInputs[0].value).toBe("operator");
 
@@ -91,7 +93,8 @@ describe("SettingsFeature - admin composition", () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ defaults: null, tags: [], data: [], total: 0 }),
+      json: () =>
+        Promise.resolve({ defaults: null, tags: [], data: [], total: 0 }),
     });
 
     // Start as a regular user: activeTab defaults to "budget" (userTabs[0]).
@@ -103,7 +106,9 @@ describe("SettingsFeature - admin composition", () => {
     // Let the regular-user sections settle their on-mount fetches before the
     // role flip so no state update lands on an unmounted section.
     await waitFor(() =>
-      expect(screen.getAllByLabelText("Monthly Budget").length).toBeGreaterThanOrEqual(1),
+      expect(
+        screen.getAllByLabelText("Monthly Budget").length,
+      ).toBeGreaterThanOrEqual(1),
     );
 
     // Role flips to admin mid-session on the SAME component instance (this is
@@ -118,7 +123,9 @@ describe("SettingsFeature - admin composition", () => {
 
     // The fallback resolves activeDefinition to tabList[0] (Profile), so the
     // desktop card renders the profile form instead of an empty card.
-    const usernameInputs = screen.getAllByLabelText("Username") as HTMLInputElement[];
+    const usernameInputs = screen.getAllByLabelText(
+      "Username",
+    ) as HTMLInputElement[];
     expect(usernameInputs.length).toBeGreaterThanOrEqual(1);
     expect(usernameInputs[0].value).toBe("operator");
   });

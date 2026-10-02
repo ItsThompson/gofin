@@ -90,27 +90,38 @@ function buildCategorySummary(
     allocated,
     spent,
     remaining: allocated - spent,
-    percentUsed: allocated > 0 ? Math.round((spent / allocated) * 10000) / 100 : 0,
+    percentUsed:
+      allocated > 0 ? Math.round((spent / allocated) * 10000) / 100 : 0,
   };
 }
 
-export function buildPeriodSummary(overrides?: Partial<PeriodSummary>): PeriodSummary {
+export function buildPeriodSummary(
+  overrides?: Partial<PeriodSummary>,
+): PeriodSummary {
   const totalBudget = overrides?.totalBudget ?? 300000;
   const essentialsPercent = 50;
   const desiresPercent = 30;
   const savingsPercent = 20;
 
-  const essentials = overrides?.essentials ?? buildCategorySummary(totalBudget, essentialsPercent, 0);
-  const desires = overrides?.desires ?? buildCategorySummary(totalBudget, desiresPercent, 0);
-  const savings = overrides?.savings ?? buildCategorySummary(totalBudget, savingsPercent, 0);
+  const essentials =
+    overrides?.essentials ??
+    buildCategorySummary(totalBudget, essentialsPercent, 0);
+  const desires =
+    overrides?.desires ?? buildCategorySummary(totalBudget, desiresPercent, 0);
+  const savings =
+    overrides?.savings ?? buildCategorySummary(totalBudget, savingsPercent, 0);
 
   const totalSpent = overrides?.totalSpent ?? 0;
   const remaining = overrides?.remaining ?? totalBudget - totalSpent;
   const daysInPeriod = overrides?.daysInPeriod ?? 31;
   const daysElapsed = overrides?.daysElapsed ?? 15;
-  const dailySpendRate = overrides?.dailySpendRate ?? (daysElapsed > 0 ? Math.round(totalSpent / daysElapsed) : 0);
+  const dailySpendRate =
+    overrides?.dailySpendRate ??
+    (daysElapsed > 0 ? Math.round(totalSpent / daysElapsed) : 0);
   const daysRemaining = daysInPeriod - daysElapsed;
-  const budgetPace = overrides?.budgetPace ?? (daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0);
+  const budgetPace =
+    overrides?.budgetPace ??
+    (daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0);
 
   return {
     periodId: overrides?.periodId ?? "period-1",
@@ -130,7 +141,9 @@ export function buildPeriodSummary(overrides?: Partial<PeriodSummary>): PeriodSu
   };
 }
 
-export function buildDefaults(overrides?: Partial<DefaultSettings>): DefaultSettings {
+export function buildDefaults(
+  overrides?: Partial<DefaultSettings>,
+): DefaultSettings {
   return {
     userId: "user-1",
     budgetAmount: 300000,
@@ -144,7 +157,9 @@ export function buildDefaults(overrides?: Partial<DefaultSettings>): DefaultSett
   };
 }
 
-export function buildProRataSchedule(overrides?: Partial<ProRataSchedule>): ProRataSchedule {
+export function buildProRataSchedule(
+  overrides?: Partial<ProRataSchedule>,
+): ProRataSchedule {
   return {
     id: nextId("prorata"),
     userId: "user-1",

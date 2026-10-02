@@ -48,12 +48,14 @@ npx turbo test
 ```
 
 ### DOM Testing Patterns
+
 - `fireEvent.submit(form)` bypasses HTML5 `required` validation (use when testing app's own validation logic)
 - `fireEvent.change(select, { target: { value } })` for native `<select>` (not `user.selectOptions`)
 - Dual-render responsive pages (desktop table + mobile list): use `getAllByText` not `getByText`
 - URL-based `createMockApi` for tests with parallel fetches (no sequential mock counting)
 
 ### Shell App Type Checking
+
 ```bash
 npx react-router typegen && npx tsc -b   # must run before committing shell changes
 ```

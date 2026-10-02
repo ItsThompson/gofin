@@ -54,7 +54,8 @@ export function validateExpenseFields(
       options.currency,
     );
     if (!precisionValidation.isValid) {
-      errors.amount = precisionValidation.fieldError ?? "Invalid amount precision";
+      errors.amount =
+        precisionValidation.fieldError ?? "Invalid amount precision";
     }
   }
 

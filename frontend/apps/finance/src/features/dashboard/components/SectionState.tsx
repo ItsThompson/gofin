@@ -52,12 +52,14 @@ export function SectionState<T>({
   }
 
   if (state.status === "empty") {
-    return emptyContent ?? (
-      <Card>
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          {emptyMessage}
-        </CardContent>
-      </Card>
+    return (
+      emptyContent ?? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            {emptyMessage}
+          </CardContent>
+        </Card>
+      )
     );
   }
 

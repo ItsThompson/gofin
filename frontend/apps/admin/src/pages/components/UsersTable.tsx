@@ -39,11 +39,21 @@ export function UsersTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left">
-                <th className="pb-2 pr-4 font-medium text-muted-foreground">Username</th>
-                <th className="pb-2 pr-4 font-medium text-muted-foreground">Email</th>
-                <th className="pb-2 pr-4 font-medium text-muted-foreground">Role</th>
-                <th className="pb-2 pr-4 font-medium text-muted-foreground">Registered</th>
-                <th className="pb-2 font-medium text-muted-foreground">Actions</th>
+                <th className="pb-2 pr-4 font-medium text-muted-foreground">
+                  Username
+                </th>
+                <th className="pb-2 pr-4 font-medium text-muted-foreground">
+                  Email
+                </th>
+                <th className="pb-2 pr-4 font-medium text-muted-foreground">
+                  Role
+                </th>
+                <th className="pb-2 pr-4 font-medium text-muted-foreground">
+                  Registered
+                </th>
+                <th className="pb-2 font-medium text-muted-foreground">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -63,7 +73,9 @@ export function UsersTable({
                         </span>
                       )}
                     </td>
-                    <td className="py-3 pr-4 text-muted-foreground">{user.email}</td>
+                    <td className="py-3 pr-4 text-muted-foreground">
+                      {user.email}
+                    </td>
                     <td className="py-3 pr-4">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -85,7 +97,12 @@ export function UsersTable({
                           deletionState={deletionStates[user.id]}
                           assumingUserId={assumingUserId}
                           onAssume={onAssume}
-                          onDelete={(targetUser) => onDelete({ id: targetUser.id, username: targetUser.username })}
+                          onDelete={(targetUser) =>
+                            onDelete({
+                              id: targetUser.id,
+                              username: targetUser.username,
+                            })
+                          }
                         />
                       )}
                     </td>

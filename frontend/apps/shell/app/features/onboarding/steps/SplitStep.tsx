@@ -56,8 +56,8 @@ export function SplitStep({
       <CardHeader>
         <CardTitle className="text-2xl">E/D/S Split</CardTitle>
         <CardDescription>
-          How do you want to divide your budget between Essentials,
-          Desires, and Savings? The three percentages must add up to 100%.
+          How do you want to divide your budget between Essentials, Desires, and
+          Savings? The three percentages must add up to 100%.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -107,20 +107,29 @@ export function SplitStep({
               aria-invalid={!!splitError}
             />
           </FormField>
-          <FormDescription>
-            Total: {total}%
-          </FormDescription>
+          <FormDescription>Total: {total}%</FormDescription>
           {splitError && <FormMessage>{splitError}</FormMessage>}
           {error && <FormMessage>{error}</FormMessage>}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onBack} type="button" className="flex-1">
+            <Button
+              variant="outline"
+              onClick={onBack}
+              type="button"
+              className="flex-1"
+            >
               Back
             </Button>
             <Button type="submit" className="flex-1" disabled={submitting}>
               {submitting ? "Saving..." : "Complete Setup"}
             </Button>
           </div>
-          <Button variant="ghost" onClick={onSkip} type="button" className="w-full" disabled={submitting}>
+          <Button
+            variant="ghost"
+            onClick={onSkip}
+            type="button"
+            className="w-full"
+            disabled={submitting}
+          >
             Skip (50/30/20)
           </Button>
           <p className="text-center text-xs text-muted-foreground">

@@ -67,7 +67,8 @@ export function setNewExpenseFetchMock(
       ),
   );
   const respondProRataPost = toResponder(
-    overrides.proRataPost ?? jsonResponse({ schedule: { id: "prorata-1" } }, 201),
+    overrides.proRataPost ??
+      jsonResponse({ schedule: { id: "prorata-1" } }, 201),
   );
   const respondFallback = toResponder(
     overrides.fallback ?? jsonResponse({ message: "Unhandled request" }, 404),

@@ -11,7 +11,10 @@ describe("DashboardFeature", () => {
       globalThis.fetch = createMockApi({
         "/api/finance/periods/current": {
           status: 500,
-          body: { code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" },
+          body: {
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Database connection failed",
+          },
         },
       }) as unknown as typeof fetch;
       renderDashboard();

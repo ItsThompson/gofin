@@ -11,7 +11,9 @@ function isProtectedUser(username: string): boolean {
 
 interface UserActionsCellProps {
   user: AdminUserSummary;
-  deletionState: { jobId: string; status: DeletionStatus; error?: string } | undefined;
+  deletionState:
+    | { jobId: string; status: DeletionStatus; error?: string }
+    | undefined;
   assumingUserId: string | null;
   onAssume: (userId: string) => void;
   onDelete: (user: AdminUserSummary) => void;

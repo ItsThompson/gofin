@@ -19,9 +19,10 @@ export interface PasswordFormActions {
   handleSubmit: (event: FormEvent) => void;
 }
 
-export function usePasswordForm(
-  onUserUpdated?: () => void,
-): { state: PasswordFormState; actions: PasswordFormActions } {
+export function usePasswordForm(onUserUpdated?: () => void): {
+  state: PasswordFormState;
+  actions: PasswordFormActions;
+} {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);

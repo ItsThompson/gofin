@@ -1,6 +1,10 @@
 import { useState } from "react";
 import type { TagSpending } from "@gofin/core";
-import type { BreakdownChart, ExpenseSuggestionsState, SectionState } from "../types";
+import type {
+  BreakdownChart,
+  ExpenseSuggestionsState,
+  SectionState,
+} from "../types";
 import { SectionState as SectionStateView } from "./SectionState";
 export type { BreakdownChart } from "../types";
 import {
@@ -34,7 +38,8 @@ export function BreakdownSection({
   onTagSpendingRetry,
   tagSpendingState,
 }: BreakdownSectionProps) {
-  const [uncontrolledChart, setUncontrolledChart] = useState<BreakdownChart>("tag-spending");
+  const [uncontrolledChart, setUncontrolledChart] =
+    useState<BreakdownChart>("tag-spending");
   const selectedChart = selectedChartProp ?? uncontrolledChart;
   const handleChartChange = (chart: BreakdownChart) => {
     setUncontrolledChart(chart);
@@ -52,29 +57,45 @@ export function BreakdownSection({
             }
           }}
         >
-          <SelectTrigger aria-label="Select breakdown chart" className="text-base">
+          <SelectTrigger
+            aria-label="Select breakdown chart"
+            className="text-base"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tag-spending" className="text-base">Spending by Tag</SelectItem>
-            <SelectItem value="repeated-expenses" className="text-base">Repeated Expenses</SelectItem>
+            <SelectItem value="tag-spending" className="text-base">
+              Spending by Tag
+            </SelectItem>
+            <SelectItem value="repeated-expenses" className="text-base">
+              Repeated Expenses
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {selectedChart === "tag-spending" && (tagSpendingState ? (
-        <SectionStateView
-          label="Tag spending"
-          state={tagSpendingState}
-          onRetry={onTagSpendingRetry ?? (() => undefined)}
-          emptyMessage="No tag spending is available."
-        >
-          {(spending) => <TagSpendingChart tagSpending={[...spending]} currency={currency} />}
-        </SectionStateView>
-      ) : (
-        <TagSpendingChart tagSpending={tagSpending} currency={currency} />
-      ))}
+      {selectedChart === "tag-spending" &&
+        (tagSpendingState ? (
+          <SectionStateView
+            label="Tag spending"
+            state={tagSpendingState}
+            onRetry={onTagSpendingRetry ?? (() => undefined)}
+            emptyMessage="No tag spending is available."
+          >
+            {(spending) => (
+              <TagSpendingChart
+                tagSpending={[...spending]}
+                currency={currency}
+              />
+            )}
+          </SectionStateView>
+        ) : (
+          <TagSpendingChart tagSpending={tagSpending} currency={currency} />
+        ))}
       {selectedChart === "repeated-expenses" && (
-        <ExpenseFrecencyChart {...expenseFrecencyData} onRetry={onSuggestionsRetry} />
+        <ExpenseFrecencyChart
+          {...expenseFrecencyData}
+          onRetry={onSuggestionsRetry}
+        />
       )}
     </div>
   );

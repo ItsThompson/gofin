@@ -1,7 +1,4 @@
-import {
-  flexRender,
-  type Table,
-} from "@tanstack/react-table";
+import { flexRender, type Table } from "@tanstack/react-table";
 import { Card, CardContent } from "@gofin/ui/components/card";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import type { ExpenseRow } from "../../../lib/expense-table-columns";

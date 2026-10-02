@@ -119,11 +119,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
     return user;
   },
 
-  register: async (
-    username: string,
-    email: string,
-    password: string,
-  ) => {
+  register: async (username: string, email: string, password: string) => {
     const response = await apiClient<AuthResponse>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify({ username, email, password }),

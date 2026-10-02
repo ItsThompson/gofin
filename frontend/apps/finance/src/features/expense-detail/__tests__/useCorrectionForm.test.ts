@@ -320,7 +320,9 @@ describe("useCorrectionForm", () => {
       });
 
       expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({ amountInTransactionCurrencyMinorUnits: 1299 }),
+        expect.objectContaining({
+          amountInTransactionCurrencyMinorUnits: 1299,
+        }),
       );
     });
 
@@ -411,7 +413,9 @@ describe("useCorrectionForm", () => {
       });
 
       expect(result.current.state.transactionCurrencyCode).toBe("JPY");
-      expect(result.current.state.fieldErrors.amount).toBe("Amount must be a whole JPY amount");
+      expect(result.current.state.fieldErrors.amount).toBe(
+        "Amount must be a whole JPY amount",
+      );
     });
   });
 });

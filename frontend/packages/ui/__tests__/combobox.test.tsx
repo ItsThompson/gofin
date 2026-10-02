@@ -11,7 +11,11 @@ import {
   ComboboxList,
 } from "../src/components/combobox";
 
-function TestCombobox({ onSelect = () => {} }: { onSelect?: (value: string) => void }) {
+function TestCombobox({
+  onSelect = () => {},
+}: {
+  onSelect?: (value: string) => void;
+}) {
   return (
     <Combobox>
       <label htmlFor="expense-name">Expense name</label>
@@ -45,8 +49,13 @@ describe("Combobox", () => {
     await user.click(input);
 
     expect(input).toHaveAttribute("aria-expanded", "true");
-    expect(input).toHaveAttribute("aria-controls", screen.getByRole("listbox").id);
-    expect(screen.getByRole("option", { name: /Coffee.*Frecency score: 12/ })).toBeInTheDocument();
+    expect(input).toHaveAttribute(
+      "aria-controls",
+      screen.getByRole("listbox").id,
+    );
+    expect(
+      screen.getByRole("option", { name: /Coffee.*Frecency score: 12/ }),
+    ).toBeInTheDocument();
     expect(screen.getByText("No matches")).toBeInTheDocument();
   });
 
@@ -59,12 +68,18 @@ describe("Combobox", () => {
     await user.click(input);
     await user.keyboard("{ArrowDown}");
 
-    expect(screen.getByRole("option", { name: /Coffee/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: /Coffee/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(onSelect).not.toHaveBeenCalled();
 
     await user.keyboard("{ArrowDown}{ArrowUp}");
 
-    expect(screen.getByRole("option", { name: /Coffee/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: /Coffee/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(onSelect).not.toHaveBeenCalled();
   });
 

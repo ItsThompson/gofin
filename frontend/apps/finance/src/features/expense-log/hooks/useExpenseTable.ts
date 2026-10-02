@@ -9,7 +9,10 @@ import {
   type ColumnFiltersState,
   type Table,
 } from "@tanstack/react-table";
-import { buildExpenseColumns, type ExpenseRow } from "../../../lib/expense-table-columns";
+import {
+  buildExpenseColumns,
+  type ExpenseRow,
+} from "../../../lib/expense-table-columns";
 
 export interface ExpenseTableState {
   table: Table<ExpenseRow>;
@@ -19,16 +22,11 @@ export interface ExpenseTableState {
  * Manages TanStack Table state: sorting, column filters, and pagination.
  * Returns the table instance to be passed to presentation components.
  */
-export function useExpenseTable(
-  data: ExpenseRow[],
-): ExpenseTableState {
+export function useExpenseTable(data: ExpenseRow[]): ExpenseTableState {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
-  const columns = useMemo(
-    () => buildExpenseColumns(),
-    [],
-  );
+  const columns = useMemo(() => buildExpenseColumns(), []);
 
   const table = useReactTable({
     data,

@@ -100,7 +100,10 @@ export function useNewExpenseForm(
       // toast instead of the generic failure message. The form error banner
       // (state.error) already carries the server's guidance copy. Form values
       // are preserved so the user can retry or manually convert.
-      if (cause instanceof ApiRequestError && cause.code === "CONVERSION_UNAVAILABLE") {
+      if (
+        cause instanceof ApiRequestError &&
+        cause.code === "CONVERSION_UNAVAILABLE"
+      ) {
         toast.error(message);
         return;
       }

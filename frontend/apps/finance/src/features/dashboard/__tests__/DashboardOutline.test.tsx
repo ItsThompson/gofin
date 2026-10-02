@@ -70,7 +70,9 @@ describe("DashboardOutline", () => {
 
     render(<DashboardOutline rootRef={rootRef} />);
 
-    expect(screen.queryByRole("navigation", { name: "Dashboard sections" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Dashboard sections" }),
+    ).not.toBeInTheDocument();
   });
 
   it("collects visible outline nodes from the dashboard root in DOM order", async () => {
@@ -85,25 +87,41 @@ describe("DashboardOutline", () => {
     render(<DashboardOutline rootRef={rootRef} />);
 
     const links = await screen.findAllByRole("link");
-    expect(links.map((link) => link.textContent)).toEqual(["Summary", "Trends", "Breakdown"]);
+    expect(links.map((link) => link.textContent)).toEqual([
+      "Summary",
+      "Trends",
+      "Breakdown",
+    ]);
   });
 
   it("excludes matching nodes outside the dashboard root", async () => {
     appendVisibleElement(document.body, "outside", "Outside");
-    const rootRef = createDashboardRoot(<section id="summary" data-outline-title="Summary" />);
+    const rootRef = createDashboardRoot(
+      <section id="summary" data-outline-title="Summary" />,
+    );
 
     render(<DashboardOutline rootRef={rootRef} />);
 
-    expect(await screen.findByRole("link", { name: "Summary" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Outside" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Summary" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Outside" }),
+    ).not.toBeInTheDocument();
   });
 
   it("nests child items under containing parent items", async () => {
     const rootRef = createDashboardRoot(
       <section id="summary" data-outline-title="Summary">
-        <section id="budget-allocations" data-outline-title="Budget Allocations" />
+        <section
+          id="budget-allocations"
+          data-outline-title="Budget Allocations"
+        />
         <section id="spending-pace" data-outline-title="Spending Pace" />
-        <section id="historical-comparison" data-outline-title="Historical Comparison" />
+        <section
+          id="historical-comparison"
+          data-outline-title="Historical Comparison"
+        />
       </section>,
     );
 
@@ -147,39 +165,72 @@ describe("DashboardOutline", () => {
 
     render(<DashboardOutline rootRef={rootRef} />);
 
-    expect(await screen.findByRole("link", { name: "Summary" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Spending Pace" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Summary" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Spending Pace" }),
+    ).not.toBeInTheDocument();
   });
 
   it("adds conditional outline nodes after mutation observation", async () => {
-    const rootRef = createDashboardRoot(<section id="summary" data-outline-title="Summary" />);
+    const rootRef = createDashboardRoot(
+      <section id="summary" data-outline-title="Summary" />,
+    );
 
     render(<DashboardOutline rootRef={rootRef} />);
-    expect(await screen.findByRole("link", { name: "Summary" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Summary" }),
+    ).toBeInTheDocument();
 
-    appendVisibleElement(rootRef.current, "upcoming-prorata", "Upcoming Pro-rata");
-    mutationObservers[0].callback([], mutationObservers[0] as unknown as MutationObserver);
+    appendVisibleElement(
+      rootRef.current,
+      "upcoming-prorata",
+      "Upcoming Pro-rata",
+    );
+    mutationObservers[0].callback(
+      [],
+      mutationObservers[0] as unknown as MutationObserver,
+    );
 
-    expect(await screen.findByRole("link", { name: "Upcoming Pro-rata" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Upcoming Pro-rata" }),
+    ).toBeInTheDocument();
   });
 
   it("updates outline nodes after observed attribute changes", async () => {
-    const rootRef = createDashboardRoot(<section id="summary" data-outline-title="Summary" />);
+    const rootRef = createDashboardRoot(
+      <section id="summary" data-outline-title="Summary" />,
+    );
 
     render(<DashboardOutline rootRef={rootRef} />);
     await screen.findByRole("link", { name: "Summary" });
 
-    rootRef.current?.querySelector("#summary")?.setAttribute("data-outline-title", "Overview");
-    mutationObservers[0].callback([], mutationObservers[0] as unknown as MutationObserver);
+    rootRef.current
+      ?.querySelector("#summary")
+      ?.setAttribute("data-outline-title", "Overview");
+    mutationObservers[0].callback(
+      [],
+      mutationObservers[0] as unknown as MutationObserver,
+    );
 
-    expect(await screen.findByRole("link", { name: "Overview" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Summary" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Overview" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Summary" }),
+    ).not.toBeInTheDocument();
 
     rootRef.current?.querySelector("#summary")?.setAttribute("hidden", "");
-    mutationObservers[0].callback([], mutationObservers[0] as unknown as MutationObserver);
+    mutationObservers[0].callback(
+      [],
+      mutationObservers[0] as unknown as MutationObserver,
+    );
 
     await waitFor(() => {
-      expect(screen.queryByRole("navigation", { name: "Dashboard sections" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("navigation", { name: "Dashboard sections" }),
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -196,11 +247,15 @@ describe("DashboardOutline", () => {
     const trends = screen.getByRole("link", { name: "Trends" });
 
     emitIntersection("summary", true);
-    await waitFor(() => expect(summary).toHaveAttribute("aria-current", "location"));
+    await waitFor(() =>
+      expect(summary).toHaveAttribute("aria-current", "location"),
+    );
 
     emitIntersection("summary", false);
     emitIntersection("trends", true);
-    await waitFor(() => expect(trends).toHaveAttribute("aria-current", "location"));
+    await waitFor(() =>
+      expect(trends).toHaveAttribute("aria-current", "location"),
+    );
     expect(summary).not.toHaveAttribute("aria-current");
   });
 
@@ -218,7 +273,9 @@ describe("DashboardOutline", () => {
     emitIntersection("summary", true);
     emitIntersection("spending-pace", true);
 
-    await waitFor(() => expect(spendingPace).toHaveAttribute("aria-current", "location"));
+    await waitFor(() =>
+      expect(spendingPace).toHaveAttribute("aria-current", "location"),
+    );
     expect(summary).not.toHaveAttribute("aria-current");
   });
 });
@@ -237,7 +294,13 @@ describe("collectDashboardOutline", () => {
       {
         id: "summary",
         title: "Summary",
-        children: [{ id: "budget-allocations", title: "Budget Allocations", children: [] }],
+        children: [
+          {
+            id: "budget-allocations",
+            title: "Budget Allocations",
+            children: [],
+          },
+        ],
       },
       { id: "trends", title: "Trends", children: [] },
     ]);
@@ -272,17 +335,24 @@ describe("chooseActiveDashboardOutlineItem", () => {
       {
         id: "summary",
         title: "Summary",
-        children: [{ id: "spending-pace", title: "Spending Pace", children: [] }],
+        children: [
+          { id: "spending-pace", title: "Spending Pace", children: [] },
+        ],
       },
     ];
 
-    expect(chooseActiveDashboardOutlineItem(items, new Set(["summary", "spending-pace"]))).toBe(
-      "spending-pace",
-    );
+    expect(
+      chooseActiveDashboardOutlineItem(
+        items,
+        new Set(["summary", "spending-pace"]),
+      ),
+    ).toBe("spending-pace");
   });
 });
 
-function createDashboardRoot(children: ReactNode): RefObject<HTMLDivElement | null> {
+function createDashboardRoot(
+  children: ReactNode,
+): RefObject<HTMLDivElement | null> {
   const root = document.createElement("div");
   document.body.append(root);
   const rootRef = createRef<HTMLDivElement>();
@@ -312,7 +382,10 @@ function appendVisibleElement(
 }
 
 function mockVisibleMeasurements(root: HTMLElement): void {
-  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+  const elements = [
+    root,
+    ...Array.from(root.querySelectorAll<HTMLElement>("*")),
+  ];
 
   for (const element of elements) {
     element.getBoundingClientRect = vi.fn(() => ({
