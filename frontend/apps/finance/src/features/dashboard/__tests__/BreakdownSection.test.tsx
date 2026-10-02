@@ -3,14 +3,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { BreakdownSection } from "../components/BreakdownSection";
-import type { ExpenseFrecencyDataState } from "../hooks/useExpenseFrecencyData";
+import type { ExpenseSuggestionsState } from "../types";
 
 const mockTagSpending = [
   { tagId: "tag-food", tagName: "Food", amount: 50000, percentOfTotal: 91.74 },
   { tagId: "tag-social", tagName: "Social", amount: 4500, percentOfTotal: 8.26 },
 ];
 
-const mockFrecencyData: ExpenseFrecencyDataState = {
+const mockFrecencyData: ExpenseSuggestionsState = {
   status: "success",
   suggestions: [
     {

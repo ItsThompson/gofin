@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@gofin/ui/components/card";
 import { Button } from "@gofin/ui/components/button";
-import type { ExpenseFrecencyDataState } from "../../hooks/useExpenseFrecencyData";
+import type { ExpenseSuggestionsState } from "../../types";
 import { ExpenseFrecencyTooltip } from "./ExpenseFrecencyTooltip";
 import {
   ACTIVE_RECENCY_BUCKETS,
@@ -24,7 +24,7 @@ import {
 } from "./expenseFrecencyChartData";
 import type { ExpenseFrecencyChartDatum } from "./expenseFrecencyChartData";
 
-interface ExpenseFrecencyChartProps extends ExpenseFrecencyDataState {
+interface ExpenseFrecencyChartProps extends ExpenseSuggestionsState {
   onRetry?: () => void;
 }
 

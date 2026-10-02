@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { buildPeriod, buildPeriodSummary, createMockApi, mockSequence } from "@gofin/test-utils";
 import { renderDashboard } from "./render";
@@ -105,6 +105,41 @@ describe("DashboardFeature - Budget Settings Editor Save", () => {
     expect((putCall!.body as { essentialsPercent: number }).essentialsPercent).toBe(60);
     expect((putCall!.body as { desiresPercent: number }).desiresPercent).toBe(25);
     expect((putCall!.body as { savingsPercent: number }).savingsPercent).toBe(15);
+  });
+
+  it("gates stale section content while an edited period reloads", async () => {
+    const updatedPeriod = buildPeriod({ ...testPeriod, budgetAmount: 400000 });
+    let summaryCalls = 0;
+    let resolveUpdatedSummary!: (response: Response) => void;
+    const mockApi = createMockApi({
+      "/api/finance/periods/current": { body: { period: testPeriod } },
+      ...dashboardDataRoutes(),
+      [`/api/finance/periods/${testPeriod.id}`]: { body: { period: updatedPeriod } },
+    });
+    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/api/finance/summary")) {
+        summaryCalls += 1;
+        if (summaryCalls > 1) return new Promise<Response>((resolve) => { resolveUpdatedSummary = resolve; });
+        return new Response(JSON.stringify({ summary: testSummary }), { headers: { "Content-Type": "application/json" } });
+      }
+      return mockApi(input, init);
+    }) as typeof fetch;
+    renderDashboard();
+    await waitFor(() => expect(screen.getByText("$3,000.00")).toBeInTheDocument());
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText("Budget Settings"));
+    const budgetInput = screen.getByLabelText("Monthly Budget");
+    await user.clear(budgetInput);
+    await user.type(budgetInput, "4000");
+    await user.click(screen.getByText("Save Changes"));
+
+    await waitFor(() => expect(summaryCalls).toBe(2));
+    expect(screen.queryByText("$3,000.00")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Summary loading")).toBeInTheDocument();
+
+    await act(async () => resolveUpdatedSummary(new Response(JSON.stringify({ summary: buildPeriodSummary({ ...testSummary, totalBudget: 400000, remaining: 400000 }) }), { headers: { "Content-Type": "application/json" } })));
+    await waitFor(() => expect(screen.getAllByText("$4,000.00").length).toBeGreaterThan(0));
   });
 
   it("uses the period currency precision for budget input", async () => {

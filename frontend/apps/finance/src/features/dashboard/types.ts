@@ -2,16 +2,6 @@ import type {
   BudgetPeriod,
   DefaultSettings,
   CreatePeriodRequest,
-  PeriodSummary,
-  TagSpending,
-  CumulativeSpendPoint,
-  Expense,
-  HistoricalComparison,
-  ProRataSchedule,
-  TrendPoint,
-  HealthScore,
-  HealthScoreConfigureBudget,
-  HealthScoreTrendPoint,
 } from "@gofin/core";
 import type { ActiveExpenseSuggestion } from "../expense-autocomplete/types";
 
@@ -75,31 +65,6 @@ export interface ExpenseSuggestionsState {
   errorMessage: string | null;
 }
 
-export type DashboardSectionKey =
-  | "summary"
-  | "byTag"
-  | "cumulative"
-  | "recentExpenses"
-  | "comparison"
-  | "upcomingProRata"
-  | "trends"
-  | "healthScore"
-  | "healthScoreTrend"
-  | "suggestions";
-
-export interface DashboardSectionState {
-  summary: SectionState<PeriodSummary>;
-  byTag: SectionState<readonly TagSpending[]>;
-  cumulative: SectionState<readonly CumulativeSpendPoint[]>;
-  recentExpenses: SectionState<readonly Expense[]>;
-  comparison: SectionState<HistoricalComparison>;
-  upcomingProRata: SectionState<readonly ProRataSchedule[]>;
-  trends: SectionState<readonly TrendPoint[]>;
-  healthScore: SectionState<HealthScore | HealthScoreConfigureBudget>;
-  healthScoreTrend: SectionState<readonly HealthScoreTrendPoint[]>;
-  suggestions: ExpenseSuggestionsState;
-}
-
 export type DashboardControllerStatus = "active" | "loading" | "error" | "no-period" | "not-found";
 
 export type DashboardPeriodState =
@@ -116,20 +81,4 @@ export interface DashboardPeriodRecovery {
   creating: boolean;
   createError: string | null;
   clearCreateError: () => void;
-}
-
-export interface DashboardDataResult {
-  sections: DashboardSectionState;
-  period: BudgetPeriod;
-  periodStatus: DashboardControllerStatus;
-  periodError: string | null;
-  periodRecovery: DashboardPeriodRecovery | null;
-  desktopVisible: boolean;
-  refresh: () => void;
-  retry: (section: DashboardSectionKey) => void;
-  replacePeriodAfterEdit: (period: BudgetPeriod) => void;
-  trendMonths: 6 | 12;
-  setTrendMonths: (months: 6 | 12) => void;
-  breakdownChart: BreakdownChart;
-  selectBreakdown: (chart: BreakdownChart) => void;
 }
