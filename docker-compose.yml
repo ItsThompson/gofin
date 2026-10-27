@@ -36,8 +36,8 @@ services:
     restart: unless-stopped
 
   cloudflared-app:
-    # Pinned 2026-05-12. Check for updates quarterly.
-    image: cloudflare/cloudflared:2025.4.0
+    # Pinned 2026-10-27. Check for updates quarterly.
+    image: cloudflare/cloudflared:2026.10.5
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-app
     volumes:
       - ./deployments/cloudflare/config-app.rendered.yml:/etc/cloudflared/config.yml:ro
@@ -471,8 +471,8 @@ services:
     restart: unless-stopped
 
   cloudflared-grafana:
-    # Pinned 2026-05-12. Check for updates quarterly.
-    image: cloudflare/cloudflared:2025.4.0
+    # Pinned 2026-10-27. Check for updates quarterly.
+    image: cloudflare/cloudflared:2026.10.5
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run gofin-grafana
     volumes:
       - ./deployments/cloudflare/config-grafana.rendered.yml:/etc/cloudflared/config.yml:ro
