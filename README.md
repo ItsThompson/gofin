@@ -19,6 +19,12 @@ micro-frontends, and an immutable expense ledger.
 ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/ItsThompson/gofin/main)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/ItsThompson/gofin)
 
+<p>
+  <a href="https://0rwx.com/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://0rwx.com/static/AI-W-dark.svg"><img src="https://0rwx.com/static/AI-W-light.svg" alt="0rwx WRITE: AI has read-write permissions" width="64" height="64"></picture></a>
+  <br>
+  <sub><strong>0rwx WRITE</strong>: AI has read-write permissions</sub>
+</p>
+
 </div>
 
 ## Showcase
