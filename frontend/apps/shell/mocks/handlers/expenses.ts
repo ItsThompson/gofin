@@ -34,7 +34,7 @@ export const expensesHandlers = [
     async ({ request }) => {
       await simulateLatency();
       const body = await request.json();
-      const { amount, ...rest } = body;
+      const { amountInTransactionCurrencyMinorUnits: amount, ...rest } = body;
       const expense: Expense = {
         id: crypto.randomUUID(),
         userId: currentMockUser.id,
@@ -70,7 +70,7 @@ export const expensesHandlers = [
     async ({ request, params }) => {
       await simulateLatency();
       const body = await request.json();
-      const { amount, ...rest } = body;
+      const { amountInTransactionCurrencyMinorUnits: amount, ...rest } = body;
       const original = mockExpenses.find((e) => e.id === params.id);
       const base: Expense = original ?? {
         id: params.id,

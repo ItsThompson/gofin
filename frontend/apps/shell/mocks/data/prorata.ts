@@ -9,7 +9,7 @@ export const mockUpcomingProRata: ProRataSchedule[] = [
     userId: adminUser.id,
     proRataGroup: uuid(),
     name: "New laptop",
-    amount: 50000, // $500 installment
+    installmentAmountInMinorUnits: 50000,
     transactionCurrencyCode: "USD",
     expenseType: "essentials",
     tagId: tagIds.selfInvestment,
