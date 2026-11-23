@@ -14,12 +14,42 @@ import { isHydratedServerError } from "@/lib/hydrated-server-error";
 import type { Route } from "./+types/root";
 import "./index.css";
 
+export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+  {
+    rel: "icon",
+    type: "image/png",
+    sizes: "16x16",
+    href: "/favicon/favicon-16x16.png",
+  },
+  {
+    rel: "icon",
+    type: "image/png",
+    sizes: "32x32",
+    href: "/favicon/favicon-32x32.png",
+  },
+  {
+    rel: "icon",
+    type: "image/svg+xml",
+    sizes: "any",
+    href: "/favicon/favicon.svg",
+  },
+  {
+    rel: "apple-touch-icon",
+    sizes: "180x180",
+    href: "/favicon/apple-touch-icon.png",
+  },
+  { rel: "manifest", href: "/site.webmanifest" },
+];
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <meta name="msapplication-TileColor" content="#ffffff" />
         <Meta />
         <Links />
       </head>
